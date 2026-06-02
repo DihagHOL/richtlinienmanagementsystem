@@ -482,49 +482,152 @@ async function setStatus(id, status) {
 ═══════════════════════════════════════════════════ */
 
 async function initCompliance() {
-  const sel = document.getElementById('compliance-policy');
-  const body = document.getElementById('compliance-body');
-  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
-  sel.innerHTML = pubs.map(p => `<option value="${p.id}">${esc(p.title)} (v${esc(p.version)})</option>`).join('');
-  if (!pubs.length) { body.innerHTML = emptyState('Keine veröffentlichten Pflicht-Richtlinien.'); return; }
-
-  body.innerHTML = '<div class="doc-loading">Lade Mitarbeiter & Bestätigungen …</div>';
+  const mount = document.getElementById('compliance-mount');
+  if (!mount) return;
+  mount.innerHTML = '<div class="doc-loading">Lade Mitarbeiter & Bestätigungen …</div>';
   try {
     if (!AdminState.members) AdminState.members = await spGetMembers();
     AdminState.allAcks = await spGetAcknowledgements();   // alle Nutzer
-    renderComplianceDetail();
+    renderCompliance();
   } catch (e) {
-    body.innerHTML = `<div class="col-warning" style="display:block">Fehler beim Laden: ${esc(e.message)}<br>
+    mount.innerHTML = `<div class="col-warning" style="display:block">Fehler beim Laden: ${esc(e.message)}<br>
       Für die Mitarbeiterliste wird die Graph-Berechtigung <b>User.Read.All</b> (Admin-Consent) benötigt.</div>`;
   }
 }
 
-function renderComplianceDetail() {
-  const id = document.getElementById('compliance-policy').value;
-  const p = State.policies.find(x => x.id === id);
-  const body = document.getElementById('compliance-body');
-  if (!p) { body.innerHTML = ''; return; }
+function setComplianceMode(m) { AdminState.complianceMode = m; renderCompliance(); }
 
-  // Soll-Gruppe = nur Mitarbeiter, für deren Rolle/Abteilung die Richtlinie gilt
+/** Rendert Modus-Umschalter + passenden Inhalt in #compliance-mount. */
+function renderCompliance() {
+  const mount = document.getElementById('compliance-mount');
+  if (!mount) return;
+  const mode = AdminState.complianceMode || 'overview';
+  mount.innerHTML = `
+    <div class="view-toolbar">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm ${mode === 'overview' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('overview')">Gesamtübersicht</button>
+        <button class="btn btn-sm ${mode === 'single' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('single')">Einzelne Richtlinie</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      ${mode === 'overview'
+        ? `<button class="btn btn-outline btn-sm" onclick="exportOverviewCsv()">CSV-Export (gesamt)</button>`
+        : `<select id="compliance-policy" class="sort-select" onchange="renderComplianceDetail()"></select>
+           <button class="btn btn-outline btn-sm" onclick="exportComplianceCsv()">CSV-Export</button>`}
+    </div>
+    <div id="compliance-body"></div>`;
+  if (mode === 'overview') {
+    renderComplianceOverview();
+  } else {
+    fillPolicySelect();
+    const sel = document.getElementById('compliance-policy');
+    if (sel && AdminState._jumpToPolicy) { sel.value = AdminState._jumpToPolicy; AdminState._jumpToPolicy = null; }
+    renderComplianceDetail();
+  }
+}
+
+function fillPolicySelect() {
+  const sel = document.getElementById('compliance-policy');
+  if (!sel) return;
+  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  sel.innerHTML = pubs.length
+    ? pubs.map(p => `<option value="${p.id}">${esc(p.title)} (v${esc(p.version)})</option>`).join('')
+    : '<option value="">— keine —</option>';
+}
+
+/** Soll/Ist-Zeilen einer Richtlinie (Zielgruppe = passende Rollen; Ablauf zählt als offen). */
+function _complianceRowsFor(p) {
   const members = (AdminState.members || []).filter(m =>
     policyMatchesRoles(p.zielgruppen, effectiveRoles(m.upn, m.department)));
-  const acks = (AdminState.allAcks || []).filter(a => a.richtlinieId === p.id && a.version === p.version);
   const byUpn = {};
-  acks.forEach(a => { byUpn[(a.benutzerUpn || '').toLowerCase()] = a; });
-
-  const rows = members.map(m => {
+  (AdminState.allAcks || [])
+    .filter(a => a.richtlinieId === p.id && a.version === p.version)
+    .forEach(a => { byUpn[(a.benutzerUpn || '').toLowerCase()] = a; });
+  return members.map(m => {
     const a = byUpn[m.upn.toLowerCase()];
     let st = 'offen', date = '', score = null;
-    if (a) {
+    if (a && !(typeof isExpired === 'function' && isExpired(p, a))) {
       score = a.quizScore;
       const fertig = p.quizErforderlich ? a.quizBestanden : !!a.gelesenAm;
       if (fertig) { st = 'abgeschlossen'; date = a.abgeschlossenAm || a.gelesenAm; }
       else if (a.gelesenAm) { st = 'gelesen'; date = a.gelesenAm; }
     }
-    return { name: m.name, upn: m.upn, st, date, score };
+    return { name: m.name, upn: m.upn, department: m.department || '', st, date, score };
   });
+}
+
+function renderComplianceOverview() {
+  const body = document.getElementById('compliance-body');
+  if (!body) return;
+  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  if (!pubs.length) { body.innerHTML = emptyState('Keine veröffentlichten Pflicht-Richtlinien.'); return; }
+
+  const perPolicy = pubs.map(p => {
+    const rows = _complianceRowsFor(p);
+    const done = rows.filter(r => r.st === 'abgeschlossen').length;
+    return { p, soll: rows.length, done, offen: rows.length - done, quote: rows.length ? Math.round(done / rows.length * 100) : 100 };
+  });
+
+  // Aggregation pro Abteilung (Person × Pflicht-Richtlinie)
+  const deptAgg = {};
+  pubs.forEach(p => _complianceRowsFor(p).forEach(r => {
+    const d = r.department || '(ohne Abteilung)';
+    const e = deptAgg[d] = deptAgg[d] || { soll: 0, done: 0 };
+    e.soll++; if (r.st === 'abgeschlossen') e.done++;
+  }));
+
+  const totalSoll = perPolicy.reduce((s, x) => s + x.soll, 0);
+  const totalDone = perPolicy.reduce((s, x) => s + x.done, 0);
+  const totalQuote = totalSoll ? Math.round(totalDone / totalSoll * 100) : 100;
+  const qc = q => q >= 90 ? 'quote-hi' : q >= 60 ? 'quote-mid' : 'quote-lo';
+
+  body.innerHTML = `
+    <div class="stats-grid">
+      ${statCard('blue', '📋', pubs.length, 'Pflicht-Richtlinien')}
+      ${statCard('green', '✓', totalDone, 'Abschlüsse gesamt')}
+      ${statCard('orange', '⏳', totalSoll - totalDone, 'Ausstehend gesamt')}
+      ${statCard('purple', '📊', totalQuote + '%', 'Gesamt-Erfüllung')}
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header"><h2>Pro Richtlinie</h2></div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Richtlinie</th><th>Zielgruppe</th><th class="num">Soll</th><th class="num">Erledigt</th><th class="num">Offen</th><th>Quote</th></tr></thead>
+        <tbody>${perPolicy.map(x => `<tr style="cursor:pointer" onclick="openComplianceFor('${x.p.id}')">
+          <td>${esc(x.p.title)} <span style="color:var(--c-faint)">v${esc(x.p.version)}</span></td>
+          <td style="color:var(--c-muted)">${esc(zielgruppenLabel(x.p))}</td>
+          <td class="num">${x.soll}</td><td class="num">${x.done}</td><td class="num">${x.offen}</td>
+          <td><span class="quote-pill ${qc(x.quote)}">${x.quote}%</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Pro Abteilung</h2></div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Abteilung</th><th class="num">Pflichten (Soll)</th><th class="num">Erledigt</th><th>Quote</th></tr></thead>
+        <tbody>${Object.keys(deptAgg).sort((a, b) => a.localeCompare(b, 'de')).map(d => {
+          const e = deptAgg[d]; const q = e.soll ? Math.round(e.done / e.soll * 100) : 100;
+          return `<tr><td>${esc(d)}</td><td class="num">${e.soll}</td><td class="num">${e.done}</td><td><span class="quote-pill ${qc(q)}">${q}%</span></td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+}
+
+function openComplianceFor(id) {
+  AdminState.complianceMode = 'single';
+  AdminState._jumpToPolicy = id;
+  renderCompliance();
+}
+
+function renderComplianceDetail() {
+  const sel = document.getElementById('compliance-policy');
+  const body = document.getElementById('compliance-body');
+  if (!body) return;
+  const p = State.policies.find(x => x.id === (sel ? sel.value : null));
+  if (!p) { body.innerHTML = emptyState('Keine veröffentlichte Pflicht-Richtlinie.'); return; }
+
+  const rows = _complianceRowsFor(p);
   rows.sort((a, b) => (a.st === b.st ? a.name.localeCompare(b.name, 'de') : a.st.localeCompare(b.st)));
   AdminState.lastComplianceRows = rows;
+  AdminState.lastCompliancePolicy = p;
 
   const done = rows.filter(r => r.st === 'abgeschlossen').length;
   const gelesen = rows.filter(r => r.st === 'gelesen').length;
@@ -569,8 +672,7 @@ function complianceBadge(st) {
 
 function exportComplianceCsv() {
   const rows = AdminState.lastComplianceRows;
-  const id = document.getElementById('compliance-policy')?.value;
-  const p = State.policies.find(x => x.id === id);
+  const p = AdminState.lastCompliancePolicy;
   if (!rows || !rows.length || !p) { toast('Nichts zu exportieren.', 'error'); return; }
   const head = ['Mitarbeiter', 'E-Mail', 'Status', 'Datum', 'Quiz-Score'];
   const lines = [head.join(';')];
@@ -583,6 +685,24 @@ function exportComplianceCsv() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `Compliance_${p.title}_v${p.version}.csv`.replace(/[^a-z0-9_.-]/gi, '_');
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportOverviewCsv() {
+  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  if (!pubs.length) { toast('Nichts zu exportieren.', 'error'); return; }
+  const lines = ['Richtlinie;Version;Zielgruppe;Soll;Erledigt;Offen;Quote'];
+  pubs.forEach(p => {
+    const rows = _complianceRowsFor(p);
+    const done = rows.filter(r => r.st === 'abgeschlossen').length;
+    const q = rows.length ? Math.round(done / rows.length * 100) : 100;
+    lines.push([_csv(p.title), _csv(p.version), _csv(zielgruppenLabel(p)), rows.length, done, rows.length - done, q + '%'].join(';'));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Compliance_Gesamtuebersicht.csv';
   a.click();
   URL.revokeObjectURL(a.href);
 }
