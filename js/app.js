@@ -24,7 +24,18 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
+const APP_VERSION = 'v4';
+
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
+  // Sichtbare Build-Nummer in der Sidebar (Diagnose: zeigt, ob die aktuelle JS läuft)
+  const sb = document.getElementById('sidebar');
+  if (sb) {
+    const t = document.createElement('div');
+    t.style.cssText = 'padding:6px 14px;font-size:.66rem;color:#9ca3af;border-top:1px solid #e5e9ef';
+    t.textContent = 'Build ' + APP_VERSION;
+    sb.appendChild(t);
+  }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
     n.addEventListener('click', e => { e.preventDefault(); switchView(n.dataset.view); })
   );
