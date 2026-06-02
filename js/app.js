@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -72,8 +72,7 @@ async function bootApp(account) {
     await loadRuntimeAccessConfig();
     initRoleNav();
     State.myRoles = await getCurrentUserRoles();
-    await reloadData();
-    switchView('meine');
+    await switchView('meine');   // lädt Daten + rendert
   } catch (e) {
     console.error(e);
     toast('Fehler beim Laden: ' + e.message, 'error');
@@ -116,7 +115,7 @@ async function refreshAll() {
    View-Switching
 ═══════════════════════════════════════════════════ */
 
-function switchView(view) {
+async function switchView(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n =>
@@ -124,6 +123,18 @@ function switchView(view) {
   document.getElementById('page-title').textContent = PAGE_TITLES[view] || '';
   document.getElementById('sidebar')?.classList.remove('open');
   window.scrollTo(0, 0);
+
+  // Daten-Reiter: bei jedem Wechsel frisch aus SharePoint laden
+  if (['meine', 'verwaltung', 'freigaben', 'compliance'].includes(view)) {
+    try {
+      await reloadData();                 // lädt Richtlinien + eigene Bestätigungen (+ renderMeine)
+    } catch (e) {
+      console.error(e);
+      if (view === 'meine') renderMeineError(e.message);
+      else toast('Aktualisierung fehlgeschlagen: ' + e.message, 'error');
+      return;
+    }
+  }
 
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();

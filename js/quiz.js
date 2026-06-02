@@ -8,7 +8,30 @@
  * Quiz-Format (QuizJson): [{ frage, optionen:[…], richtig: <Index> }]
  */
 
-let _quiz = { policyId: null, answers: {} };
+let _quiz = { policyId: null, answers: {}, questions: [] };
+
+/** Array mischen (Fisher-Yates, liefert neue Kopie). */
+function _shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Fragen UND Antwortoptionen mischen; der „richtig"-Index wandert korrekt mit. */
+function shuffleQuiz(quiz) {
+  return _shuffle((quiz || []).map(q => {
+    const opts = (q.optionen || []).map((text, i) => ({ text, correct: i === q.richtig }));
+    const mixed = _shuffle(opts);
+    return {
+      frage: q.frage,
+      optionen: mixed.map(o => o.text),
+      richtig: mixed.findIndex(o => o.correct),
+    };
+  }));
+}
 
 function startQuiz(policyId) {
   const p = State.policies.find(x => x.id === policyId);
@@ -23,7 +46,7 @@ function startQuiz(policyId) {
     openDetail(policyId);
     return;
   }
-  _quiz = { policyId, answers: {} };
+  _quiz = { policyId, answers: {}, questions: shuffleQuiz(p.quiz) };
   switchView('quiz');
   renderQuizForm(p);
 }
@@ -35,10 +58,10 @@ function renderQuizForm(p) {
       <button class="btn btn-ghost btn-sm back-btn" onclick="openDetail('${p.id}')">← Zurück zur Richtlinie</button>
       <div class="detail-header">
         <h2>Wissenstest: ${esc(p.title)}</h2>
-        <div class="quiz-progress">${p.quiz.length} Frage(n) &middot; bestanden ab ${p.quizBestehenProzent}% richtig</div>
+        <div class="quiz-progress">${_quiz.questions.length} Frage(n) &middot; bestanden ab ${p.quizBestehenProzent}% richtig &middot; Reihenfolge bei jedem Versuch zufällig</div>
       </div>
       <form id="quiz-form" onsubmit="return false">
-        ${p.quiz.map((q, i) => quizQuestionHtml(q, i)).join('')}
+        ${_quiz.questions.map((q, i) => quizQuestionHtml(q, i)).join('')}
       </form>
       <div style="display:flex;justify-content:flex-end;margin-top:8px">
         <button class="btn btn-primary btn-lg" id="quiz-submit" onclick="submitQuiz('${p.id}')">Antworten auswerten</button>
@@ -67,19 +90,20 @@ function markSel(qi, oi) {
 async function submitQuiz(policyId) {
   const p = State.policies.find(x => x.id === policyId);
   if (!p) return;
-  const total = p.quiz.length;
+  const qs = _quiz.questions;
+  const total = qs.length;
   if (Object.keys(_quiz.answers).length < total) {
     toast(`Bitte alle ${total} Fragen beantworten.`, 'error');
     return;
   }
 
   let correct = 0;
-  p.quiz.forEach((q, i) => { if (_quiz.answers[i] === q.richtig) correct++; });
+  qs.forEach((q, i) => { if (_quiz.answers[i] === q.richtig) correct++; });
   const score = Math.round(correct / total * 100);
   const passed = score >= p.quizBestehenProzent;
 
   // Antworten farblich auswerten + sperren
-  p.quiz.forEach((q, i) => {
+  qs.forEach((q, i) => {
     const qEl = document.querySelector(`.quiz-q[data-qi="${i}"]`);
     if (!qEl) return;
     qEl.querySelectorAll('input').forEach(inp => inp.disabled = true);
