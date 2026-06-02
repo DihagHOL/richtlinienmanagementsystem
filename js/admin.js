@@ -323,6 +323,7 @@ async function renderDocPicker() {
     return;
   }
   _dpState.items = items;
+  dbg('Ordner geladen (' + items.length + ' Einträge): ' + JSON.stringify(items.map(i => i.name + (i.isFolder ? ' [Ordner]' : ' [Datei]'))));
 
   // Breadcrumbs
   let crumbs = `<a data-crumb="-1">Bibliotheken</a>`;
@@ -342,7 +343,8 @@ async function renderDocPicker() {
   body.querySelector('.dp-list')?.addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     const row = e.target.closest('.dp-row');
-    if (!row) return;
+    if (!row) { dbg('Klick ohne .dp-row (target=' + (e.target && e.target.tagName) + ')'); return; }
+    dbg('Klick: act=' + row.dataset.act + ' idx=' + row.dataset.idx);
     if (row.dataset.act === 'open') dpOpenFolder(+row.dataset.idx); else dpSelect(+row.dataset.idx);
   });
   body.querySelector('.dp-crumbs')?.addEventListener('click', (e) => {
@@ -369,6 +371,7 @@ function dpCrumb(i) {
 
 function dpSelect(idx) {
   const it = _dpState.items && _dpState.items[idx];
+  dbg('dpSelect: idx=' + idx + ' datei=' + (it ? it.name : 'NULL') + ' editorAktiv=' + !!_editing);
   if (!it) { toast('Auswahl fehlgeschlagen (Dokument nicht gefunden).', 'error'); return; }
   if (!_editing) { toast('Editor nicht aktiv – bitte Richtlinie erneut öffnen.', 'error'); return; }
   _editing.dokumentDriveId = _dpState.driveId;
@@ -378,6 +381,7 @@ function dpSelect(idx) {
   pickerClose();
   // Editor bleibt erhalten – nur die Dokumentzeile direkt aktualisieren (kein Neuaufbau)
   const disp = document.getElementById('ed-doc-display');
+  dbg('dpSelect gesetzt: editing.dokumentName="' + _editing.dokumentName + '" | ed-doc-display gefunden=' + !!disp);
   if (disp) { disp.innerHTML = '📄 ' + esc(it.name); disp.style.color = ''; }
   toast('Dokument zugeordnet: ' + it.name, 'success');
 }

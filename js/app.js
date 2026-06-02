@@ -24,10 +24,32 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
+
+/* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
+let _dbgOn = false;
+function dbg(msg) {
+  try {
+    console.log('[RMS]', msg);
+    if (!_dbgOn) return;
+    let p = document.getElementById('rms-debug');
+    if (!p) {
+      p = document.createElement('div');
+      p.id = 'rms-debug';
+      p.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:32vh;overflow:auto;background:#0f172a;color:#7dd3fc;font:11px/1.45 monospace;padding:8px 10px;z-index:99999;white-space:pre-wrap;border-top:2px solid #38bdf8';
+      const btn = document.createElement('button');
+      btn.textContent = '✕ Diagnose schließen';
+      btn.style.cssText = 'position:sticky;top:0;float:right;background:#1e293b;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font:11px monospace';
+      btn.onclick = () => p.remove();
+      p.appendChild(btn);
+    }
+    p.appendChild(document.createTextNode(new Date().toLocaleTimeString('de-DE') + '  ' + msg + '\n'));
+  } catch (e) {}
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
+  _dbgOn = true;  // temporär für Fehlersuche Dokumentwähler
   // Sichtbare Build-Nummer in der Sidebar (Diagnose: zeigt, ob die aktuelle JS läuft)
   const sb = document.getElementById('sidebar');
   if (sb) {
