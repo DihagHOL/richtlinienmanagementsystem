@@ -105,7 +105,7 @@ function renderPolicyEditor() {
         <div class="form-group full">
           <label>Richtliniendokument (ISMS-Bibliothek) <span class="req">*</span></label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span style="flex:1;min-width:0;font-size:.85rem;${p.dokumentName ? '' : 'color:#b45309'}">
+            <span id="ed-doc-display" style="flex:1;min-width:0;font-size:.85rem;${p.dokumentName ? '' : 'color:#b45309'}">
               ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
             </span>
             <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Dokument wählen …</button>
@@ -277,21 +277,33 @@ async function doDeletePolicy(id) {
 
 async function openDocPicker() {
   _dpState = { driveId: null, driveName: '', path: [], items: [] };
-  openModal(dpShell('<div class="doc-loading">Bibliotheken werden geladen …</div>'), true);
+  pickerMount(dpShell('<div class="doc-loading">Bibliotheken werden geladen …</div>'));
   try {
     if (!_dpDrives) _dpDrives = await spListIsmsDrives();
     if (_dpDrives.length === 1) { _dpState.driveId = _dpDrives[0].id; _dpState.driveName = _dpDrives[0].name; }
     await renderDocPicker();
   } catch (e) {
-    document.getElementById('dp-body').innerHTML = `<div class="col-warning" style="display:block">ISMS-Bibliothek nicht erreichbar: ${esc(e.message)}</div>`;
+    const b = document.getElementById('dp-body');
+    if (b) b.innerHTML = `<div class="col-warning" style="display:block">ISMS-Bibliothek nicht erreichbar: ${esc(e.message)}</div>`;
   }
+}
+
+/* Eigenes Overlay ÜBER dem Editor – der Editor-State bleibt erhalten. */
+function pickerMount(html) {
+  let m = document.getElementById('picker-mount');
+  if (!m) { m = document.createElement('div'); m.id = 'picker-mount'; document.body.appendChild(m); }
+  m.innerHTML = `<div class="modal-overlay" style="z-index:300" onclick="if(event.target===this)pickerClose()"><div class="modal wide">${html}</div></div>`;
+}
+function pickerClose() {
+  const m = document.getElementById('picker-mount');
+  if (m) m.innerHTML = '';
 }
 
 function dpShell(inner) {
   return `
-    <div class="modal-header"><h3>Dokument wählen</h3><button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
+    <div class="modal-header"><h3>Dokument wählen</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
     <div class="modal-body" id="dp-body">${inner}</div>
-    <div class="modal-footer"><button class="btn btn-ghost" onclick="renderPolicyEditor()">Abbrechen</button></div>`;
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="pickerClose()">Abbrechen</button></div>`;
 }
 
 async function renderDocPicker() {
@@ -328,12 +340,13 @@ async function renderDocPicker() {
 
   // Event-Delegation (robuster als inline-onclick im dynamisch ersetzten Modal)
   body.querySelector('.dp-list')?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
     const row = e.target.closest('.dp-row');
     if (!row) return;
-    const idx = +row.dataset.idx;
-    if (row.dataset.act === 'open') dpOpenFolder(idx); else dpSelect(idx);
+    if (row.dataset.act === 'open') dpOpenFolder(+row.dataset.idx); else dpSelect(+row.dataset.idx);
   });
   body.querySelector('.dp-crumbs')?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
     const a = e.target.closest('[data-crumb]');
     if (a) dpCrumb(+a.dataset.crumb);
   });
@@ -355,20 +368,18 @@ function dpCrumb(i) {
 }
 
 function dpSelect(idx) {
-  try {
-    const it = _dpState.items[idx];
-    if (!it) { toast('Auswahl fehlgeschlagen (Dokument nicht gefunden).', 'error'); return; }
-    if (!_editing) { toast('Editor nicht aktiv – bitte Richtlinie erneut öffnen.', 'error'); return; }
-    _editing.dokumentDriveId = _dpState.driveId;
-    _editing.dokumentItemId  = it.id;
-    _editing.dokumentName    = it.name;
-    _editing.dokumentUrl     = it.url || '';
-    renderPolicyEditor();
-    toast('Dokument zugeordnet: ' + it.name, 'success');
-  } catch (e) {
-    console.error('[dpSelect]', e);
-    toast('Fehler bei der Auswahl: ' + e.message, 'error');
-  }
+  const it = _dpState.items && _dpState.items[idx];
+  if (!it) { toast('Auswahl fehlgeschlagen (Dokument nicht gefunden).', 'error'); return; }
+  if (!_editing) { toast('Editor nicht aktiv – bitte Richtlinie erneut öffnen.', 'error'); return; }
+  _editing.dokumentDriveId = _dpState.driveId;
+  _editing.dokumentItemId  = it.id;
+  _editing.dokumentName    = it.name;
+  _editing.dokumentUrl     = it.url || '';
+  pickerClose();
+  // Editor bleibt erhalten – nur die Dokumentzeile direkt aktualisieren (kein Neuaufbau)
+  const disp = document.getElementById('ed-doc-display');
+  if (disp) { disp.innerHTML = '📄 ' + esc(it.name); disp.style.color = ''; }
+  toast('Dokument zugeordnet: ' + it.name, 'success');
 }
 
 /* ═══════════════════════════════════════════════════
