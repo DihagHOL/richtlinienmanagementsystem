@@ -601,6 +601,14 @@ function renderEinstellungen() {
       </div>
 
       <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Azure-AD-Abteilungen (automatische Zuordnung)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">Diese Abteilungen (<code>department</code>) stehen in den AD-Profilen eurer Mitarbeiter. Eine Person gilt <b>automatisch</b> für eine Rolle, wenn ihre Abteilung exakt dem Rollennamen entspricht. Übernimm die passende Abteilung als Rolle.</div>
+          <div id="ad-departments"><div class="doc-loading">Lade Mitarbeiter aus Azure-AD …</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Mitarbeiter-Rollen (manuell)</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch — hier kannst du einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
@@ -621,6 +629,54 @@ function renderEinstellungen() {
   renderCfgLists();
   renderRolesList();
   renderUserRolesList();
+  loadAdDepartments();
+}
+
+/* ── Azure-AD-Abteilungen (Transparenz für automatische Rollenzuordnung) ── */
+async function loadAdDepartments() {
+  const host = document.getElementById('ad-departments');
+  if (!host) return;
+  host.innerHTML = '<div class="doc-loading">Lade Mitarbeiter aus Azure-AD …</div>';
+  try {
+    if (!AdminState.members) AdminState.members = await spGetMembers();
+    const members = AdminState.members;
+    const byDept = {};
+    let ohne = 0;
+    members.forEach(m => {
+      const d = (m.department || '').trim();
+      if (!d) { ohne++; return; }
+      (byDept[d] = byDept[d] || []).push(m.name);
+    });
+    const depts = Object.keys(byDept).sort((a, b) => a.localeCompare(b, 'de'));
+    AdminState.lastDepts = depts;
+    if (!depts.length) {
+      host.innerHTML = `<div class="col-warning" style="display:block;margin:0">Im Azure-AD ist bei allen ${members.length} Mitarbeitern das Feld „Abteilung" leer. Automatische Zuordnung greift daher nicht — pflege die Abteilung in den AD-Profilen oder nutze die manuelle Zuordnung unten.</div>`;
+      return;
+    }
+    host.innerHTML = depts.map((d, i) => {
+      const inRoles = (_cfgEdit.roles || []).some(r => r.toLowerCase() === d.toLowerCase());
+      return `<div class="dp-row" style="cursor:default">
+        <span class="ic">🏢</span>
+        <span class="nm">${esc(d)} <span style="color:var(--c-faint)">· ${byDept[d].length} Mitarbeiter</span></span>
+        ${inRoles
+          ? '<span class="status-badge sb-done">ist Rolle ✓</span>'
+          : `<button class="btn btn-outline btn-sm" onclick="cfgAddRoleNamed(${i})">Als Rolle übernehmen</button>`}
+      </div>`;
+    }).join('') + (ohne ? `<div class="field-hint" style="margin-top:8px">${ohne} Mitarbeiter ohne Abteilung im AD (greifen nur über manuelle Zuordnung).</div>` : '');
+  } catch (e) {
+    host.innerHTML = `<div class="col-warning" style="display:block;margin:0">Mitarbeiter konnten nicht geladen werden: ${esc(e.message)}<br>Benötigt die Graph-Berechtigung <b>User.Read.All</b> (Admin-Consent).</div>`;
+  }
+}
+
+function cfgAddRoleNamed(i) {
+  const name = (AdminState.lastDepts || [])[i];
+  if (!name) return;
+  if (!_cfgEdit.roles) _cfgEdit.roles = [];
+  if (!_cfgEdit.roles.some(r => r.toLowerCase() === name.toLowerCase())) _cfgEdit.roles.push(name);
+  renderRolesList();
+  renderUserRolesList();
+  loadAdDepartments();
+  toast('Rolle „' + name + '" hinzugefügt – noch speichern.', 'success');
 }
 
 function roleCard(role, title) {
