@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -98,6 +98,7 @@ async function reloadAcks() {
 async function refreshAll() {
   const btn = document.getElementById('btn-reload');
   if (btn) btn.disabled = true;
+  showSync(true);
   try {
     await reloadData();
     if (typeof renderAdminList === 'function') renderAdminList();
@@ -107,7 +108,25 @@ async function refreshAll() {
   } catch (e) {
     toast('Fehler: ' + e.message, 'error');
   } finally {
+    showSync(false);
     if (btn) btn.disabled = false;
+  }
+}
+
+/** Dezenter „Aktualisiere…"-Hinweis oben mittig (beim Laden). */
+function showSync(on, text) {
+  let el = document.getElementById('sync-hint');
+  if (on) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sync-hint';
+      el.className = 'sync-hint';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = '<span class="sync-spinner"></span>' + esc(text || 'Aktualisiere …');
+    el.style.display = 'flex';
+  } else if (el) {
+    el.remove();
   }
 }
 
@@ -126,6 +145,7 @@ async function switchView(view) {
 
   // Daten-Reiter: bei jedem Wechsel frisch aus SharePoint laden
   if (['meine', 'verwaltung', 'freigaben', 'compliance'].includes(view)) {
+    showSync(true);
     try {
       await reloadData();                 // lädt Richtlinien + eigene Bestätigungen (+ renderMeine)
     } catch (e) {
@@ -133,6 +153,8 @@ async function switchView(view) {
       if (view === 'meine') renderMeineError(e.message);
       else toast('Aktualisierung fehlgeschlagen: ' + e.message, 'error');
       return;
+    } finally {
+      showSync(false);
     }
   }
 
