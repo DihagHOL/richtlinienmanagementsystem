@@ -8,6 +8,7 @@
 
 const State = {
   user: null,        // { upn, name }
+  myRoles: [],       // effektive Unternehmensrollen (AD-Abteilung + manuell)
   policies: [],      // alle Richtlinien (Admin sieht alle; Mitarbeiter-Filter clientseitig)
   acks: [],          // Bestätigungen des aktuellen Users
   loaded: false,
@@ -37,6 +38,7 @@ async function bootApp(account) {
     await spInit();
     await loadRuntimeAccessConfig();
     initRoleNav();
+    State.myRoles = await getCurrentUserRoles();
     await reloadData();
     switchView('meine');
   } catch (e) {
@@ -100,9 +102,16 @@ function switchView(view) {
    Mitarbeiter: Meine Richtlinien
 ═══════════════════════════════════════════════════ */
 
-/** Für Mitarbeiter relevante Richtlinien: veröffentlicht. */
+/** Für Mitarbeiter relevante Richtlinien: veröffentlicht UND zur eigenen Rolle passend. */
 function publishedPolicies() {
-  return State.policies.filter(p => p.status === 'Veröffentlicht');
+  return State.policies.filter(p =>
+    p.status === 'Veröffentlicht' && policyMatchesRoles(p.zielgruppen, State.myRoles));
+}
+
+/** Lesbare Zielgruppe einer Richtlinie. */
+function zielgruppenLabel(p) {
+  if (!p.zielgruppen || !p.zielgruppen.length || p.zielgruppen.includes('ALLE')) return 'Alle Mitarbeiter';
+  return p.zielgruppen.join(', ');
 }
 
 /** Abschluss-Status einer Richtlinie für den aktuellen User. */
@@ -156,6 +165,7 @@ function renderMeine() {
         ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}
         <span class="ic-tag">Version ${esc(p.version)}</span>
         ${p.quizErforderlich ? '<span class="ic-tag">📝 Wissenstest</span>' : ''}
+        ${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? `<span class="ic-tag">👥 ${esc(p.zielgruppen.join(', '))}</span>` : ''}
       </div>
     </div>`;
   }).join('');

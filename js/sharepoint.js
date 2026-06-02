@@ -100,6 +100,8 @@ function _mapPolicy(item) {
   const f = item.fields || {};
   let quiz = [];
   try { quiz = f.QuizJson ? JSON.parse(f.QuizJson) : []; } catch { quiz = []; }
+  let zielgruppen = [];
+  try { zielgruppen = f.Zielgruppen ? JSON.parse(f.Zielgruppen) : []; } catch { zielgruppen = []; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -115,6 +117,7 @@ function _mapPolicy(item) {
     quizErforderlich:    !!f.QuizErforderlich && quiz.length > 0,
     quizBestehenProzent: Number(f.QuizBestehenProzent || 80),
     quiz,
+    zielgruppen,
     veroeffentlichtAm:   f.VeroeffentlichtAm || '',
     freigegebenVon:      f.FreigegebenVon || '',
     modifiedAt:          item.lastModifiedDateTime || '',
@@ -147,6 +150,7 @@ async function spSavePolicy(p) {
     QuizErforderlich:    !!p.quizErforderlich,
     QuizBestehenProzent: Number(p.quizBestehenProzent || 80),
     QuizJson:            JSON.stringify(p.quiz || []),
+    Zielgruppen:         JSON.stringify(p.zielgruppen || []),
     VeroeffentlichtAm:   p.veroeffentlichtAm || '',
     FreigegebenVon:      p.freigegebenVon || '',
   };
@@ -303,22 +307,34 @@ async function spGetPreviewUrl(driveId, itemId) {
    Mitarbeiterliste (Soll für Compliance)
 ═══════════════════════════════════════════════════ */
 
-/** Aktive Mitarbeiter (Postfach vorhanden, kein Gast). */
+/** Aktive Mitarbeiter (Postfach vorhanden, kein Gast) inkl. AD-Abteilung. */
 async function spGetMembers() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
-  let url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType&$top=999`;
+  let url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$top=999`;
   const out = [];
   while (url) {
     const resp = await _get(url, token);
     (resp.value || []).forEach(u => {
       if (u.accountEnabled !== false && u.mail && (u.userType || 'Member') === 'Member') {
-        out.push({ name: u.displayName || u.mail, upn: (u.userPrincipalName || u.mail) });
+        out.push({
+          name: u.displayName || u.mail,
+          upn: (u.userPrincipalName || u.mail),
+          department: u.department || '',
+        });
       }
     });
     url = resp['@odata.nextLink'] || null;
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+/** Azure-AD-Abteilung des angemeldeten Users (für die automatische Rollen-Zuordnung). */
+async function spGetMyDepartment() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return '';
+  const me = await _get(`${SP.graphBase}/me?$select=department,jobTitle`, token);
+  return me.department || '';
 }
 
 /* ═══════════════════════════════════════════════════

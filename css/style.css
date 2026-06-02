@@ -224,6 +224,17 @@ a { color: inherit; }
 .req { color: var(--c-danger); }
 .field-hint { font-size: .74rem; color: var(--c-muted); }
 
+/* ── Rollen-Chips (Einstellungen) ── */
+.ur-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1.5px solid var(--c-border); background: #f9fafb;
+  color: #4b5563; font-size: .8rem; font-weight: 500;
+  cursor: pointer; user-select: none; position: relative;
+}
+.ur-chip:hover { border-color: #9ca3af; }
+.ur-chip.on { border-color: var(--c-primary); background: var(--c-primary-l); color: var(--c-primary); }
+
 /* ── Detail / Reader ── */
 .back-btn { margin-bottom: 14px; }
 .detail-header { margin-bottom: 16px; }

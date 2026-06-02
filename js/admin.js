@@ -40,6 +40,7 @@ function renderAdminList() {
         <span class="ic-tag">v${esc(p.version)}</span>
         ${p.pflicht ? '<span class="ic-tag">Pflicht</span>' : '<span class="ic-tag">optional</span>'}
         ${p.quizErforderlich ? `<span class="ic-tag">📝 ${p.quiz.length} Fragen</span>` : ''}
+        <span class="ic-tag">👥 ${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? esc(p.zielgruppen.join(', ')) : 'Alle'}</span>
       </div>
       <div class="ic-footer">
         <span class="grow">${p.dokumentName ? ('📄 ' + esc(p.dokumentName)) : '<span style="color:#b45309">⚠ kein Dokument</span>'}</span>
@@ -58,7 +59,7 @@ function newPolicy() {
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
-    veroeffentlichtAm: '', freigegebenVon: '',
+    zielgruppen: [], veroeffentlichtAm: '', freigegebenVon: '',
   };
 }
 
@@ -117,6 +118,7 @@ function renderPolicyEditor() {
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.quizErforderlich ? 'checked' : ''} onchange="_editing.quizErforderlich=this.checked;renderPolicyEditor()"> Wissenstest erforderlich</label>
         </div>
       </div>
+      ${renderZielgruppenSection()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -180,10 +182,54 @@ function qeRemoveOption(i, oi) {
   qeRefresh();
 }
 
+/* ── Zielgruppen-Auswahl im Editor ── */
+
+function renderZielgruppenSection() {
+  const zg = _editing.zielgruppen || [];
+  const specific = _editing._zgSpecific || (zg.length && !zg.includes('ALLE'));
+  const roles = getCompanyRoles();
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:10px">Zielgruppe</div>
+      <label class="ack-check" style="font-weight:500;margin-bottom:6px">
+        <input type="radio" name="zg-mode" ${specific ? '' : 'checked'} onchange="zgSetAlle(true)">
+        <span>Für <b>alle Mitarbeiter</b></span>
+      </label>
+      <label class="ack-check" style="font-weight:500">
+        <input type="radio" name="zg-mode" ${specific ? 'checked' : ''} onchange="zgSetAlle(false)">
+        <span>Nur für <b>bestimmte Rollen / Abteilungen</b></span>
+      </label>
+      ${specific ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:8px;padding-left:24px">
+        ${roles.map((r, ri) => `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" ${zg.includes(r) ? 'checked' : ''} onchange="zgToggleRole(${ri}, this.checked)">
+          <span>${esc(r)}</span></label>`).join('')}
+      </div>
+      <div class="field-hint" style="padding-left:24px;margin-top:6px">Mitarbeiter sehen die Richtlinie, wenn ihre Abteilung/Rolle hier ausgewählt ist.</div>
+      ` : ''}
+    </div>`;
+}
+
+function zgSetAlle(alle) {
+  if (alle) { _editing.zielgruppen = []; _editing._zgSpecific = false; }
+  else { _editing._zgSpecific = true; _editing.zielgruppen = (_editing.zielgruppen || []).filter(x => x !== 'ALLE'); }
+  renderPolicyEditor();
+}
+
+function zgToggleRole(ri, checked) {
+  const r = getCompanyRoles()[ri];
+  if (!Array.isArray(_editing.zielgruppen)) _editing.zielgruppen = [];
+  _editing.zielgruppen = _editing.zielgruppen.filter(x => x !== 'ALLE' && x !== r);
+  if (checked) _editing.zielgruppen.push(r);
+}
+
 async function savePolicy(newStatus) {
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
   if (!p.dokumentItemId && !p.dokumentUrl) { toast('Bitte ein Dokument zuordnen.', 'error'); return; }
+  if (p._zgSpecific && (!p.zielgruppen || !p.zielgruppen.length)) {
+    toast('Bitte mindestens eine Rolle wählen oder „Für alle Mitarbeiter" auswählen.', 'error'); return;
+  }
   if (p.quizErforderlich) {
     if (!p.quiz.length) { toast('Wissenstest aktiv, aber keine Fragen angelegt.', 'error'); return; }
     for (let i = 0; i < p.quiz.length; i++) {
@@ -250,33 +296,52 @@ function dpShell(inner) {
 
 async function renderDocPicker() {
   const body = document.getElementById('dp-body');
+  if (!body) return;
   let items;
-  if (!_dpState.driveId) {
-    items = (_dpDrives || []).map(d => ({ id: d.id, name: d.name, isFolder: true, isDrive: true }));
-  } else {
-    body.innerHTML = '<div class="doc-loading">Lädt …</div>';
-    const last = _dpState.path[_dpState.path.length - 1];
-    items = await spBrowseDrive(_dpState.driveId, last ? last.id : null);
+  try {
+    if (!_dpState.driveId) {
+      items = (_dpDrives || []).map(d => ({ id: d.id, name: d.name, isFolder: true, isDrive: true }));
+    } else {
+      body.innerHTML = '<div class="doc-loading">Lädt …</div>';
+      const last = _dpState.path[_dpState.path.length - 1];
+      items = await spBrowseDrive(_dpState.driveId, last ? last.id : null);
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="col-warning" style="display:block">Ordner konnte nicht geladen werden: ${esc(e.message)}</div>`;
+    return;
   }
   _dpState.items = items;
 
   // Breadcrumbs
-  let crumbs = `<a onclick="dpCrumb(-1)">Bibliotheken</a>`;
+  let crumbs = `<a data-crumb="-1">Bibliotheken</a>`;
   if (_dpState.driveId) {
-    crumbs += ` › <a onclick="dpCrumb(-2)">${esc(_dpState.driveName)}</a>`;
-    _dpState.path.forEach((f, i) => crumbs += ` › <a onclick="dpCrumb(${i})">${esc(f.name)}</a>`);
+    crumbs += ` › <a data-crumb="-2">${esc(_dpState.driveName)}</a>`;
+    _dpState.path.forEach((f, i) => crumbs += ` › <a data-crumb="${i}">${esc(f.name)}</a>`);
   }
 
   const rowsHtml = items.length ? items.map((it, idx) => it.isFolder
-    ? `<div class="dp-row folder" onclick="dpOpenFolder(${idx})"><span class="ic">📁</span><span class="nm">${esc(it.name)}</span><span class="field-hint">${it.isDrive ? 'Bibliothek' : (it.childCount + ' Element(e)')}</span></div>`
-    : `<div class="dp-row" onclick="dpSelect(${idx})"><span class="ic">📄</span><span class="nm">${esc(it.name)}</span><span class="btn btn-primary btn-sm">Wählen</span></div>`
+    ? `<div class="dp-row folder" data-idx="${idx}" data-act="open"><span class="ic">📁</span><span class="nm">${esc(it.name)}</span><span class="field-hint">${it.isDrive ? 'Bibliothek' : (it.childCount + ' Element(e)')}</span></div>`
+    : `<div class="dp-row" data-idx="${idx}" data-act="pick"><span class="ic">📄</span><span class="nm">${esc(it.name)}</span><span class="btn btn-primary btn-sm">Wählen</span></div>`
   ).join('') : '<div class="doc-loading">Dieser Ordner ist leer.</div>';
 
   body.innerHTML = `<div class="dp-crumbs">${crumbs}</div><div class="dp-list">${rowsHtml}</div>`;
+
+  // Event-Delegation (robuster als inline-onclick im dynamisch ersetzten Modal)
+  body.querySelector('.dp-list')?.addEventListener('click', (e) => {
+    const row = e.target.closest('.dp-row');
+    if (!row) return;
+    const idx = +row.dataset.idx;
+    if (row.dataset.act === 'open') dpOpenFolder(idx); else dpSelect(idx);
+  });
+  body.querySelector('.dp-crumbs')?.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-crumb]');
+    if (a) dpCrumb(+a.dataset.crumb);
+  });
 }
 
 function dpOpenFolder(idx) {
   const it = _dpState.items[idx];
+  if (!it) return;
   if (it.isDrive) { _dpState.driveId = it.id; _dpState.driveName = it.name; _dpState.path = []; }
   else { _dpState.path.push({ id: it.id, name: it.name }); }
   renderDocPicker();
@@ -290,13 +355,20 @@ function dpCrumb(i) {
 }
 
 function dpSelect(idx) {
-  const it = _dpState.items[idx];
-  _editing.dokumentDriveId = _dpState.driveId;
-  _editing.dokumentItemId = it.id;
-  _editing.dokumentName = it.name;
-  _editing.dokumentUrl = it.url || '';
-  renderPolicyEditor();
-  toast('Dokument zugeordnet: ' + it.name, 'success');
+  try {
+    const it = _dpState.items[idx];
+    if (!it) { toast('Auswahl fehlgeschlagen (Dokument nicht gefunden).', 'error'); return; }
+    if (!_editing) { toast('Editor nicht aktiv – bitte Richtlinie erneut öffnen.', 'error'); return; }
+    _editing.dokumentDriveId = _dpState.driveId;
+    _editing.dokumentItemId  = it.id;
+    _editing.dokumentName    = it.name;
+    _editing.dokumentUrl     = it.url || '';
+    renderPolicyEditor();
+    toast('Dokument zugeordnet: ' + it.name, 'success');
+  } catch (e) {
+    console.error('[dpSelect]', e);
+    toast('Fehler bei der Auswahl: ' + e.message, 'error');
+  }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -391,7 +463,9 @@ function renderComplianceDetail() {
   const body = document.getElementById('compliance-body');
   if (!p) { body.innerHTML = ''; return; }
 
-  const members = AdminState.members || [];
+  // Soll-Gruppe = nur Mitarbeiter, für deren Rolle/Abteilung die Richtlinie gilt
+  const members = (AdminState.members || []).filter(m =>
+    policyMatchesRoles(p.zielgruppen, effectiveRoles(m.upn, m.department)));
   const acks = (AdminState.allAcks || []).filter(a => a.richtlinieId === p.id && a.version === p.version);
   const byUpn = {};
   acks.forEach(a => { byUpn[(a.benutzerUpn || '').toLowerCase()] = a; });
@@ -425,7 +499,7 @@ function renderComplianceDetail() {
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>${esc(p.title)} <span style="font-weight:400;color:var(--c-muted)">· v${esc(p.version)}</span></h2>
+        <h2>${esc(p.title)} <span style="font-weight:400;color:var(--c-muted)">· v${esc(p.version)} · 👥 ${esc(zielgruppenLabel(p))}</span></h2>
         <span class="quote-pill ${qCls}">${quote}% erfüllt</span>
       </div>
       <div style="overflow-x:auto">
@@ -481,18 +555,50 @@ function renderEinstellungen() {
   _cfgEdit = getAccessConfig();
   const v = document.getElementById('view-einstellungen');
   v.innerHTML = `
-    <div style="max-width:640px">
+    <div style="max-width:680px">
       <div class="col-warning" style="display:block">
-        Rollen werden in <code>access-config.json</code> in der Dokumentbibliothek gespeichert.
-        <b>Admins</b> verwalten Richtlinien & sehen Compliance, <b>Genehmiger</b> geben Richtlinien frei.
+        Einstellungen liegen in <code>access-config.json</code> in der Dokumentbibliothek.
+        <b>Admins</b> verwalten Richtlinien & sehen Compliance, <b>Genehmiger</b> geben frei.
+        <b>Rollen/Abteilungen</b> steuern, wer welche zielgruppenspezifische Richtlinie sieht.
       </div>
       ${roleCard('admins', 'Administratoren')}
       ${roleCard('genehmiger', 'Genehmiger')}
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Verfügbare Rollen / Abteilungen</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">Stehen als Zielgruppe für Richtlinien und für die Mitarbeiter-Zuordnung zur Verfügung. Am besten identisch zu den Azure-AD-Abteilungen benennen.</div>
+          <div id="cfg-roles"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input type="text" id="cfg-input-roles" placeholder="z. B. Produktion"
+              style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+              onkeydown="if(event.key==='Enter')cfgAddRole()">
+            <button class="btn btn-outline btn-sm" onclick="cfgAddRole()">+ Rolle</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Mitarbeiter-Rollen (manuell)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch — hier kannst du einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
+          <div id="cfg-userroles"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input type="email" id="cfg-input-ur" placeholder="name@dihag.com"
+              style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+              onkeydown="if(event.key==='Enter')urAddUser()">
+            <button class="btn btn-outline btn-sm" onclick="urAddUser()">+ Mitarbeiter</button>
+          </div>
+        </div>
+      </div>
+
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-primary" onclick="saveCfg()">Rollen speichern</button>
+        <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
       </div>
     </div>`;
   renderCfgLists();
+  renderRolesList();
+  renderUserRolesList();
 }
 
 function roleCard(role, title) {
@@ -536,6 +642,83 @@ function cfgAdd(role) {
 }
 
 function cfgRemove(role, i) { _cfgEdit[role].splice(i, 1); renderCfgLists(); }
+
+/* ── Verfügbare Rollen ── */
+function renderRolesList() {
+  const host = document.getElementById('cfg-roles');
+  if (!host) return;
+  const arr = _cfgEdit.roles || [];
+  host.innerHTML = arr.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map((r, i) =>
+        `<span class="ur-chip on" style="cursor:default">${esc(r)}<button onclick="cfgRemoveRole(${i})" title="Entfernen" style="background:none;border:none;cursor:pointer;color:inherit;font-size:.95rem;line-height:1;padding:0">✕</button></span>`).join('')}</div>`
+    : '<div class="field-hint">Keine Rollen definiert.</div>';
+}
+function cfgAddRole() {
+  const inp = document.getElementById('cfg-input-roles');
+  const val = (inp.value || '').trim();
+  if (!val) return;
+  if (!_cfgEdit.roles) _cfgEdit.roles = [];
+  if (_cfgEdit.roles.some(x => x.toLowerCase() === val.toLowerCase())) { toast('Rolle existiert bereits.', 'error'); return; }
+  _cfgEdit.roles.push(val);
+  inp.value = '';
+  renderRolesList();
+  renderUserRolesList();
+}
+function cfgRemoveRole(i) {
+  const removed = _cfgEdit.roles.splice(i, 1)[0];
+  // aus allen Mitarbeiter-Zuordnungen entfernen
+  Object.keys(_cfgEdit.userRoles || {}).forEach(upn => {
+    _cfgEdit.userRoles[upn] = (_cfgEdit.userRoles[upn] || []).filter(r => r !== removed);
+  });
+  renderRolesList();
+  renderUserRolesList();
+}
+
+/* ── Mitarbeiter-Rollen (manuell) ── */
+function renderUserRolesList() {
+  const host = document.getElementById('cfg-userroles');
+  if (!host) return;
+  const roles = _cfgEdit.roles || [];
+  const upns = Object.keys(_cfgEdit.userRoles || {});
+  host.innerHTML = upns.length ? upns.map((upn, ui) => `
+    <div style="border:1px solid var(--c-border);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="flex:1;font-weight:600;font-size:.85rem">👤 ${esc(upn)}</span>
+        <button class="btn btn-ghost btn-sm" onclick="urRemoveUser(${ui})">Entfernen</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${roles.length ? roles.map((r, ri) => {
+          const on = (_cfgEdit.userRoles[upn] || []).includes(r);
+          return `<label class="ur-chip ${on ? 'on' : ''}"><input type="checkbox" ${on ? 'checked' : ''} onchange="urToggle(${ui},${ri},this.checked)" style="position:absolute;opacity:0;width:0;height:0">${esc(r)}</label>`;
+        }).join('') : '<span class="field-hint">Erst Rollen oben definieren.</span>'}
+      </div>
+    </div>`).join('') : '<div class="field-hint">Noch keine manuellen Zuordnungen. (Ohne Eintrag greift die AD-Abteilung.)</div>';
+}
+function urAddUser() {
+  const inp = document.getElementById('cfg-input-ur');
+  const val = (inp.value || '').trim().toLowerCase();
+  if (!val || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) { toast('Bitte gültige E-Mail eingeben.', 'error'); return; }
+  if (!_cfgEdit.userRoles) _cfgEdit.userRoles = {};
+  if (Object.keys(_cfgEdit.userRoles).some(k => k.toLowerCase() === val)) { toast('Mitarbeiter bereits in der Liste.', 'error'); return; }
+  _cfgEdit.userRoles[val] = [];
+  inp.value = '';
+  renderUserRolesList();
+}
+function urRemoveUser(ui) {
+  const upn = Object.keys(_cfgEdit.userRoles)[ui];
+  if (upn) delete _cfgEdit.userRoles[upn];
+  renderUserRolesList();
+}
+function urToggle(ui, ri, checked) {
+  const upn = Object.keys(_cfgEdit.userRoles)[ui];
+  const role = (_cfgEdit.roles || [])[ri];
+  if (!upn || !role) return;
+  const arr = _cfgEdit.userRoles[upn] || (_cfgEdit.userRoles[upn] = []);
+  const idx = arr.indexOf(role);
+  if (checked && idx < 0) arr.push(role);
+  else if (!checked && idx >= 0) arr.splice(idx, 1);
+  renderUserRolesList();
+}
 
 async function saveCfg() {
   try {
