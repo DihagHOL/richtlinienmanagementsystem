@@ -11,8 +11,8 @@
  */
 
 const ACCESS_CONFIG_DEFAULT = {
-  admins:     ['pruefer@dihag.com'],
-  genehmiger: ['pruefer@dihag.com'],
+  admins:     ['pruefer@dihag.com', 'pruefer@dihag.com'],
+  genehmiger: ['pruefer@dihag.com', 'pruefer@dihag.com'],
 };
 
 let _runtimeConfig = null;

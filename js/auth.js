@@ -1,6 +1,6 @@
 /**
  * Microsoft Entra ID (Azure AD) Authentication
- * MSAL.js 2.x (msal-browser 2.39) — Single-Tenant: nur DIHAG-Konten.
+ * MSAL.js 2.x (msal-browser 2.38.2, CDN alcdn.msauth.net) — Single-Tenant: nur DIHAG-Konten.
  * Muster übernommen aus e-rechnung/js/auth.js.
  */
 
