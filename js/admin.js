@@ -48,6 +48,8 @@ function renderAdminList() {
         ${p.pflicht ? '<span class="ic-tag">Pflicht</span>' : '<span class="ic-tag">optional</span>'}
         ${p.quizErforderlich ? `<span class="ic-tag">📝 ${p.quiz.length} Fragen</span>` : ''}
         <span class="ic-tag">👥 ${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? esc(p.zielgruppen.join(', ')) : 'Alle'}</span>
+        ${p.wiederholungMonate ? `<span class="ic-tag">↻ ${p.wiederholungMonate == 12 ? 'jährlich' : 'alle ' + p.wiederholungMonate + ' Mon.'}</span>` : ''}
+        ${p.naechsteReview ? `<span class="ic-tag" style="${new Date(p.naechsteReview) < new Date() ? 'background:#fef2f2;color:#b91c1c' : ''}">🔎 Review ${fmtDate(p.naechsteReview)}</span>` : ''}
       </div>
       <div class="ic-footer">
         <span class="grow">${p.dokumentName ? ('📄 ' + esc(p.dokumentName)) : '<span style="color:#b45309">⚠ kein Dokument</span>'}</span>
@@ -66,7 +68,8 @@ function newPolicy() {
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
-    zielgruppen: [], veroeffentlichtAm: '', freigegebenVon: '',
+    zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
+    veroeffentlichtAm: '', freigegebenVon: '',
   };
 }
 
@@ -123,6 +126,23 @@ function renderPolicyEditor() {
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.quizErforderlich ? 'checked' : ''} onchange="_editing.quizErforderlich=this.checked;renderPolicyEditor()"> Wissenstest erforderlich</label>
+        </div>
+        <div class="form-group">
+          <label>Wiederholungspflicht</label>
+          <select onchange="_editing.wiederholungMonate=+this.value">
+            <option value="0" ${!p.wiederholungMonate ? 'selected' : ''}>keine</option>
+            <option value="6" ${p.wiederholungMonate == 6 ? 'selected' : ''}>alle 6 Monate</option>
+            <option value="12" ${p.wiederholungMonate == 12 ? 'selected' : ''}>jährlich</option>
+            <option value="24" ${p.wiederholungMonate == 24 ? 'selected' : ''}>alle 2 Jahre</option>
+            <option value="36" ${p.wiederholungMonate == 36 ? 'selected' : ''}>alle 3 Jahre</option>
+          </select>
+          <span class="field-hint">Nach Ablauf müssen Mitarbeiter erneut bestätigen (+ ggf. Quiz).</span>
+        </div>
+        <div class="form-group">
+          <label>Nächste Überprüfung (Review)</label>
+          <input type="date" value="${esc((p.naechsteReview || '').slice(0, 10))}"
+            onchange="_editing.naechsteReview = this.value ? new Date(this.value).toISOString() : ''">
+          <span class="field-hint">Interner Termin zur Überprüfung der Richtlinie.</span>
         </div>
       </div>
       ${renderZielgruppenSection()}

@@ -50,6 +50,8 @@ const POLICY_COLUMNS = [
   { name: 'QuizBestehenProzent', typ: 'Zahl' },
   { name: 'QuizJson',            typ: 'Mehrere Zeilen Text' },
   { name: 'Zielgruppen',         typ: 'Mehrere Zeilen Text' },
+  { name: 'WiederholungMonate',  typ: 'Zahl (0 = keine Wiederholung)' },
+  { name: 'NaechsteReview',      typ: 'Datum und Uhrzeit' },
   { name: 'VeroeffentlichtAm',   typ: 'Datum und Uhrzeit' },
   { name: 'FreigegebenVon',      typ: 'Einzelne Textzeile' },
 ];
@@ -167,6 +169,8 @@ function _mapPolicy(item) {
     quizBestehenProzent: Number(f.QuizBestehenProzent || 80),
     quiz,
     zielgruppen,
+    wiederholungMonate:  Number(f.WiederholungMonate || 0),
+    naechsteReview:      f.NaechsteReview || '',
     veroeffentlichtAm:   f.VeroeffentlichtAm || '',
     freigegebenVon:      f.FreigegebenVon || '',
     modifiedAt:          item.lastModifiedDateTime || '',
@@ -200,6 +204,8 @@ async function spSavePolicy(p) {
     QuizBestehenProzent: Number(p.quizBestehenProzent || 80),
     QuizJson:            JSON.stringify(p.quiz || []),
     Zielgruppen:         JSON.stringify(p.zielgruppen || []),
+    WiederholungMonate:  Number(p.wiederholungMonate || 0),
+    NaechsteReview:      p.naechsteReview || '',
     VeroeffentlichtAm:   p.veroeffentlichtAm || '',
     FreigegebenVon:      p.freigegebenVon || '',
   };
@@ -208,6 +214,7 @@ async function spSavePolicy(p) {
   );
   // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
   if (!fields.VeroeffentlichtAm) delete fields.VeroeffentlichtAm;
+  if (!fields.NaechsteReview)    delete fields.NaechsteReview;
 
   if (p.id) {
     return _patch(

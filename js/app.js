@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -50,14 +50,6 @@ function dbg(msg) {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
-  // Sichtbare Build-Nummer in der Sidebar (Diagnose: zeigt, ob die aktuelle JS läuft)
-  const sb = document.getElementById('sidebar');
-  if (sb) {
-    const t = document.createElement('div');
-    t.style.cssText = 'padding:6px 14px;font-size:.66rem;color:#9ca3af;border-top:1px solid #e5e9ef';
-    t.textContent = 'Build ' + APP_VERSION;
-    sb.appendChild(t);
-  }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
     n.addEventListener('click', e => { e.preventDefault(); switchView(n.dataset.view); })
   );
@@ -180,10 +172,22 @@ function zielgruppenLabel(p) {
   return p.zielgruppen.join(', ');
 }
 
+/** Ist eine abgeschlossene Bestätigung wegen Wiederholungspflicht abgelaufen? */
+function isExpired(p, a) {
+  if (!a || !p.wiederholungMonate || p.wiederholungMonate <= 0) return false;
+  const base = a.abgeschlossenAm || a.gelesenAm;
+  if (!base) return false;
+  const d = new Date(base);
+  if (isNaN(d)) return false;
+  d.setMonth(d.getMonth() + p.wiederholungMonate);
+  return d.getTime() < Date.now();
+}
+
 /** Abschluss-Status einer Richtlinie für den aktuellen User. */
 function completionStatus(p) {
   const a = State.acks.find(x => x.richtlinieId === p.id && x.version === p.version);
   if (!a || !a.gelesenAm) return 'open';
+  if (isExpired(p, a)) return 'open';            // Wiederholung fällig → erneut bestätigen
   if (p.quizErforderlich && !a.quizBestanden) return 'read';
   return 'done';
 }
@@ -278,7 +282,7 @@ async function openDetail(policyId) {
       <div class="doc-frame-wrap">
         <div class="doc-frame-head">
           <span class="t">📄 ${esc(p.dokumentName || 'Richtliniendokument')}</span>
-          ${p.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener">In SharePoint öffnen ↗</a>` : ''}
+          ${p.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener" onclick="unlockReadGate()">In SharePoint öffnen ↗</a>` : ''}
         </div>
         <div id="doc-frame-host"><div class="doc-loading">Vorschau wird geladen …</div></div>
       </div>
@@ -286,6 +290,30 @@ async function openDetail(policyId) {
     </div>`;
 
   loadPreview(p);
+  if (st === 'open') startReadGate(10);   // Lese-Gate: Kenntnisnahme erst nach Lesen/Öffnen
+}
+
+/* ── Lese-Gate (#6): Kenntnisnahme erst nach Mindest-Lesezeit oder Dokument-Öffnen ── */
+let _readGateTimer = null;
+function startReadGate(seconds) {
+  clearInterval(_readGateTimer);
+  let left = seconds;
+  const tick = () => {
+    const hint = document.getElementById('read-gate-hint');
+    if (left <= 0 || !hint) { unlockReadGate(); return; }
+    hint.textContent = `Bitte zuerst das Dokument lesen … (${left}s) – oder „In SharePoint öffnen" klicken`;
+    left--;
+  };
+  tick();
+  _readGateTimer = setInterval(tick, 1000);
+}
+function unlockReadGate() {
+  clearInterval(_readGateTimer);
+  _readGateTimer = null;
+  const hint = document.getElementById('read-gate-hint');
+  const cb = document.getElementById('ack-cb');
+  if (hint) hint.remove();
+  if (cb) cb.disabled = false;
 }
 
 async function loadPreview(p) {
@@ -307,8 +335,9 @@ async function loadPreview(p) {
 }
 
 function renderAckCard(p, a, st) {
-  const read = a && a.gelesenAm;
-  const quizDone = a && a.quizBestanden;
+  const expired = isExpired(p, a);
+  const read = !!(a && a.gelesenAm) && !expired;     // bei Ablauf zählt als „nicht gelesen"
+  const quizDone = !!(a && a.quizBestanden) && !expired;
 
   // Schritt 1: Lesen + Kenntnisnahme
   let step1;
@@ -324,10 +353,12 @@ function renderAckCard(p, a, st) {
       <div class="ack-dot active">1</div>
       <div class="ack-step-body">
         <div class="t">Kenntnisnahme bestätigen</div>
+        ${expired ? '<div class="s" style="color:#b45309">↻ Wiederholung fällig – bitte erneut lesen und bestätigen.</div>' : ''}
         <label class="ack-check" style="margin-top:8px">
-          <input type="checkbox" id="ack-cb" onchange="document.getElementById('ack-btn').disabled=!this.checked">
+          <input type="checkbox" id="ack-cb" disabled onchange="document.getElementById('ack-btn').disabled=!this.checked">
           <span>Ich habe die Richtlinie „${esc(p.title)}" (Version ${esc(p.version)}) gelesen und verstanden.</span>
         </label>
+        <div id="read-gate-hint" class="field-hint" style="margin-top:5px;color:#b45309">Bitte zuerst das Dokument lesen …</div>
         <div class="actions">
           <button class="btn btn-primary" id="ack-btn" disabled onclick="confirmRead('${p.id}')">Kenntnisnahme bestätigen</button>
         </div>
@@ -379,6 +410,7 @@ async function confirmRead(policyId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Speichern …'; }
   const now = new Date().toISOString();
   const existing = State.acks.find(x => x.richtlinieId === p.id && x.version === p.version);
+  const fresh = !existing || isExpired(p, existing);   // abgelaufen ⇒ Zyklus neu starten
   try {
     await spSaveAcknowledgement({
       id:              existing?.id,
@@ -386,11 +418,11 @@ async function confirmRead(policyId) {
       version:         p.version,
       benutzerUpn:     State.user.upn,
       benutzerName:    State.user.name,
-      gelesenAm:       existing?.gelesenAm || now,
-      quizBestanden:   existing?.quizBestanden || false,
-      quizScore:       existing?.quizScore || 0,
-      quizVersuche:    existing?.quizVersuche || 0,
-      abgeschlossenAm: p.quizErforderlich ? (existing?.abgeschlossenAm || '') : now,
+      gelesenAm:       fresh ? now : (existing.gelesenAm || now),
+      quizBestanden:   fresh ? false : (existing.quizBestanden || false),
+      quizScore:       fresh ? 0 : (existing.quizScore || 0),
+      quizVersuche:    fresh ? 0 : (existing.quizVersuche || 0),
+      abgeschlossenAm: p.quizErforderlich ? (fresh ? '' : (existing.abgeschlossenAm || '')) : now,
     });
     await reloadAcks();
     toast(p.quizErforderlich
