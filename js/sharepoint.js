@@ -34,6 +34,30 @@ const _sp = {
   ready: false,
 };
 
+/* Erwartete Spalten der Liste „Richtlinien" (für die Fehlende-Spalten-Warnung). */
+const POLICY_COLUMNS = [
+  { name: 'Beschreibung',        typ: 'Mehrere Zeilen Text' },
+  { name: 'Kategorie',           typ: 'Einzelne Textzeile oder Auswahl' },
+  { name: 'DokumentName',        typ: 'Einzelne Textzeile' },
+  { name: 'DokumentDriveId',     typ: 'Einzelne Textzeile' },
+  { name: 'DokumentItemId',      typ: 'Einzelne Textzeile' },
+  { name: 'DokumentUrl',         typ: 'Mehrere Zeilen Text' },
+  { name: 'Version',             typ: 'Einzelne Textzeile' },
+  { name: 'Status',              typ: 'Auswahl (Entwurf/InReview/Veröffentlicht/Archiviert)' },
+  { name: 'Pflicht',             typ: 'Ja/Nein' },
+  { name: 'QuizErforderlich',    typ: 'Ja/Nein' },
+  { name: 'QuizBestehenProzent', typ: 'Zahl' },
+  { name: 'QuizJson',            typ: 'Mehrere Zeilen Text' },
+  { name: 'Zielgruppen',         typ: 'Mehrere Zeilen Text' },
+  { name: 'VeroeffentlichtAm',   typ: 'Datum und Uhrzeit' },
+  { name: 'FreigegebenVon',      typ: 'Einzelne Textzeile' },
+];
+
+/** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
+function spMissingPolicyColumns() {
+  return POLICY_COLUMNS.filter(c => !_sp.policyFields.has(c.name));
+}
+
 /* ═══════════════════════════════════════════════════
    Initialisierung
 ═══════════════════════════════════════════════════ */

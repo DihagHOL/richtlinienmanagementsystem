@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -49,7 +49,7 @@ function dbg(msg) {
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
-  _dbgOn = true;  // temporär für Fehlersuche Dokumentwähler
+  _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
   // Sichtbare Build-Nummer in der Sidebar (Diagnose: zeigt, ob die aktuelle JS läuft)
   const sb = document.getElementById('sidebar');
   if (sb) {

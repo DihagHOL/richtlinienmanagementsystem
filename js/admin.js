@@ -20,6 +20,11 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
 function renderAdminList() {
   const list = document.getElementById('list-admin');
   if (!list) return;
+  const missing = (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : [];
+  const warn = missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
+      <b>⚠ In der SharePoint-Liste „Richtlinien" fehlen ${missing.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> – u. a. bleibt deshalb die Dokumentzuordnung nicht erhalten.<br>
+      Bitte in SharePoint anlegen: ${missing.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
+    </div>` : '';
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
   const f = document.getElementById('filter-admin')?.value || 'all';
   let rows = State.policies.slice();
@@ -27,9 +32,9 @@ function renderAdminList() {
   if (q) rows = rows.filter(p => (p.title + ' ' + p.kategorie).toLowerCase().includes(q));
   rows.sort((a, b) => (b.modifiedAt || '').localeCompare(a.modifiedAt || ''));
 
-  if (!rows.length) { list.innerHTML = emptyState('Keine Richtlinien. Lege oben eine neue an.', '📄'); return; }
+  if (!rows.length) { list.innerHTML = warn + emptyState('Keine Richtlinien. Lege oben eine neue an.', '📄'); return; }
 
-  list.innerHTML = rows.map(p => `
+  list.innerHTML = warn + rows.map(p => `
     <div class="item-card" onclick="openPolicyEditor('${p.id}')">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
