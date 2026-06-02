@@ -31,6 +31,7 @@ const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
   ismsSiteId: null,
   policyFields: new Set(['Title']),
+  ackFields: new Set(['Title']),
   ready: false,
 };
 
@@ -58,6 +59,24 @@ function spMissingPolicyColumns() {
   return POLICY_COLUMNS.filter(c => !_sp.policyFields.has(c.name));
 }
 
+/* Erwartete Spalten der Liste „Bestaetigungen". */
+const ACK_COLUMNS = [
+  { name: 'RichtlinieId',       typ: 'Einzelne Textzeile' },
+  { name: 'RichtlinienVersion', typ: 'Einzelne Textzeile' },
+  { name: 'BenutzerUPN',        typ: 'Einzelne Textzeile' },
+  { name: 'BenutzerName',       typ: 'Einzelne Textzeile' },
+  { name: 'GelesenAm',          typ: 'Datum und Uhrzeit' },
+  { name: 'QuizBestanden',      typ: 'Ja/Nein' },
+  { name: 'QuizScore',          typ: 'Zahl' },
+  { name: 'QuizVersuche',       typ: 'Zahl' },
+  { name: 'AbgeschlossenAm',    typ: 'Datum und Uhrzeit' },
+];
+
+/** Welche erwarteten Spalten fehlen in der Liste „Bestaetigungen"? */
+function spMissingAckColumns() {
+  return ACK_COLUMNS.filter(c => !_sp.ackFields.has(c.name));
+}
+
 /* ═══════════════════════════════════════════════════
    Initialisierung
 ═══════════════════════════════════════════════════ */
@@ -82,12 +101,18 @@ async function spInit() {
   ) || drives.value?.[0];
   if (docDrive) _sp.appDriveId = docDrive.id;
 
-  // Spalten der Richtlinien-Liste (nur vorhandene Felder schreiben → keine 400er)
+  // Spalten beider Listen (nur vorhandene Felder schreiben → keine 400er)
   try {
     const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/columns`, token);
     (cols.value || []).forEach(c => _sp.policyFields.add(c.name));
   } catch (e) {
     console.warn('[sp] Spalten der Richtlinien-Liste nicht lesbar:', e.message);
+  }
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`, token);
+    (cols.value || []).forEach(c => _sp.ackFields.add(c.name));
+  } catch (e) {
+    console.warn('[sp] Spalten der Bestaetigungen-Liste nicht lesbar:', e.message);
   }
 
   _sp.ready = true;
@@ -248,7 +273,7 @@ async function spSaveAcknowledgement(a) {
   if (!token) throw new Error('Nicht angemeldet');
   await spInit();
 
-  const fields = {
+  const all = {
     Title:              `${a.benutzerUpn}|${a.richtlinieId}|${a.version}`.slice(0, 255),
     RichtlinieId:       String(a.richtlinieId),
     RichtlinienVersion: String(a.version || ''),
@@ -261,8 +286,12 @@ async function spSaveAcknowledgement(a) {
     AbgeschlossenAm:    a.abgeschlossenAm || '',
   };
   // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
-  if (!fields.AbgeschlossenAm) delete fields.AbgeschlossenAm;
-  if (!fields.GelesenAm)       delete fields.GelesenAm;
+  if (!all.AbgeschlossenAm) delete all.AbgeschlossenAm;
+  if (!all.GelesenAm)       delete all.GelesenAm;
+  // Nur Spalten senden, die in der Liste existieren (verhindert 400 bei fehlenden Spalten)
+  const fields = Object.fromEntries(
+    Object.entries(all).filter(([k]) => _sp.ackFields.has(k))
+  );
 
   if (a.id) {
     return _patch(

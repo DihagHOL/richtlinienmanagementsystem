@@ -20,11 +20,13 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
 function renderAdminList() {
   const list = document.getElementById('list-admin');
   if (!list) return;
-  const missing = (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : [];
-  const warn = missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
-      <b>⚠ In der SharePoint-Liste „Richtlinien" fehlen ${missing.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> – u. a. bleibt deshalb die Dokumentzuordnung nicht erhalten.<br>
-      Bitte in SharePoint anlegen: ${missing.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
+  const _colBanner = (liste, miss) => miss.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
+      <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
+      Bitte in SharePoint anlegen: ${miss.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
     </div>` : '';
+  const warn =
+    _colBanner('Richtlinien', (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : []) +
+    _colBanner('Bestaetigungen', (typeof spMissingAckColumns === 'function') ? spMissingAckColumns() : []);
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
   const f = document.getElementById('filter-admin')?.value || 'all';
   let rows = State.policies.slice();
