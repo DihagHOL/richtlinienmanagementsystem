@@ -349,6 +349,37 @@ async function spReplaceDocContent(driveId, itemId, bytes, contentType) {
   return resp.json();
 }
 
+/** Lädt eine Datei in einen bestimmten Ordner (folderItemId; null = Wurzel der Bibliothek). */
+async function spUploadToFolder(driveId, folderItemId, filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_');
+  const url = folderItemId
+    ? `${SP.graphBase}/drives/${driveId}/items/${folderItemId}:/${encodeURIComponent(safe)}:/content`
+    : `${SP.graphBase}/drives/${driveId}/root:/${encodeURIComponent(safe)}:/content`;
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
+}
+
+/** Bibliotheken (Drives) der App-Site (für den Zielordner-Wähler). */
+async function spListAppDrives() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await spInit();
+  const drives = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token);
+  return (drives.value || []).map(d => ({ id: d.id, name: d.name }));
+}
+
+/** Ordnerinhalt eines beliebigen Drives auflisten (für den Zielordner-Wähler). */
+async function spBrowseAnyDrive(driveId, itemId) {
+  return spBrowseDrive(driveId, itemId);
+}
+
 /* ═══════════════════════════════════════════════════
    Bestätigungen / Abschlüsse
 ═══════════════════════════════════════════════════ */

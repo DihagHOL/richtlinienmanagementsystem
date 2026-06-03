@@ -112,31 +112,116 @@ async function importPolicyFiles(fileList) {
   }
 }
 
-/** Upload aus dem Editor: ersetzt vorhandenes Dokument (neue Version) oder lädt neu hoch. */
+/** Upload aus dem Editor: bestehendes Dokument → neue Version; sonst Zielordner wählen. */
 async function uploadPolicyDocFromEditor(file) {
   if (!file || !_editing) return;
+  if (!(_editing.dokumentDriveId && _editing.dokumentItemId)) {
+    openFolderPickerForUpload(file);   // neues Dokument → Zielordner wählen
+    return;
+  }
+  // bestehendes Dokument → neue Version am selben Speicherort (SharePoint versioniert)
   const disp = document.getElementById('ed-doc-display');
   if (disp) { disp.style.color = ''; disp.textContent = '⬆ Lädt hoch …'; }
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (_editing.dokumentDriveId && _editing.dokumentItemId) {
-      const res = await spReplaceDocContent(_editing.dokumentDriveId, _editing.dokumentItemId, bytes, file.type);
-      _editing.dokumentName = res.name || _editing.dokumentName;
-      _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
-      toast('Neue Dokumentversion hochgeladen ✓ (in SharePoint versioniert)', 'success');
-    } else {
-      const doc = await spUploadPolicyDoc(file.name, bytes, file.type);
-      _editing.dokumentDriveId = doc.driveId;
-      _editing.dokumentItemId = doc.itemId;
-      _editing.dokumentName = doc.name;
-      _editing.dokumentUrl = doc.url;
-      toast('Dokument hochgeladen ✓', 'success');
-    }
+    const res = await spReplaceDocContent(_editing.dokumentDriveId, _editing.dokumentItemId, bytes, file.type);
+    _editing.dokumentName = res.name || _editing.dokumentName;
+    _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
     if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.style.color = ''; }
+    toast('Neue Dokumentversion hochgeladen ✓ (in SharePoint versioniert)', 'success');
   } catch (e) {
     toast('Hochladen fehlgeschlagen: ' + e.message, 'error');
     if (disp) disp.innerHTML = _editing.dokumentName ? '📄 ' + esc(_editing.dokumentName) : '⚠ noch kein Dokument zugeordnet';
   }
+}
+
+/* ── Zielordner-Wähler für den Upload ── */
+let _fpState = null, _fpFile = null, _fpDrives = null;
+
+async function openFolderPickerForUpload(file) {
+  _fpFile = file;
+  _fpState = { driveId: null, driveName: '', path: [], items: [] };
+  pickerMount(fpShell('<div class="doc-loading">Bibliotheken werden geladen …</div>'));
+  try {
+    if (!_fpDrives) {
+      const isms = await spListIsmsDrives().catch(() => []);
+      const app = await spListAppDrives().catch(() => []);
+      _fpDrives = [
+        ...isms.map(d => ({ id: d.id, name: 'ISMS · ' + d.name })),
+        ...app.map(d => ({ id: d.id, name: 'Intern · ' + d.name })),
+      ];
+    }
+    renderFolderPicker();
+  } catch (e) {
+    const b = document.getElementById('fp-body');
+    if (b) b.innerHTML = `<div class="col-warning" style="display:block">Bibliotheken nicht ladbar: ${esc(e.message)}</div>`;
+  }
+}
+
+function fpShell(inner) {
+  return `
+    <div class="modal-header"><h3>Zielordner wählen${_fpFile ? ' – „' + esc(_fpFile.name) + '"' : ''}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
+    <div class="modal-body" id="fp-body">${inner}</div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="pickerClose()">Abbrechen</button></div>`;
+}
+
+async function renderFolderPicker() {
+  const body = document.getElementById('fp-body');
+  if (!body) return;
+  let items;
+  try {
+    if (!_fpState.driveId) items = (_fpDrives || []).map(d => ({ id: d.id, name: d.name, isFolder: true, isDrive: true }));
+    else { body.innerHTML = '<div class="doc-loading">Lädt …</div>'; const last = _fpState.path[_fpState.path.length - 1]; items = await spBrowseAnyDrive(_fpState.driveId, last ? last.id : null); }
+  } catch (e) { body.innerHTML = `<div class="col-warning" style="display:block">Ordner nicht ladbar: ${esc(e.message)}</div>`; return; }
+  _fpState.items = items;
+  let crumbs = `<a data-fp="-1">Bibliotheken</a>`;
+  if (_fpState.driveId) { crumbs += ` › <a data-fp="-2">${esc(_fpState.driveName)}</a>`; _fpState.path.forEach((f, i) => crumbs += ` › <a data-fp="${i}">${esc(f.name)}</a>`); }
+  const rows = items.length ? items.map((it, idx) => it.isFolder
+    ? `<div class="dp-row folder" data-fpopen="${idx}"><span class="ic">📁</span><span class="nm">${esc(it.name)}</span><span class="field-hint">${it.isDrive ? 'Bibliothek' : 'öffnen'}</span></div>`
+    : `<div class="dp-row" style="opacity:.45;cursor:default"><span class="ic">📄</span><span class="nm">${esc(it.name)}</span></div>`
+  ).join('') : '<div class="doc-loading">Dieser Ordner ist leer.</div>';
+  const uploadBtn = _fpState.driveId
+    ? `<button class="btn btn-primary btn-sm" onclick="doFolderUpload()">📥 Hierher hochladen</button>`
+    : `<span class="field-hint">Bitte zuerst eine Bibliothek öffnen.</span>`;
+  body.innerHTML = `<div class="dp-crumbs">${crumbs}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px">
+      <span class="field-hint" style="flex:1">Ziel: <b>${esc(_fpState.path.map(p => p.name).join(' / ') || _fpState.driveName || '–')}</b></span>${uploadBtn}</div>
+    <div class="dp-list">${rows}</div>`;
+  body.querySelector('.dp-list')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const r = e.target.closest('[data-fpopen]'); if (r) fpOpen(+r.dataset.fpopen); });
+  body.querySelector('.dp-crumbs')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const a = e.target.closest('[data-fp]'); if (a) fpCrumb(+a.dataset.fp); });
+}
+
+function fpOpen(idx) {
+  const it = _fpState.items[idx];
+  if (!it) return;
+  if (it.isDrive) { _fpState.driveId = it.id; _fpState.driveName = it.name; _fpState.path = []; }
+  else { _fpState.path.push({ id: it.id, name: it.name }); }
+  renderFolderPicker();
+}
+function fpCrumb(i) {
+  if (i === -1) { _fpState.driveId = null; _fpState.driveName = ''; _fpState.path = []; }
+  else if (i === -2) { _fpState.path = []; }
+  else { _fpState.path = _fpState.path.slice(0, i + 1); }
+  renderFolderPicker();
+}
+
+async function doFolderUpload() {
+  if (!_fpFile || !_editing || !_fpState.driveId) { pickerClose(); return; }
+  const last = _fpState.path[_fpState.path.length - 1];
+  const body = document.getElementById('fp-body');
+  if (body) body.innerHTML = '<div class="doc-loading">Lädt hoch …</div>';
+  try {
+    const bytes = new Uint8Array(await _fpFile.arrayBuffer());
+    const doc = await spUploadToFolder(_fpState.driveId, last ? last.id : null, _fpFile.name, bytes, _fpFile.type);
+    _editing.dokumentDriveId = _fpState.driveId;
+    _editing.dokumentItemId = doc.id;
+    _editing.dokumentName = doc.name;
+    _editing.dokumentUrl = doc.webUrl || '';
+    pickerClose();
+    const disp = document.getElementById('ed-doc-display');
+    if (disp) { disp.innerHTML = '📄 ' + esc(doc.name); disp.style.color = ''; }
+    toast('Hochgeladen ✓', 'success');
+  } catch (e) { toast('Upload fehlgeschlagen: ' + e.message, 'error'); pickerClose(); }
 }
 
 function newPolicy() {
