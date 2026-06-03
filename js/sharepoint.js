@@ -398,6 +398,45 @@ async function spGetMyDepartment() {
 }
 
 /* ═══════════════════════════════════════════════════
+   Mail-Versand (Graph /me/sendMail, Scope Mail.Send)
+═══════════════════════════════════════════════════ */
+
+/** Firmendomain des angemeldeten Users (Sicherheits-Grenze für Empfänger). */
+function _myMailDomain() {
+  const u = (typeof getAuthUser === 'function' && getAuthUser()?.username) || '';
+  const at = u.lastIndexOf('@');
+  return at >= 0 ? u.slice(at + 1).toLowerCase() : '';
+}
+
+/**
+ * Mail im Namen des angemeldeten Users senden.
+ * Sicherheit: Empfänger müssen gültige Adressen der EIGENEN Firmendomain sein
+ * (kein Versand an Externe). Scope Mail.Send wird separat angefordert.
+ * @returns true bei Versand, false bei Redirect (Consent erforderlich)
+ */
+async function spSendMail(toUpns, subject, htmlBody) {
+  const domain = _myMailDomain();
+  const recipients = (Array.isArray(toUpns) ? toUpns : [toUpns])
+    .map(u => String(u || '').trim().toLowerCase())
+    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!domain || u.endsWith('@' + domain)));
+  const unique = [...new Set(recipients)];
+  if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
+
+  const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
+  if (!token) return false;   // Redirect zum Consent läuft
+
+  await _post(`${SP.graphBase}/me/sendMail`, token, {
+    message: {
+      subject: String(subject || '').slice(0, 255),
+      body: { contentType: 'HTML', content: htmlBody || '' },
+      toRecipients: unique.map(a => ({ emailAddress: { address: a } })),
+    },
+    saveToSentItems: true,
+  });
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════
    access-config.json (Rollen)
 ═══════════════════════════════════════════════════ */
 

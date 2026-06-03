@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -392,7 +392,10 @@ function renderAckCard(p, a, st) {
 
   const finished = st === 'done';
   const banner = finished
-    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;margin-top:14px;color:#15803d;font-size:.85rem;font-weight:600">✓ Diese Richtlinie ist vollständig abgeschlossen.</div>`
+    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;margin-top:14px;color:#15803d;font-size:.85rem">
+        <div style="font-weight:600;margin-bottom:8px">✓ Diese Richtlinie ist vollständig abgeschlossen.</div>
+        <button class="btn btn-outline btn-sm" onclick="sendCertificate('${p.id}')">📄 Nachweis per Mail an mich</button>
+      </div>`
     : '';
 
   return `<div class="ack-card">
@@ -433,6 +436,41 @@ async function confirmRead(policyId) {
     toast('Fehler beim Speichern: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Kenntnisnahme bestätigen'; }
   }
+}
+
+/* ── #8 Nachweis/Zertifikat per Mail an den Benutzer ── */
+async function sendCertificate(policyId) {
+  const p = State.policies.find(x => x.id === policyId);
+  if (!p) return;
+  const a = State.acks.find(x => x.richtlinieId === p.id && x.version === p.version);
+  const when = (a && (a.abgeschlossenAm || a.gelesenAm)) || new Date().toISOString();
+  try {
+    const ok = await spSendMail(State.user.upn, `Teilnahmenachweis: ${p.title}`, certificateHtml(p, a, when));
+    if (ok) toast('Nachweis per Mail an dich gesendet ✓', 'success');
+  } catch (e) {
+    toast('Mail-Versand fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+function certificateHtml(p, a, when) {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e9ef;border-radius:12px;overflow:hidden">
+    <div style="background:#1a56db;color:#fff;padding:24px 28px">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.85">DIHAG Richtlinienmanagement</div>
+      <div style="font-size:22px;font-weight:700;margin-top:6px">Teilnahmenachweis</div>
+    </div>
+    <div style="padding:24px 28px;color:#1e2939;font-size:15px;line-height:1.6">
+      <p>Hiermit wird bestätigt, dass</p>
+      <p style="font-size:18px;font-weight:700;margin:8px 0">${esc(State.user.name)}</p>
+      <p>die folgende Richtlinie zur Kenntnis genommen${p.quizErforderlich ? ' und den Wissenstest bestanden' : ''} hat:</p>
+      <table style="width:100%;margin:14px 0;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:6px 0;color:#6b7280;width:150px">Richtlinie</td><td style="padding:6px 0;font-weight:600">${esc(p.title)}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Version</td><td style="padding:6px 0">${esc(p.version)}</td></tr>
+        ${p.quizErforderlich && a ? `<tr><td style="padding:6px 0;color:#6b7280">Testergebnis</td><td style="padding:6px 0">${a.quizScore}%</td></tr>` : ''}
+        <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0">${fmtDate(when)}</td></tr>
+      </table>
+      <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatisch erzeugt vom DIHAG Richtlinienmanagementsystem.</p>
+    </div>
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════

@@ -645,7 +645,10 @@ function renderComplianceDetail() {
     <div class="card">
       <div class="card-header">
         <h2>${esc(p.title)} <span style="font-weight:400;color:var(--c-muted)">· v${esc(p.version)} · 👥 ${esc(zielgruppenLabel(p))}</span></h2>
-        <span class="quote-pill ${qCls}">${quote}% erfüllt</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="remindOpenForCurrent()">⏰ Offene erinnern</button>
+          <span class="quote-pill ${qCls}">${quote}% erfüllt</span>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table class="tbl">
@@ -668,6 +671,33 @@ function complianceBadge(st) {
   if (st === 'abgeschlossen') return '<span class="status-badge sb-done">✓ Abgeschlossen</span>';
   if (st === 'gelesen') return '<span class="status-badge sb-read">Gelesen</span>';
   return '<span class="status-badge sb-open">Offen</span>';
+}
+
+/* ── #4 Erinnerung an offene Mitarbeiter der aktuell gewählten Richtlinie ── */
+async function remindOpenForCurrent() {
+  const p = AdminState.lastCompliancePolicy;
+  const rows = AdminState.lastComplianceRows || [];
+  if (!p) { toast('Keine Richtlinie gewählt.', 'error'); return; }
+  const offene = [...new Set(rows.filter(r => r.st !== 'abgeschlossen').map(r => r.upn))];
+  if (!offene.length) { toast('Keine offenen Mitarbeiter – nichts zu erinnern.', 'success'); return; }
+  if (!confirm(`Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`)) return;
+  try {
+    const ok = await spSendMail(offene, `Erinnerung: Pflicht-Richtlinie „${p.title}"`, reminderHtml(p));
+    if (ok) toast(`Erinnerung an ${offene.length} Mitarbeiter gesendet ✓`, 'success');
+  } catch (e) {
+    toast('Mail-Versand fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+function reminderHtml(p) {
+  const url = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p>Hallo,</p>
+    <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>
+    <p>Bitte holen Sie das zeitnah nach:</p>
+    <p><a href="${url}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Erinnerung vom DIHAG Richtlinienmanagementsystem.</p>
+  </div>`;
 }
 
 function exportComplianceCsv() {
