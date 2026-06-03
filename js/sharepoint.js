@@ -380,6 +380,20 @@ async function spBrowseAnyDrive(driveId, itemId) {
   return spBrowseDrive(driveId, itemId);
 }
 
+/** Versionsverlauf eines Dokuments (SharePoint-Dateiversionen). */
+async function spGetDocVersions(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const r = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}/versions`, token);
+  return (r.value || []).map(v => ({
+    id: v.id,
+    modified: v.lastModifiedDateTime || '',
+    by: (v.lastModifiedBy && v.lastModifiedBy.user && v.lastModifiedBy.user.displayName) || '',
+    size: v.size || 0,
+    url: v['@microsoft.graph.downloadUrl'] || '',
+  }));
+}
+
 /* ═══════════════════════════════════════════════════
    Bestätigungen / Abschlüsse
 ═══════════════════════════════════════════════════ */

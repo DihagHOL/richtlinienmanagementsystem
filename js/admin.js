@@ -112,27 +112,10 @@ async function importPolicyFiles(fileList) {
   }
 }
 
-/** Upload aus dem Editor: bestehendes Dokument → neue Version; sonst Zielordner wählen. */
+/** Upload aus dem Editor: öffnet IMMER den Zielordner-Wähler (mit Versions-Shortcut). */
 async function uploadPolicyDocFromEditor(file) {
   if (!file || !_editing) return;
-  if (!(_editing.dokumentDriveId && _editing.dokumentItemId)) {
-    openFolderPickerForUpload(file);   // neues Dokument → Zielordner wählen
-    return;
-  }
-  // bestehendes Dokument → neue Version am selben Speicherort (SharePoint versioniert)
-  const disp = document.getElementById('ed-doc-display');
-  if (disp) { disp.style.color = ''; disp.textContent = '⬆ Lädt hoch …'; }
-  try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const res = await spReplaceDocContent(_editing.dokumentDriveId, _editing.dokumentItemId, bytes, file.type);
-    _editing.dokumentName = res.name || _editing.dokumentName;
-    _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
-    if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.style.color = ''; }
-    toast('Neue Dokumentversion hochgeladen ✓ (in SharePoint versioniert)', 'success');
-  } catch (e) {
-    toast('Hochladen fehlgeschlagen: ' + e.message, 'error');
-    if (disp) disp.innerHTML = _editing.dokumentName ? '📄 ' + esc(_editing.dokumentName) : '⚠ noch kein Dokument zugeordnet';
-  }
+  openFolderPickerForUpload(file);
 }
 
 /* ── Zielordner-Wähler für den Upload ── */
@@ -183,9 +166,14 @@ async function renderFolderPicker() {
   const uploadBtn = _fpState.driveId
     ? `<button class="btn btn-primary btn-sm" onclick="doFolderUpload()">📥 Hierher hochladen</button>`
     : `<span class="field-hint">Bitte zuerst eine Bibliothek öffnen.</span>`;
-  body.innerHTML = `<div class="dp-crumbs">${crumbs}</div>
+  const versionShortcut = (_editing && _editing.dokumentDriveId && _editing.dokumentItemId)
+    ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+         <span class="field-hint" style="flex:1">Es ist bereits ein Dokument zugeordnet (<b>${esc(_editing.dokumentName || '')}</b>). Du kannst die Datei als <b>neue Version</b> am bisherigen Speicherort ablegen — dann bleibt der Versionsverlauf erhalten.</span>
+         <button class="btn btn-success btn-sm" onclick="doUploadAsVersion()">↻ Als neue Version</button></div>`
+    : '';
+  body.innerHTML = `${versionShortcut}<div class="dp-crumbs">${crumbs}</div>
     <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px">
-      <span class="field-hint" style="flex:1">Ziel: <b>${esc(_fpState.path.map(p => p.name).join(' / ') || _fpState.driveName || '–')}</b></span>${uploadBtn}</div>
+      <span class="field-hint" style="flex:1">Neuer Speicherort: <b>${esc(_fpState.path.map(p => p.name).join(' / ') || _fpState.driveName || '–')}</b></span>${uploadBtn}</div>
     <div class="dp-list">${rows}</div>`;
   body.querySelector('.dp-list')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const r = e.target.closest('[data-fpopen]'); if (r) fpOpen(+r.dataset.fpopen); });
   body.querySelector('.dp-crumbs')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const a = e.target.closest('[data-fp]'); if (a) fpCrumb(+a.dataset.fp); });
@@ -222,6 +210,57 @@ async function doFolderUpload() {
     if (disp) { disp.innerHTML = '📄 ' + esc(doc.name); disp.style.color = ''; }
     toast('Hochgeladen ✓', 'success');
   } catch (e) { toast('Upload fehlgeschlagen: ' + e.message, 'error'); pickerClose(); }
+}
+
+/** Datei als neue Version des bereits zugeordneten Dokuments hochladen (gleicher Ort). */
+async function doUploadAsVersion() {
+  if (!_fpFile || !_editing || !_editing.dokumentDriveId || !_editing.dokumentItemId) { pickerClose(); return; }
+  const body = document.getElementById('fp-body');
+  if (body) body.innerHTML = '<div class="doc-loading">Neue Version wird hochgeladen …</div>';
+  try {
+    const bytes = new Uint8Array(await _fpFile.arrayBuffer());
+    const res = await spReplaceDocContent(_editing.dokumentDriveId, _editing.dokumentItemId, bytes, _fpFile.type);
+    _editing.dokumentName = res.name || _editing.dokumentName;
+    _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
+    pickerClose();
+    const disp = document.getElementById('ed-doc-display');
+    if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.style.color = ''; }
+    toast('Neue Version hochgeladen ✓ (in SharePoint versioniert)', 'success');
+  } catch (e) { toast('Upload fehlgeschlagen: ' + e.message, 'error'); pickerClose(); }
+}
+
+/** Versionsverlauf des zugeordneten Dokuments anzeigen. */
+async function openDocVersions() {
+  if (!_editing || !_editing.dokumentDriveId || !_editing.dokumentItemId) { toast('Diesem Eintrag ist noch kein Dokument zugeordnet.', 'error'); return; }
+  pickerMount(`
+    <div class="modal-header"><h3>🕘 Versionsverlauf – ${esc(_editing.dokumentName || 'Dokument')}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
+    <div class="modal-body" id="ver-body"><div class="doc-loading">Versionen werden geladen …</div></div>
+    <div class="modal-footer">
+      ${_editing.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(_editing.dokumentUrl)}" target="_blank" rel="noopener">In SharePoint öffnen</a>` : ''}
+      <button class="btn btn-ghost" onclick="pickerClose()">Schließen</button>
+    </div>`);
+  try {
+    const vers = await spGetDocVersions(_editing.dokumentDriveId, _editing.dokumentItemId);
+    const body = document.getElementById('ver-body');
+    if (!body) return;
+    if (!vers.length) { body.innerHTML = emptyState('Keine Versionen gefunden. (Versionsverlauf ist evtl. in der Bibliothek deaktiviert.)'); return; }
+    body.innerHTML = `
+      <p class="field-hint" style="margin:0 0 10px">SharePoint führt bei jedem Hochladen am gleichen Speicherort automatisch eine neue Version. Neueste zuerst:</p>
+      <table class="tbl">
+        <thead><tr><th>Version</th><th>Geändert am</th><th>Geändert von</th><th class="num">Größe</th><th></th></tr></thead>
+        <tbody>${vers.map((v, i) => `
+          <tr>
+            <td><b>${esc(v.id)}</b>${i === 0 ? ' <span style="font-size:.68rem;font-weight:700;background:#dcfce7;color:#15803d;border-radius:4px;padding:1px 6px;margin-left:4px">aktuell</span>' : ''}</td>
+            <td>${fmtDateTime(v.modified)}</td>
+            <td>${esc(v.by || '–')}</td>
+            <td class="num">${v.size ? Math.max(1, Math.round(v.size / 1024)) + ' KB' : '–'}</td>
+            <td class="num">${v.url ? `<a class="btn btn-ghost btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">Ansehen</a>` : ''}</td>
+          </tr>`).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    const body = document.getElementById('ver-body');
+    if (body) body.innerHTML = `<div class="col-warning" style="display:block">Versionen nicht ladbar: ${esc(e.message)}</div>`;
+  }
 }
 
 function newPolicy() {
@@ -282,9 +321,10 @@ function renderPolicyEditor() {
             </span>
             <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Aus Bibliothek …</button>
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('ed-upload-input').click()">⬆ Hochladen</button>
-            <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0])">
+            ${p.dokumentDriveId && p.dokumentItemId ? `<button class="btn btn-outline btn-sm" onclick="openDocVersions()">🕘 Versionen</button>` : ''}
+            <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0]); this.value='';">
           </div>
-          <span class="field-hint">Bei einem bereits zugeordneten Dokument legt ein erneuter Upload in SharePoint automatisch eine <b>neue Version</b> an (Versionsverlauf bleibt erhalten).</span>
+          <span class="field-hint">„Hochladen" öffnet einen <b>Zielordner-Wähler</b> (Bibliothek + Ordner). Ist bereits ein Dokument zugeordnet, kannst du dort auch eine <b>neue Version</b> am selben Ort ablegen — der Versionsverlauf bleibt erhalten und ist über „🕘 Versionen" einsehbar.</span>
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.pflicht ? 'checked' : ''} onchange="_editing.pflicht=this.checked"> Pflichtlektüre</label>
