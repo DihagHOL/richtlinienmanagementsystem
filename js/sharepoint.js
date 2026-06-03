@@ -319,6 +319,21 @@ async function spDeleteCourse(id) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Richtlinien-Import: Dokument hochladen (App-Bibliothek)
+═══════════════════════════════════════════════════ */
+
+/** Lädt eine Datei in die App-Dokumentbibliothek (Ordner „Richtlinien-Import") hoch. */
+async function spUploadPolicyDoc(filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_');
+  const res = await _uploadFile(token, `Richtlinien-Import/${safe}`, bytes, contentType || 'application/octet-stream');
+  return { driveId: _sp.appDriveId, itemId: res.id, name: res.name, url: res.webUrl || '' };
+}
+
+/* ═══════════════════════════════════════════════════
    Bestätigungen / Abschlüsse
 ═══════════════════════════════════════════════════ */
 

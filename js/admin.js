@@ -62,6 +62,56 @@ function renderAdminList() {
    Verwaltung: Editor
 ═══════════════════════════════════════════════════ */
 
+/* ── Import: Word/PDF (einzeln & mehrere) → Entwurfs-Richtlinien ── */
+function openImportDialog() {
+  openModal(`
+    <div class="modal-header"><h3>Richtlinien importieren</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:10px">Word-/PDF-Dateien (auch mehrere) hierher ziehen oder auswählen. Pro Datei wird eine <b>Entwurfs</b>-Richtlinie angelegt (Titel aus dem Dateinamen). Danach im Editor ergänzen und „Zur Konformitätsprüfung" schicken.</div>
+      <div id="import-drop" style="border:2px dashed var(--c-border);border-radius:10px;padding:30px 16px;text-align:center;cursor:pointer;color:var(--c-muted)">
+        📥 <b>Dateien hierher ziehen</b><br><span style="font-size:.8rem">oder klicken zum Auswählen</span>
+      </div>
+      <input type="file" id="import-input" multiple accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx" style="display:none">
+      <div id="import-log" style="margin-top:12px;font-size:.85rem;max-height:200px;overflow:auto"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">Schließen</button></div>`);
+  const drop = document.getElementById('import-drop');
+  const input = document.getElementById('import-input');
+  drop.onclick = () => input.click();
+  input.onchange = () => importPolicyFiles(input.files);
+  drop.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = 'var(--c-primary)'; drop.style.background = 'var(--c-primary-l)'; };
+  drop.ondragleave = () => { drop.style.borderColor = 'var(--c-border)'; drop.style.background = ''; };
+  drop.ondrop = (e) => { e.preventDefault(); drop.style.borderColor = 'var(--c-border)'; drop.style.background = ''; importPolicyFiles(e.dataTransfer.files); };
+}
+
+async function importPolicyFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const log = document.getElementById('import-log');
+  let ok = 0;
+  for (const f of files) {
+    const row = document.createElement('div');
+    if (log) { row.textContent = '⏳ ' + f.name + ' …'; log.appendChild(row); }
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const doc = await spUploadPolicyDoc(f.name, bytes, f.type);
+      const p = newPolicy();
+      p.title = f.name.replace(/\.[^.]+$/, '');
+      p.dokumentUrl = doc.url; p.dokumentName = doc.name; p.dokumentDriveId = doc.driveId; p.dokumentItemId = doc.itemId;
+      await spSavePolicy(p);
+      ok++;
+      if (row) { row.style.color = '#15803d'; row.textContent = '✓ ' + f.name + ' → Entwurf angelegt'; }
+    } catch (e) {
+      if (row) { row.style.color = '#b91c1c'; row.textContent = '✗ ' + f.name + ': ' + e.message; }
+    }
+  }
+  if (ok) {
+    await reloadData();
+    renderAdminList();
+    toast(`${ok} Richtlinie(n) als Entwurf importiert ✓`, 'success');
+  }
+}
+
 function newPolicy() {
   return {
     id: null, title: '', beschreibung: '', kategorie: 'ISO 27001',
