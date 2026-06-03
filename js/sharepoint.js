@@ -57,6 +57,9 @@ const POLICY_COLUMNS = [
   { name: 'NaechsteReview',      typ: 'Datum und Uhrzeit' },
   { name: 'VeroeffentlichtAm',   typ: 'Datum und Uhrzeit' },
   { name: 'FreigegebenVon',      typ: 'Einzelne Textzeile' },
+  { name: 'KonformitaetJson',    typ: 'Mehrere Zeilen Text' },
+  { name: 'FreigabeJson',        typ: 'Mehrere Zeilen Text' },
+  { name: 'PruefungSeit',        typ: 'Datum und Uhrzeit' },
 ];
 
 /** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
@@ -163,6 +166,10 @@ function _mapPolicy(item) {
   try { quiz = f.QuizJson ? JSON.parse(f.QuizJson) : []; } catch { quiz = []; }
   let zielgruppen = [];
   try { zielgruppen = f.Zielgruppen ? JSON.parse(f.Zielgruppen) : []; } catch { zielgruppen = []; }
+  let konformitaet = [];
+  try { konformitaet = f.KonformitaetJson ? JSON.parse(f.KonformitaetJson) : []; } catch { konformitaet = []; }
+  let freigaben = [];
+  try { freigaben = f.FreigabeJson ? JSON.parse(f.FreigabeJson) : []; } catch { freigaben = []; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -183,6 +190,9 @@ function _mapPolicy(item) {
     naechsteReview:      f.NaechsteReview || '',
     veroeffentlichtAm:   f.VeroeffentlichtAm || '',
     freigegebenVon:      f.FreigegebenVon || '',
+    konformitaet,
+    freigaben,
+    pruefungSeit:        f.PruefungSeit || '',
     modifiedAt:          item.lastModifiedDateTime || '',
   };
 }
@@ -218,6 +228,9 @@ async function spSavePolicy(p) {
     NaechsteReview:      p.naechsteReview || '',
     VeroeffentlichtAm:   p.veroeffentlichtAm || '',
     FreigegebenVon:      p.freigegebenVon || '',
+    KonformitaetJson:    JSON.stringify(p.konformitaet || []),
+    FreigabeJson:        JSON.stringify(p.freigaben || []),
+    PruefungSeit:        p.pruefungSeit || '',
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))
@@ -225,6 +238,7 @@ async function spSavePolicy(p) {
   // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
   if (!fields.VeroeffentlichtAm) delete fields.VeroeffentlichtAm;
   if (!fields.NaechsteReview)    delete fields.NaechsteReview;
+  if (!fields.PruefungSeit)      delete fields.PruefungSeit;
 
   if (p.id) {
     return _patch(

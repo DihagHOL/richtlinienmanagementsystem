@@ -19,6 +19,12 @@ const ACCESS_CONFIG_DEFAULT = {
   genehmiger: ['pruefer@dihag.com', 'pruefer@dihag.com'],
   roles:      null,   // null → COMPANY_ROLES_DEFAULT
   userRoles:  {},     // { "user@dihag.com": ["IT", "Qualitätsmanagement"] }
+  // ── Genehmigungsverfahren ──
+  pruefer:          [],        // Konformitätsprüfer (UPNs)
+  geschaeftsleitung: [],       // Freigeber / Geschäftsleitung (UPNs)
+  konformSchwelle:  'alle',    // 'alle' | 'einer'  – wann gilt eine Richtlinie als konform
+  freigabeSchwelle: 'einer',   // 'alle' | 'einer'  – wie viele GL müssen freigeben
+  eskalationMail:   '',        // Ersatz-Empfänger bei keiner Antwort (Power Automate)
 };
 
 /* Gängige Unternehmensrollen/Abteilungen (Default, in Einstellungen anpassbar). */
@@ -46,6 +52,11 @@ async function loadRuntimeAccessConfig() {
         genehmiger: Array.isArray(cfg.genehmiger) ? cfg.genehmiger : [],
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
+        pruefer:           Array.isArray(cfg.pruefer) ? cfg.pruefer : [],
+        geschaeftsleitung: Array.isArray(cfg.geschaeftsleitung) ? cfg.geschaeftsleitung : [],
+        konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
+        freigabeSchwelle:  cfg.freigabeSchwelle === 'alle' ? 'alle' : 'einer',
+        eskalationMail:    typeof cfg.eskalationMail === 'string' ? cfg.eskalationMail : '',
       };
     }
   } catch (e) {
@@ -60,8 +71,24 @@ function getAccessConfig() {
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
     userRoles:  JSON.parse(JSON.stringify(c.userRoles || {})),
+    pruefer:           [...(c.pruefer || [])],
+    geschaeftsleitung: [...(c.geschaeftsleitung || [])],
+    konformSchwelle:   c.konformSchwelle || 'alle',
+    freigabeSchwelle:  c.freigabeSchwelle || 'einer',
+    eskalationMail:    c.eskalationMail || '',
   };
 }
+
+/* ── Genehmigungsverfahren: Rollen & Schwellen ── */
+function isPruefer(upn)           { return _has(_cfg().pruefer, upn); }
+function isGeschaeftsleitung(upn) { return _has(_cfg().geschaeftsleitung, upn); }
+function isCurrentUserPruefer()           { return isPruefer(_currentUpn()); }
+function isCurrentUserGeschaeftsleitung() { return isGeschaeftsleitung(_currentUpn()); }
+function getPruefer()           { return [...(_cfg().pruefer || [])]; }
+function getGeschaeftsleitung() { return [...(_cfg().geschaeftsleitung || [])]; }
+function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
+function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
+function getEskalationMail()    { return _cfg().eskalationMail || ''; }
 
 /** Config im Speicher aktualisieren (nach dem Speichern in SP). */
 function setRuntimeConfig(cfg) { _runtimeConfig = cfg; _myRolesCache = null; }
@@ -133,10 +160,11 @@ function policyMatchesRoles(zielgruppen, roles) {
 function initRoleNav() {
   const admin = isCurrentUserAdmin();
   const geneh = isCurrentUserGenehmiger();
+  const kannFreigaben = admin || geneh || isCurrentUserPruefer() || isCurrentUserGeschaeftsleitung();
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-  show('nav-sep-admin',     admin || geneh);
+  show('nav-sep-admin',     admin || kannFreigaben);
   show('nav-verwaltung',    admin);
-  show('nav-freigaben',     geneh);
+  show('nav-freigaben',     kannFreigaben);
   show('nav-compliance',    admin);
   show('nav-einstellungen', admin);
 }

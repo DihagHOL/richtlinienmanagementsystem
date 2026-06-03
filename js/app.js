@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -512,10 +512,12 @@ function emptyState(text, icon = '📭') {
 /** Workflow-Status-Badge (Entwurf/InReview/Veröffentlicht/Archiviert). */
 function workflowBadge(status) {
   const map = {
-    'Entwurf':       ['sb-draft', 'Entwurf'],
-    'InReview':      ['sb-review', 'In Prüfung'],
-    'Veröffentlicht':['sb-published', 'Veröffentlicht'],
-    'Archiviert':    ['sb-archived', 'Archiviert'],
+    'Entwurf':              ['sb-draft', 'Entwurf'],
+    'Konformitätsprüfung':  ['sb-review', 'Konformitätsprüfung'],
+    'InReview':             ['sb-review', 'In Prüfung'],
+    'Freigabe':             ['sb-read', 'Freigabe ausstehend'],
+    'Veröffentlicht':       ['sb-published', 'Veröffentlicht'],
+    'Archiviert':           ['sb-archived', 'Archiviert'],
   };
   const [cls, label] = map[status] || ['sb-draft', status || '—'];
   return `<span class="status-badge ${cls}">${esc(label)}</span>`;

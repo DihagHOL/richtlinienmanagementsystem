@@ -150,12 +150,9 @@ function renderPolicyEditor() {
     </div>
     <div class="modal-footer">
       ${p.id ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>` : ''}
-      ${p.status === 'InReview'
-        ? `<button class="btn btn-ghost" onclick="_editing.status='Entwurf';savePolicy()">Zurück zu Entwurf & speichern</button>`
-        : ''}
-      <button class="btn btn-outline" onclick="savePolicy()">Speichern</button>
-      ${p.status === 'Entwurf'
-        ? `<button class="btn btn-primary" onclick="savePolicy('InReview')">Speichern & zur Prüfung</button>`
+      <button class="btn btn-outline" onclick="savePolicy()">Speichern (Entwurf)</button>
+      ${(!p.id || p.status === 'Entwurf' || p.status === 'Konformitätsprüfung' || p.status === 'InReview')
+        ? `<button class="btn btn-primary" onclick="savePolicy('Konformitätsprüfung')">${p.status === 'Konformitätsprüfung' ? '↻ Erneut zur Prüfung' : 'Zur Konformitätsprüfung →'}</button>`
         : ''}
     </div>`;
   openModal(body, true);
@@ -266,12 +263,21 @@ async function savePolicy(newStatus) {
     }
   }
   if (newStatus) p.status = newStatus;
+  if (newStatus === 'Konformitätsprüfung') {
+    p.pruefungSeit = new Date().toISOString();
+    p.konformitaet = [];                    // neue Prüfrunde startet ohne Votes
+  }
   try {
     await spSavePolicy(p);
     await reloadData();
     closeModal();
     renderAdminList();
-    toast(newStatus === 'InReview' ? 'Gespeichert & zur Prüfung eingereicht ✓' : 'Gespeichert ✓', 'success');
+    if (newStatus === 'Konformitätsprüfung') {
+      toast('Gespeichert & zur Konformitätsprüfung eingereicht ✓', 'success');
+      if (typeof notifyPruefer === 'function') notifyPruefer(p);   // Mail an Prüfer (Etappe B)
+    } else {
+      toast('Als Entwurf gespeichert ✓', 'success');
+    }
   } catch (e) {
     toast('Fehler beim Speichern: ' + e.message, 'error');
   }
@@ -420,24 +426,158 @@ function dpSelect(idx) {
 function renderFreigaben() {
   const list = document.getElementById('list-freigaben');
   if (!list) return;
-  const rows = State.policies.filter(p => p.status === 'InReview');
-  if (!rows.length) { list.innerHTML = emptyState('Keine Richtlinien zur Freigabe.', '✓'); return; }
-  list.innerHTML = rows.map(p => `
-    <div class="item-card" style="cursor:default">
-      <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
-      ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
-      <div class="ic-tags">
-        ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}
-        <span class="ic-tag">v${esc(p.version)}</span>
-        ${p.quizErforderlich ? `<span class="ic-tag">📝 ${p.quiz.length} Fragen</span>` : ''}
-      </div>
-      <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-ghost btn-sm" onclick="setStatus('${p.id}','Entwurf')">Zurück zu Entwurf</button>
-        <button class="btn btn-success btn-sm" onclick="publishPolicy('${p.id}')">✓ Freigeben & veröffentlichen</button>
-      </div>
-    </div>`).join('');
+  const admin = isCurrentUserAdmin();
+  const istPruefer = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer()) || admin;
+  const istGL = (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung()) || admin;
+
+  const prozess = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="font-size:.85rem;line-height:1.6;color:#374151">
+    <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
+    (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>2. Freigabe</b> durch die Geschäftsleitung
+    ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. Erinnerungen &amp; Eskalation laufen automatisch (Power Automate).
+  </div></div>`;
+
+  const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
+  const inFreigabe = State.policies.filter(p => p.status === 'Freigabe');
+  const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
+
+  let html = prozess;
+  if (istPruefer) {
+    html += sub('1 · Konformitätsprüfung', inPruefung.length);
+    html += inPruefung.length ? inPruefung.map(p => pruefCardHtml(p)).join('') : emptyState('Aktuell nichts zu prüfen.', '✓');
+  }
+  if (istGL) {
+    html += sub('2 · Freigabe zur Veröffentlichung', inFreigabe.length);
+    html += inFreigabe.length ? inFreigabe.map(p => freigabeCardHtml(p)).join('') : emptyState('Aktuell nichts freizugeben.', '✓');
+  }
+  if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Du bist weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
+  list.innerHTML = html;
+}
+
+function _votesHtml(p) {
+  const votes = p.konformitaet || [];
+  if (!votes.length) return '';
+  return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${votes.map(v =>
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> ${v.entscheidung === 'konform'
+      ? '<span style="color:#15803d">konform ✓</span>'
+      : '<span style="color:#b91c1c">nicht konform</span>' + (v.anmerkung ? ' – ' + esc(v.anmerkung) : '')}</div>`).join('')}</div>`;
+}
+
+function pruefCardHtml(p) {
+  const mein = (p.konformitaet || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
+  const kannPruefen = typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer();
+  return `<div class="item-card" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
+    ${_votesHtml(p)}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      <div style="flex:1"></div>
+      ${kannPruefen ? `
+        <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markKonform('${p.id}',true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (du)' : 'Konform'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function freigabeCardHtml(p) {
+  const mein = (p.freigaben || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
+  const kannFreigeben = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
+  return `<div class="item-card" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
+    ${_votesHtml(p)}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
+      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (du)' : '✓ Freigeben'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function konformErreicht(p) {
+  const pruefer = getPruefer();
+  if (!pruefer.length) return false;
+  const ja = (p.konformitaet || []).filter(v => v.entscheidung === 'konform').map(v => (v.upn || '').toLowerCase());
+  return getKonformSchwelle() === 'einer' ? ja.length >= 1 : pruefer.every(u => ja.includes(u.toLowerCase()));
+}
+function freigabeErreicht(p) {
+  const gl = getGeschaeftsleitung();
+  if (!gl.length) return false;
+  const ja = (p.freigaben || []).map(v => (v.upn || '').toLowerCase());
+  return getFreigabeSchwelle() === 'alle' ? gl.every(u => ja.includes(u.toLowerCase())) : ja.length >= 1;
+}
+
+async function markKonform(policyId, konform) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  let anmerkung = '';
+  if (!konform) { anmerkung = prompt('Anmerkung (warum nicht konform)?'); if (anmerkung === null) return; }
+  p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
+  p.konformitaet.push({ upn: State.user.upn, name: State.user.name, entscheidung: konform ? 'konform' : 'nicht_konform', anmerkung: anmerkung || '', datum: new Date().toISOString() });
+  let toGL = false;
+  if (!konform) p.status = 'Konformitätsprüfung';
+  else if (konformErreicht(p)) { p.status = 'Freigabe'; toGL = true; }
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast(konform ? (toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓') : 'Als „nicht konform" vermerkt.', 'success');
+    if (toGL) notifyGL(p);
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function markFreigabe(policyId) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
+  p.freigaben.push({ upn: State.user.upn, name: State.user.name, datum: new Date().toISOString() });
+  let published = false;
+  if (freigabeErreicht(p)) {
+    p.status = 'Veröffentlicht';
+    p.veroeffentlichtAm = new Date().toISOString();
+    p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
+    published = true;
+  }
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast(published ? 'Freigegeben & veröffentlicht ✓' : 'Freigabe vermerkt (weitere GL nötig).', 'success');
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function notifyPruefer(p) {
+  const pruefer = getPruefer();
+  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
+  try {
+    await spSendMail(pruefer, `Neue Richtlinie zur Sichtung: ${p.title}`,
+      _wfMailHtml('Neue Richtlinie – bitte um Sichtung und ggf. Anmerkung', p,
+        'Bitte prüfe die Richtlinie auf Konformität und markiere im Tool „konform" oder „nicht konform" (mit Anmerkung).'));
+    toast('Prüfer benachrichtigt ✓', 'success');
+  } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
+}
+async function notifyGL(p) {
+  const gl = getGeschaeftsleitung();
+  if (!gl.length) return;
+  try {
+    await spSendMail(gl, `Richtlinie zur Freigabe: ${p.title}`,
+      _wfMailHtml('Richtlinie ist konform – bitte um Freigabe', p,
+        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib die Richtlinie zur Veröffentlichung frei.'));
+  } catch (e) { console.warn('GL-Mail:', e.message); }
+}
+function _wfMailHtml(headline, p, text) {
+  const url = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p><b>${esc(headline)}</b></p>
+    <p>Richtlinie: <b>${esc(p.title)}</b> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p>${esc(text)}</p>
+    <p><a href="${url}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+  </div>`;
 }
 
 async function previewPolicyDoc(id) {
@@ -754,7 +894,30 @@ function renderEinstellungen() {
         <b>Rollen/Abteilungen</b> steuern, wer welche zielgruppenspezifische Richtlinie sieht.
       </div>
       ${roleCard('admins', 'Administratoren')}
-      ${roleCard('genehmiger', 'Genehmiger')}
+      ${roleCard('genehmiger', 'Genehmiger (einfache Freigabe, optional)')}
+      ${roleCard('pruefer', 'Konformitätsprüfer')}
+      ${roleCard('geschaeftsleitung', 'Geschäftsleitung (Freigabe zur Veröffentlichung)')}
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">Ablauf: Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht. Erinnerungen &amp; Eskalation laufen zeitgesteuert über Power Automate (siehe Doku).</div>
+          <div class="form-grid">
+            <div class="form-group"><label>„Konform", wenn …</label>
+              <select onchange="_cfgEdit.konformSchwelle=this.value">
+                <option value="alle" ${_cfgEdit.konformSchwelle === 'alle' ? 'selected' : ''}>alle Prüfer zustimmen</option>
+                <option value="einer" ${_cfgEdit.konformSchwelle === 'einer' ? 'selected' : ''}>ein Prüfer reicht</option>
+              </select></div>
+            <div class="form-group"><label>Freigabe, wenn …</label>
+              <select onchange="_cfgEdit.freigabeSchwelle=this.value">
+                <option value="einer" ${_cfgEdit.freigabeSchwelle === 'einer' ? 'selected' : ''}>eine GL-Person reicht</option>
+                <option value="alle" ${_cfgEdit.freigabeSchwelle === 'alle' ? 'selected' : ''}>alle GL-Personen</option>
+              </select></div>
+            <div class="form-group full"><label>Eskalations-Mail (bei keiner Antwort)</label>
+              <input type="email" value="${esc(_cfgEdit.eskalationMail || '')}" oninput="_cfgEdit.eskalationMail=this.value" placeholder="ersatz-pruefer@dihag.com"></div>
+          </div>
+        </div>
+      </div>
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Verfügbare Rollen / Abteilungen</h2></div>
@@ -865,7 +1028,7 @@ function roleCard(role, title) {
 }
 
 function renderCfgLists() {
-  ['admins', 'genehmiger'].forEach(role => {
+  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
     if (!host) return;
     const arr = _cfgEdit[role] || [];
