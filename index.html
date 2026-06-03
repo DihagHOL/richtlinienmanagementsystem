@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=14"/>
+  <link rel="stylesheet" href="css/style.css?v=15"/>
 </head>
 <body>
 
@@ -36,6 +36,10 @@
       <a class="nav-item active" data-view="meine">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>
         Meine Richtlinien
+      </a>
+      <a class="nav-item" data-view="kurse">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/></svg>
+        Kurse <span style="margin-left:6px;font-size:.62rem;font-weight:700;background:#fefce8;color:#a16207;border-radius:4px;padding:1px 5px">BETA</span>
       </a>
 
       <div class="nav-sep" id="nav-sep-admin" style="display:none">Verwaltung</div>
@@ -110,6 +114,11 @@
       <!-- ── VIEW: Quiz ── -->
       <section id="view-quiz" class="view"></section>
 
+      <!-- ── VIEW: Kurse (Beta) ── -->
+      <section id="view-kurse" class="view">
+        <div id="kurse-mount"></div>
+      </section>
+
       <!-- ── VIEW: Verwaltung (Admin) ── -->
       <section id="view-verwaltung" class="view">
         <div class="view-toolbar">
@@ -156,11 +165,12 @@
 <div id="toast-c"></div>
 
 <!-- Scripts -->
-<script src="js/auth.js?v=14"></script>
-<script src="js/access.js?v=14"></script>
-<script src="js/sharepoint.js?v=14"></script>
-<script src="js/quiz.js?v=14"></script>
-<script src="js/app.js?v=14"></script>
-<script src="js/admin.js?v=14"></script>
+<script src="js/auth.js?v=15"></script>
+<script src="js/access.js?v=15"></script>
+<script src="js/sharepoint.js?v=15"></script>
+<script src="js/quiz.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
+<script src="js/admin.js?v=15"></script>
+<script src="js/kurse.js?v=15"></script>
 </body>
 </html>

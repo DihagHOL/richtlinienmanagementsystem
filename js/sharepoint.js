@@ -15,6 +15,7 @@ const SP = {
   appSiteHost:  'dihag.sharepoint.com:/sites/IT',
   policyList:   'Richtlinien',
   ackList:      'Bestaetigungen',
+  courseList:   'Kurse',            // optional (Beta)
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Richtliniendokumente (nur Lesezugriff) ──
@@ -29,9 +30,11 @@ const SP = {
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
+  courseListId: null,
   ismsSiteId: null,
   policyFields: new Set(['Title']),
   ackFields: new Set(['Title']),
+  courseFields: new Set(['Title']),
   ready: false,
 };
 
@@ -95,6 +98,7 @@ async function spInit() {
   // Listen
   _sp.policyListId = await _findListId(token, SP.policyList);
   _sp.ackListId    = await _findListId(token, SP.ackList);
+  try { _sp.courseListId = await _findListId(token, SP.courseList); } catch (e) { _sp.courseListId = null; }
 
   // Dokumentbibliothek (für access-config.json)
   const drives = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token);
@@ -115,6 +119,12 @@ async function spInit() {
     (cols.value || []).forEach(c => _sp.ackFields.add(c.name));
   } catch (e) {
     console.warn('[sp] Spalten der Bestaetigungen-Liste nicht lesbar:', e.message);
+  }
+  if (_sp.courseListId) {
+    try {
+      const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/columns`, token);
+      (cols.value || []).forEach(c => _sp.courseFields.add(c.name));
+    } catch (e) { /* optional */ }
   }
 
   _sp.ready = true;
@@ -233,6 +243,65 @@ async function spDeletePolicy(id) {
   if (!token) return;
   await spInit();
   await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}`, token);
+}
+
+/* ═══════════════════════════════════════════════════
+   Kurse (Beta) – optionale Liste „Kurse"
+═══════════════════════════════════════════════════ */
+
+const COURSE_COLUMNS = [
+  { name: 'Beschreibung',   typ: 'Mehrere Zeilen Text' },
+  { name: 'RichtlinienIds', typ: 'Mehrere Zeilen Text' },
+  { name: 'Status',         typ: 'Auswahl (Entwurf/Veröffentlicht)' },
+];
+function spCoursesAvailable() { return !!_sp.courseListId; }
+function spMissingCourseColumns() {
+  return _sp.courseListId ? COURSE_COLUMNS.filter(c => !_sp.courseFields.has(c.name)) : [];
+}
+
+async function spGetCourses() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await spInit();
+  if (!_sp.courseListId) return [];
+  const resp = await _get(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/items?$expand=fields&$top=200`, token);
+  return (resp.value || []).map(item => {
+    const f = item.fields || {};
+    let richtlinienIds = [];
+    try { richtlinienIds = f.RichtlinienIds ? JSON.parse(f.RichtlinienIds) : []; } catch { richtlinienIds = []; }
+    return {
+      id: item.id,
+      title: f.Title || '',
+      beschreibung: f.Beschreibung || '',
+      richtlinienIds: richtlinienIds.map(String),
+      status: f.Status || 'Entwurf',
+    };
+  }).sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+}
+
+async function spSaveCourse(c) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.courseListId) throw new Error('Liste „Kurse" nicht gefunden.');
+  const all = {
+    Title:          (c.title || '').slice(0, 255),
+    Beschreibung:   c.beschreibung || '',
+    RichtlinienIds: JSON.stringify(c.richtlinienIds || []),
+    Status:         c.status || 'Entwurf',
+  };
+  const fields = Object.fromEntries(Object.entries(all).filter(([k]) => _sp.courseFields.has(k)));
+  if (c.id) return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/items/${c.id}/fields`, token, fields);
+  return _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/items`, token, { fields });
+}
+
+async function spDeleteCourse(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return;
+  await spInit();
+  if (!_sp.courseListId) return;
+  await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/items/${id}`, token);
 }
 
 /* ═══════════════════════════════════════════════════

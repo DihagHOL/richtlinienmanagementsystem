@@ -15,7 +15,7 @@ const State = {
 };
 
 const PAGE_TITLES = {
-  meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest',
+  meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
   verwaltung: 'Richtlinien verwalten', freigaben: 'Freigaben',
   compliance: 'Compliance', einstellungen: 'Einstellungen',
 };
@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -136,7 +136,7 @@ async function switchView(view) {
   window.scrollTo(0, 0);
 
   // Daten-Reiter: bei jedem Wechsel frisch aus SharePoint laden
-  if (['meine', 'verwaltung', 'freigaben', 'compliance'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse'].includes(view)) {
     showSync(true);
     try {
       await reloadData();                 // lädt Richtlinien + eigene Bestätigungen (+ renderMeine)
@@ -154,6 +154,7 @@ async function switchView(view) {
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();
+  if (view === 'kurse'        && typeof initKurse === 'function')         initKurse();
 }
 
 /* ═══════════════════════════════════════════════════
