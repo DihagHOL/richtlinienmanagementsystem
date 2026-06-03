@@ -333,6 +333,22 @@ async function spUploadPolicyDoc(filename, bytes, contentType) {
   return { driveId: _sp.appDriveId, itemId: res.id, name: res.name, url: res.webUrl || '' };
 }
 
+/**
+ * Ersetzt den Inhalt eines bestehenden Dokuments am selben Speicherort.
+ * SharePoint legt dabei automatisch eine neue Version an (Versionsverlauf der Bibliothek).
+ */
+async function spReplaceDocContent(driveId, itemId, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const resp = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
+}
+
 /* ═══════════════════════════════════════════════════
    Bestätigungen / Abschlüsse
 ═══════════════════════════════════════════════════ */

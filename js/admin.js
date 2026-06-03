@@ -112,6 +112,33 @@ async function importPolicyFiles(fileList) {
   }
 }
 
+/** Upload aus dem Editor: ersetzt vorhandenes Dokument (neue Version) oder lädt neu hoch. */
+async function uploadPolicyDocFromEditor(file) {
+  if (!file || !_editing) return;
+  const disp = document.getElementById('ed-doc-display');
+  if (disp) { disp.style.color = ''; disp.textContent = '⬆ Lädt hoch …'; }
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (_editing.dokumentDriveId && _editing.dokumentItemId) {
+      const res = await spReplaceDocContent(_editing.dokumentDriveId, _editing.dokumentItemId, bytes, file.type);
+      _editing.dokumentName = res.name || _editing.dokumentName;
+      _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
+      toast('Neue Dokumentversion hochgeladen ✓ (in SharePoint versioniert)', 'success');
+    } else {
+      const doc = await spUploadPolicyDoc(file.name, bytes, file.type);
+      _editing.dokumentDriveId = doc.driveId;
+      _editing.dokumentItemId = doc.itemId;
+      _editing.dokumentName = doc.name;
+      _editing.dokumentUrl = doc.url;
+      toast('Dokument hochgeladen ✓', 'success');
+    }
+    if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.style.color = ''; }
+  } catch (e) {
+    toast('Hochladen fehlgeschlagen: ' + e.message, 'error');
+    if (disp) disp.innerHTML = _editing.dokumentName ? '📄 ' + esc(_editing.dokumentName) : '⚠ noch kein Dokument zugeordnet';
+  }
+}
+
 function newPolicy() {
   return {
     id: null, title: '', beschreibung: '', kategorie: 'ISO 27001',
@@ -163,13 +190,16 @@ function renderPolicyEditor() {
           <span class="field-hint">Neue Version ⇒ alle müssen erneut bestätigen.</span>
         </div>
         <div class="form-group full">
-          <label>Richtliniendokument (ISMS-Bibliothek) <span class="req">*</span></label>
+          <label>Richtliniendokument <span class="req">*</span></label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span id="ed-doc-display" style="flex:1;min-width:0;font-size:.85rem;${p.dokumentName ? '' : 'color:#b45309'}">
               ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
             </span>
-            <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Dokument wählen …</button>
+            <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Aus Bibliothek …</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ed-upload-input').click()">⬆ Hochladen</button>
+            <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0])">
           </div>
+          <span class="field-hint">Bei einem bereits zugeordneten Dokument legt ein erneuter Upload in SharePoint automatisch eine <b>neue Version</b> an (Versionsverlauf bleibt erhalten).</span>
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.pflicht ? 'checked' : ''} onchange="_editing.pflicht=this.checked"> Pflichtlektüre</label>
