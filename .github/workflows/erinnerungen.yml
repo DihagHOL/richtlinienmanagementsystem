@@ -1,0 +1,43 @@
+name: Richtlinien-Erinnerungen
+
+# Zeitgesteuerte Erinnerungen/Eskalationen für offene Workflow-Schritte
+# (Konformitätsprüfung / Freigabe). Läuft unbeaufsichtigt im Tenant.
+on:
+  schedule:
+    - cron: '0 6 * * *'      # täglich 06:00 UTC (~07:00/08:00 DE). Skript entscheidet, ob heute ein Erinnerungstag ist.
+  workflow_dispatch:          # manuell startbar (Tab „Actions") – für Tests
+    inputs:
+      dry_run:
+        description: 'Nur testen (keine Mails senden)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erinnerungen
+  cancel-in-progress: false
+
+jobs:
+  erinnerungen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Erinnerungen senden
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          MAIL_SENDER: ${{ secrets.MAIL_SENDER }}
+          # Bei manuellem Start: dry_run-Eingabe; beim Cron: echte Mails (false).
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          if [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$MAIL_SENDER" ]; then
+            echo "Secrets noch nicht hinterlegt – Einrichtung siehe docs/ERINNERUNGEN-GITHUB-ACTIONS.md. Lauf übersprungen."
+            exit 0
+          fi
+          node scripts/erinnerungen.mjs
