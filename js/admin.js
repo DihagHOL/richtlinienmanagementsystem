@@ -810,7 +810,7 @@ async function notifyGL(p) {
   } catch (e) { console.warn('GL-Mail:', e.message); }
 }
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
-  const base = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  const base = 'https://richtlinienmanagement.dihag-extern.com/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
   const act = (a) => `${url}&aktion=${a}`;
   const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
@@ -1079,7 +1079,7 @@ async function remindOpenForCurrent() {
 }
 
 function reminderHtml(p) {
-  const url = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  const url = 'https://richtlinienmanagement.dihag-extern.com/';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p>Hallo,</p>
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>

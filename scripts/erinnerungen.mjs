@@ -32,7 +32,7 @@ const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
 const POLICY_LIST = process.env.POLICY_LIST || 'Richtlinien';
 const CONFIG_FOLDER = process.env.CONFIG_FOLDER || 'Richtlinienmanagement';
-const APP_URL = process.env.APP_URL || 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+const APP_URL = process.env.APP_URL || 'https://richtlinienmanagement.dihag-extern.com/';
 const ESKALATION_AB_ENV = Number(process.env.ESKALATION_AB_TAGEN || 0);
 const DRY_RUN = String(process.env.DRY_RUN || '').toLowerCase() === 'true';
 // Werden erst nach dem Laden der App-Einstellungen (access-config.json) gesetzt:
