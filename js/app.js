@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -50,6 +50,10 @@ function dbg(msg) {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
+  // Deep-Link aus Mail (?richtlinie=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
+  if (/[?&]richtlinie=/.test(location.search)) {
+    try { sessionStorage.setItem('rms_deeplink', location.search); } catch (e) {}
+  }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
     n.addEventListener('click', e => { e.preventDefault(); switchView(n.dataset.view); })
   );
@@ -64,11 +68,35 @@ async function bootApp(account) {
     await loadRuntimeAccessConfig();
     initRoleNav();
     State.myRoles = await getCurrentUserRoles();
-    await switchView('meine');   // lädt Daten + rendert
+    await applyDeepLinkOrDefault();   // lädt Daten + rendert (Mail-Deeplink oder Standard)
   } catch (e) {
     console.error(e);
     toast('Fehler beim Laden: ' + e.message, 'error');
     renderMeineError(e.message);
+  }
+}
+
+/** Startansicht: Mail-Deeplink (?richtlinie=ID&ansicht=…) berücksichtigen, sonst „Meine Richtlinien". */
+async function applyDeepLinkOrDefault() {
+  let search = '';
+  try { search = sessionStorage.getItem('rms_deeplink') || location.search; } catch (e) { search = location.search; }
+  try { sessionStorage.removeItem('rms_deeplink'); } catch (e) {}
+  const params = new URLSearchParams(search);
+  const deepId = params.get('richtlinie');
+  if (!deepId) { await switchView('meine'); return; }
+
+  const ansicht = (params.get('ansicht') || '').toLowerCase();
+  const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
+                 || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
+
+  if (ansicht === 'freigaben' || (ansicht === '' && canReview)) {
+    if (!canReview) { await switchView('meine'); toast('Diese Richtlinie liegt im Freigabe-Prozess – du bist dafür nicht berechtigt.'); return; }
+    await switchView('freigaben');
+    if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
+  } else {
+    await switchView('meine');
+    if (State.policies.find(p => p.id === deepId)) openDetail(deepId);
+    else toast('Die verlinkte Richtlinie ist für dich aktuell nicht sichtbar.');
   }
 }
 

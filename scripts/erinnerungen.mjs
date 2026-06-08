@@ -145,16 +145,23 @@ async function sendMail(toList, subject, html) {
   return true;
 }
 
-function mailHtml(title, phase, tage, pending, eskaliert) {
+/** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
+function policyLink(id) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`;
+}
+
+function mailHtml(id, title, phase, tage, pending, eskaliert) {
+  const link = policyLink(id);
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
-    <p>für die Richtlinie <b>${esc(title)}</b> steht seit <b>${tage} Tagen</b> der Schritt
-       <b>${esc(phase)}</b> aus.</p>
+    <p>für die Richtlinie <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
+       steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
     <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
     <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
     ${eskaliert ? `<p style="color:#b45309"><b>Eskalation:</b> Diese Erinnerung geht aufgrund der Verzögerung zusätzlich an den Ersatz-Empfänger.</p>` : ''}
-    <p><a href="${esc(APP_URL)}" style="background:#1a56db;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">Im Richtlinienmanagement öffnen</a></p>
-    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
+    <p><a href="${esc(link)}" style="background:#1a56db;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">Richtlinie öffnen &amp; bearbeiten</a></p>
+    <p style="color:#6b7280;font-size:12px">Direktlink: <a href="${esc(link)}" style="color:#6b7280">${esc(link)}</a><br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
   </div>`;
 }
 
@@ -211,7 +218,7 @@ function mailHtml(title, phase, tage, pending, eskaliert) {
     const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
     const to = eskaliert ? [...pending, eskalationMail] : pending;
     console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}`);
-    const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`, mailHtml(title, phase, tage, pending, eskaliert));
+    const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`, mailHtml(it.id, title, phase, tage, pending, eskaliert));
     if (ok) sent++;
   }
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);

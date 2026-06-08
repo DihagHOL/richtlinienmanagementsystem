@@ -659,6 +659,15 @@ function renderFreigaben() {
   list.innerHTML = html;
 }
 
+/** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
+function focusPolicyCard(id) {
+  const el = document.getElementById('fg-' + id);
+  if (!el) { toast('Diese Richtlinie ist gerade nicht in deiner Freigabe-Liste (evtl. schon bearbeitet oder veröffentlicht).'); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('fg-highlight');
+  setTimeout(() => el.classList.remove('fg-highlight'), 4500);
+}
+
 function _votesHtml(p) {
   const votes = p.konformitaet || [];
   if (!votes.length) return '';
@@ -671,7 +680,7 @@ function _votesHtml(p) {
 function pruefCardHtml(p) {
   const mein = (p.konformitaet || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
   const kannPruefen = typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer();
-  return `<div class="item-card" style="cursor:default">
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
@@ -689,7 +698,7 @@ function pruefCardHtml(p) {
 function freigabeCardHtml(p) {
   const mein = (p.freigaben || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
   const kannFreigeben = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
-  return `<div class="item-card" style="cursor:default">
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
@@ -775,13 +784,14 @@ async function notifyGL(p) {
   } catch (e) { console.warn('GL-Mail:', e.message); }
 }
 function _wfMailHtml(headline, p, text) {
-  const url = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  const base = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
+  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>${esc(headline)}</b></p>
-    <p>Richtlinie: <b>${esc(p.title)}</b> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p>Richtlinie: <a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
-    <p><a href="${url}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+    <p><a href="${esc(url)}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Direktlink: <a href="${esc(url)}" style="color:#9ca3af">${esc(url)}</a><br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }
 
