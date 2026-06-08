@@ -167,24 +167,27 @@ function encodeShareUrl(u) {
 
 /** Dokument der Richtlinie als E-Mail-Anhang (oder null → nur Link). */
 async function fetchAttachment(driveId, itemId, fallbackName, docUrl) {
-  let meta = null;
+  let metaPath, contentPath;
+  if (driveId && itemId) {
+    metaPath = `/drives/${driveId}/items/${itemId}?$select=name,size,file`;
+    contentPath = `/drives/${driveId}/items/${itemId}/content`;
+  } else if (docUrl) {
+    const sid = encodeShareUrl(docUrl);
+    metaPath = `/shares/${sid}/driveItem?$select=name,size,file`;
+    contentPath = `/shares/${sid}/driveItem/content`;
+  } else {
+    return null;
+  }
+  let meta;
+  try { meta = await gget(metaPath); }
+  catch (e) { console.log(`   ⚠ Anhang-Metadaten nicht ladbar: ${e.message} – Mail nur mit Link`); return null; }
+  if ((meta.size || 0) > MAX_ATTACH) { console.log(`   ⚠ Dokument ${((meta.size || 0) / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
   try {
-    if (driveId && itemId) {
-      meta = await gget(`/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`);
-    } else if (docUrl) {
-      meta = await gget(`/shares/${encodeShareUrl(docUrl)}/driveItem?$select=name,size,file,@microsoft.graph.downloadUrl`);
-    } else {
-      return null;
-    }
-  } catch (e) { console.log(`   ⚠ Anhang-Metadaten nicht ladbar: ${e.message} – Mail nur mit Link`); return null; }
-  const size = meta.size || 0;
-  if (size > MAX_ATTACH) { console.log(`   ⚠ Dokument ${(size / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
-  const url = meta['@microsoft.graph.downloadUrl'];
-  if (!url) { console.log('   ⚠ kein Download-Link – Mail nur mit Link'); return null; }
-  try {
-    const r = await fetch(url);   // vorab-authentifizierte URL, kein Token nötig
+    // /content liefert 302 auf eine vorab-authentifizierte URL; fetch folgt dem Redirect.
+    const r = await fetch(GRAPH + contentPath, { headers: { Authorization: `Bearer ${TOKEN}` } });
     if (!r.ok) { console.log(`   ⚠ Anhang-Download ${r.status} – Mail nur mit Link`); return null; }
     const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > MAX_ATTACH) { console.log('   ⚠ Anhang zu groß – Mail nur mit Link'); return null; }
     return {
       '@odata.type': '#microsoft.graph.fileAttachment',
       name: meta.name || fallbackName || 'Richtlinie',
