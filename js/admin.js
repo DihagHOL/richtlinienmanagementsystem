@@ -639,7 +639,7 @@ function renderFreigaben() {
     <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
     (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>2. Freigabe</b> durch die Geschäftsleitung
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
-    Bei „nicht konform" bleibt die Richtlinie in Prüfung. Erinnerungen &amp; Eskalation laufen automatisch (Power Automate).
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. Erinnerungen &amp; Eskalation laufen automatisch (Einstellungen → „Erinnerungen &amp; Eskalation").
   </div></div>`;
 
   const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
@@ -1106,7 +1106,7 @@ function renderEinstellungen() {
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
         <div class="card-body">
-          <div class="field-hint" style="margin-bottom:10px">Ablauf: Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht. Erinnerungen &amp; Eskalation laufen zeitgesteuert über Power Automate (siehe Doku).</div>
+          <div class="field-hint" style="margin-bottom:10px">Ablauf: Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</div>
           <div class="form-grid">
             <div class="form-group"><label>„Konform", wenn …</label>
               <select onchange="_cfgEdit.konformSchwelle=this.value">
@@ -1118,9 +1118,36 @@ function renderEinstellungen() {
                 <option value="einer" ${_cfgEdit.freigabeSchwelle === 'einer' ? 'selected' : ''}>eine GL-Person reicht</option>
                 <option value="alle" ${_cfgEdit.freigabeSchwelle === 'alle' ? 'selected' : ''}>alle GL-Personen</option>
               </select></div>
-            <div class="form-group full"><label>Eskalations-Mail (bei keiner Antwort)</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Erinnerungen &amp; Eskalation (automatisch)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Diese Werte steuern den zeitgesteuerten Versand (GitHub-Actions-Cron). Erinnert wird an noch
+            offene Prüfer bzw. Geschäftsleitung. <b>Zugangsdaten</b> (Client Secret usw.) bleiben aus
+            Sicherheitsgründen in den GitHub-Secrets – siehe <code>docs/ERINNERUNGEN-GITHUB-ACTIONS.md</code>.
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Erinnerungen aktiv</label>
+              <select onchange="_cfgEdit.erinnerungenAktiv=(this.value==='ja')">
+                <option value="ja" ${_cfgEdit.erinnerungenAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
+                <option value="nein" ${_cfgEdit.erinnerungenAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+              </select></div>
+            <div class="form-group"><label>Absender-Postfach</label>
+              <input type="email" value="${esc(_cfgEdit.mailSender || '')}" oninput="_cfgEdit.mailSender=this.value" placeholder="pruefer@dihag.com"></div>
+            <div class="form-group"><label>Erste Erinnerung nach (Tagen)</label>
+              <input type="number" min="1" value="${esc(_cfgEdit.erinnerungErsteNachTagen || 7)}" onchange="_cfgEdit.erinnerungErsteNachTagen=parseInt(this.value,10)||7"></div>
+            <div class="form-group"><label>Danach alle (Tagen)</label>
+              <input type="number" min="1" value="${esc(_cfgEdit.erinnerungDannAlleTage || 3)}" onchange="_cfgEdit.erinnerungDannAlleTage=parseInt(this.value,10)||3"></div>
+            <div class="form-group"><label>Eskalation ab (Tagen)</label>
+              <input type="number" min="1" value="${esc(_cfgEdit.eskalationAbTagen || 14)}" onchange="_cfgEdit.eskalationAbTagen=parseInt(this.value,10)||14"></div>
+            <div class="form-group"><label>Eskalations-Mail (Ersatz-Empfänger)</label>
               <input type="email" value="${esc(_cfgEdit.eskalationMail || '')}" oninput="_cfgEdit.eskalationMail=this.value" placeholder="ersatz-pruefer@dihag.com"></div>
           </div>
+          <div class="field-hint" style="margin-top:10px">Beispiel mit Standardwerten: erste Erinnerung nach <b>7</b> Tagen, danach alle <b>3</b> Tage; ab <b>14</b> Tagen zusätzlich an die Eskalations-Mail. Das Absender-Postfach muss ein lizenziertes Exchange-Postfach sein und die erlaubte Empfänger-Domain bestimmen.</div>
         </div>
       </div>
 

@@ -7,21 +7,18 @@
  * + access-config.json, ermittelt überfällige Workflow-Schritte und schickt
  * Erinnerungs-Mails an die noch ausstehenden Prüfer / Geschäftsleitung.
  *
- * Erinnerungs-Taktung (wie abgestimmt): in Woche 1 eine Erinnerung (Tag 7),
- * ab Woche 2 alle 3 Tage (Tag 7, 10, 13, …). Tag 0 entfällt (da geht beim
- * Einreichen bereits die Erst-Benachrichtigung der App raus).
- * Eskalation: ab ESKALATION_AB_TAGEN zusätzlich an eskalationMail (Ersatz-Empfänger).
+ * Verhalten kommt aus den APP-EINSTELLUNGEN (access-config.json, Reiter „Einstellungen →
+ * Erinnerungen & Eskalation"): erinnerungenAktiv, mailSender, erinnerungErsteNachTagen,
+ * erinnerungDannAlleTage, eskalationAbTagen, eskalationMail. Standard: erste Erinnerung nach
+ * 7 Tagen, danach alle 3 Tage; ab 14 Tagen zusätzlich an die Eskalations-Mail.
  *
  * Benötigte Umgebungsvariablen (GitHub-Action-Secrets):
- *   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET   – App-Registrierung (App-only)
- *   MAIL_SENDER                                              – Absender-Postfach (z. B. richtlinien@dihag.com)
- * Optional:
- *   SITE_HOST       (Default dihag.sharepoint.com:/sites/IT)
- *   POLICY_LIST     (Default Richtlinien)
- *   CONFIG_FOLDER   (Default Richtlinienmanagement)
- *   APP_URL         (Default https://dfedorov12.github.io/richtlinienmanagementsystem/)
- *   ESKALATION_AB_TAGEN (Default 14)
- *   DRY_RUN         ("true" = nichts senden, nur protokollieren)
+ *   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET   – App-Registrierung (App-only), PFLICHT
+ *   MAIL_SENDER                                              – Absender-Fallback, falls in den
+ *                                                              App-Einstellungen kein „mailSender" gesetzt ist
+ * Optional (überschreiben Defaults, App-Einstellungen haben aber Vorrang):
+ *   SITE_HOST (Default dihag.sharepoint.com:/sites/IT), POLICY_LIST (Richtlinien),
+ *   CONFIG_FOLDER (Richtlinienmanagement), APP_URL, ESKALATION_AB_TAGEN, DRY_RUN
  *
  * Benötigte Graph-APPLICATION-Rechte (Admin-Consent): Sites.Read.All, Mail.Send.
  */
@@ -29,16 +26,19 @@
 const TENANT = need('AZURE_TENANT_ID');
 const CLIENT_ID = need('AZURE_CLIENT_ID');
 const CLIENT_SECRET = need('AZURE_CLIENT_SECRET');
-const SENDER = need('MAIL_SENDER');
+const ENV_SENDER = process.env.MAIL_SENDER || '';   // Fallback; bevorzugt wird „mailSender" aus den App-Einstellungen
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
 const POLICY_LIST = process.env.POLICY_LIST || 'Richtlinien';
 const CONFIG_FOLDER = process.env.CONFIG_FOLDER || 'Richtlinienmanagement';
 const APP_URL = process.env.APP_URL || 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
-const ESKALATION_AB = Number(process.env.ESKALATION_AB_TAGEN || 14);
+const ESKALATION_AB_ENV = Number(process.env.ESKALATION_AB_TAGEN || 0);
 const DRY_RUN = String(process.env.DRY_RUN || '').toLowerCase() === 'true';
-const ALLOWED_DOMAIN = SENDER.split('@')[1]?.toLowerCase() || '';
+// Werden erst nach dem Laden der App-Einstellungen (access-config.json) gesetzt:
+let SENDER = '';
+let ALLOWED_DOMAIN = '';
+const posInt = (v, def) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : def; };
 
 function need(k) {
   const v = process.env[k];
@@ -79,10 +79,10 @@ function daysSince(iso) {
   return Math.floor((Date.now() - t) / 86400000);
 }
 
-/** Ist heute ein Erinnerungstag? (Tag 7, 10, 13, … – Tag 0–6 nicht) */
-function isDue(tage) {
-  if (tage < 1) return false;
-  return (tage < 7 && tage % 7 === 0) || (tage >= 7 && (tage - 7) % 3 === 0);
+/** Ist heute ein Erinnerungstag? Erste Erinnerung nach `erste` Tagen, danach alle `alle` Tage. */
+function isDue(tage, erste, alle) {
+  if (tage < 1 || tage < erste) return false;
+  return (tage - erste) % alle === 0;
 }
 
 const lc = (s) => String(s || '').toLowerCase();
@@ -163,10 +163,20 @@ function mailHtml(title, phase, tage, pending, eskaliert) {
   TOKEN = await getToken();
   const { siteId, listId } = await resolveSiteAndList();
   const cfg = await loadConfig(siteId);
+  if (cfg.erinnerungenAktiv === false) {
+    console.log('Erinnerungen sind in den App-Einstellungen deaktiviert – nichts zu tun.');
+    return;
+  }
+  SENDER = (cfg.mailSender || ENV_SENDER || '').trim();
+  if (!SENDER) { console.error('FEHLT: Absender. „Absender-Postfach" in den App-Einstellungen setzen oder Secret MAIL_SENDER hinterlegen.'); process.exit(1); }
+  ALLOWED_DOMAIN = SENDER.split('@')[1]?.toLowerCase() || '';
+  const erste = posInt(cfg.erinnerungErsteNachTagen, 7);
+  const alle = posInt(cfg.erinnerungDannAlleTage, 3);
+  const eskalationAb = posInt(cfg.eskalationAbTagen, ESKALATION_AB_ENV || 14);
   const pruefer = (cfg.pruefer || []).filter(Boolean);
   const gl = (cfg.geschaeftsleitung || []).filter(Boolean);
   const eskalationMail = cfg.eskalationMail || '';
-  console.log(`Prüfer: ${pruefer.length} · Geschäftsleitung: ${gl.length} · Eskalation: ${eskalationMail || '–'}`);
+  console.log(`Absender: ${SENDER} · Prüfer: ${pruefer.length} · GL: ${gl.length} · Taktung: erst nach ${erste}d, dann alle ${alle}d · Eskalation ab ${eskalationAb}d → ${eskalationMail || '–'}`);
 
   const items = await loadPolicies(siteId, listId);
   console.log(`Richtlinien gesamt: ${items.length}`);
@@ -193,12 +203,12 @@ function mailHtml(title, phase, tage, pending, eskaliert) {
     }
     checked++;
 
-    if (!isDue(tage)) { console.log(`• ${title} [${phase}] – ${tage}d, heute keine Erinnerung`); continue; }
+    if (!isDue(tage, erste, alle)) { console.log(`• ${title} [${phase}] – ${tage}d, heute keine Erinnerung`); continue; }
 
     const pending = roleRecipients.filter((u) => !voted.includes(lc(u)));
     if (!pending.length) { console.log(`• ${title} [${phase}] – ${tage}d, alle haben bereits reagiert`); continue; }
 
-    const eskaliert = ESKALATION_AB > 0 && tage >= ESKALATION_AB && !!eskalationMail;
+    const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
     const to = eskaliert ? [...pending, eskalationMail] : pending;
     console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}`);
     const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`, mailHtml(title, phase, tage, pending, eskaliert));

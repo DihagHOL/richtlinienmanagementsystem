@@ -24,7 +24,13 @@ const ACCESS_CONFIG_DEFAULT = {
   geschaeftsleitung: [],       // Freigeber / Geschäftsleitung (UPNs)
   konformSchwelle:  'alle',    // 'alle' | 'einer'  – wann gilt eine Richtlinie als konform
   freigabeSchwelle: 'einer',   // 'alle' | 'einer'  – wie viele GL müssen freigeben
-  eskalationMail:   '',        // Ersatz-Empfänger bei keiner Antwort (Power Automate)
+  eskalationMail:   '',        // Ersatz-Empfänger bei keiner Antwort
+  // ── Erinnerungen (vom GitHub-Actions-Cron gelesen) ──
+  erinnerungenAktiv:        true,  // Erinnerungen senden ja/nein
+  mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
+  erinnerungErsteNachTagen: 7,     // erste Erinnerung nach X Tagen
+  erinnerungDannAlleTage:   3,     // danach alle Y Tage
+  eskalationAbTagen:        14,    // ab Z Tagen zusätzlich an eskalationMail
 };
 
 /* Gängige Unternehmensrollen/Abteilungen (Default, in Einstellungen anpassbar). */
@@ -57,6 +63,11 @@ async function loadRuntimeAccessConfig() {
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
         freigabeSchwelle:  cfg.freigabeSchwelle === 'alle' ? 'alle' : 'einer',
         eskalationMail:    typeof cfg.eskalationMail === 'string' ? cfg.eskalationMail : '',
+        erinnerungenAktiv:        cfg.erinnerungenAktiv !== false,
+        mailSender:               typeof cfg.mailSender === 'string' ? cfg.mailSender : '',
+        erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
+        erinnerungDannAlleTage:   _posInt(cfg.erinnerungDannAlleTage, 3),
+        eskalationAbTagen:        _posInt(cfg.eskalationAbTagen, 14),
       };
     }
   } catch (e) {
@@ -76,8 +87,16 @@ function getAccessConfig() {
     konformSchwelle:   c.konformSchwelle || 'alle',
     freigabeSchwelle:  c.freigabeSchwelle || 'einer',
     eskalationMail:    c.eskalationMail || '',
+    erinnerungenAktiv:        c.erinnerungenAktiv !== false,
+    mailSender:               c.mailSender || '',
+    erinnerungErsteNachTagen: _posInt(c.erinnerungErsteNachTagen, 7),
+    erinnerungDannAlleTage:   _posInt(c.erinnerungDannAlleTage, 3),
+    eskalationAbTagen:        _posInt(c.eskalationAbTagen, 14),
   };
 }
+
+/** Positive Ganzzahl mit Fallback. */
+function _posInt(v, def) { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : def; }
 
 /* ── Genehmigungsverfahren: Rollen & Schwellen ── */
 function isPruefer(upn)           { return _has(_cfg().pruefer, upn); }
@@ -89,6 +108,11 @@ function getGeschaeftsleitung() { return [...(_cfg().geschaeftsleitung || [])]; 
 function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
+function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }
+function getMailSender()               { return _cfg().mailSender || ''; }
+function getErinnerungErsteNachTagen() { return _posInt(_cfg().erinnerungErsteNachTagen, 7); }
+function getErinnerungDannAlleTage()   { return _posInt(_cfg().erinnerungDannAlleTage, 3); }
+function getEskalationAbTagen()        { return _posInt(_cfg().eskalationAbTagen, 14); }
 
 /** Config im Speicher aktualisieren (nach dem Speichern in SP). */
 function setRuntimeConfig(cfg) { _runtimeConfig = cfg; _myRolesCache = null; }
