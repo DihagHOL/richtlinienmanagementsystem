@@ -24,7 +24,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -93,6 +93,8 @@ async function applyDeepLinkOrDefault() {
     if (!canReview) { await switchView('meine'); toast('Diese Richtlinie liegt im Freigabe-Prozess – du bist dafür nicht berechtigt.'); return; }
     await switchView('freigaben');
     if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
+    const aktion = (params.get('aktion') || '').toLowerCase();
+    if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {
     await switchView('meine');
     if (State.policies.find(p => p.id === deepId)) openDetail(deepId);

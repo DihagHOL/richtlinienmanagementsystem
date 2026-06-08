@@ -198,13 +198,18 @@ async function fetchAttachment(driveId, itemId, fallbackName, docUrl) {
 }
 
 /** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
-function policyLink(id) {
+function policyLink(id, aktion) {
   const sep = APP_URL.includes('?') ? '&' : '?';
-  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`;
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben${aktion ? '&aktion=' + aktion : ''}`;
 }
+
+const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 
 function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
   const link = policyLink(id);
+  const actions = phase === 'Freigabe'
+    ? _btn(policyLink(id, 'freigeben'), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
+    : _btn(policyLink(id, 'konform'), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform'), '#dc2626', '✗ Nicht konform');
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
     <p>für die Richtlinie <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
@@ -213,8 +218,10 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
     ${attachmentName ? `<p>📎 Das aktuelle Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
     ${eskaliert ? `<p style="color:#b45309"><b>Eskalation:</b> Diese Erinnerung geht aufgrund der Verzögerung zusätzlich an den Ersatz-Empfänger.</p>` : ''}
-    <p><a href="${esc(link)}" style="background:#1a56db;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">Richtlinie öffnen &amp; bearbeiten</a></p>
-    <p style="color:#6b7280;font-size:12px">Direktlink: <a href="${esc(link)}" style="color:#6b7280">${esc(link)}</a><br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
+    <p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p>
+    <p>${actions}</p>
+    <p style="color:#6b7280;font-size:12px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).
+       Oder <a href="${esc(link)}" style="color:#1a56db">nur ansehen &amp; bearbeiten</a>.<br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
   </div>`;
 }
 

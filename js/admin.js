@@ -668,6 +668,26 @@ function focusPolicyCard(id) {
   setTimeout(() => el.classList.remove('fg-highlight'), 4500);
 }
 
+/** Aus dem Mail-Button (?aktion=…): Bewertung mit kurzer Rückfrage direkt ausführen. */
+function handleMailAction(id, aktion) {
+  const p = State.policies.find(x => x.id === id);
+  if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
+  setTimeout(() => {
+    if (aktion === 'konform') {
+      if (typeof isCurrentUserPruefer === 'function' && !isCurrentUserPruefer()) { toast('Nur Prüfer dürfen die Konformität bewerten.'); return; }
+      if (confirm(`„${p.title}" als KONFORM markieren?`)) markKonform(id, true);
+    } else if (aktion === 'nicht_konform') {
+      if (typeof isCurrentUserPruefer === 'function' && !isCurrentUserPruefer()) { toast('Nur Prüfer dürfen die Konformität bewerten.'); return; }
+      markKonform(id, false);   // fragt anschließend nach der Anmerkung
+    } else if (aktion === 'freigeben') {
+      if (typeof isCurrentUserGeschaeftsleitung === 'function' && !isCurrentUserGeschaeftsleitung()) { toast('Nur die Geschäftsleitung darf freigeben.'); return; }
+      if (confirm(`„${p.title}" freigeben und veröffentlichen?`)) markFreigabe(id);
+    } else if (aktion === 'zurueck') {
+      markKonform(id, false);
+    }
+  }, 600);
+}
+
 function _votesHtml(p) {
   const votes = p.konformitaet || [];
   if (!votes.length) return '';
@@ -771,8 +791,8 @@ async function notifyPruefer(p) {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     await spSendMail(pruefer, `Neue Richtlinie zur Sichtung: ${p.title}`,
       _wfMailHtml('Neue Richtlinie – bitte um Sichtung und ggf. Anmerkung', p,
-        'Bitte prüfe die Richtlinie auf Konformität und markiere im Tool „konform" oder „nicht konform" (mit Anmerkung).',
-        att ? att.name : ''),
+        'Bitte prüfe die Richtlinie auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
+        att ? att.name : '', 'pruefung'),
       att ? [att] : []);
     toast('Prüfer benachrichtigt ✓' + (att ? ' (mit Dokument)' : ''), 'success');
   } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
@@ -785,20 +805,27 @@ async function notifyGL(p) {
     await spSendMail(gl, `Richtlinie zur Freigabe: ${p.title}`,
       _wfMailHtml('Richtlinie ist konform – bitte um Freigabe', p,
         'Die Konformitätsprüfung ist abgeschlossen. Bitte gib die Richtlinie zur Veröffentlichung frei.',
-        att ? att.name : ''),
+        att ? att.name : '', 'freigabe'),
       att ? [att] : []);
   } catch (e) { console.warn('GL-Mail:', e.message); }
 }
-function _wfMailHtml(headline, p, text, attachmentName) {
+function _wfMailHtml(headline, p, text, attachmentName, phase) {
   const base = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
+  const act = (a) => `${url}&aktion=${a}`;
+  const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
+  const actions = phase === 'freigabe'
+    ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
+    : phase === 'pruefung'
+      ? btn(act('konform'), '#16a34a', '✓ Konform') + btn(act('nicht_konform'), '#dc2626', '✗ Nicht konform')
+      : '';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>${esc(headline)}</b></p>
     <p>Richtlinie: <a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
     ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
-    <p><a href="${esc(url)}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Direktlink: <a href="${esc(url)}" style="color:#9ca3af">${esc(url)}</a><br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }
 
