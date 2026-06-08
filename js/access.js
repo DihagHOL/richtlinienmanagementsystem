@@ -25,6 +25,7 @@ const ACCESS_CONFIG_DEFAULT = {
   konformSchwelle:  'alle',    // 'alle' | 'einer'  – wann gilt eine Richtlinie als konform
   freigabeSchwelle: 'einer',   // 'alle' | 'einer'  – wie viele GL müssen freigeben
   eskalationMail:   '',        // Ersatz-Empfänger bei keiner Antwort
+  genehmigungPA:    false,     // true → Genehmigung läuft über Power Automate, App schickt KEINE Prüf-/Freigabe-Mails
   // ── Erinnerungen (vom GitHub-Actions-Cron gelesen) ──
   erinnerungenAktiv:        true,  // Erinnerungen senden ja/nein
   mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
@@ -63,6 +64,7 @@ async function loadRuntimeAccessConfig() {
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
         freigabeSchwelle:  cfg.freigabeSchwelle === 'alle' ? 'alle' : 'einer',
         eskalationMail:    typeof cfg.eskalationMail === 'string' ? cfg.eskalationMail : '',
+        genehmigungPA:     cfg.genehmigungPA === true,
         erinnerungenAktiv:        cfg.erinnerungenAktiv !== false,
         mailSender:               typeof cfg.mailSender === 'string' ? cfg.mailSender : '',
         erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
@@ -87,6 +89,7 @@ function getAccessConfig() {
     konformSchwelle:   c.konformSchwelle || 'alle',
     freigabeSchwelle:  c.freigabeSchwelle || 'einer',
     eskalationMail:    c.eskalationMail || '',
+    genehmigungPA:     c.genehmigungPA === true,
     erinnerungenAktiv:        c.erinnerungenAktiv !== false,
     mailSender:               c.mailSender || '',
     erinnerungErsteNachTagen: _posInt(c.erinnerungErsteNachTagen, 7),
@@ -108,6 +111,7 @@ function getGeschaeftsleitung() { return [...(_cfg().geschaeftsleitung || [])]; 
 function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
+function getGenehmigungPA()     { return _cfg().genehmigungPA === true; }
 function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }
 function getMailSender()               { return _cfg().mailSender || ''; }
 function getErinnerungErsteNachTagen() { return _posInt(_cfg().erinnerungErsteNachTagen, 7); }

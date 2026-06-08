@@ -785,6 +785,10 @@ async function markFreigabe(policyId) {
 }
 
 async function notifyPruefer(p) {
+  if (typeof getGenehmigungPA === 'function' && getGenehmigungPA()) {
+    console.info('[wf] Genehmigung über Power Automate – App-Prüfer-Mail übersprungen.');
+    return;   // Power Automate verschickt die Genehmigungs-Mail
+  }
   const pruefer = getPruefer();
   if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
   try {
@@ -798,6 +802,10 @@ async function notifyPruefer(p) {
   } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
 }
 async function notifyGL(p) {
+  if (typeof getGenehmigungPA === 'function' && getGenehmigungPA()) {
+    console.info('[wf] Genehmigung über Power Automate – App-GL-Mail übersprungen.');
+    return;   // Power Automate verschickt die Freigabe-Mail
+  }
   const gl = getGeschaeftsleitung();
   if (!gl.length) return;
   try {
@@ -1162,7 +1170,13 @@ function renderEinstellungen() {
                 <option value="einer" ${_cfgEdit.freigabeSchwelle === 'einer' ? 'selected' : ''}>eine GL-Person reicht</option>
                 <option value="alle" ${_cfgEdit.freigabeSchwelle === 'alle' ? 'selected' : ''}>alle GL-Personen</option>
               </select></div>
+            <div class="form-group full"><label>Genehmigungs-Mails</label>
+              <select onchange="_cfgEdit.genehmigungPA=(this.value==='pa')">
+                <option value="app" ${!_cfgEdit.genehmigungPA ? 'selected' : ''}>Aus der App versenden (Standard)</option>
+                <option value="pa" ${_cfgEdit.genehmigungPA ? 'selected' : ''}>Über Power Automate (App-Mails aus)</option>
+              </select></div>
           </div>
+          <div class="field-hint" style="margin-top:10px">„Über Power Automate" schaltet die <b>App-Hinweis-Mails</b> an Prüfer/Geschäftsleitung ab – die Genehmigung läuft dann über den Power-Automate-Flow (direkt in Outlook bestätigen). Siehe <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>.</div>
         </div>
       </div>
 
