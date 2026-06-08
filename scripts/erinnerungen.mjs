@@ -159,15 +159,29 @@ function guessType(name = '') {
   }[e]) || 'application/octet-stream';
 }
 
+/** Graph-Shares-ID aus einer Freigabe-/Web-URL (für Dokumente ohne gespeicherte DriveId/ItemId). */
+function encodeShareUrl(u) {
+  const b64 = Buffer.from(u, 'utf8').toString('base64').replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+  return 'u!' + b64;
+}
+
 /** Dokument der Richtlinie als E-Mail-Anhang (oder null → nur Link). */
-async function fetchAttachment(driveId, itemId, fallbackName) {
-  if (!driveId || !itemId) return null;
+async function fetchAttachment(driveId, itemId, fallbackName, docUrl) {
+  let meta = null;
   try {
-    const meta = await gget(`/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`);
-    const size = meta.size || 0;
-    if (size > MAX_ATTACH) { console.log(`   ⚠ Dokument ${(size / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
-    const url = meta['@microsoft.graph.downloadUrl'];
-    if (!url) { console.log('   ⚠ kein Download-Link – Mail nur mit Link'); return null; }
+    if (driveId && itemId) {
+      meta = await gget(`/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`);
+    } else if (docUrl) {
+      meta = await gget(`/shares/${encodeShareUrl(docUrl)}/driveItem?$select=name,size,file,@microsoft.graph.downloadUrl`);
+    } else {
+      return null;
+    }
+  } catch (e) { console.log(`   ⚠ Anhang-Metadaten nicht ladbar: ${e.message} – Mail nur mit Link`); return null; }
+  const size = meta.size || 0;
+  if (size > MAX_ATTACH) { console.log(`   ⚠ Dokument ${(size / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
+  const url = meta['@microsoft.graph.downloadUrl'];
+  if (!url) { console.log('   ⚠ kein Download-Link – Mail nur mit Link'); return null; }
+  try {
     const r = await fetch(url);   // vorab-authentifizierte URL, kein Token nötig
     if (!r.ok) { console.log(`   ⚠ Anhang-Download ${r.status} – Mail nur mit Link`); return null; }
     const buf = Buffer.from(await r.arrayBuffer());
@@ -253,7 +267,9 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
 
     const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
     const to = eskaliert ? [...pending, eskalationMail] : pending;
-    const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName);
+    const docUrl = typeof f.DokumentUrl === 'string' ? f.DokumentUrl : ((f.DokumentUrl && f.DokumentUrl.Url) || '');
+    console.log(`   doc-Felder: driveId=${f.DokumentDriveId ? 'ja' : 'nein'}, itemId=${f.DokumentItemId ? 'ja' : 'nein'}, url=${docUrl ? 'ja' : 'nein'}, name=${f.DokumentName || '-'}`);
+    const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName, docUrl);
     console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}${att ? ' (+Anhang)' : ''}`);
     const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
       mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : []);
