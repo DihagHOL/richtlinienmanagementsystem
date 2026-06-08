@@ -170,8 +170,8 @@ function mailHtml(title, phase, tage, pending, eskaliert) {
   SENDER = (cfg.mailSender || ENV_SENDER || '').trim();
   if (!SENDER) { console.error('FEHLT: Absender. „Absender-Postfach" in den App-Einstellungen setzen oder Secret MAIL_SENDER hinterlegen.'); process.exit(1); }
   ALLOWED_DOMAIN = SENDER.split('@')[1]?.toLowerCase() || '';
-  const erste = posInt(cfg.erinnerungErsteNachTagen, 7);
-  const alle = posInt(cfg.erinnerungDannAlleTage, 3);
+  const erste = posInt(process.env.ERINNERUNG_ERSTE, posInt(cfg.erinnerungErsteNachTagen, 7));
+  const alle = posInt(process.env.ERINNERUNG_ALLE, posInt(cfg.erinnerungDannAlleTage, 3));
   const eskalationAb = posInt(cfg.eskalationAbTagen, ESKALATION_AB_ENV || 14);
   const pruefer = (cfg.pruefer || []).filter(Boolean);
   const gl = (cfg.geschaeftsleitung || []).filter(Boolean);

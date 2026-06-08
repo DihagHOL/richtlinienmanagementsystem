@@ -11,6 +11,14 @@ on:
         description: 'Nur testen (keine Mails senden)'
         type: boolean
         default: true
+      erste:
+        description: 'TEST-Override: erste Erinnerung nach (Tagen), leer = App-Einstellung'
+        type: string
+        default: ''
+      alle:
+        description: 'TEST-Override: danach alle (Tagen), leer = App-Einstellung'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -35,6 +43,9 @@ jobs:
           MAIL_SENDER: ${{ secrets.MAIL_SENDER }}
           # Bei manuellem Start: dry_run-Eingabe; beim Cron: echte Mails (false).
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          # Optionale Test-Overrides (leer = App-Einstellung hat Vorrang):
+          ERINNERUNG_ERSTE: ${{ inputs.erste }}
+          ERINNERUNG_ALLE: ${{ inputs.alle }}
         run: |
           if [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$MAIL_SENDER" ]; then
             echo "Secrets noch nicht hinterlegt – Einrichtung siehe docs/ERINNERUNGEN-GITHUB-ACTIONS.md. Lauf übersprungen."
