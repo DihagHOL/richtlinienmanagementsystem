@@ -573,7 +573,7 @@ function _myMailDomain() {
  * (kein Versand an Externe). Scope Mail.Send wird separat angefordert.
  * @returns true bei Versand, false bei Redirect (Consent erforderlich)
  */
-async function spSendMail(toUpns, subject, htmlBody) {
+async function spSendMail(toUpns, subject, htmlBody, attachments) {
   const domain = _myMailDomain();
   const recipients = (Array.isArray(toUpns) ? toUpns : [toUpns])
     .map(u => String(u || '').trim().toLowerCase())
@@ -584,15 +584,39 @@ async function spSendMail(toUpns, subject, htmlBody) {
   const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
   if (!token) return false;   // Redirect zum Consent läuft
 
-  await _post(`${SP.graphBase}/me/sendMail`, token, {
-    message: {
-      subject: String(subject || '').slice(0, 255),
-      body: { contentType: 'HTML', content: htmlBody || '' },
-      toRecipients: unique.map(a => ({ emailAddress: { address: a } })),
-    },
-    saveToSentItems: true,
-  });
+  const message = {
+    subject: String(subject || '').slice(0, 255),
+    body: { contentType: 'HTML', content: htmlBody || '' },
+    toRecipients: unique.map(a => ({ emailAddress: { address: a } })),
+  };
+  if (attachments && attachments.length) message.attachments = attachments;
+
+  await _post(`${SP.graphBase}/me/sendMail`, token, { message, saveToSentItems: true });
   return true;
+}
+
+/** Richtliniendokument als E-Mail-Anhang (fileAttachment, base64) – oder null (zu groß/fehlt). */
+async function spGetDocAttachment(driveId, itemId, fallbackName) {
+  if (!driveId || !itemId) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  try {
+    const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`, token);
+    if ((meta.size || 0) > 2.5 * 1024 * 1024) return null;   // > 2,5 MB → nur Link
+    const url = meta['@microsoft.graph.downloadUrl'];
+    if (!url) return null;
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: meta.name || fallbackName || 'Richtlinie',
+      contentType: (meta.file && meta.file.mimeType) || 'application/octet-stream',
+      contentBytes: btoa(bin),
+    };
+  } catch (e) { console.warn('Anhang nicht ladbar:', e.message); return null; }
 }
 
 /* ═══════════════════════════════════════════════════

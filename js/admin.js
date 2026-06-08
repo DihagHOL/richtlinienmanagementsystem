@@ -768,28 +768,35 @@ async function notifyPruefer(p) {
   const pruefer = getPruefer();
   if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
   try {
+    const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     await spSendMail(pruefer, `Neue Richtlinie zur Sichtung: ${p.title}`,
       _wfMailHtml('Neue Richtlinie – bitte um Sichtung und ggf. Anmerkung', p,
-        'Bitte prüfe die Richtlinie auf Konformität und markiere im Tool „konform" oder „nicht konform" (mit Anmerkung).'));
-    toast('Prüfer benachrichtigt ✓', 'success');
+        'Bitte prüfe die Richtlinie auf Konformität und markiere im Tool „konform" oder „nicht konform" (mit Anmerkung).',
+        att ? att.name : ''),
+      att ? [att] : []);
+    toast('Prüfer benachrichtigt ✓' + (att ? ' (mit Dokument)' : ''), 'success');
   } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
 }
 async function notifyGL(p) {
   const gl = getGeschaeftsleitung();
   if (!gl.length) return;
   try {
+    const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     await spSendMail(gl, `Richtlinie zur Freigabe: ${p.title}`,
       _wfMailHtml('Richtlinie ist konform – bitte um Freigabe', p,
-        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib die Richtlinie zur Veröffentlichung frei.'));
+        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib die Richtlinie zur Veröffentlichung frei.',
+        att ? att.name : ''),
+      att ? [att] : []);
   } catch (e) { console.warn('GL-Mail:', e.message); }
 }
-function _wfMailHtml(headline, p, text) {
+function _wfMailHtml(headline, p, text, attachmentName) {
   const base = 'https://dfedorov12.github.io/richtlinienmanagementsystem/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>${esc(headline)}</b></p>
     <p>Richtlinie: <a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
+    ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
     <p><a href="${esc(url)}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Direktlink: <a href="${esc(url)}" style="color:#9ca3af">${esc(url)}</a><br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
