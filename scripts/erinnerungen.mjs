@@ -124,25 +124,60 @@ async function loadPolicies(siteId, listId) {
   return out;
 }
 
-async function sendMail(toList, subject, html) {
+async function sendMail(toList, subject, html, attachments = []) {
   const recipients = [...new Set(toList.filter(inDomain).map(lc))];
   if (!recipients.length) { console.log(`   ⚠ keine gültigen Empfänger (Domain ${ALLOWED_DOMAIN}) – übersprungen`); return false; }
-  if (DRY_RUN) { console.log(`   [DRY_RUN] würde senden an: ${recipients.join(', ')}`); return true; }
+  const mitAnhang = attachments && attachments.length ? ' (mit Anhang)' : '';
+  if (DRY_RUN) { console.log(`   [DRY_RUN] würde senden an: ${recipients.join(', ')}${mitAnhang}`); return true; }
+  const message = {
+    subject: subject.slice(0, 255),
+    body: { contentType: 'HTML', content: html },
+    toRecipients: recipients.map((a) => ({ emailAddress: { address: a } })),
+  };
+  if (attachments && attachments.length) message.attachments = attachments;
   const r = await fetch(`${GRAPH}/users/${encodeURIComponent(SENDER)}/sendMail`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: {
-        subject: subject.slice(0, 255),
-        body: { contentType: 'HTML', content: html },
-        toRecipients: recipients.map((a) => ({ emailAddress: { address: a } })),
-      },
-      saveToSentItems: false,
-    }),
+    body: JSON.stringify({ message, saveToSentItems: false }),
   });
   if (!r.ok) { console.log(`   ✗ sendMail (${r.status}): ${(await r.text()).slice(0, 200)}`); return false; }
-  console.log(`   ✓ gesendet an: ${recipients.join(', ')}`);
+  console.log(`   ✓ gesendet an: ${recipients.join(', ')}${mitAnhang}`);
   return true;
+}
+
+const MAX_ATTACH = 2.5 * 1024 * 1024;   // ~2,5 MB roh → base64 bleibt unter Graphs 4-MB-Mailgrenze
+
+function guessType(name = '') {
+  const e = String(name).toLowerCase().split('.').pop();
+  return ({
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  }[e]) || 'application/octet-stream';
+}
+
+/** Dokument der Richtlinie als E-Mail-Anhang (oder null → nur Link). */
+async function fetchAttachment(driveId, itemId, fallbackName) {
+  if (!driveId || !itemId) return null;
+  try {
+    const meta = await gget(`/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`);
+    const size = meta.size || 0;
+    if (size > MAX_ATTACH) { console.log(`   ⚠ Dokument ${(size / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
+    const url = meta['@microsoft.graph.downloadUrl'];
+    if (!url) { console.log('   ⚠ kein Download-Link – Mail nur mit Link'); return null; }
+    const r = await fetch(url);   // vorab-authentifizierte URL, kein Token nötig
+    if (!r.ok) { console.log(`   ⚠ Anhang-Download ${r.status} – Mail nur mit Link`); return null; }
+    const buf = Buffer.from(await r.arrayBuffer());
+    return {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: meta.name || fallbackName || 'Richtlinie',
+      contentType: (meta.file && meta.file.mimeType) || guessType(meta.name || fallbackName),
+      contentBytes: buf.toString('base64'),
+    };
+  } catch (e) { console.log(`   ⚠ Anhang-Fehler: ${e.message} – Mail nur mit Link`); return null; }
 }
 
 /** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
@@ -151,7 +186,7 @@ function policyLink(id) {
   return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`;
 }
 
-function mailHtml(id, title, phase, tage, pending, eskaliert) {
+function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
   const link = policyLink(id);
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
@@ -159,6 +194,7 @@ function mailHtml(id, title, phase, tage, pending, eskaliert) {
        steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
     <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
     <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
+    ${attachmentName ? `<p>📎 Das aktuelle Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
     ${eskaliert ? `<p style="color:#b45309"><b>Eskalation:</b> Diese Erinnerung geht aufgrund der Verzögerung zusätzlich an den Ersatz-Empfänger.</p>` : ''}
     <p><a href="${esc(link)}" style="background:#1a56db;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">Richtlinie öffnen &amp; bearbeiten</a></p>
     <p style="color:#6b7280;font-size:12px">Direktlink: <a href="${esc(link)}" style="color:#6b7280">${esc(link)}</a><br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
@@ -217,8 +253,10 @@ function mailHtml(id, title, phase, tage, pending, eskaliert) {
 
     const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
     const to = eskaliert ? [...pending, eskalationMail] : pending;
-    console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}`);
-    const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`, mailHtml(it.id, title, phase, tage, pending, eskaliert));
+    const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName);
+    console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}${att ? ' (+Anhang)' : ''}`);
+    const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
+      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : []);
     if (ok) sent++;
   }
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
