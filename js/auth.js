@@ -4,10 +4,18 @@
  * Muster übernommen aus e-rechnung/js/auth.js.
  */
 
+/** Basis-URL der App für den MSAL-Redirect – funktioniert auf GitHub-Pages-URL UND eigener Domain. */
+function _redirectBase() {
+  let p = location.origin + location.pathname.replace(/index\.html?$/i, '');
+  if (!p.endsWith('/')) p += '/';
+  return p;
+}
+
 const _AUTH = {
   clientId:    '46c63ab1-1bd7-4774-b702-ed73a3f57072',
   tenantId:    'fdb70646-023a-403b-a4b9-1f474a935123',
-  redirectUri: 'https://dfedorov12.github.io/richtlinienmanagementsystem/',
+  // dynamisch: GitHub-Pages-URL ODER eigene Domain – BEIDE in Azure als SPA-Redirect-URI hinterlegen
+  redirectUri: _redirectBase(),
 };
 
 let _msal = null;
