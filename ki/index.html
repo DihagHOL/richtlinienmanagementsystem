@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"/>
+  <title>DIHAG · KI-Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+  <link rel="stylesheet" href="../css/style.css?v=28"/>
+  <link rel="stylesheet" href="style.css?v=1"/>
+</head>
+<body>
+
+<!-- ── BOOT ─────────────────────────────────────────────────────── -->
+<div id="boot">
+  <svg width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="11" fill="#1a56db"/><text x="7" y="29" font-size="17" font-weight="700" fill="white" font-family="Inter">KI</text></svg>
+  <div class="boot-title">KI-Dashboard</div>
+  <div class="boot-sub" id="boot-sub">Anmeldung läuft…</div>
+  <div class="boot-spinner" id="boot-spinner"></div>
+  <div class="boot-err" id="boot-err"></div>
+  <button class="boot-btn" id="boot-btn" onclick="location.reload()" style="display:none">Erneut versuchen</button>
+</div>
+
+<!-- ── APP ──────────────────────────────────────────────────────── -->
+<div id="app" style="display:none">
+
+  <!-- Sidebar (Design + Aufbau wie Richtlinienmanagement) -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <svg width="26" height="26" viewBox="0 0 26 26"><rect width="26" height="26" rx="6" fill="#1a56db"/><text x="4" y="18" font-size="10" font-weight="700" fill="white" font-family="Inter">KI</text></svg>
+      <span>KI-Dashboard</span>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <a class="nav-item" href="../">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+        Richtlinienmanagement
+      </a>
+
+      <div class="nav-sep">KI-Governance</div>
+      <a class="nav-item" data-view="antrag" onclick="switchView('antrag')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm5 6a1 1 0 012 0v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1H8a1 1 0 110-2h1v-1z" clip-rule="evenodd"/></svg>
+        Neuer Antrag
+      </a>
+      <a class="nav-item active" data-view="antraege" onclick="switchView('antraege')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+        Anträge
+      </a>
+      <a class="nav-item" data-view="lizenzen" onclick="switchView('lizenzen')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/></svg>
+        Lizenzen
+      </a>
+      <a class="nav-item" data-view="register" onclick="switchView('register')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"/></svg>
+        KI-Register
+      </a>
+      <a class="nav-item" data-view="einstellungen" id="tab-einstellungen" onclick="switchView('einstellungen')" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+        Einstellungen
+      </a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="hdr-av">?</div>
+      <div class="user-info">
+        <div class="user-name" id="hdr-name">–</div>
+        <div class="user-sub" id="hdr-mail">–</div>
+      </div>
+      <button class="logout-btn" title="Abmelden" onclick="authLogout()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+        </button>
+        <h1 class="topbar-title" id="page-title">KI-Anträge</h1>
+        <span id="gremium-badge" class="gremium-badge hidden">Gremium</span>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-sm btn-ghost" id="btn-refresh" onclick="refreshCurrentView()" title="Daten aktualisieren">
+          ↻ Aktualisieren
+        </button>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+
+      <!-- VIEW: Neuer Antrag -->
+      <div id="view-antrag" class="view hidden">
+        <!-- #antrag-main-col: Hauptspalte (wird in Testumgebung neben KI-Vorschläge-Sidebar gestellt) -->
+        <div id="antrag-main-col">
+          <div class="view-header">
+            <h2>KI-Antrag einreichen</h2>
+            <p class="view-desc">Antrag zur Freigabe eines KI-Systems gemäß Anlage 1 der KI-Richtlinie (CO-10-01). Das KI-Koordinierungsgremium prüft und entscheidet über die Freigabe.</p>
+          </div>
+          <div class="richtlinie-hint">
+            <div class="richtlinie-hint-left">
+              <span class="richtlinie-hint-icon">📋</span>
+              <div>
+                <strong>KI-Richtlinie CO-10-01 &amp; Verhaltenskodex CO-01-01</strong>
+                <span>Bitte füllen Sie den Antrag gemäß der geltenden DIHAG-KI-Richtlinie aus (Version 1.0, Inkrafttreten 01.06.2026).</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="btn btn-neutral btn-sm" style="font-weight:700;color:#1e2939" onclick="openRichtlinieModal()">KI-Richtlinie →</button>
+              <button class="btn btn-neutral btn-sm" style="font-weight:700;color:#1e2939" onclick="openVerhaltenskodexModal()">Verhaltenskodex →</button>
+            </div>
+          </div>
+          <div id="antrag-success" class="success-banner hidden"></div>
+          <form id="form-antrag" class="form-card" onsubmit="submitAntrag(event)" novalidate>
+            <div id="form-antrag-fields"></div>
+            <div class="form-footer">
+              <button type="submit" class="btn btn-primary" id="btn-submit">Antrag einreichen</button>
+            </div>
+          </form>
+        </div>
+        <!-- KI-Vorschläge-Sidebar wird per JS in Testumgebung hier eingefügt -->
+      </div>
+
+      <!-- VIEW: Anträge -->
+      <div id="view-antraege" class="view active">
+        <div class="view-header-row">
+          <div>
+            <h2>KI-Anträge</h2>
+            <p id="antraege-sub" class="view-desc"></p>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="search-antraege" class="filter-search" placeholder="🔍 Suchen…" oninput="searchAntraege()">
+            <select id="filter-status" class="filter-select" onchange="filterAntraege()">
+              <option value="">Alle Status</option>
+              <option value="Eingereicht">Eingereicht</option>
+              <option value="In Prüfung">In Prüfung</option>
+              <option value="Genehmigt">Genehmigt</option>
+              <option value="Abgelehnt">Abgelehnt</option>
+              <option value="Rückfrage">Rückfrage</option>
+            </select>
+            <select id="filter-risk" class="filter-select" onchange="filterAntraege()">
+              <option value="">Alle Risiken</option>
+              <option value="Geringes Risiko">Geringes Risiko</option>
+              <option value="Normales Risiko">Normales Risiko</option>
+              <option value="Hohes Risiko">Hohes Risiko</option>
+              <option value="Verboten">Verboten</option>
+            </select>
+          </div>
+        </div>
+        <div id="antraege-loading" class="loading-state">Lade Anträge …</div>
+        <div id="antraege-list" class="card-grid"></div>
+      </div>
+
+      <!-- VIEW: KI-Register -->
+      <div id="view-register" class="view hidden">
+        <div class="view-header-row">
+          <div>
+            <h2>KI-Register</h2>
+            <p class="view-desc">Alle freigegebenen KI-Systeme der DIHAG-Gruppe</p>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="search-register" class="filter-search" placeholder="🔍 Suchen…" oninput="searchRegister()">
+            <select id="reg-filter-nutzer" class="filter-select" onchange="filterRegister()">
+              <option value="">Alle Nutzer</option>
+            </select>
+            <select id="reg-filter-risk" class="filter-select" onchange="filterRegister()">
+              <option value="">Alle Risiken</option>
+              <option value="Geringes Risiko">Geringes Risiko</option>
+              <option value="Normales Risiko">Normales Risiko</option>
+              <option value="Hohes Risiko">Hohes Risiko</option>
+              <option value="Verboten">Verboten</option>
+            </select>
+          </div>
+        </div>
+        <div id="register-loading" class="loading-state">Lade KI-Register …</div>
+        <div id="register-wrap"></div>
+      </div>
+
+      <!-- VIEW: Einstellungen (nur Admin) -->
+      <div id="view-einstellungen" class="view hidden">
+        <div class="view-header">
+          <h2>⚙️ Einstellungen</h2>
+          <p class="view-desc">Konfiguration des KI-Genehmigungssystems – Genehmiger werden zentral im Richtlinienmanagement gepflegt, E-Mail-Benachrichtigungen hier.</p>
+        </div>
+        <div id="einstellungen-body"></div>
+      </div>
+
+      <!-- VIEW: Lizenzen -->
+      <div id="view-lizenzen" class="view hidden">
+        <div class="view-header-row">
+          <div>
+            <h2>Lizenzmanagement</h2>
+            <p class="view-desc">Alle KI-Lizenzen der DIHAG-Gruppe</p>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="search-lizenzen" class="filter-search" placeholder="🔍 Suchen…" oninput="searchLizenzen()">
+            <select id="filter-lizenztyp" class="filter-select" onchange="renderLizenzen()">
+              <option value="">Alle Typen</option>
+              <option value="Enterprise">Enterprise</option>
+              <option value="Team">Team</option>
+              <option value="Pro">Pro</option>
+              <option value="Free">Free</option>
+              <option value="API">API</option>
+              <option value="Sonstiges">Sonstiges</option>
+            </select>
+            <select id="filter-ablauf" class="filter-select" onchange="renderLizenzen()">
+              <option value="">Alle Ablaufdaten</option>
+              <option value="30">Ablauf ≤ 30 Tage</option>
+              <option value="60">Ablauf ≤ 60 Tage</option>
+              <option value="90">Ablauf ≤ 90 Tage</option>
+              <option value="expired">Abgelaufen</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="openLizenzModal()">+ Neue Lizenz</button>
+          </div>
+        </div>
+        <div id="lizenzen-loading" class="loading-state">Lade Lizenzen …</div>
+        <div id="lizenzen-wrap"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Side Panel -->
+<div id="panel-overlay" class="panel-overlay hidden" onclick="closePanel()"></div>
+<aside id="side-panel" class="side-panel hidden">
+  <div class="panel-header">
+    <div id="panel-title" class="panel-title"></div>
+    <div class="panel-header-btns">
+      <button id="btn-panel-refresh" class="panel-close refresh-btn" onclick="refreshPanel()" title="Antrag neu laden">↻</button>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+  </div>
+  <div id="panel-body" class="panel-body"></div>
+</aside>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div class="modal-card" id="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span id="modal-title" class="modal-title"></span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </div>
+</div>
+
+<!-- Scripts: gemeinsame Anmeldung (RMS) + KI-App -->
+<script src="../js/auth.js?v=28"></script>
+<script>
+  // MSAL-Redirect-URI auf die App-Wurzel setzen (nur diese ist in Azure als
+  // SPA-Redirect-URI registriert). Nach dem Login leitet auth.js anhand des
+  // state-Parameters wieder hierher (/ki/) zurück.
+  _AUTH.redirectUri = _redirectBase().replace(/ki\/$/, '');
+</script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

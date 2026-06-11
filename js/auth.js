@@ -50,11 +50,24 @@ async function authInit() {
 
   if (response) _account = response.account;
 
+  // Sub-App-Rückkehr: Login/Token-Redirect aus einer Unterseite (z.B. /ki/)
+  // landet auf der App-Wurzel (registrierte Redirect-URI) – der state-Parameter
+  // enthält den Ursprungspfad, dorthin zurückleiten (Konto ist bereits gecacht).
+  if (response && typeof response.state === 'string' && response.state.startsWith('/')
+      && response.state !== location.pathname + location.search) {
+    location.replace(response.state);
+    return;
+  }
+
   const accounts = _msal.getAllAccounts();
 
   if (!_account && accounts.length === 0) {
-    // Nicht angemeldet → Microsoft-Login starten
-    await _msal.loginRedirect({ scopes: ['User.Read'], prompt: 'select_account' });
+    // Nicht angemeldet → Microsoft-Login starten (state = Rückkehrpfad)
+    await _msal.loginRedirect({
+      scopes: ['User.Read'],
+      prompt: 'select_account',
+      state:  location.pathname + location.search,
+    });
     return;
   }
 
@@ -111,7 +124,10 @@ async function acquireToken(scopes) {
     return result.accessToken;
   } catch (e) {
     if (e instanceof msal.InteractionRequiredAuthError) {
-      await _msal.acquireTokenRedirect({ scopes, account: _account });
+      await _msal.acquireTokenRedirect({
+        scopes, account: _account,
+        state: location.pathname + location.search,   // Rückkehr zur Ursprungsseite
+      });
       return null; // Seite wird umgeleitet
     }
     throw e;
