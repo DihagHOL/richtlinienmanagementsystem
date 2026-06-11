@@ -7,6 +7,7 @@ name: Cache-Busting
 on:
   push:
     branches: [master]
+  workflow_dispatch: {}   # manueller Lauf über den Actions-Tab
 
 permissions:
   contents: write
