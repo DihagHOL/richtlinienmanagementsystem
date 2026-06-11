@@ -12,7 +12,12 @@ const State = {
   policies: [],      // alle Richtlinien (Admin sieht alle; Mitarbeiter-Filter clientseitig)
   acks: [],          // Bestätigungen des aktuellen Users
   loaded: false,
+  loadedAt: 0,       // Zeitstempel des letzten reloadData() – für den Daten-Cache
 };
+
+// Reiterwechsel innerhalb dieser Zeit rendern aus dem Cache statt neu zu laden;
+// der „Aktualisieren"-Button (refreshAll) erzwingt weiterhin frische Daten.
+const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
@@ -110,6 +115,7 @@ async function reloadData() {
   State.policies = policies;
   State.acks = acks;
   State.loaded = true;
+  State.loadedAt = Date.now();
   renderMeine();
 }
 
@@ -121,6 +127,7 @@ async function refreshAll() {
   const btn = document.getElementById('btn-reload');
   if (btn) btn.disabled = true;
   showSync(true);
+  State.loadedAt = 0;   // Cache invalidieren → garantiert frische Daten
   try {
     await reloadData();
     if (typeof renderAdminList === 'function') renderAdminList();
@@ -165,18 +172,24 @@ async function switchView(view) {
   document.getElementById('sidebar')?.classList.remove('open');
   window.scrollTo(0, 0);
 
-  // Daten-Reiter: bei jedem Wechsel frisch aus SharePoint laden
+  // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
+  // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
   if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse'].includes(view)) {
-    showSync(true);
-    try {
-      await reloadData();                 // lädt Richtlinien + eigene Bestätigungen (+ renderMeine)
-    } catch (e) {
-      console.error(e);
-      if (view === 'meine') renderMeineError(e.message);
-      else toast('Aktualisierung fehlgeschlagen: ' + e.message, 'error');
-      return;
-    } finally {
-      showSync(false);
+    const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
+    if (stale) {
+      showSync(true);
+      try {
+        await reloadData();               // lädt Richtlinien + eigene Bestätigungen (+ renderMeine)
+      } catch (e) {
+        console.error(e);
+        if (view === 'meine') renderMeineError(e.message);
+        else toast('Aktualisierung fehlgeschlagen: ' + e.message, 'error');
+        return;
+      } finally {
+        showSync(false);
+      }
+    } else if (view === 'meine') {
+      renderMeine();                      // Cache-Treffer: nur rendern
     }
   }
 

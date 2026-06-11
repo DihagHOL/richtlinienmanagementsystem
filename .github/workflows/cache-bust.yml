@@ -1,0 +1,34 @@
+# Cache-Busting: ersetzt bei jedem Push die ?v=…-Parameter in den index.html
+# durch den Commit-SHA. Damit lädt der Browser nach jedem Deploy garantiert
+# frisches JS/CSS — manuelles Hochzählen entfällt.
+# Loop-Schutz: der Bot-Commit trägt [skip ci] und der Job skippt Bot-Pushes.
+name: Cache-Busting
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "?v=… durch Commit-SHA ersetzen"
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          sed -i -E "s/\?v=[A-Za-z0-9]+/?v=${SHA}/g" index.html ki/index.html
+          sed -i -E "s/const APP_VERSION = '[^']*';/const APP_VERSION = 'v-${SHA}';/" js/app.js
+
+      - name: Commit & Push (nur bei Änderung)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html ki/index.html js/app.js
+          git diff --cached --quiet && { echo "Keine Änderung."; exit 0; }
+          git commit -m "chore: cache-bust ${GITHUB_SHA::8} [skip ci]"
+          git push

@@ -152,11 +152,11 @@ async function spGetPolicies() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await spInit();
-  const resp = await _get(
+  const items = await _getAll(
     `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items` +
     `?$expand=fields&$top=500`, token
   );
-  return (resp.value || []).map(_mapPolicy)
+  return items.map(_mapPolicy)
     .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 }
 
@@ -278,9 +278,9 @@ async function spGetCourses() {
   if (!token) return [];
   await spInit();
   if (!_sp.courseListId) return [];
-  const resp = await _get(
+  const items = await _getAll(
     `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.courseListId}/items?$expand=fields&$top=200`, token);
-  return (resp.value || []).map(item => {
+  return items.map(item => {
     const f = item.fields || {};
     let richtlinienIds = [];
     try { richtlinienIds = f.RichtlinienIds ? JSON.parse(f.RichtlinienIds) : []; } catch { richtlinienIds = []; }
@@ -648,9 +648,22 @@ async function spSaveAccessConfig(config) {
    Graph-Helper
 ═══════════════════════════════════════════════════ */
 
+/** fetch mit Backoff-Retry bei transientem Throttling (429/503/504, max. 3×). */
+async function _fetchRetry(url, options, _attempt = 0) {
+  const resp = await fetch(url, options);
+  if ((resp.status === 429 || resp.status === 503 || resp.status === 504) && _attempt < 3) {
+    const retryAfter = parseFloat(resp.headers.get('Retry-After')) || 0;   // Sekunden, falls gesetzt
+    const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(8000, 500 * 2 ** _attempt);
+    console.warn(`[sp] Graph ${resp.status} – Retry ${_attempt + 1}/3 in ${waitMs} ms`);
+    await new Promise(r => setTimeout(r, waitMs));
+    return _fetchRetry(url, options, _attempt + 1);
+  }
+  return resp;
+}
+
 async function _uploadFile(token, path, bytes, contentType) {
   const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${path}:/content`;
-  const resp = await fetch(url, {
+  const resp = await _fetchRetry(url, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
     body: bytes,
@@ -660,13 +673,25 @@ async function _uploadFile(token, path, bytes, contentType) {
 }
 
 async function _get(url, token) {
-  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  const resp = await _fetchRetry(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
   if (!resp.ok) throw new Error(`Graph GET (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
   return resp.json();
 }
 
+/** Alle Seiten einer Graph-Collection laden (folgt @odata.nextLink, cap gegen Endlosschleifen). */
+async function _getAll(url, token, cap = 5000) {
+  let out = [], next = url;
+  while (next) {
+    const page = await _get(next, token);
+    out = out.concat(page.value || []);
+    next = page['@odata.nextLink'] || null;
+    if (out.length >= cap) { console.warn(`[sp] _getAll: cap ${cap} erreicht`); break; }
+  }
+  return out;
+}
+
 async function _post(url, token, body) {
-  const resp = await fetch(url, {
+  const resp = await _fetchRetry(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -676,7 +701,7 @@ async function _post(url, token, body) {
 }
 
 async function _patch(url, token, fields) {
-  const resp = await fetch(url, {
+  const resp = await _fetchRetry(url, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -686,6 +711,6 @@ async function _patch(url, token, fields) {
 }
 
 async function _del(url, token) {
-  const resp = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const resp = await _fetchRetry(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
   if (!resp.ok && resp.status !== 204) throw new Error(`Graph DELETE (${resp.status}): ${(await resp.text()).slice(0, 200)}`);
 }

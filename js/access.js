@@ -55,6 +55,7 @@ async function loadRuntimeAccessConfig() {
     const cfg = await spLoadAccessConfig();
     if (cfg && typeof cfg === 'object') {
       _runtimeConfig = {
+        ...cfg,   // unbekannte Felder (z.B. ki* vom KI-Dashboard) durchschleifen – Speichern darf sie nicht löschen
         admins:     Array.isArray(cfg.admins) ? cfg.admins : [],
         genehmiger: Array.isArray(cfg.genehmiger) ? cfg.genehmiger : [],
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
@@ -80,6 +81,7 @@ async function loadRuntimeAccessConfig() {
 function getAccessConfig() {
   const c = _cfg();
   return {
+    ...JSON.parse(JSON.stringify(c)),   // alle Felder mitnehmen (inkl. ki* vom KI-Dashboard)
     admins:     [...(c.admins || [])],
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],

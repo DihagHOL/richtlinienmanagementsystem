@@ -152,10 +152,11 @@ let lizenzCols  = null;  // analog für KI_Lizenzen
 let _cacheTs = { antraege: 0, lizenzen: 0, register: 0 };
 const CACHE_TTL = 5 * 60 * 1000;  // 5 Minuten
 
-// ── Testumgebungs-Flag ───────────────────────────────────────────
-// Aktiviert testexklusive Features (z.B. KI-Vorschläge) nur auf der
-// GitHub-Pages-Test-URL; Live-Umgebung bleibt unberührt.
-const IS_TEST_ENV = location.pathname.startsWith('/ki-dashboard-test');
+// ── Demo-/Test-Flag ──────────────────────────────────────────────
+// Aktiviert Demo-Features (KI-Vorschläge-Sidebar) auf der alten Test-URL
+// ODER überall per ?demo in der URL (z.B. …/ki/?demo=1 für Vorführungen).
+const IS_TEST_ENV = location.pathname.startsWith('/ki-dashboard-test')
+  || new URLSearchParams(location.search).has('demo');
 
 // ── KI-Vorschläge (Testumgebung) – vorbefüllte Beispieldatensätze ──
 // Feldschlüssel entsprechen den SP-internen Namen (COL.*).
@@ -638,21 +639,63 @@ async function boot() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// RMS-BERECHTIGUNGEN (access-config.json aus dem Richtlinienmanagement)
+// RMS-BERECHTIGUNGEN + KI-EINSTELLUNGEN (access-config.json)
 // ═══════════════════════════════════════════════════════════════════
-// Liest dieselbe Datei wie das RMS: Dokumentbibliothek der App-Site
-// (sites/IT) → Ordner "Richtlinienmanagement" → access-config.json
-async function loadRmsAccessConfig() {
+// Zentrale Config-Datei des Richtlinienmanagements: Dokumentbibliothek der
+// App-Site (sites/IT) → Ordner "Richtlinienmanagement" → access-config.json.
+// Enthält neben den Rollen (admins/genehmiger) auch die KI-Einstellungen
+// (kiGenehmigungsmodus, kiMailBeiEinreichung, kiMailBeiEntscheidung,
+// kiMailDomains) – gilt damit zentral für alle Admins/Geräte statt localStorage.
+let _appDriveId = null;   // Drive der Dokumentbibliothek (auch für Anhänge genutzt)
+const KI_CFG_DEFAULTS = {
+  kiGenehmigungsmodus:   'einstimmig',
+  kiMailBeiEinreichung:  true,
+  kiMailBeiEntscheidung: true,
+  kiMailDomains:         ['dihag.com'],
+};
+let _kiCfg = { ...KI_CFG_DEFAULTS };
+
+async function getAppDriveId() {
+  if (_appDriveId) return _appDriveId;
   const drives = await gGet(`/sites/${siteId}/drives`);
   const docDrive = (drives.value || []).find(d =>
     ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
   ) || drives.value?.[0];
   if (!docDrive) throw new Error('Dokumentbibliothek nicht gefunden');
-  const cfg = await gGet(`/drives/${docDrive.id}/root:/Richtlinienmanagement/access-config.json:/content`);
+  _appDriveId = docDrive.id;
+  return _appDriveId;
+}
+
+async function loadRmsAccessConfig() {
+  const driveId = await getAppDriveId();
+  const cfg = await gGet(`/drives/${driveId}/root:/Richtlinienmanagement/access-config.json:/content`);
+  _kiCfg = {
+    kiGenehmigungsmodus:   cfg?.kiGenehmigungsmodus === 'einer' ? 'einer' : 'einstimmig',
+    kiMailBeiEinreichung:  cfg?.kiMailBeiEinreichung  !== false,
+    kiMailBeiEntscheidung: cfg?.kiMailBeiEntscheidung !== false,
+    kiMailDomains:         (Array.isArray(cfg?.kiMailDomains) && cfg.kiMailDomains.length)
+                             ? cfg.kiMailDomains : [...KI_CFG_DEFAULTS.kiMailDomains],
+  };
   return {
     admins:     Array.isArray(cfg?.admins)     ? cfg.admins     : [],
     genehmiger: Array.isArray(cfg?.genehmiger) ? cfg.genehmiger : [],
   };
+}
+
+// KI-Einstellungen zentral speichern: read-modify-write, damit die
+// RMS-Felder (admins, genehmiger, pruefer, …) unangetastet bleiben.
+async function saveKiConfig(kiFields) {
+  const driveId = await getAppDriveId();
+  let cfg = {};
+  try {
+    cfg = await gGet(`/drives/${driveId}/root:/Richtlinienmanagement/access-config.json:/content`) || {};
+  } catch(e) { console.warn('access-config nicht lesbar, lege neu an:', e.message); }
+  const merged = { ...cfg, ...kiFields };
+  await gFetch(`/drives/${driveId}/root:/Richtlinienmanagement/access-config.json:/content`, {
+    method: 'PUT',
+    body: JSON.stringify(merged, null, 2),
+  });
+  _kiCfg = { ..._kiCfg, ...kiFields };
 }
 
 // UPN-Liste → [{email, name}] für Mails/Anzeige (Namen via Graph, Fallback: UPN-Präfix)
@@ -2697,9 +2740,11 @@ async function refreshPanel() {
 // ═══════════════════════════════════════════════════════════════════
 // toList: [{address, name}] oder ['email@...'] oder 'email@...'
 async function sendMail(toList, subject, bodyHtml) {
-  // Erlaubte Empfänger-Domains: nur interne DIHAG-Adressen
-  // Verhindert dass eine manipulierte Genehmiger-Liste externe Adressen erreicht
-  const ALLOWED_MAIL_DOMAINS = new Set(['dihag.com']);
+  // Erlaubte Empfänger-Domains aus der zentralen Config (kiMailDomains) –
+  // verhindert dass eine manipulierte Genehmiger-Liste externe Adressen erreicht
+  const ALLOWED_MAIL_DOMAINS = new Set(
+    (_kiCfg.kiMailDomains || ['dihag.com']).map(d => String(d).toLowerCase().trim())
+  );
   const toArr = (Array.isArray(toList) ? toList : [toList]).map(r =>
     typeof r === 'string'
       ? { emailAddress: { address: r } }
@@ -2916,13 +2961,17 @@ function renderKommentarLog(text) {
   }).join('');
 }
 
+// Einstellungen kommen zentral aus der access-config.json (_kiCfg, in boot()
+// geladen) – gleiche Signatur wie früher, damit alle Aufrufer unverändert bleiben.
+// Vorher localStorage: damit galten Genehmigungsmodus/Mail-Schalter pro Browser!
 function loadSettings() {
-  try { return JSON.parse(localStorage.getItem('ki_settings') || '{}'); } catch { return {}; }
-}
-function saveSettingsData(data) {
-  // Nur lokale Benachrichtigungs-Einstellungen – Genehmiger/Admins kommen
-  // zentral aus der RMS access-config.json (Richtlinienmanagement → Einstellungen)
-  localStorage.setItem('ki_settings', JSON.stringify(data));
+  return {
+    benachrichtigung: {
+      beiEinreichung:    _kiCfg.kiMailBeiEinreichung,
+      beiEntscheidung:   _kiCfg.kiMailBeiEntscheidung,
+      genehmigungsmodus: _kiCfg.kiGenehmigungsmodus,
+    },
+  };
 }
 
 function renderEinstellungen() {
@@ -2986,33 +3035,58 @@ function renderEinstellungen() {
           <input type="checkbox" id="notif-entscheidung" ${ben.beiEntscheidung !== false ? 'checked' : ''}>
           <span>Nach Gremium-Entscheidung → Antragsteller automatisch benachrichtigen</span>
         </label>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e9ef">
+          <label class="form-label" for="mail-domains">Erlaubte Empfänger-Domains</label>
+          <input id="mail-domains" type="text" class="form-control" placeholder="dihag.com, ewa-guss.de"
+            value="${esc((_kiCfg.kiMailDomains || []).join(', '))}">
+          <div class="form-hint">Kommagetrennt. Benachrichtigungen an andere Domains werden aus Sicherheitsgründen übersprungen
+            (relevant für Genehmiger aus Gruppengesellschaften, z.&nbsp;B. ewa-guss.de, eurometall.com).</div>
+        </div>
       </div>
 
     </div>
     <div style="margin-top:20px;display:flex;gap:10px;align-items:center">
-      <button class="btn btn-primary" onclick="saveSettings()">💾 Einstellungen speichern</button>
+      <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()">💾 Einstellungen speichern</button>
       <span id="settings-saved" style="font-size:.82rem;color:#15803d;display:none">✓ Gespeichert</span>
+    </div>
+    <div style="margin-top:10px;font-size:.75rem;color:#9ca3af;line-height:1.5">
+      ℹ️ Diese Einstellungen werden zentral in der access-config.json gespeichert und gelten
+      für alle Administratoren und Geräte (vorher: pro Browser).
     </div>`;
 }
 
-function saveSettings() {
+async function saveSettings() {
+  const btn   = $id('btn-save-settings');
   const modus = document.querySelector('input[name="genmodus"]:checked')?.value || 'einstimmig';
-  const data = {
-    benachrichtigung: {
-      beiEinreichung:    $id('notif-einreichung')?.checked  ?? true,
-      beiEntscheidung:   $id('notif-entscheidung')?.checked ?? true,
-      genehmigungsmodus: modus,
-    },
-  };
-  saveSettingsData(data);
-  showToast('Einstellungen gespeichert.');
-  const saved = $id('settings-saved');
-  if (saved) { saved.style.display = ''; setTimeout(() => saved.style.display = 'none', 2500); }
+  const domains = ($id('mail-domains')?.value || '')
+    .split(',').map(d => d.trim().toLowerCase()).filter(d => d.includes('.'));
+  if (!domains.length) { showToast('Mindestens eine gültige Mail-Domain angeben.', 'error'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Speichern…'; }
+  try {
+    await saveKiConfig({
+      kiGenehmigungsmodus:   modus === 'einer' ? 'einer' : 'einstimmig',
+      kiMailBeiEinreichung:  $id('notif-einreichung')?.checked  ?? true,
+      kiMailBeiEntscheidung: $id('notif-entscheidung')?.checked ?? true,
+      kiMailDomains:         domains,
+    });
+    showToast('Einstellungen zentral gespeichert.');
+    const saved = $id('settings-saved');
+    if (saved) { saved.style.display = ''; setTimeout(() => saved.style.display = 'none', 2500); }
+  } catch(e) {
+    showToast('Speichern fehlgeschlagen: ' + esc(e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Einstellungen speichern'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ANHÄNGE — SharePoint REST (/_api/web/lists/.../items/{id}/AttachmentFiles)
+// ANHÄNGE — Graph-Dokumentbibliothek (Ordner KI-Antraege-Anhaenge/{itemId})
+// Speicherung über Graph (Files.ReadWrite.All, bereits konsentiert) statt
+// SP-REST-Listenanhängen → funktioniert ohne zusätzlichen SharePoint-Consent.
+// Alt-Anhänge bestehender Anträge (SP-REST-Listenanhänge) werden lesend
+// gemergt, solange ein SP-Token verfügbar ist.
 // ═══════════════════════════════════════════════════════════════════
+const ATT_FOLDER = 'KI-Antraege-Anhaenge';
 
 async function spAttachFetch(url, options = {}) {
   const token = await tryGetSpToken();
@@ -3035,37 +3109,84 @@ async function spAttachFetch(url, options = {}) {
   return null;
 }
 
+// Anhänge eines Antrags: Graph-Ordner + Legacy-SP-Listenanhänge (read-only)
 async function listAttachments(itemId) {
-  const url = `https://${SP_HOST}${SP_SITE_PATH}/_api/web/lists/getbytitle('${LIST_ANTRAEGE}')/items(${itemId})/AttachmentFiles`;
-  const data = await spAttachFetch(url);
-  return (data?.d?.results || []);
+  const driveId = await getAppDriveId();
+  let files = [];
+  try {
+    const data = await gGet(`/drives/${driveId}/root:/${ATT_FOLDER}/${itemId}:/children?$select=id,name,webUrl,size`);
+    files = (data.value || []).map(f => ({ name: f.name, url: f.webUrl, source: 'graph' }));
+  } catch(e) {
+    if (e.status !== 404) throw e;   // 404 = Ordner existiert noch nicht → keine Anhänge
+  }
+  // Legacy: alte SP-REST-Listenanhänge lesend mergen (nur wenn SP-Token vorhanden)
+  try {
+    if (await tryGetSpToken()) {
+      const url = `https://${SP_HOST}${SP_SITE_PATH}/_api/web/lists/getbytitle('${LIST_ANTRAEGE}')/items(${itemId})/AttachmentFiles`;
+      const data = await spAttachFetch(url);
+      for (const att of (data?.d?.results || [])) {
+        files.push({ name: att.FileName, url: `https://${SP_HOST}${att.ServerRelativeUrl}`, source: 'sp' });
+      }
+    }
+  } catch(e) { /* Legacy-Anhänge optional – kein SP-Consent nötig */ }
+  return files;
 }
 
 async function uploadAttachment(itemId, file) {
+  const driveId  = await getAppDriveId();
   const safeName = file.name.replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_');
-  const url = `https://${SP_HOST}${SP_SITE_PATH}/_api/web/lists/getbytitle('${LIST_ANTRAEGE}')/items(${itemId})/AttachmentFiles/add(FileName='${encodeURIComponent(safeName)}')`;
+  const itemPath = `/drives/${driveId}/root:/${ATT_FOLDER}/${itemId}/${encodeURIComponent(safeName)}:`;
   const buf = await file.arrayBuffer();
-  await spAttachFetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: buf,
+
+  if (buf.byteLength <= 4 * 1024 * 1024) {
+    // Simple Upload (≤4 MB) – legt fehlende Ordner automatisch an
+    const token = await getToken();
+    const res = await fetch(`https://graph.microsoft.com/v1.0${itemPath}/content`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+      body: buf,
+    });
+    if (!res.ok) throw new Error(`Upload ${res.status}`);
+    return;
+  }
+
+  // >4 MB: Upload-Session mit Chunks (Graph verlangt Vielfache von 320 KiB)
+  const session = await gPost(`${itemPath}/createUploadSession`, {
+    item: { '@microsoft.graph.conflictBehavior': 'replace' },
   });
+  const CHUNK = 16 * 320 * 1024;   // 5 MiB, 320-KiB-aligned
+  for (let start = 0; start < buf.byteLength; start += CHUNK) {
+    const end = Math.min(start + CHUNK, buf.byteLength);
+    // uploadUrl ist vor-authentifiziert – KEIN Authorization-Header mitsenden
+    const res = await fetch(session.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Range': `bytes ${start}-${end - 1}/${buf.byteLength}` },
+      body: buf.slice(start, end),
+    });
+    if (!res.ok) throw new Error(`Upload-Chunk ${res.status}`);
+  }
 }
 
-async function deleteAttachment(itemId, fileName) {
-  const url = `https://${SP_HOST}${SP_SITE_PATH}/_api/web/lists/getbytitle('${LIST_ANTRAEGE}')/items(${itemId})/AttachmentFiles/getbyfilename('${encodeURIComponent(fileName)}')`;
-  const token = await tryGetSpToken();
-  if (!token) throw new Error('SP-Token nicht verfügbar');
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json;odata=verbose',
-      'IF-MATCH': '*',
-      'X-HTTP-Method': 'DELETE',
-    },
-  });
-  if (!res.ok && res.status !== 404) throw new Error(`SP ${res.status}`);
+async function deleteAttachment(itemId, fileName, source = 'graph') {
+  if (source === 'sp') {
+    // Legacy-SP-Listenanhang löschen (nur möglich solange SP-Token verfügbar)
+    const url = `https://${SP_HOST}${SP_SITE_PATH}/_api/web/lists/getbytitle('${LIST_ANTRAEGE}')/items(${itemId})/AttachmentFiles/getbyfilename('${encodeURIComponent(fileName)}')`;
+    const token = await tryGetSpToken();
+    if (!token) throw new Error('Alt-Anhang: SP-Token nicht verfügbar');
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json;odata=verbose',
+        'IF-MATCH': '*',
+        'X-HTTP-Method': 'DELETE',
+      },
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`SP ${res.status}`);
+    return;
+  }
+  const driveId = await getAppDriveId();
+  await gDel(`/drives/${driveId}/root:/${ATT_FOLDER}/${itemId}/${encodeURIComponent(fileName)}:`);
 }
 
 async function renderAttachments(itemId) {
@@ -3078,14 +3199,10 @@ async function renderAttachments(itemId) {
       return;
     }
     listEl.innerHTML = files.map(att => {
-      const fname = att.FileName || att.d?.FileName || 'Datei';
-      const url = att.ServerRelativeUrl
-        ? `https://${SP_HOST}${att.ServerRelativeUrl}`
-        : (att.d?.ServerRelativeUrl ? `https://${SP_HOST}${att.d.ServerRelativeUrl}` : '#');
-      const isGrem = isGremium;
+      const fname = att.name || 'Datei';
       return `<div class="att-item">
-        <a class="att-name" href="${esc(url)}" target="_blank" rel="noopener">📄 ${esc(fname)}</a>
-        ${isGrem ? `<button class="att-del" data-item="${itemId}" data-fname="${esc(fname)}" onclick="attDelete(this.dataset.item, this.dataset.fname)">✕</button>` : ''}
+        <a class="att-name" href="${esc(att.url || '#')}" target="_blank" rel="noopener">📄 ${esc(fname)}</a>
+        ${isGremium ? `<button class="att-del" data-item="${itemId}" data-fname="${esc(fname)}" data-source="${esc(att.source)}" onclick="attDelete(this.dataset.item, this.dataset.fname, this.dataset.source)">✕</button>` : ''}
       </div>`;
     }).join('');
   } catch(e) {
@@ -3094,10 +3211,10 @@ async function renderAttachments(itemId) {
   }
 }
 
-async function attDelete(itemId, fileName) {
+async function attDelete(itemId, fileName, source) {
   if (!confirm(`Anhang „${fileName}" wirklich löschen?`)) return;
   try {
-    await deleteAttachment(itemId, fileName);
+    await deleteAttachment(itemId, fileName, source);
     showToast(`✓ „${fileName}" gelöscht.`);
     await renderAttachments(itemId);
   } catch(e) {
