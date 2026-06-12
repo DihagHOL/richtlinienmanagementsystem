@@ -681,11 +681,15 @@ async function loadRmsAccessConfig() {
   const kiGremium = (Array.isArray(cfg?.kiGenehmiger) && cfg.kiGenehmiger.length)
     ? cfg.kiGenehmiger
     : (Array.isArray(cfg?.genehmiger) ? cfg.genehmiger : []);
+  // Positionen (Legal/Datenschutz/Compliance/IT) – im RMS je Mitglied gepflegt
+  _kiGenRollen = (cfg?.kiGenehmigerRollen && typeof cfg.kiGenehmigerRollen === 'object')
+    ? cfg.kiGenehmigerRollen : {};
   return {
     admins:     Array.isArray(cfg?.admins) ? cfg.admins : [],
     genehmiger: kiGremium,
   };
 }
+let _kiGenRollen = {};   // UPN (lowercase) → Position, aus kiGenehmigerRollen
 
 // KI-Einstellungen zentral speichern: read-modify-write, damit die
 // RMS-Felder (admins, genehmiger, pruefer, …) unangetastet bleiben.
@@ -703,15 +707,22 @@ async function saveKiConfig(kiFields) {
   _kiCfg = { ..._kiCfg, ...kiFields };
 }
 
-// UPN-Liste → [{email, name}] für Mails/Anzeige (Namen via Graph, Fallback: UPN-Präfix)
+// UPN-Liste → [{email, name, rolle}] für Mails/Anzeige
+// (Namen via Graph, Fallback: UPN-Präfix; Position aus kiGenehmigerRollen)
 async function resolveGenehmigerNamen(upns) {
+  // Rollen-Lookup case-insensitiv aufbauen
+  const rollen = {};
+  for (const [k, v] of Object.entries(_kiGenRollen || {})) {
+    rollen[String(k).toLowerCase().trim()] = v;
+  }
   return Promise.all((upns || []).map(async upn => {
     const email = String(upn).trim();
+    const rolle = rollen[email.toLowerCase()] || '';
     try {
       const u = await gGet(`/users/${encodeURIComponent(email)}?$select=displayName`);
-      return { email, name: u?.displayName || email.split('@')[0] };
+      return { email, name: u?.displayName || email.split('@')[0], rolle };
     } catch {
-      return { email, name: email.split('@')[0] };
+      return { email, name: email.split('@')[0], rolle };
     }
   }));
 }
@@ -2987,13 +2998,22 @@ function renderEinstellungen() {
   const ben = settings.benachrichtigung || {};
 
   const genList = genehmiger.length
-    ? genehmiger.map(g => `
+    ? genehmiger.map(g => {
+        const rc = ROLLE_COLORS[g.rolle] || ROLLE_COLORS['Sonstiges'];
+        const rolleBadge = g.rolle
+          ? `<span style="font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:20px;background:${rc.bg};color:${rc.color};border:1px solid ${rc.border}">${esc(g.rolle)}</span>`
+          : '';
+        return `
         <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f9fafb;border-radius:8px;margin-bottom:6px">
           <div style="flex:1;min-width:0">
-            <span style="font-size:.875rem;font-weight:600">${esc(g.name || g.email)}</span>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="font-size:.875rem;font-weight:600">${esc(g.name || g.email)}</span>
+              ${rolleBadge}
+            </div>
             <div style="font-size:.75rem;color:#9ca3af"><span style="font-size:.68rem;font-weight:600;color:#d1d5db;text-transform:uppercase;letter-spacing:.3px">UPN </span>${esc(g.email)}</div>
           </div>
-        </div>`).join('')
+        </div>`;
+      }).join('')
     : `<div class="empty-state" style="padding:16px 10px;font-size:.82rem">Noch keine Genehmiger hinterlegt.</div>`;
 
   const adminList = (_rmsAdmins || []).map(a =>
@@ -3005,7 +3025,8 @@ function renderEinstellungen() {
       <div class="settings-card">
         <div class="settings-card-title">👤 Genehmiger (KI-Gremium)</div>
         <p style="font-size:.82rem;color:#6b7280;margin-bottom:14px;line-height:1.5">
-          Personen, die KI-Anträge prüfen und entscheiden. Die Liste wird zentral im
+          Personen, die KI-Anträge prüfen und entscheiden. Liste und Position
+          (Legal/Datenschutz/Compliance/IT) werden zentral im
           <strong>Richtlinienmanagement</strong> gepflegt (Einstellungen → Karte
           „KI-Gremium"; ist sie leer, gilt die allgemeine Genehmiger-Liste).
         </p>

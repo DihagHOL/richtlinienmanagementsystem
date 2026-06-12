@@ -1318,6 +1318,9 @@ function roleCard(role, title) {
   </div>`;
 }
 
+/* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */
+const KI_GREMIUM_ROLLEN = ['Legal', 'Datenschutz', 'Compliance', 'IT'];
+
 function renderCfgLists() {
   ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
@@ -1327,9 +1330,27 @@ function renderCfgLists() {
       <div class="dp-row" style="cursor:default">
         <span class="ic">👤</span>
         <span class="nm">${esc(u)}</span>
+        ${role === 'kiGenehmiger' ? kiRolleSelect(u) : ''}
         <button class="btn btn-ghost btn-sm" onclick="cfgRemove('${role}',${i})">✕</button>
       </div>`).join('') : '<div class="field-hint">Noch niemand zugewiesen.</div>';
   });
+}
+
+/* Dropdown „Position" je KI-Gremiumsmitglied (Legal/Datenschutz/Compliance/IT). */
+function kiRolleSelect(upn) {
+  const cur = (_cfgEdit.kiGenehmigerRollen || {})[upn] || '';
+  const opts = KI_GREMIUM_ROLLEN.map(r =>
+    `<option value="${r}" ${cur === r ? 'selected' : ''}>${r}</option>`).join('');
+  return `<select class="sort-select" style="font-size:.78rem;padding:4px 8px"
+    onchange="kiRolleSet('${esc(upn)}', this.value)">
+    <option value="">Position…</option>${opts}
+  </select>`;
+}
+
+function kiRolleSet(upn, rolle) {
+  if (!_cfgEdit.kiGenehmigerRollen) _cfgEdit.kiGenehmigerRollen = {};
+  if (rolle) _cfgEdit.kiGenehmigerRollen[upn] = rolle;
+  else delete _cfgEdit.kiGenehmigerRollen[upn];
 }
 
 function cfgAdd(role) {
@@ -1343,7 +1364,14 @@ function cfgAdd(role) {
   renderCfgLists();
 }
 
-function cfgRemove(role, i) { _cfgEdit[role].splice(i, 1); renderCfgLists(); }
+function cfgRemove(role, i) {
+  const removed = _cfgEdit[role].splice(i, 1)[0];
+  // KI-Gremium: zugehörige Positions-Zuordnung mit entfernen
+  if (role === 'kiGenehmiger' && removed && _cfgEdit.kiGenehmigerRollen) {
+    delete _cfgEdit.kiGenehmigerRollen[removed];
+  }
+  renderCfgLists();
+}
 
 /* ── Verfügbare Rollen ── */
 function renderRolesList() {
