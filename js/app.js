@@ -269,7 +269,8 @@ function renderMeine() {
 
   list.innerHTML = rows.map(p => {
     const st = completionStatus(p);
-    return `<div class="item-card" onclick="openDetail('${p.id}')">
+    return `<div class="item-card" role="button" tabindex="0" onclick="openDetail('${p.id}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
         <div class="ic-topright">${memberBadge(st)}</div>

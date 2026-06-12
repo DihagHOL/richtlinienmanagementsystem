@@ -166,6 +166,7 @@ a { color: inherit; }
 .item-cards { display: flex; flex-direction: column; gap: 8px; }
 .item-card { background: #fff; border: 1px solid var(--c-border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .12s, box-shadow .12s; }
 .item-card:hover { border-color: #a5b4fc; box-shadow: 0 2px 8px rgba(99,102,241,.08); }
+.item-card:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 .ic-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
 .ic-title { font-size: .95rem; font-weight: 600; flex: 1; min-width: 0; }
 .ic-topright { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }

@@ -676,9 +676,14 @@ async function loadRmsAccessConfig() {
     kiMailDomains:         (Array.isArray(cfg?.kiMailDomains) && cfg.kiMailDomains.length)
                              ? cfg.kiMailDomains : [...KI_CFG_DEFAULTS.kiMailDomains],
   };
+  // KI-Gremium: eigenes Feld kiGenehmiger hat Vorrang – fällt es leer aus,
+  // gilt die allgemeine Genehmiger-Liste des RMS (gleiche Personenkreise)
+  const kiGremium = (Array.isArray(cfg?.kiGenehmiger) && cfg.kiGenehmiger.length)
+    ? cfg.kiGenehmiger
+    : (Array.isArray(cfg?.genehmiger) ? cfg.genehmiger : []);
   return {
-    admins:     Array.isArray(cfg?.admins)     ? cfg.admins     : [],
-    genehmiger: Array.isArray(cfg?.genehmiger) ? cfg.genehmiger : [],
+    admins:     Array.isArray(cfg?.admins) ? cfg.admins : [],
+    genehmiger: kiGremium,
   };
 }
 
@@ -765,7 +770,8 @@ function renderKiVorschlaege() {
     <div class="ki-sidebar-title" style="font-size:.8rem;font-weight:700;color:#1e2939;margin:8px 0 2px;">💡 KI-Vorschläge</div>
     <div class="ki-sidebar-sub" style="font-size:.69rem;color:#6b7280;margin-bottom:10px;line-height:1.4;">Klicken zum Ausfüllen der Grunddaten</div>
     ${KI_VORSCHLAEGE.map((v, i) => `
-      <div class="ki-vorschlag-card" onclick="applyKiVorschlag(${i})">
+      <div class="ki-vorschlag-card" role="button" tabindex="0" onclick="applyKiVorschlag(${i})"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="ki-vorschlag-top">
           <span class="ki-vorschlag-icon">${v.icon}</span>
           <span class="ki-vorschlag-name">${esc(v.name)}</span>
@@ -1122,7 +1128,8 @@ function renderAntraege() {
     const f  = i.fields;
     const dt = fmtDate(f.Created || i.createdDateTime);
     const by = f.Author0LookupValue || f['Author/Title'] || '';
-    return `<div class="item-card" onclick="openAntragPanel(${i.id})">
+    return `<div class="item-card" role="button" tabindex="0" onclick="openAntragPanel(${i.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       <div class="card-top">
         <div class="card-title">${esc(f.Title || '–')} <span style="font-size:.72rem;font-weight:500;color:#9ca3af;margin-left:4px">#${i.id}</span></div>
         ${statusBadge(f[COL.status])}
@@ -2999,8 +3006,8 @@ function renderEinstellungen() {
         <div class="settings-card-title">👤 Genehmiger (KI-Gremium)</div>
         <p style="font-size:.82rem;color:#6b7280;margin-bottom:14px;line-height:1.5">
           Personen, die KI-Anträge prüfen und entscheiden. Die Liste wird zentral im
-          <strong>Richtlinienmanagement</strong> gepflegt (Einstellungen → Genehmiger)
-          und gilt hier automatisch.
+          <strong>Richtlinienmanagement</strong> gepflegt (Einstellungen → Karte
+          „KI-Gremium"; ist sie leer, gilt die allgemeine Genehmiger-Liste).
         </p>
         <div id="gen-list">${genList}</div>
         <div style="margin-top:10px;font-size:.78rem;color:#6b7280;line-height:1.5">
