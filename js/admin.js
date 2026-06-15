@@ -689,12 +689,23 @@ function handleMailAction(id, aktion) {
 }
 
 function _votesHtml(p) {
-  const votes = p.konformitaet || [];
-  if (!votes.length) return '';
-  return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${votes.map(v =>
+  // Konformitätsprüfung + Freigabe – beide mit (optionaler) Anmerkung anzeigen
+  const k = (p.konformitaet || []).map(v =>
     `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> ${v.entscheidung === 'konform'
       ? '<span style="color:#15803d">konform ✓</span>'
-      : '<span style="color:#b91c1c">nicht konform</span>' + (v.anmerkung ? ' – ' + esc(v.anmerkung) : '')}</div>`).join('')}</div>`;
+      : '<span style="color:#b91c1c">nicht konform</span>'}${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+  const f = (p.freigaben || []).map(v =>
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+  const all = [...k, ...f];
+  if (!all.length) return '';
+  return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${all.join('')}</div>`;
+}
+
+/* Kommentar-/Anmerkungsfeld in einer Prüf-/Freigabe-Karte (RMS-Inline-Styling). */
+function kommentarFeldHtml(id, placeholder) {
+  return `<textarea id="fg-kom-${esc(id)}" rows="2" placeholder="${esc(placeholder)}"
+    oninput="this.style.borderColor=''"
+    style="width:100%;margin-top:10px;border:1px solid #d1d5db;border-radius:7px;padding:7px 10px;font-size:.85rem;font-family:inherit;resize:vertical;outline:none"></textarea>`;
 }
 
 function pruefCardHtml(p) {
@@ -705,6 +716,7 @@ function pruefCardHtml(p) {
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
+    ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
       <div style="flex:1"></div>
@@ -723,6 +735,7 @@ function freigabeCardHtml(p) {
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
+    ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
       <div style="flex:1"></div>
@@ -748,8 +761,18 @@ function freigabeErreicht(p) {
 async function markKonform(policyId, konform) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
   if (!p) return;
-  let anmerkung = '';
-  if (!konform) { anmerkung = prompt('Anmerkung (warum nicht konform)?'); if (anmerkung === null) return; }
+  // Anmerkung aus dem Karten-Textfeld (Fallback prompt, falls Karte nicht im DOM, z. B. Mail-Aktion)
+  const field = document.getElementById('fg-kom-' + policyId);
+  let anmerkung = (field ? field.value : '').trim();
+  if (!konform && !anmerkung) {
+    if (field) {
+      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      field.style.borderColor = '#ef4444'; field.focus();
+      return;
+    }
+    anmerkung = (prompt('Anmerkung (warum nicht konform)? – Pflicht:') || '').trim();
+    if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
+  }
   p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
   p.konformitaet.push({ upn: State.user.upn, name: State.user.name, entscheidung: konform ? 'konform' : 'nicht_konform', anmerkung: anmerkung || '', datum: new Date().toISOString() });
   let toGL = false;
@@ -767,8 +790,10 @@ async function markKonform(policyId, konform) {
 async function markFreigabe(policyId) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
   if (!p) return;
+  const field = document.getElementById('fg-kom-' + policyId);
+  const anmerkung = (field ? field.value : '').trim();   // bei Freigabe optional
   p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
-  p.freigaben.push({ upn: State.user.upn, name: State.user.name, datum: new Date().toISOString() });
+  p.freigaben.push({ upn: State.user.upn, name: State.user.name, anmerkung, datum: new Date().toISOString() });
   let published = false;
   if (freigabeErreicht(p)) {
     p.status = 'Veröffentlicht';
