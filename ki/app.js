@@ -1267,10 +1267,10 @@ function openAntragPanel(itemId) {
   const userKommentarSection = !isDecided ? `
     <div style="margin-top:4px">
       <div class="form-group">
-        <label class="form-label">${isRueckfrage ? '💬 Antwort auf Rückfrage' : 'Kommentar'} <span style="color:#9ca3af;font-weight:400">(optional)</span></label>
+        <label class="form-label">${isRueckfrage ? '💬 Antwort auf Rückfrage' : 'Kommentar'} <span style="color:#9ca3af;font-weight:400">${isGremium && !isRueckfrage ? '(Pflicht bei Ablehnung)' : '(optional)'}</span></label>
         <textarea id="pg-kommentar" class="form-control" rows="2" maxlength="1000"
           style="resize:none;overflow:hidden;min-height:60px"
-          oninput="this.style.height='auto';this.style.height=Math.max(60,this.scrollHeight)+'px';$id('pg-kom-count').textContent=this.value.length+'/1000';const _rb=$id('btn-rueckfrage');if(_rb)_rb.disabled=!this.value.trim();"
+          oninput="this.classList.remove('invalid');this.style.height='auto';this.style.height=Math.max(60,this.scrollHeight)+'px';$id('pg-kom-count').textContent=this.value.length+'/1000';const _rb=$id('btn-rueckfrage');if(_rb)_rb.disabled=!this.value.trim();"
           placeholder="${isRueckfrage ? 'Bitte beantworten Sie die Rückfrage hier…' : 'Neuen Kommentar eingeben…'}"></textarea>
         <div style="text-align:right;font-size:.71rem;color:#9ca3af;margin-top:3px"><span id="pg-kom-count">0/1000</span></div>
       </div>
@@ -1352,36 +1352,40 @@ function openAntragPanel(itemId) {
 }
 
 async function saveGremiumDecision(itemId, forceStatus) {
-  // ── A/C: Buttons sperren + Settings einmalig laden ───────────────
+  const status    = forceStatus || 'In Prüfung';
+  const kommentar = $id('pg-kommentar')?.value?.trim() || '';
+  const auflagen  = $id('pg-auflagen')?.value?.trim()  || '';
+
+  // ── B: Einmal .find() – überall wiederverwenden ───────────────
+  const prevItem      = allAntraege.find(i => i.id == itemId);
+  const antragAuthorG = (prevItem?.createdBy?.user?.email || prevItem?.fields?.Author0EMail || '').toLowerCase();
+  const myEmail       = (account?.username || '').toLowerCase();
+  let finalApprovalsList = []; // wird im einstimmig-Block befüllt, für Mail genutzt
+
+  // ── Validierung VOR dem Sperren der Buttons ───────────────────
+  // (sonst bleiben die Buttons bei einem Abbruch dauerhaft deaktiviert)
+  // Self-Approval-Guard
+  if (myEmail && antragAuthorG && myEmail === antragAuthorG &&
+      (status === 'Genehmigt' || status === 'Abgelehnt' || status === 'Rückfrage')) {
+    showToast('Eigene Anträge können nicht selbst genehmigt werden.', 'error');
+    return;
+  }
+
+  // Ablehnung UND Rückfrage erfordern zwingend eine Begründung
+  if ((status === 'Abgelehnt' || status === 'Rückfrage') && !kommentar) {
+    const was = status === 'Abgelehnt' ? 'Ablehnung' : 'Rückfrage';
+    showToast(`Bitte einen Kommentar eingeben – eine ${was} muss begründet werden.`, 'error');
+    const _k = $id('pg-kommentar');
+    if (_k) { _k.classList.add('invalid'); _k.focus(); }
+    return;
+  }
+
+  // ── Ab hier: Buttons sperren + Settings einmalig laden ────────
   const actionBtns = document.querySelectorAll('.panel-actions .btn');
   actionBtns.forEach(b => { b.disabled = true; });
   const st = { ...loadSettings(), genehmiger: getGenehmiger() };  // Genehmiger immer frisch aus SP-Cache
 
   try {
-    const status    = forceStatus || 'In Prüfung';
-    const kommentar = $id('pg-kommentar')?.value?.trim() || '';
-    const auflagen  = $id('pg-auflagen')?.value?.trim()  || '';
-
-    // ── B: Einmal .find() – überall wiederverwenden ───────────────
-    const prevItem      = allAntraege.find(i => i.id == itemId);
-    const antragAuthorG = (prevItem?.createdBy?.user?.email || prevItem?.fields?.Author0EMail || '').toLowerCase();
-    const myEmail       = (account?.username || '').toLowerCase();
-    let finalApprovalsList = []; // wird im einstimmig-Block befüllt, für Mail genutzt
-
-    // Self-Approval-Guard
-    if (myEmail && antragAuthorG && myEmail === antragAuthorG &&
-        (status === 'Genehmigt' || status === 'Abgelehnt' || status === 'Rückfrage')) {
-      showToast('Eigene Anträge können nicht selbst genehmigt werden.', 'error');
-      return;
-    }
-
-    // Rückfrage erfordert Kommentar
-    if (status === 'Rückfrage' && !kommentar) {
-      showToast('Bitte Kommentar eingeben – eine Rückfrage muss begründet werden.', 'error');
-      $id('pg-kommentar')?.focus();
-      return;
-    }
-
     const prevKomRaw    = prevItem?.fields?.[COL.gremiumKommentar] || '';
     const now           = new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
                         + ' ' + new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
