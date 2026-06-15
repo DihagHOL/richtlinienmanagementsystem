@@ -3,3 +3,10 @@
 Thumbs.db
 .vscode/
 *.log
+
+# Node / Playwright (E2E – nur lokal)
+node_modules/
+e2e/.auth/
+test-results/
+playwright-report/
+.playwright/

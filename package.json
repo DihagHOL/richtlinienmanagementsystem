@@ -1,0 +1,15 @@
+{
+  "name": "dihag-richtlinienmanagement",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DIHAG Richtlinienmanagement + KI-Dashboard (statische SPA). package.json nur für Tests – GitHub Pages ignoriert es.",
+  "scripts": {
+    "smoke": "node scripts/smoketest.mjs",
+    "smoke:deploy": "node scripts/deploy-smoke.mjs",
+    "e2e:login": "playwright test --project=setup --headed",
+    "e2e": "playwright test --project=authenticated"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

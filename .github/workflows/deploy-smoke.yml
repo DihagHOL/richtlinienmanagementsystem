@@ -1,0 +1,20 @@
+# Deployment-Smoke: prüft das LIVE-System (read-only) per HTTP.
+# Läuft täglich und manuell – fängt kaputte Deploys / 404-Assets / toten Redirect,
+# auch ohne dass jemand pusht.
+name: Deploy-Smoke
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # täglich 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  deploy-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Live-Deployment prüfen
+        run: node scripts/deploy-smoke.mjs
