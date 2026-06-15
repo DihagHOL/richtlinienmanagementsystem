@@ -7,6 +7,7 @@
     "smoke": "node scripts/smoketest.mjs",
     "smoke:deploy": "node scripts/deploy-smoke.mjs",
     "e2e:login": "playwright test --project=setup --headed",
+    "e2e:preauth": "playwright test --project=preauth",
     "e2e": "playwright test --project=authenticated"
   },
   "devDependencies": {
