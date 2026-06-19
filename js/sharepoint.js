@@ -32,7 +32,7 @@ const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
   courseListId: null,
   ismsSiteId: null,
-  ismsDriveId: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
+  ismsDriveId: null, ismsDriveName: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
   ackFields: new Set(['Title']),
   courseFields: new Set(['Title']),
@@ -534,12 +534,37 @@ async function _ismsLib(token) {
   if (_sp.ismsDriveId && _sp.ismsListId) return;
   const siteId = await _ismsSiteId(token);
   const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
-  const lib = (drives.value || []).find(d => /ISMS.?Dokumente|Documents|Dokumente/i.test(d.name))
-           || (drives.value || [])[0];
-  if (!lib) throw new Error('ISMS-Dokumentbibliothek nicht gefunden.');
-  _sp.ismsDriveId = lib.id;
-  const list = await _get(`${SP.graphBase}/drives/${lib.id}/list?$select=id`, token);
+  const list = drives.value || [];
+  // Priorität: exakt „ISMS Dokumente" → Name enthält „ISMS" → Standard-Doku-Bib → erste
+  const pick = list.find(d => /^ISMS[\s_-]*Dokumente$/i.test(d.name || ''))
+            || list.find(d => /ISMS/i.test(d.name || ''))
+            || list.find(d => /^(Dokumente|Documents|Freigegebene Dokumente|Shared Documents)$/i.test(d.name || ''))
+            || list[0];
+  if (!pick) throw new Error('ISMS-Dokumentbibliothek nicht gefunden.');
+  await _ismsSetDrive(token, pick);
+}
+
+/** Eine bestimmte Bibliothek als aktiv setzen (Auto-Wahl oder manuelle Korrektur). */
+async function _ismsSetDrive(token, drive) {
+  _sp.ismsDriveId = drive.id;
+  _sp.ismsDriveName = drive.name;
+  _sp.ismsColMeta = null;   // Spalten gehören zur Bibliothek → neu laden
+  const list = await _get(`${SP.graphBase}/drives/${drive.id}/list?$select=id`, token);
   _sp.ismsListId = list.id;
+}
+
+/** Name der aktuell genutzten ISMS-Bibliothek (für Diagnose im Leerzustand). */
+function spIsmsCurrentLibrary() { return _sp.ismsDriveName || ''; }
+
+/** Manuell eine andere ISMS-Bibliothek wählen (falls die Auto-Erkennung daneben liegt). */
+async function spSetIsmsLibrary(driveId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const drive = (drives.value || []).find(d => d.id === driveId);
+  if (!drive) throw new Error('Bibliothek nicht gefunden');
+  await _ismsSetDrive(token, drive);
 }
 
 /** Bearbeitbare Spalten der ISMS-Bibliothek (dynamisch; System-/ReadOnly-Spalten raus). */

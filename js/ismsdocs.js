@@ -9,8 +9,9 @@
  * Schreiben setzt SharePoint-Schreibrechte des Kontos auf sites/ISMS voraus.
  */
 
-let _ismsDocs = null;   // geladene Dokumente (Cache)
-let _ismsCols = null;   // bearbeitbare Spalten der Bibliothek
+let _ismsDocs = null;     // geladene Dokumente (Cache)
+let _ismsCols = null;     // bearbeitbare Spalten der Bibliothek
+let _ismsDrives = null;   // verfügbare ISMS-Bibliotheken (für Diagnose/Wechsel)
 
 async function initIsmsDocs() {
   const mount = document.getElementById('isms-mount');
@@ -18,23 +19,42 @@ async function initIsmsDocs() {
   if (_ismsDocs) { renderIsmsDocs(); return; }   // Cache-Treffer
   mount.innerHTML = '<div class="doc-loading">Lade ISMS-Dokumente …</div>';
   try {
-    const [cols, docs] = await Promise.all([spGetIsmsColumns(), spGetIsmsDocs()]);
+    const [cols, docs, drives] = await Promise.all([
+      spGetIsmsColumns(),
+      spGetIsmsDocs(),
+      (typeof spListIsmsDrives === 'function' ? spListIsmsDrives().catch(() => []) : Promise.resolve([])),
+    ]);
     _ismsCols = cols;
     _ismsDocs = docs;
+    _ismsDrives = drives;
     fillIsmsFolderFilter();
     renderIsmsDocs();
   } catch (e) {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       ISMS-Dokumente konnten nicht geladen werden: ${esc(e.message)}<br>
-      Bitte prüfen, ob die Bibliothek „ISMS Dokumente" auf <code>sites/ISMS</code> erreichbar ist
+      Bitte prüfen, ob die ISMS-Site <code>sites/ISMS</code> erreichbar ist
       und dein Konto darauf Zugriff hat.</div>`;
   }
 }
 
 async function refreshIsmsDocs() {
-  _ismsDocs = null; _ismsCols = null;
+  _ismsDocs = null; _ismsCols = null; _ismsDrives = null;
   await initIsmsDocs();
   toast('ISMS-Dokumente aktualisiert', 'success');
+}
+
+/** Manuell auf eine andere ISMS-Bibliothek umstellen (Diagnose-Leerzustand). */
+async function selectIsmsLibrary(driveId) {
+  const mount = document.getElementById('isms-mount');
+  if (mount) mount.innerHTML = '<div class="doc-loading">Wechsle Bibliothek …</div>';
+  try {
+    await spSetIsmsLibrary(driveId);
+    _ismsDocs = null; _ismsCols = null;
+    await initIsmsDocs();
+    toast('Bibliothek gewechselt.', 'success');
+  } catch (e) {
+    toast('Wechsel fehlgeschlagen: ' + e.message, 'error');
+  }
 }
 
 function fillIsmsFolderFilter() {
@@ -63,9 +83,23 @@ function renderIsmsDocs() {
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
 
   const total = (_ismsDocs || []).length;
-  const head = `<div class="view-desc" style="margin-bottom:12px">${rows.length} von ${total} Dokument(en) aus der ISMS-Bibliothek. Zeile anklicken zum Bearbeiten.</div>`;
+  const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
+  const head = `<div class="view-desc" style="margin-bottom:12px">${rows.length} von ${total} Dokument(en) aus Bibliothek <b>„${esc(lib || '?')}"</b>. Zeile anklicken zum Bearbeiten.</div>`;
 
-  if (!rows.length) { mount.innerHTML = head + emptyState('Keine Dokumente gefunden.', '📄'); return; }
+  // Leerzustand mit Diagnose: zeigt die genutzte Bibliothek + erlaubt manuellen Wechsel,
+  // falls die Auto-Erkennung die falsche (z.B. leere Standard-) Bibliothek getroffen hat.
+  if (!total) {
+    const drivesHtml = (_ismsDrives || []).map(d =>
+      `<button class="btn btn-outline btn-sm" onclick="selectIsmsLibrary('${esc(d.id)}')">${esc(d.name)}${d.name === lib ? ' ✓' : ''}</button>`
+    ).join(' ');
+    mount.innerHTML = `<div class="col-warning" style="display:block">
+      In der erkannten Bibliothek <b>„${esc(lib || '?')}"</b> wurden <b>keine Dateien</b> gefunden.
+      Falls das nicht die richtige ISMS-Bibliothek ist, hier die passende wählen:
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${drivesHtml || '<span class="field-hint">Keine Bibliotheken lesbar – Zugriff auf sites/ISMS prüfen.</span>'}</div>
+    </div>`;
+    return;
+  }
+  if (!rows.length) { mount.innerHTML = head + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
 
   mount.innerHTML = head + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
