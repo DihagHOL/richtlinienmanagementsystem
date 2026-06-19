@@ -194,6 +194,7 @@ function initRoleNav() {
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
   show('nav-sep-admin',     admin || kannFreigaben);
   show('nav-verwaltung',    admin);
+  show('nav-ismsdocs',      admin);
   show('nav-freigaben',     kannFreigaben);
   show('nav-compliance',    admin);
   show('nav-einstellungen', admin);

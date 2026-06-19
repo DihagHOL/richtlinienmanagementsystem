@@ -21,7 +21,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien verwalten', freigaben: 'Freigaben',
+  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', freigaben: 'Freigaben',
   compliance: 'Compliance', einstellungen: 'Einstellungen',
 };
 
@@ -194,6 +194,7 @@ async function switchView(view) {
   }
 
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
+  if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();

@@ -31,6 +31,17 @@ test.describe('Authentifiziert (read-only)', () => {
     await expect(page.locator('.col-warning')).toHaveCount(0);        // kein Lade-/Rechtefehler
   });
 
+  test('RMS „ISMS-Dokumente" lädt (Admin)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.sidebar')).toBeVisible();
+    const nav = page.locator('.nav-item[data-view="ismsdocs"]');
+    test.skip(!(await nav.isVisible()), 'Kein Admin / ISMS-Reiter ausgeblendet – übersprungen.');
+    await nav.click();
+    await expect(page.locator('#view-ismsdocs')).toBeVisible();
+    // entweder Tabelle, leerer Zustand oder klare Fehlermeldung – aber kein Dauer-Spinner
+    await expect(page.locator('#isms-mount .doc-loading')).toHaveCount(0, { timeout: 20000 });
+  });
+
   test('KI-Dashboard /ki/ lädt unter derselben Session (SSO)', async ({ page }) => {
     await page.goto('/ki/');
     await expect(page.locator('.sidebar')).toBeVisible();

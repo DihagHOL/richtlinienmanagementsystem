@@ -32,6 +32,7 @@ const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
   courseListId: null,
   ismsSiteId: null,
+  ismsDriveId: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
   ackFields: new Set(['Title']),
   courseFields: new Set(['Title']),
@@ -520,6 +521,115 @@ async function spGetPreviewUrl(driveId, itemId) {
   if (!token) return null;
   const r = await _post(`${SP.graphBase}/drives/${driveId}/items/${itemId}/preview`, token, {});
   return r && r.getUrl ? r.getUrl : null;
+}
+
+/* ═══════════════════════════════════════════════════
+   ISMS-Dokumentbibliothek (Reiter „ISMS-Dokumente")
+   Anzeigen + Metadaten/Datei bearbeiten. Schreiben setzt SharePoint-
+   Schreibrechte des angemeldeten Kontos auf sites/ISMS voraus.
+═══════════════════════════════════════════════════ */
+
+/** Bibliothek „ISMS Dokumente" + zugehörige Liste lazy ermitteln. */
+async function _ismsLib(token) {
+  if (_sp.ismsDriveId && _sp.ismsListId) return;
+  const siteId = await _ismsSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const lib = (drives.value || []).find(d => /ISMS.?Dokumente|Documents|Dokumente/i.test(d.name))
+           || (drives.value || [])[0];
+  if (!lib) throw new Error('ISMS-Dokumentbibliothek nicht gefunden.');
+  _sp.ismsDriveId = lib.id;
+  const list = await _get(`${SP.graphBase}/drives/${lib.id}/list?$select=id`, token);
+  _sp.ismsListId = list.id;
+}
+
+/** Bearbeitbare Spalten der ISMS-Bibliothek (dynamisch; System-/ReadOnly-Spalten raus). */
+async function spGetIsmsColumns() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  if (_sp.ismsColMeta) return _sp.ismsColMeta;
+  const SKIP = new Set(['ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkFilename',
+    'LinkFilenameNoMenu', 'FileLeafRef', 'FileSizeDisplay', 'ItemChildCount', 'FolderChildCount',
+    'LinkTitle', 'LinkTitleNoMenu', '_CommentCount', '_LikeCount', 'CheckoutUser']);
+  let cols = { value: [] };
+  try { cols = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/columns`, token); }
+  catch (e) { console.warn('[isms] Spalten nicht lesbar:', e.message); }
+  _sp.ismsColMeta = (cols.value || [])
+    .filter(c => c.readOnly !== true && c.hidden !== true && !c.name.startsWith('_') && !SKIP.has(c.name))
+    .map(c => ({
+      name:    c.name,
+      label:   c.displayName || c.name,
+      type:    c.text ? (c.text.allowMultipleLines ? 'note' : 'text')
+             : c.choice ? 'choice'
+             : c.dateTime ? 'date'
+             : c.number ? 'number'
+             : c.boolean ? 'boolean'
+             : (c.personOrGroup || c.lookup) ? 'readonly'
+             : 'text',
+      choices: c.choice ? (c.choice.choices || []) : null,
+    }));
+  return _sp.ismsColMeta;
+}
+
+/** Pfad eines DriveItems relativ zur Bibliothekswurzel (für die Ordner-Spalte). */
+function _ismsFolderPath(di) {
+  const ref = di && di.parentReference;
+  if (!ref || !ref.path) return '';
+  const m = ref.path.match(/root:?(.*)$/);
+  return (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
+}
+
+/** Alle Dateien der ISMS-Bibliothek mit Metadaten (fields) + Datei-Infos (driveItem). */
+async function spGetIsmsDocs() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
+  const out = [];
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const di = it.driveItem || {};
+      if (di.folder) continue;                              // nur Dateien, keine Ordner
+      out.push({
+        itemId:      it.id,                                 // List-Item-ID (Metadaten-PATCH)
+        driveItemId: di.id || '',                           // DriveItem-ID (Versionen/Upload/Preview)
+        driveId:     _sp.ismsDriveId,
+        name:        di.name || (it.fields && it.fields.FileLeafRef) || '(ohne Name)',
+        folder:      _ismsFolderPath(di),
+        size:        di.size || 0,
+        webUrl:      di.webUrl || '',
+        modified:    di.lastModifiedDateTime || it.lastModifiedDateTime || '',
+        modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName)
+                  || (it.lastModifiedBy && it.lastModifiedBy.user && it.lastModifiedBy.user.displayName) || '',
+        fields:      it.fields || {},
+      });
+    }
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out.sort((a, b) => (a.folder + '/' + a.name).localeCompare(b.folder + '/' + b.name, 'de'));
+}
+
+/** Metadaten eines ISMS-Dokuments speichern (nur vorhandene/bearbeitbare Spalten). */
+async function spSaveIsmsItemFields(itemId, fields) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  return _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}/fields`, token, fields);
+}
+
+/** Datei-Inhalt eines ISMS-Dokuments ersetzen = neue SharePoint-Version. */
+async function spIsmsUploadVersion(driveItemId, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const resp = await fetch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
 }
 
 /* ═══════════════════════════════════════════════════
