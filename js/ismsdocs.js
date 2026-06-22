@@ -12,24 +12,34 @@
 let _ismsDocs = null;     // geladene Dokumente (Cache)
 let _ismsCols = null;     // bearbeitbare Spalten der Bibliothek
 let _ismsDrives = null;   // verfügbare ISMS-Bibliotheken (für Diagnose/Wechsel)
+let _ismsLoading = false; // wird gerade (im Hintergrund) nachgeladen?
 
 async function initIsmsDocs() {
   const mount = document.getElementById('isms-mount');
   if (!mount) return;
   if (_ismsDocs) { renderIsmsDocs(); return; }   // Cache-Treffer
-  mount.innerHTML = '<div class="doc-loading">Lade ISMS-Dokumente …</div>';
+  mount.innerHTML = '<div class="doc-loading">Lade ISO-27001-Dokumente …</div>';
   try {
-    const [cols, docs, drives] = await Promise.all([
+    // Spalten (Feld-Auflösung) + Bibliotheken (Diagnose) zuerst, dann Dokumente progressiv
+    const [cols, drives] = await Promise.all([
       spGetIsmsColumns(),
-      spGetIsmsDocs(),
       (typeof spListIsmsDrives === 'function' ? spListIsmsDrives().catch(() => []) : Promise.resolve([])),
     ]);
     _ismsCols = cols;
-    _ismsDocs = docs;
     _ismsDrives = drives;
+    _ismsDocs = [];
+    _ismsLoading = true;
+    const final = await spGetIsmsDocs(null, (partial) => {   // nach jeder Seite rendern
+      _ismsDocs = partial.slice();
+      fillIsmsFolderFilter();
+      renderIsmsDocs();
+    });
+    _ismsDocs = final;
+    _ismsLoading = false;
     fillIsmsFolderFilter();
     renderIsmsDocs();
   } catch (e) {
+    _ismsLoading = false;
     mount.innerHTML = `<div class="col-warning" style="display:block">
       ISMS-Dokumente konnten nicht geladen werden: ${esc(e.message)}<br>
       Bitte prüfen, ob die ISMS-Site <code>sites/ISMS</code> erreichbar ist
@@ -145,6 +155,11 @@ function renderIsmsDocs() {
   const all = _ismsDocs || [];
   const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
 
+  // Während des (Hintergrund-)Ladens noch keine Diagnose zeigen
+  if (!all.length && _ismsLoading) {
+    mount.innerHTML = '<div class="doc-loading">Lade ISO-27001-Dokumente …</div>';
+    return;
+  }
   // Leerzustand mit Diagnose: genutzte Bibliothek + manueller Wechsel.
   if (!all.length) {
     const drivesHtml = (_ismsDrives || []).map(d =>
@@ -175,7 +190,8 @@ function renderIsmsDocs() {
 
   const linked = all.filter(d => _ismsLinkedPolicy(d)).length;
   const sub = `<div class="view-desc" style="margin:0 0 12px">
-    <b>${rows.length}</b> Dokument(e) aus <b>ISO 27001</b>${linked ? ` · ${linked} mit Richtlinie verknüpft` : ''} · Zeile anklicken zum Bearbeiten.</div>`;
+    <b>${rows.length}</b> Dokument(e) aus <b>ISO 27001</b>${linked ? ` · ${linked} mit Richtlinie verknüpft` : ''}
+    ${_ismsLoading ? ' · <span style="color:var(--c-primary)">lädt weiter …</span>' : ''} · Zeile anklicken zum Bearbeiten.</div>`;
 
   if (!rows.length) { mount.innerHTML = sub + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
 
@@ -267,10 +283,11 @@ async function openIsmsDoc(itemId) {
       </div>
 
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
-        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="ismsPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
+        <button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ Dokument bearbeiten</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version hochladen</button>
         <button class="btn btn-outline btn-sm" onclick="ismsShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
-        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
+        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
 
       <h4 style="font-size:.82rem;font-weight:700;color:#374151;margin:0 0 8px">Metadaten</h4>
@@ -313,6 +330,29 @@ async function saveIsmsDocMeta(itemId) {
   }
 }
 
+/** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
+function _ismsOfficeScheme(name) {
+  const ext = (String(name).split('.').pop() || '').toLowerCase();
+  if (['doc', 'docx', 'docm', 'dot', 'dotx', 'rtf'].includes(ext)) return 'ms-word';
+  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'].includes(ext)) return 'ms-excel';
+  if (['ppt', 'pptx', 'pps', 'ppsx'].includes(ext)) return 'ms-powerpoint';
+  return null;
+}
+
+/** Dokument direkt bearbeiten: Office-Datei → Desktop-Office (speichert automatisch
+ *  eine neue SharePoint-Version); andere → in SharePoint öffnen (dort Web-Edit). */
+function ismsEditOffice(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d || !d.webUrl) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  const scheme = _ismsOfficeScheme(d.name);
+  if (scheme) {
+    window.location.href = `${scheme}:ofe|u|${d.webUrl}`;   // Office-URI-Schema
+    toast('Öffne in Office … Beim Speichern entsteht automatisch eine neue Version.');
+  } else {
+    window.open(d.webUrl, '_blank', 'noopener');
+  }
+}
+
 async function ismsPreview(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) return;
@@ -324,23 +364,33 @@ async function ismsPreview(driveItemId) {
 }
 
 function ismsNewVersion(driveItemId, name) {
+  const canOffice = !!_ismsOfficeScheme(name);
   openModal(`
-    <div class="modal-header"><h3>⬆ Neue Version – ${esc(name)}</h3>
+    <div class="modal-header"><h3>Neue Version – ${esc(name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Datei <span class="req">*</span></label>
-          <input type="file" id="isms-ver-file">
-        </div>
-        <div class="form-group full">
-          <label>Änderungsnotiz <span class="req">*</span></label>
-          <textarea id="isms-ver-note" placeholder="Was wurde geändert? Wird als Versionskommentar gespeichert."></textarea>
-        </div>
+      <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:600;font-size:.88rem;margin-bottom:4px">Variante A · Direkt bearbeiten</div>
+        <div class="field-hint" style="margin-bottom:8px">${canOffice
+          ? 'Öffnet das Dokument in Office. Beim Speichern legt SharePoint automatisch eine neue Version an.'
+          : 'Öffnet das Dokument in SharePoint – dort bearbeiten und speichern (automatische Versionierung).'}</div>
+        <button class="btn btn-primary btn-sm" onclick="closeModal();ismsEditOffice('${esc(driveItemId)}')">✏️ Dokument bearbeiten</button>
       </div>
-      <div class="field-hint">Die Notiz wird – sofern die Bibliothek Versionierung nutzt – als
-        SharePoint-Versionskommentar abgelegt; die vollständige Historie inkl. Kommentaren
-        ist im SharePoint-Versionsverlauf sichtbar.</div>
+      <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px">
+        <div style="font-weight:600;font-size:.88rem;margin-bottom:8px">Variante B · Geänderte Datei hochladen</div>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Datei <span class="req">*</span></label>
+            <input type="file" id="isms-ver-file">
+          </div>
+          <div class="form-group full">
+            <label>Änderungsnotiz <span class="req">*</span></label>
+            <textarea id="isms-ver-note" placeholder="Was wurde geändert? Wird als Versionskommentar gespeichert."></textarea>
+          </div>
+        </div>
+        <div class="field-hint">Die Notiz wird – sofern die Bibliothek Versionierung nutzt – als
+          SharePoint-Versionskommentar abgelegt.</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>

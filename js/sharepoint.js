@@ -627,29 +627,38 @@ function _ismsMapDriveItem(di, folderPath) {
   };
 }
 
-/** Inhalt eines Ordners rekursiv einsammeln (nur Dateien, mit Metadaten). */
-async function _ismsCollectFolder(token, folderId, folderPath, out, cap = 2000) {
+/** Inhalt eines Ordners rekursiv einsammeln (nur Dateien, mit Metadaten).
+ *  onProgress(out) wird nach jeder geladenen Seite aufgerufen → progressives Rendern. */
+async function _ismsCollectFolder(token, folderId, folderPath, out, onProgress, cap = 2000) {
   let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${folderId}/children`
-          + `?$expand=listItem($expand=fields)&$top=500`;
+          + `?$expand=listItem($expand=fields)`
+          + `&$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder&$top=200`;
+  const subfolders = [];
   while (url) {
     const resp = await _get(url, token);
     for (const di of (resp.value || [])) {
-      if (di.folder) { await _ismsCollectFolder(token, di.id, (folderPath ? folderPath + '/' : '') + di.name, out, cap); continue; }
+      if (di.folder) { subfolders.push({ id: di.id, path: (folderPath ? folderPath + '/' : '') + di.name }); continue; }
       out.push(_ismsMapDriveItem(di, folderPath));
-      if (out.length >= cap) return;
+      if (out.length >= cap) { if (onProgress) onProgress(out); return; }
     }
+    if (onProgress) onProgress(out);      // Seite fertig → Zwischenstand anzeigen
     url = resp['@odata.nextLink'] || null;
+  }
+  // Unterordner erst nach den Dateien der aktuellen Ebene (Dateien erscheinen früher)
+  for (const sf of subfolders) {
+    await _ismsCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+    if (out.length >= cap) return;
   }
 }
 
-/** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (schnell, mit
- *  vollen Metadaten). Wird der Ordner nicht gefunden, ganze Bibliothek als Fallback. */
-async function spGetIsmsDocs(folderName) {
+/** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (mit vollen
+ *  Metadaten). onProgress(partialList) → progressives Rendern. Wird der Ordner
+ *  nicht gefunden, ganze Bibliothek als Fallback. */
+async function spGetIsmsDocs(folderName, onProgress) {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await _ismsLib(token);
   const wantRe = /iso[\s_-]*27001/i;
-  // ISO-Ordner in der Wurzel finden
   let isoFolder = null;
   try {
     const root = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children?$select=id,name,folder&$top=400`, token);
@@ -658,10 +667,10 @@ async function spGetIsmsDocs(folderName) {
 
   const out = [];
   if (isoFolder) {
-    await _ismsCollectFolder(token, isoFolder.id, isoFolder.name, out);
+    await _ismsCollectFolder(token, isoFolder.id, isoFolder.name, out, onProgress);
   } else {
     // Fallback: ganze Bibliothek (volle Felder), falls kein ISO-Ordner existiert
-    let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=500`;
+    let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
     while (url) {
       const resp = await _get(url, token);
       for (const it of (resp.value || [])) {
@@ -670,10 +679,11 @@ async function spGetIsmsDocs(folderName) {
         di.listItem = { id: it.id, fields: it.fields || {} };
         out.push(_ismsMapDriveItem(di, _ismsFolderPath(di)));
       }
+      if (onProgress) onProgress(out);
       url = resp['@odata.nextLink'] || null;
     }
   }
-  return out.sort((a, b) => (a.fields.Title || a.name).localeCompare(b.fields.Title || b.name, 'de'));
+  return out;
 }
 
 /** Vollständige Metadaten EINES Dokuments (lazy beim Öffnen des Editors). */
