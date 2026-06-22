@@ -314,7 +314,10 @@ async function openDetail(policyId) {
   const st = completionStatus(p);
 
   v.innerHTML = `
-    <button class="btn btn-ghost btn-sm back-btn" onclick="switchView('meine')">← Zurück</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px" class="back-btn">
+      <button class="btn btn-ghost btn-sm" onclick="switchView('meine')">← Zurück</button>
+      ${typeof proposePolicyChange === 'function' ? `<button class="btn btn-outline btn-sm" onclick="proposePolicyChange('${p.id}')">✏️ Änderung vorschlagen</button>` : ''}
+    </div>
     <div class="detail-header">
       <h2>${esc(p.title)}</h2>
       <div class="detail-meta">

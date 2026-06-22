@@ -57,12 +57,20 @@ async function selectIsmsLibrary(driveId) {
   }
 }
 
+let _ismsFolderDefaulted = false;   // ISO-Default nur einmal setzen (Nutzerwahl danach respektieren)
+
 function fillIsmsFolderFilter() {
   const sel = document.getElementById('filter-isms-folder');
   if (!sel) return;
   const folders = [...new Set((_ismsDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
   sel.innerHTML = '<option value="">Alle Ordner</option>' +
     folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  // Standard-Fokus: oberster ISO-27001-Ordner (nur beim ersten Befüllen)
+  if (!_ismsFolderDefaulted) {
+    const iso = folders.find(f => /iso[\s_-]*27001/i.test(f));
+    if (iso) sel.value = iso;
+    _ismsFolderDefaulted = true;
+  }
 }
 
 function _ismsFmtSize(bytes) {
@@ -120,7 +128,8 @@ function renderIsmsDocs() {
   }
 
   let rows = all.slice();
-  if (folder) rows = rows.filter(d => d.folder === folder);
+  // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z.B. ISO27001/Anhänge)
+  if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
 
   // Sortierung
@@ -248,15 +257,14 @@ async function openIsmsDoc(itemId) {
         ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : ''}
         <button class="btn btn-outline btn-sm" onclick="ismsPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
         <button class="btn btn-outline btn-sm" onclick="ismsShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
-        <label class="btn btn-outline btn-sm" style="cursor:pointer">⬆ Neue Version
-          <input type="file" style="display:none" onchange="ismsUploadVersion('${esc(d.driveItemId)}', this)">
-        </label>
+        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version</button>
       </div>
 
       <h4 style="font-size:.82rem;font-weight:700;color:#374151;margin:0 0 8px">Metadaten</h4>
       <div class="form-grid">${metaRows}</div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="proposeIsmsChange('${esc(d.driveItemId)}')">✏️ Änderung vorschlagen</button>
       <button class="btn btn-ghost" onclick="ismsToRichtlinie('${esc(d.driveItemId)}')">＋ Als Richtlinie übernehmen</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
@@ -302,39 +310,72 @@ async function ismsPreview(driveItemId) {
   } catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); }
 }
 
-async function ismsUploadVersion(driveItemId, input) {
-  const file = input?.files?.[0];
-  if (!file) return;
-  toast('Lade neue Version hoch …');
+function ismsNewVersion(driveItemId, name) {
+  openModal(`
+    <div class="modal-header"><h3>⬆ Neue Version – ${esc(name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Datei <span class="req">*</span></label>
+          <input type="file" id="isms-ver-file">
+        </div>
+        <div class="form-group full">
+          <label>Änderungsnotiz <span class="req">*</span></label>
+          <textarea id="isms-ver-note" placeholder="Was wurde geändert? Wird als Versionskommentar gespeichert."></textarea>
+        </div>
+      </div>
+      <div class="field-hint">Die Notiz wird – sofern die Bibliothek Versionierung nutzt – als
+        SharePoint-Versionskommentar abgelegt; die vollständige Historie inkl. Kommentaren
+        ist im SharePoint-Versionsverlauf sichtbar.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="isms-ver-btn" onclick="ismsDoUploadVersion('${esc(driveItemId)}')">Hochladen</button>
+    </div>`);
+}
+
+async function ismsDoUploadVersion(driveItemId) {
+  const file = document.getElementById('isms-ver-file')?.files?.[0];
+  const note = (document.getElementById('isms-ver-note')?.value || '').trim();
+  if (!file) { toast('Bitte eine Datei wählen.', 'error'); return; }
+  if (!note) { toast('Bitte eine Änderungsnotiz eingeben.', 'error'); document.getElementById('isms-ver-note')?.focus(); return; }
+  const btn = document.getElementById('isms-ver-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Lädt …'; }
   try {
     const buf = await file.arrayBuffer();
-    await spIsmsUploadVersion(driveItemId, buf, file.type);
+    await spIsmsUploadVersion(driveItemId, buf, file.type, note);
     toast('Neue Version gespeichert ✓', 'success');
-    await refreshIsmsDocs();
     closeModal();
+    await refreshIsmsDocs();
   } catch (e) {
     toast('Upload fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Hochladen'; }
   }
 }
 
 async function ismsShowVersions(driveItemId, name) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) return;
+  const spLink = d.webUrl
+    ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
+        <a href="${esc(d.webUrl)}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
+        (über die Graph-API nicht abrufbar).</div>` : '';
   openModal(`<div class="modal-header"><h3>🕘 Versionen – ${esc(name)}</h3>
     <button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body" id="isms-vers-body"><div class="doc-loading">Lade Versionen …</div></div>`);
+    <div class="modal-body" id="isms-vers-body">${spLink}<div class="doc-loading">Lade Versionen …</div></div>`);
   try {
     const vers = await spGetDocVersions(d.driveId, driveItemId);
     const body = document.getElementById('isms-vers-body');
     if (!body) return;
-    body.innerHTML = vers.length
+    body.innerHTML = spLink + (vers.length
       ? `<table class="tbl"><thead><tr><th>Version</th><th>Geändert</th><th>Von</th><th class="num">Größe</th><th></th></tr></thead>
          <tbody>${vers.map(v => `<tr>
            <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
            <td class="num">${_ismsFmtSize(v.size)}</td>
            <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">↓</a>` : ''}</td>
          </tr>`).join('')}</tbody></table>`
-      : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>';
+      : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');
   } catch (e) {
     const body = document.getElementById('isms-vers-body');
     if (body) body.innerHTML = `<div class="col-warning" style="display:block">Fehler: ${esc(e.message)}</div>`;
@@ -359,4 +400,96 @@ function ismsToRichtlinie(driveItemId) {
   switchView('verwaltung');     // wechselt in die Richtlinien-Verwaltung
   renderPolicyEditor();         // öffnet den Editor mit vorbefülltem Dokument
   toast('Dokument übernommen – bitte Richtlinie vervollständigen und speichern.');
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungsvorschläge per Mail (jeder Mitarbeiter)
+   Empfänger: Dokument-Verantwortlich (Metadaten) + ISMS-Verantwortliche
+   (Einstellungen) + Admin-Fallback.
+═══════════════════════════════════════════════════ */
+
+let _proposalCtx = null;
+
+/** Aus ISMS-Reiter (Admin): Vorschlag zu einem Dokument. */
+function proposeIsmsChange(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  openProposalModal(d ? (d.fields?.Title || d.name) : 'Dokument', { doc: d || null });
+}
+
+/** Aus dem Detail-Reader (jeder Mitarbeiter): Vorschlag zu einer Richtlinie. */
+function proposePolicyChange(policyId) {
+  const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === policyId) : null;
+  openProposalModal(p ? p.title : 'Richtlinie', {});
+}
+
+function openProposalModal(titel, ctx) {
+  _proposalCtx = Object.assign({ titel }, ctx || {});
+  openModal(`
+    <div class="modal-header"><h3>✏️ Änderung vorschlagen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b> – geht per E-Mail an die Verantwortlichen.</div>
+      <div class="form-grid">
+        <div class="form-group full"><label>Abschnitt / Betreff</label>
+          <input type="text" id="prop-betreff" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
+        <div class="form-group full"><label>Vorgeschlagene Änderung <span class="req">*</span></label>
+          <textarea id="prop-text" placeholder="Was soll geändert werden?"></textarea></div>
+        <div class="form-group full"><label>Begründung</label>
+          <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="prop-btn" onclick="sendProposal()">Vorschlag senden</button>
+    </div>`);
+}
+
+function _extractEmails(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.flatMap(_extractEmails);
+  if (typeof v === 'object') return [v.Email || v.email || ''].filter(Boolean);
+  const s = String(v);
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim()) ? [s.trim()] : [];
+}
+
+function _proposalRecipients(ctx) {
+  const out = [];
+  const d = ctx && ctx.doc;
+  if (d && d.fields) {
+    for (const [k, v] of Object.entries(d.fields)) {
+      if (/verantwort|owner|ansprech/i.test(k)) out.push(..._extractEmails(v));
+    }
+  }
+  if (typeof getIsmsVerantwortlich === 'function') out.push(...getIsmsVerantwortlich());
+  if (!out.length && typeof getAccessConfig === 'function') out.push(...((getAccessConfig().admins) || []));
+  return [...new Set(out.map(e => String(e).trim().toLowerCase()).filter(Boolean))];
+}
+
+async function sendProposal() {
+  const ctx = _proposalCtx || {};
+  const text = (document.getElementById('prop-text')?.value || '').trim();
+  if (!text) { toast('Bitte die vorgeschlagene Änderung eingeben.', 'error'); document.getElementById('prop-text')?.focus(); return; }
+  const recipients = _proposalRecipients(ctx);
+  if (!recipients.length) { toast('Keine Empfänger – bitte in den Einstellungen ISMS-Verantwortliche hinterlegen.', 'error'); return; }
+  const betreff = (document.getElementById('prop-betreff')?.value || '').trim();
+  const grund = (document.getElementById('prop-grund')?.value || '').trim();
+  const btn = document.getElementById('prop-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sende …'; }
+  try {
+    const who = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : 'Mitarbeiter';
+    const br = s => esc(s).replace(/\n/g, '<br>');
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
+      <p><b>Änderungsvorschlag</b> zu: <b>${esc(ctx.titel || '')}</b></p>
+      ${betreff ? `<p><b>Abschnitt/Betreff:</b> ${esc(betreff)}</p>` : ''}
+      <p><b>Vorschlag:</b><br>${br(text)}</p>
+      ${grund ? `<p><b>Begründung:</b><br>${br(grund)}</p>` : ''}
+      <p style="color:#6b7280;font-size:12px;margin-top:16px">Eingereicht von ${esc(who)} · ${new Date().toLocaleString('de-DE')}<br>
+      Automatisch aus dem DIHAG Richtlinienmanagement.</p></div>`;
+    await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html);
+    toast('Vorschlag gesendet ✓', 'success');
+    closeModal();
+  } catch (e) {
+    toast('Senden fehlgeschlagen: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Vorschlag senden'; }
+  }
 }

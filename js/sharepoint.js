@@ -668,18 +668,34 @@ async function spSaveIsmsItemFields(itemId, fields) {
   return _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}/fields`, token, fields);
 }
 
-/** Datei-Inhalt eines ISMS-Dokuments ersetzen = neue SharePoint-Version. */
-async function spIsmsUploadVersion(driveItemId, bytes, contentType) {
+/** Datei-Inhalt eines ISMS-Dokuments ersetzen = neue SharePoint-Version.
+ *  Mit Änderungsnotiz: über Check-out → Upload → Check-in(comment), damit die
+ *  Notiz als echter SharePoint-Versionskommentar erscheint. Das Wieder-Einchecken
+ *  ist über finally abgesichert (keine hängende Auscheckung). Bibliotheken ohne
+ *  Check-out fallen automatisch auf einen einfachen Upload zurück. */
+async function spIsmsUploadVersion(driveItemId, bytes, contentType, comment) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
   await _ismsLib(token);
-  const resp = await fetch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}/content`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
-    body: bytes,
-  });
-  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-  return resp.json();
+  const item = `${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}`;
+  let checkedOut = false;
+  if (comment) {
+    try { await _post(`${item}/checkout`, token, {}); checkedOut = true; }
+    catch (e) { /* Bibliothek ohne Check-out → einfacher Upload */ }
+  }
+  try {
+    const resp = await fetch(`${item}/content`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+      body: bytes,
+    });
+    if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+    const out = await resp.json();
+    if (checkedOut) { await _post(`${item}/checkin`, token, { comment: comment, checkInAs: 'published' }); checkedOut = false; }
+    return out;
+  } finally {
+    if (checkedOut) { try { await _post(`${item}/checkin`, token, { comment: comment || '' }); } catch (e) { console.warn('[isms] checkin-Fallback fehlgeschlagen:', e.message); } }
+  }
 }
 
 /* ═══════════════════════════════════════════════════

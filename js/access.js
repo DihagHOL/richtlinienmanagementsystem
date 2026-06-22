@@ -110,6 +110,7 @@ function isCurrentUserPruefer()           { return isPruefer(_currentUpn()); }
 function isCurrentUserGeschaeftsleitung() { return isGeschaeftsleitung(_currentUpn()); }
 function getPruefer()           { return [...(_cfg().pruefer || [])]; }
 function getGeschaeftsleitung() { return [...(_cfg().geschaeftsleitung || [])]; }
+function getIsmsVerantwortlich(){ return [...(_cfg().ismsVerantwortlich || [])]; }   // Empfänger für Änderungsvorschläge
 function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
