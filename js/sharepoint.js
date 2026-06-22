@@ -579,6 +579,8 @@ async function spGetIsmsColumns() {
   let cols = { value: [] };
   try { cols = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/columns`, token); }
   catch (e) { console.warn('[isms] Spalten nicht lesbar:', e.message); }
+  // ALLE Spalten (auch readOnly/Person) für die Label→Name-Auflösung der Anzeigefelder
+  _sp.ismsColAll = (cols.value || []).map(c => ({ name: c.name, label: c.displayName || c.name }));
   _sp.ismsColMeta = (cols.value || [])
     .filter(c => c.readOnly !== true && c.hidden !== true && !c.name.startsWith('_') && !SKIP.has(c.name))
     .map(c => ({
@@ -596,6 +598,9 @@ async function spGetIsmsColumns() {
   return _sp.ismsColMeta;
 }
 
+/** Alle Bibliotheks-Spalten (name+label) – für die Label-Auflösung der Anzeigefelder. */
+function spGetIsmsAllColumns() { return _sp.ismsColAll || []; }
+
 /** Pfad eines DriveItems relativ zur Bibliothekswurzel (für die Ordner-Spalte). */
 function _ismsFolderPath(di) {
   const ref = di && di.parentReference;
@@ -604,51 +609,71 @@ function _ismsFolderPath(di) {
   return (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
 }
 
-/** Alle Dateien der ISMS-Bibliothek – SCHLANK für die Tabelle.
- *  Lädt nur die wenigen Felder, die die Liste braucht (nicht alle Metadaten);
- *  die vollständigen Metadaten kommen lazy beim Öffnen via spGetIsmsItemFields().
- *  $select kann bei exotischen Bibliotheken scheitern → Fallback ohne $select. */
-async function spGetIsmsDocs() {
-  const token = await acquireToken(SP.scopes);
-  if (!token) return [];
-  await _ismsLib(token);
-  const base = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items`;
-  const slim = `?expand=fields($select=Title,_UIVersionString),`
-             + `driveItem($select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder,parentReference)`
-             + `&$top=500`;
-  const full = `?expand=fields,driveItem&$top=500`;
-  let url = base + slim;
-  let usedFull = false;
-  const out = [];
+/** Ein DriveItem (mit expand listItem.fields) → vereinheitlichtes Dokument-Objekt. */
+function _ismsMapDriveItem(di, folderPath) {
+  const li = di.listItem || {};
+  return {
+    itemId:      li.id || '',                              // List-Item-ID (Metadaten-PATCH)
+    driveItemId: di.id || '',                              // DriveItem-ID (Versionen/Upload/Preview)
+    driveId:     _sp.ismsDriveId,
+    name:        di.name || '(ohne Name)',
+    folder:      folderPath || '',
+    size:        di.size || 0,
+    webUrl:      di.webUrl || '',
+    modified:    di.lastModifiedDateTime || '',
+    modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName) || '',
+    fields:      li.fields || {},                          // volle Metadaten (listItem expand)
+    fieldsFull:  true,
+  };
+}
+
+/** Inhalt eines Ordners rekursiv einsammeln (nur Dateien, mit Metadaten). */
+async function _ismsCollectFolder(token, folderId, folderPath, out, cap = 2000) {
+  let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${folderId}/children`
+          + `?$expand=listItem($expand=fields)&$top=500`;
   while (url) {
-    let resp;
-    try {
-      resp = await _get(url, token);
-    } catch (e) {
-      if (!usedFull) { usedFull = true; url = base + full; continue; }  // $select nicht unterstützt → ganz laden
-      throw e;
-    }
-    for (const it of (resp.value || [])) {
-      const di = it.driveItem || {};
-      if (di.folder) continue;                              // nur Dateien, keine Ordner
-      out.push({
-        itemId:      it.id,                                 // List-Item-ID (Metadaten-PATCH)
-        driveItemId: di.id || '',                           // DriveItem-ID (Versionen/Upload/Preview)
-        driveId:     _sp.ismsDriveId,
-        name:        di.name || (it.fields && it.fields.FileLeafRef) || '(ohne Name)',
-        folder:      _ismsFolderPath(di),
-        size:        di.size || 0,
-        webUrl:      di.webUrl || '',
-        modified:    di.lastModifiedDateTime || it.lastModifiedDateTime || '',
-        modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName)
-                  || (it.lastModifiedBy && it.lastModifiedBy.user && it.lastModifiedBy.user.displayName) || '',
-        fields:      it.fields || {},                       // schlank (Title/_UIVersionString); Rest lazy
-        fieldsFull:  false,
-      });
+    const resp = await _get(url, token);
+    for (const di of (resp.value || [])) {
+      if (di.folder) { await _ismsCollectFolder(token, di.id, (folderPath ? folderPath + '/' : '') + di.name, out, cap); continue; }
+      out.push(_ismsMapDriveItem(di, folderPath));
+      if (out.length >= cap) return;
     }
     url = resp['@odata.nextLink'] || null;
   }
-  return out.sort((a, b) => (a.folder + '/' + a.name).localeCompare(b.folder + '/' + b.name, 'de'));
+}
+
+/** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (schnell, mit
+ *  vollen Metadaten). Wird der Ordner nicht gefunden, ganze Bibliothek als Fallback. */
+async function spGetIsmsDocs(folderName) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  const wantRe = /iso[\s_-]*27001/i;
+  // ISO-Ordner in der Wurzel finden
+  let isoFolder = null;
+  try {
+    const root = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children?$select=id,name,folder&$top=400`, token);
+    isoFolder = (root.value || []).find(it => it.folder && (folderName ? it.name === folderName : wantRe.test(it.name || '')));
+  } catch (e) { console.warn('[isms] Wurzel nicht lesbar:', e.message); }
+
+  const out = [];
+  if (isoFolder) {
+    await _ismsCollectFolder(token, isoFolder.id, isoFolder.name, out);
+  } else {
+    // Fallback: ganze Bibliothek (volle Felder), falls kein ISO-Ordner existiert
+    let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=500`;
+    while (url) {
+      const resp = await _get(url, token);
+      for (const it of (resp.value || [])) {
+        const di = it.driveItem || {};
+        if (di.folder) continue;
+        di.listItem = { id: it.id, fields: it.fields || {} };
+        out.push(_ismsMapDriveItem(di, _ismsFolderPath(di)));
+      }
+      url = resp['@odata.nextLink'] || null;
+    }
+  }
+  return out.sort((a, b) => (a.fields.Title || a.name).localeCompare(b.fields.Title || b.name, 'de'));
 }
 
 /** Vollständige Metadaten EINES Dokuments (lazy beim Öffnen des Editors). */

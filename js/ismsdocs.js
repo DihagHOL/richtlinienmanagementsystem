@@ -57,20 +57,51 @@ async function selectIsmsLibrary(driveId) {
   }
 }
 
-let _ismsFolderDefaulted = false;   // ISO-Default nur einmal setzen (Nutzerwahl danach respektieren)
-
 function fillIsmsFolderFilter() {
   const sel = document.getElementById('filter-isms-folder');
   if (!sel) return;
+  // Es wird serverseitig nur der ISO-27001-Ordner geladen; das Dropdown bietet
+  // dessen Unterordner zur Eingrenzung (oder ist leer, wenn alles flach liegt).
   const folders = [...new Set((_ismsDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  sel.innerHTML = '<option value="">Alle Ordner</option>' +
+  const wrap = sel.closest('.search-box') ? sel : sel;   // (sel selbst)
+  sel.style.display = folders.length > 1 ? '' : 'none';   // bei nur einem Ordner ausblenden
+  sel.innerHTML = '<option value="">Alle (ISO 27001)</option>' +
     folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
-  // Standard-Fokus: oberster ISO-27001-Ordner (nur beim ersten Befüllen)
-  if (!_ismsFolderDefaulted) {
-    const iso = folders.find(f => /iso[\s_-]*27001/i.test(f));
-    if (iso) sel.value = iso;
-    _ismsFolderDefaulted = true;
-  }
+}
+
+/* ── Anzeige-/Bearbeitungsfelder (gewünscht): per Anzeige-Label auf die echten
+      SharePoint-Spaltennamen aufgelöst (interne Namen sind unbekannt). ── */
+const ISMS_FIELDS = [
+  { key: 'stand',          label: 'Bearbeitungsstand',    re: /bearbeitungs(stand|status)|status/i },
+  { key: 'vertraulich',    label: 'Vertraulichkeit',      re: /vertraulich|geheimhaltung|einstufung|classification/i },
+  { key: 'unterschrieben', label: 'Unterschrieben von',   re: /unterschrieben|unterzeichnet|signed|freigegeben.*von|genehmigt.*von/i },
+  { key: 'angefasst',      label: 'Zuletzt angefasst am', re: /zuletzt.*(angefasst|geändert|bearbeitet)|angefasst|geändert|geaendert|modified/i, date: true, fallbackModified: true },
+];
+
+function _ismsColFor(re) {
+  const cols = (typeof spGetIsmsAllColumns === 'function') ? spGetIsmsAllColumns() : [];
+  return cols.find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+}
+function _ismsScalar(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') return v.LookupValue || v.Title || v.DisplayName || v.Email || '';
+  return String(v);
+}
+/** Roh-Wert eines gewünschten Feldes (für Sortierung). */
+function _ismsFieldRaw(d, f) {
+  const c = _ismsColFor(f.re);
+  let v = (c && d.fields) ? d.fields[c.name] : undefined;
+  if ((v == null || v === '') && f.fallbackModified) v = d.modified;
+  return v;
+}
+/** Anzeige-Wert eines gewünschten Feldes. */
+function _ismsFieldDisplay(d, f) {
+  const v = _ismsFieldRaw(d, f);
+  if (v == null || v === '') return '–';
+  if (Array.isArray(v)) return v.map(_ismsScalar).filter(Boolean).join(', ') || '–';
+  const s = _ismsScalar(v);
+  if (f.date || /^\d{4}-\d{2}-\d{2}T/.test(s)) return fmtDate(s);
+  return s || '–';
 }
 
 function _ismsFmtSize(bytes) {
@@ -132,43 +163,30 @@ function renderIsmsDocs() {
   if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
 
-  // Sortierung
+  // Sortierung (Name oder eines der gewünschten Felder)
   const sk = _ismsSort.key, dir = _ismsSort.dir;
+  const fByKey = ISMS_FIELDS.find(f => f.key === sk);
   rows.sort((a, b) => {
     let va, vb;
-    if (sk === 'size') { va = a.size; vb = b.size; }
-    else if (sk === 'modified') { va = a.modified || ''; vb = b.modified || ''; }
-    else if (sk === 'folder') { va = (a.folder || '').toLowerCase(); vb = (b.folder || '').toLowerCase(); }
+    if (fByKey) { va = String(_ismsFieldRaw(a, fByKey) ?? '').toLowerCase(); vb = String(_ismsFieldRaw(b, fByKey) ?? '').toLowerCase(); }
     else { va = (a.fields?.Title || a.name).toLowerCase(); vb = (b.fields?.Title || b.name).toLowerCase(); }
     return va < vb ? -dir : va > vb ? dir : 0;
   });
 
-  // Stats
-  const folderCount = new Set(all.map(d => d.folder).filter(Boolean)).size;
-  const totalSize = all.reduce((s, d) => s + (d.size || 0), 0);
   const linked = all.filter(d => _ismsLinkedPolicy(d)).length;
-  const stats = `<div class="stats-grid" style="margin-bottom:16px">
-    ${statCard('blue', '📄', all.length, 'Dokumente')}
-    ${statCard('orange', '📁', folderCount, 'Ordner')}
-    ${statCard('purple', '💾', _ismsFmtSize(totalSize), 'Gesamtgröße')}
-    ${statCard('green', '🔗', linked, 'mit Richtlinie')}
-  </div>`;
+  const sub = `<div class="view-desc" style="margin:0 0 12px">
+    <b>${rows.length}</b> Dokument(e) aus <b>ISO 27001</b>${linked ? ` · ${linked} mit Richtlinie verknüpft` : ''} · Zeile anklicken zum Bearbeiten.</div>`;
+
+  if (!rows.length) { mount.innerHTML = sub + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
-  const sub = `<div class="view-desc" style="margin:0 0 10px">${rows.length} von ${all.length} Dokument(en) aus Bibliothek <b>„${esc(lib || '?')}"</b> · Zeile anklicken zum Bearbeiten.</div>`;
 
-  if (!rows.length) { mount.innerHTML = stats + sub + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
-
-  mount.innerHTML = stats + sub + `<div class="table-wrap"><table class="tbl">
+  mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
       <th style="width:30px"></th>
       ${th('name', 'Dokument')}
-      ${th('folder', 'Ordner')}
-      <th>Version</th>
-      ${th('size', 'Größe', 'num')}
-      ${th('modified', 'Geändert')}
-      <th>Von</th>
+      ${ISMS_FIELDS.map(f => th(f.key, f.label)).join('')}
     </tr></thead>
     <tbody>${rows.map(d => {
       const lp = _ismsLinkedPolicy(d);
@@ -180,11 +198,7 @@ function renderIsmsDocs() {
           ${lp ? `<span class="ic-tag" style="margin-left:6px;background:#ecfdf5;color:#047857;font-size:.66rem">🔗 ${esc(lp.status || 'Richtlinie')}</span>` : ''}
           ${title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}
         </td>
-        <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
-        <td>${esc(d.fields?._UIVersionString || '–')}</td>
-        <td class="num">${_ismsFmtSize(d.size)}</td>
-        <td title="${esc(fmtDateTime(d.modified))}">${fmtDate(d.modified)}</td>
-        <td style="color:var(--c-muted)">${esc(d.modifiedBy || '–')}</td>
+        ${ISMS_FIELDS.map(f => `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`).join('')}
       </tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -248,9 +262,8 @@ async function openIsmsDoc(itemId) {
     </div>
     <div class="modal-body">
       <div class="col-warning" style="display:block;background:#f9fafb;border-color:var(--c-border);color:var(--c-muted)">
-        <b>Ordner:</b> ${esc(d.folder || '–')} &nbsp;·&nbsp; <b>Größe:</b> ${_ismsFmtSize(d.size)}
-        &nbsp;·&nbsp; <b>Version:</b> ${esc(d.fields?._UIVersionString || '–')}
-        &nbsp;·&nbsp; <b>Geändert:</b> ${fmtDateTime(d.modified)}${d.modifiedBy ? ' von ' + esc(d.modifiedBy) : ''}
+        <b>Version:</b> ${esc(d.fields?._UIVersionString || '–')}
+        &nbsp;·&nbsp; <b>Zuletzt angefasst:</b> ${fmtDateTime(d.modified)}${d.modifiedBy ? ' von ' + esc(d.modifiedBy) : ''}
       </div>
 
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
