@@ -604,15 +604,30 @@ function _ismsFolderPath(di) {
   return (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
 }
 
-/** Alle Dateien der ISMS-Bibliothek mit Metadaten (fields) + Datei-Infos (driveItem). */
+/** Alle Dateien der ISMS-Bibliothek – SCHLANK für die Tabelle.
+ *  Lädt nur die wenigen Felder, die die Liste braucht (nicht alle Metadaten);
+ *  die vollständigen Metadaten kommen lazy beim Öffnen via spGetIsmsItemFields().
+ *  $select kann bei exotischen Bibliotheken scheitern → Fallback ohne $select. */
 async function spGetIsmsDocs() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await _ismsLib(token);
-  let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
+  const base = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items`;
+  const slim = `?expand=fields($select=Title,_UIVersionString),`
+             + `driveItem($select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder,parentReference)`
+             + `&$top=500`;
+  const full = `?expand=fields,driveItem&$top=500`;
+  let url = base + slim;
+  let usedFull = false;
   const out = [];
   while (url) {
-    const resp = await _get(url, token);
+    let resp;
+    try {
+      resp = await _get(url, token);
+    } catch (e) {
+      if (!usedFull) { usedFull = true; url = base + full; continue; }  // $select nicht unterstützt → ganz laden
+      throw e;
+    }
     for (const it of (resp.value || [])) {
       const di = it.driveItem || {};
       if (di.folder) continue;                              // nur Dateien, keine Ordner
@@ -627,12 +642,22 @@ async function spGetIsmsDocs() {
         modified:    di.lastModifiedDateTime || it.lastModifiedDateTime || '',
         modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName)
                   || (it.lastModifiedBy && it.lastModifiedBy.user && it.lastModifiedBy.user.displayName) || '',
-        fields:      it.fields || {},
+        fields:      it.fields || {},                       // schlank (Title/_UIVersionString); Rest lazy
+        fieldsFull:  false,
       });
     }
     url = resp['@odata.nextLink'] || null;
   }
   return out.sort((a, b) => (a.folder + '/' + a.name).localeCompare(b.folder + '/' + b.name, 'de'));
+}
+
+/** Vollständige Metadaten EINES Dokuments (lazy beim Öffnen des Editors). */
+async function spGetIsmsItemFields(itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return {};
+  await _ismsLib(token);
+  const it = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}?expand=fields`, token);
+  return it.fields || {};
 }
 
 /** Metadaten eines ISMS-Dokuments speichern (nur vorhandene/bearbeitbare Spalten). */

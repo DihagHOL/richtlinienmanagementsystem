@@ -72,23 +72,42 @@ function _ismsFmtSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+/** Emoji-Icon je Dateiendung. */
+function _ismsIcon(name) {
+  const ext = (String(name).split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return '📕';
+  if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return '📘';
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return '📗';
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return '📙';
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'webp'].includes(ext)) return '🖼️';
+  if (['zip', '7z', 'rar', 'tar', 'gz'].includes(ext)) return '🗜️';
+  if (['txt', 'md', 'log'].includes(ext)) return '📃';
+  return '📄';
+}
+
+/** Verknüpfte Richtlinie zu einem Dokument (falls State.policies geladen ist). */
+function _ismsLinkedPolicy(d) {
+  const pols = (typeof State !== 'undefined' && State.policies) ? State.policies : [];
+  return pols.find(p => p.dokumentItemId && p.dokumentItemId === d.driveItemId) || null;
+}
+
+let _ismsSort = { key: 'name', dir: 1 };
+function sortIsmsDocs(key) {
+  if (_ismsSort.key === key) _ismsSort.dir *= -1;
+  else _ismsSort = { key, dir: 1 };
+  renderIsmsDocs();
+}
+
 function renderIsmsDocs() {
   const mount = document.getElementById('isms-mount');
   if (!mount) return;
   const q = (document.getElementById('search-isms')?.value || '').toLowerCase().trim();
   const folder = document.getElementById('filter-isms-folder')?.value || '';
-
-  let rows = (_ismsDocs || []).slice();
-  if (folder) rows = rows.filter(d => d.folder === folder);
-  if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
-
-  const total = (_ismsDocs || []).length;
+  const all = _ismsDocs || [];
   const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
-  const head = `<div class="view-desc" style="margin-bottom:12px">${rows.length} von ${total} Dokument(en) aus Bibliothek <b>„${esc(lib || '?')}"</b>. Zeile anklicken zum Bearbeiten.</div>`;
 
-  // Leerzustand mit Diagnose: zeigt die genutzte Bibliothek + erlaubt manuellen Wechsel,
-  // falls die Auto-Erkennung die falsche (z.B. leere Standard-) Bibliothek getroffen hat.
-  if (!total) {
+  // Leerzustand mit Diagnose: genutzte Bibliothek + manueller Wechsel.
+  if (!all.length) {
     const drivesHtml = (_ismsDrives || []).map(d =>
       `<button class="btn btn-outline btn-sm" onclick="selectIsmsLibrary('${esc(d.id)}')">${esc(d.name)}${d.name === lib ? ' ✓' : ''}</button>`
     ).join(' ');
@@ -99,22 +118,66 @@ function renderIsmsDocs() {
     </div>`;
     return;
   }
-  if (!rows.length) { mount.innerHTML = head + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
 
-  mount.innerHTML = head + `<div class="table-wrap"><table class="tbl">
+  let rows = all.slice();
+  if (folder) rows = rows.filter(d => d.folder === folder);
+  if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
+
+  // Sortierung
+  const sk = _ismsSort.key, dir = _ismsSort.dir;
+  rows.sort((a, b) => {
+    let va, vb;
+    if (sk === 'size') { va = a.size; vb = b.size; }
+    else if (sk === 'modified') { va = a.modified || ''; vb = b.modified || ''; }
+    else if (sk === 'folder') { va = (a.folder || '').toLowerCase(); vb = (b.folder || '').toLowerCase(); }
+    else { va = (a.fields?.Title || a.name).toLowerCase(); vb = (b.fields?.Title || b.name).toLowerCase(); }
+    return va < vb ? -dir : va > vb ? dir : 0;
+  });
+
+  // Stats
+  const folderCount = new Set(all.map(d => d.folder).filter(Boolean)).size;
+  const totalSize = all.reduce((s, d) => s + (d.size || 0), 0);
+  const linked = all.filter(d => _ismsLinkedPolicy(d)).length;
+  const stats = `<div class="stats-grid" style="margin-bottom:16px">
+    ${statCard('blue', '📄', all.length, 'Dokumente')}
+    ${statCard('orange', '📁', folderCount, 'Ordner')}
+    ${statCard('purple', '💾', _ismsFmtSize(totalSize), 'Gesamtgröße')}
+    ${statCard('green', '🔗', linked, 'mit Richtlinie')}
+  </div>`;
+
+  const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
+  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
+  const sub = `<div class="view-desc" style="margin:0 0 10px">${rows.length} von ${all.length} Dokument(en) aus Bibliothek <b>„${esc(lib || '?')}"</b> · Zeile anklicken zum Bearbeiten.</div>`;
+
+  if (!rows.length) { mount.innerHTML = stats + sub + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
+
+  mount.innerHTML = stats + sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
-      <th>Dokument</th><th>Ordner</th><th>Version</th><th class="num">Größe</th>
-      <th>Geändert</th><th>Von</th>
+      <th style="width:30px"></th>
+      ${th('name', 'Dokument')}
+      ${th('folder', 'Ordner')}
+      <th>Version</th>
+      ${th('size', 'Größe', 'num')}
+      ${th('modified', 'Geändert')}
+      <th>Von</th>
     </tr></thead>
-    <tbody>${rows.map(d => `
-      <tr onclick="openIsmsDoc('${esc(d.itemId)}')" style="cursor:pointer">
-        <td><b>${esc(d.fields?.Title || d.name)}</b>${d.fields?.Title && d.fields.Title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}</td>
+    <tbody>${rows.map(d => {
+      const lp = _ismsLinkedPolicy(d);
+      const title = d.fields?.Title || d.name;
+      return `<tr onclick="openIsmsDoc('${esc(d.itemId)}')" style="cursor:pointer">
+        <td style="font-size:1.1rem;text-align:center">${_ismsIcon(d.name)}</td>
+        <td>
+          <b>${esc(title)}</b>
+          ${lp ? `<span class="ic-tag" style="margin-left:6px;background:#ecfdf5;color:#047857;font-size:.66rem">🔗 ${esc(lp.status || 'Richtlinie')}</span>` : ''}
+          ${title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}
+        </td>
         <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
         <td>${esc(d.fields?._UIVersionString || '–')}</td>
         <td class="num">${_ismsFmtSize(d.size)}</td>
-        <td>${fmtDate(d.modified)}</td>
+        <td title="${esc(fmtDateTime(d.modified))}">${fmtDate(d.modified)}</td>
         <td style="color:var(--c-muted)">${esc(d.modifiedBy || '–')}</td>
-      </tr>`).join('')}</tbody></table></div>`;
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
 }
 
 /* ── Editor (Metadaten + Datei-Aktionen) ── */
@@ -150,9 +213,17 @@ function _ismsPersonText(v) {
   return String(v);
 }
 
-function openIsmsDoc(itemId) {
+async function openIsmsDoc(itemId) {
   const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
   if (!d) return;
+  // Vollständige Metadaten lazy nachladen (die Liste hält nur Title/Version)
+  if (!d.fieldsFull) {
+    try {
+      const full = await spGetIsmsItemFields(itemId);
+      d.fields = Object.assign({}, d.fields, full);
+      d.fieldsFull = true;
+    } catch (e) { /* mit Teil-Feldern weitermachen */ }
+  }
   const metaRows = (_ismsCols || []).length
     ? _ismsCols.map(col => `
         <div class="form-group${col.type === 'note' ? ' full' : ''}">
