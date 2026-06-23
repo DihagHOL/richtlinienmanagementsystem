@@ -114,6 +114,33 @@ function _ismsFieldDisplay(d, f) {
   return s || '–';
 }
 
+/** Die „Bearbeitungsstand"-Spalte, wenn sie eine Auswahl-Spalte mit vorhandenen
+ *  Optionen ist (dann inline auswählbar; es werden NUR die SP-Optionen genutzt). */
+function _ismsStatusCol() {
+  const re = (ISMS_FIELDS.find(f => f.key === 'stand') || {}).re;
+  if (!re) return null;
+  return (_ismsCols || []).find(c =>
+    c.type === 'choice' && (c.choices || []).length && (re.test(c.label || '') || re.test(c.name || ''))) || null;
+}
+
+/** Bearbeitungsstand direkt aus der Liste setzen (PATCH, ohne Editor zu öffnen). */
+async function ismsSetStatus(itemId, value, sel) {
+  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
+  const sc = _ismsStatusCol();
+  if (!d || !sc) return;
+  if (sel) sel.disabled = true;
+  try {
+    await spSaveIsmsItemFields(itemId, { [sc.name]: value });
+    d.fields[sc.name] = value;
+    toast('Bearbeitungsstand gespeichert ✓', 'success');
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
+    renderIsmsDocs();   // Auswahl auf gespeicherten Stand zurücksetzen
+  } finally {
+    if (sel) sel.disabled = false;
+  }
+}
+
 function _ismsFmtSize(bytes) {
   if (!bytes) return '–';
   if (bytes < 1024) return bytes + ' B';
@@ -197,6 +224,7 @@ function renderIsmsDocs() {
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
+  const statusCol = _ismsStatusCol();   // Bearbeitungsstand inline auswählbar, falls Auswahl-Spalte
 
   mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
@@ -214,7 +242,19 @@ function renderIsmsDocs() {
           ${lp ? `<span class="ic-tag" style="margin-left:6px;background:#ecfdf5;color:#047857;font-size:.66rem">🔗 ${esc(lp.status || 'Richtlinie')}</span>` : ''}
           ${title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}
         </td>
-        ${ISMS_FIELDS.map(f => `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`).join('')}
+        ${ISMS_FIELDS.map(f => {
+          if (f.key === 'stand' && statusCol) {
+            const cur = (d.fields && d.fields[statusCol.name] != null) ? String(d.fields[statusCol.name]) : '';
+            const choices = statusCol.choices.slice();
+            if (cur && !choices.includes(cur)) choices.unshift(cur);   // bestehenden Wert sichtbar halten
+            const opts = ['<option value="">– wählen –</option>']
+              .concat(choices.map(c => `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`));
+            return `<td onclick="event.stopPropagation()">
+              <select class="sort-select" style="font-size:.8rem;padding:4px 6px;max-width:170px"
+                onchange="ismsSetStatus('${esc(d.itemId)}', this.value, this)">${opts.join('')}</select></td>`;
+          }
+          return `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`;
+        }).join('')}
       </tr>`;
     }).join('')}</tbody></table></div>`;
 }
