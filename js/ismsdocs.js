@@ -13,6 +13,23 @@ let _ismsDocs = null;     // geladene Dokumente (Cache)
 let _ismsCols = null;     // bearbeitbare Spalten der Bibliothek
 let _ismsDrives = null;   // verfügbare ISMS-Bibliotheken (für Diagnose/Wechsel)
 let _ismsLoading = false; // wird gerade (im Hintergrund) nachgeladen?
+let _ismsMembers = null;  // Mitarbeiter für die Personenauswahl (Owner)
+
+async function _ensureIsmsMembers() {
+  if (_ismsMembers || typeof spGetMembers !== 'function') return;
+  try { _ismsMembers = await spGetMembers(); } catch (e) { _ismsMembers = []; }
+}
+
+/** Eingabe „Name (email)" / „email" / „Name" → E-Mail (über die Mitarbeiterliste). */
+function _ismsResolveEmail(raw) {
+  const s = (raw || '').trim();
+  if (!s) return '';
+  const m = s.match(/\(([^()\s]+@[^()\s]+)\)/);
+  if (m) return m[1].toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) return s.toLowerCase();
+  const mem = (_ismsMembers || []).find(u => (u.name || '').toLowerCase() === s.toLowerCase());
+  return mem ? (mem.upn || '').toLowerCase() : '';
+}
 
 async function initIsmsDocs() {
   const mount = document.getElementById('isms-mount');
@@ -27,6 +44,8 @@ async function initIsmsDocs() {
     ]);
     _ismsCols = cols;
     _ismsDrives = drives;
+    fillIsmsStandFilter();   // Stand-Filter-Optionen aus der Spalte (sobald cols da sind)
+    if ((_ismsCols || []).some(c => c.type === 'person')) _ensureIsmsMembers();   // Owner-Auswahl vorladen
     _ismsDocs = [];
     _ismsLoading = true;
     const final = await spGetIsmsDocs(null, (partial) => {   // nach jeder Seite rendern
@@ -82,8 +101,8 @@ function fillIsmsFolderFilter() {
 /* ── Anzeige-/Bearbeitungsfelder (gewünscht): per Anzeige-Label auf die echten
       SharePoint-Spaltennamen aufgelöst (interne Namen sind unbekannt). ── */
 const ISMS_FIELDS = [
-  { key: 'stand',          label: 'Bearbeitungsstand',    re: /bearbeitungs(stand|status)|status/i },
-  { key: 'vertraulich',    label: 'Vertraulichkeit',      re: /vertraulich|geheimhaltung|einstufung|classification/i },
+  { key: 'stand',          label: 'Bearbeitungsstand',    re: /bearbeitungs(stand|status)|status/i, inlineSelect: true },
+  { key: 'vertraulich',    label: 'Vertraulichkeit',      re: /vertraulich|geheimhaltung|einstufung|classification/i, inlineSelect: true },
   { key: 'unterschrieben', label: 'Unterschrieben von',   re: /unterschrieben|unterzeichnet|signed|freigegeben.*von|genehmigt.*von/i },
   { key: 'angefasst',      label: 'Zuletzt angefasst am', re: /zuletzt.*(angefasst|geändert|bearbeitet)|angefasst|geändert|geaendert|modified/i, date: true, fallbackModified: true },
 ];
@@ -114,31 +133,43 @@ function _ismsFieldDisplay(d, f) {
   return s || '–';
 }
 
-/** Die „Bearbeitungsstand"-Spalte, wenn sie eine Auswahl-Spalte mit vorhandenen
- *  Optionen ist (dann inline auswählbar; es werden NUR die SP-Optionen genutzt). */
-function _ismsStatusCol() {
-  const re = (ISMS_FIELDS.find(f => f.key === 'stand') || {}).re;
-  if (!re) return null;
+/** Auswahl-Spalte zu einem Feld, falls es eine Choice-Spalte mit Optionen ist
+ *  (dann inline auswählbar; es werden NUR die in SharePoint vorhandenen Optionen genutzt). */
+function _ismsChoiceColFor(f) {
+  if (!f || !f.inlineSelect) return null;
   return (_ismsCols || []).find(c =>
-    c.type === 'choice' && (c.choices || []).length && (re.test(c.label || '') || re.test(c.name || ''))) || null;
+    c.type === 'choice' && (c.choices || []).length && (f.re.test(c.label || '') || f.re.test(c.name || ''))) || null;
 }
 
-/** Bearbeitungsstand direkt aus der Liste setzen (PATCH, ohne Editor zu öffnen). */
-async function ismsSetStatus(itemId, value, sel) {
+/** Einen Auswahl-Wert direkt aus der Liste setzen (PATCH, ohne Editor zu öffnen). */
+async function ismsSetChoice(itemId, colName, value, sel) {
   const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
-  const sc = _ismsStatusCol();
-  if (!d || !sc) return;
+  if (!d) return;
   if (sel) sel.disabled = true;
   try {
-    await spSaveIsmsItemFields(itemId, { [sc.name]: value });
-    d.fields[sc.name] = value;
-    toast('Bearbeitungsstand gespeichert ✓', 'success');
+    await spSaveIsmsItemFields(itemId, { [colName]: value });
+    d.fields[colName] = value;
+    toast('Gespeichert ✓', 'success');
+    fillIsmsStandFilter();   // ggf. neue Stand-Option im Filter ergänzen
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
-    renderIsmsDocs();   // Auswahl auf gespeicherten Stand zurücksetzen
+    renderIsmsDocs();        // Auswahl auf gespeicherten Wert zurücksetzen
   } finally {
     if (sel) sel.disabled = false;
   }
+}
+
+/** Stand-Filter-Dropdown mit den Optionen der Bearbeitungsstand-Spalte befüllen. */
+function fillIsmsStandFilter() {
+  const sel = document.getElementById('filter-isms-stand');
+  if (!sel) return;
+  const sc = _ismsChoiceColFor(ISMS_FIELDS.find(f => f.key === 'stand'));
+  if (!sc) { sel.style.display = 'none'; return; }
+  sel.style.display = '';
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Alle Stände</option>' +
+    sc.choices.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (cur) sel.value = cur;
 }
 
 function _ismsFmtSize(bytes) {
@@ -179,6 +210,7 @@ function renderIsmsDocs() {
   if (!mount) return;
   const q = (document.getElementById('search-isms')?.value || '').toLowerCase().trim();
   const folder = document.getElementById('filter-isms-folder')?.value || '';
+  const standF = document.getElementById('filter-isms-stand')?.value || '';
   const all = _ismsDocs || [];
   const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
 
@@ -204,6 +236,10 @@ function renderIsmsDocs() {
   // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z.B. ISO27001/Anhänge)
   if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
+  if (standF) {
+    const sc = _ismsChoiceColFor(ISMS_FIELDS.find(f => f.key === 'stand'));
+    if (sc) rows = rows.filter(d => String(d.fields?.[sc.name] || '') === standF);
+  }
 
   // Sortierung (Name oder eines der gewünschten Felder)
   const sk = _ismsSort.key, dir = _ismsSort.dir;
@@ -224,7 +260,9 @@ function renderIsmsDocs() {
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
-  const statusCol = _ismsStatusCol();   // Bearbeitungsstand inline auswählbar, falls Auswahl-Spalte
+  // Auswahl-Spalten je inline-Feld vorab auflösen (Bearbeitungsstand, Vertraulichkeit)
+  const choiceCols = {};
+  ISMS_FIELDS.forEach(f => { const c = _ismsChoiceColFor(f); if (c) choiceCols[f.key] = c; });
 
   mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
@@ -243,15 +281,16 @@ function renderIsmsDocs() {
           ${title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}
         </td>
         ${ISMS_FIELDS.map(f => {
-          if (f.key === 'stand' && statusCol) {
-            const cur = (d.fields && d.fields[statusCol.name] != null) ? String(d.fields[statusCol.name]) : '';
-            const choices = statusCol.choices.slice();
+          const cc = choiceCols[f.key];
+          if (cc) {   // Auswahl-Spalte → inline-Dropdown mit den SP-Optionen
+            const cur = (d.fields && d.fields[cc.name] != null) ? String(d.fields[cc.name]) : '';
+            const choices = cc.choices.slice();
             if (cur && !choices.includes(cur)) choices.unshift(cur);   // bestehenden Wert sichtbar halten
             const opts = ['<option value="">– wählen –</option>']
               .concat(choices.map(c => `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`));
             return `<td onclick="event.stopPropagation()">
               <select class="sort-select" style="font-size:.8rem;padding:4px 6px;max-width:170px"
-                onchange="ismsSetStatus('${esc(d.itemId)}', this.value, this)">${opts.join('')}</select></td>`;
+                onchange="ismsSetChoice('${esc(d.itemId)}', '${esc(cc.name)}', this.value, this)">${opts.join('')}</select></td>`;
           }
           return `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`;
         }).join('')}
@@ -264,6 +303,10 @@ function renderIsmsDocs() {
 function _ismsInput(col, val) {
   const id = `isms-f-${col.name}`;
   const v = (val == null) ? '' : val;
+  if (col.type === 'person')
+    return `<input type="text" id="${id}" list="isms-people" value="${esc(_ismsPersonText(v))}"
+      placeholder="Name oder E-Mail …" autocomplete="off">
+      <div class="field-hint">${col.multi ? 'Mehrere mit Komma trennen. ' : ''}Aus der Mitarbeiterliste wählen oder E-Mail eingeben; leeren zum Entfernen.</div>`;
   if (col.type === 'readonly')
     return `<div style="font-size:.85rem;color:var(--c-muted);padding:6px 0">${esc(_ismsPersonText(v))} <span class="field-hint">(nicht bearbeitbar)</span></div>`;
   if (col.type === 'note')
@@ -303,6 +346,13 @@ async function openIsmsDoc(itemId) {
       d.fieldsFull = true;
     } catch (e) { /* mit Teil-Feldern weitermachen */ }
   }
+  // Für Person-Spalten (z.B. Owner) die Mitarbeiterliste laden → Auswahl-Datalist
+  const hasPerson = (_ismsCols || []).some(c => c.type === 'person');
+  if (hasPerson) await _ensureIsmsMembers();
+  const peopleDatalist = hasPerson
+    ? `<datalist id="isms-people">${(_ismsMembers || []).map(u => `<option value="${esc(u.name)} (${esc(u.upn)})"></option>`).join('')}</datalist>`
+    : '';
+
   const metaRows = (_ismsCols || []).length
     ? _ismsCols.map(col => `
         <div class="form-group${col.type === 'note' ? ' full' : ''}">
@@ -332,6 +382,7 @@ async function openIsmsDoc(itemId) {
 
       <h4 style="font-size:.82rem;font-weight:700;color:#374151;margin:0 0 8px">Metadaten</h4>
       <div class="form-grid">${metaRows}</div>
+      ${peopleDatalist}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="proposeIsmsChange('${esc(d.driveItemId)}')">✏️ Änderung vorschlagen</button>
@@ -346,21 +397,52 @@ async function saveIsmsDocMeta(itemId) {
   const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
   if (!d) return;
   const btn = document.getElementById('isms-save-btn');
-  const fields = {};
-  for (const col of (_ismsCols || [])) {
-    if (col.type === 'readonly') continue;
-    const el = document.getElementById(`isms-f-${col.name}`);
-    if (!el) continue;
-    let v = el.value;
-    if (col.type === 'number') { if (v === '') continue; v = parseFloat(v); }
-    else if (col.type === 'boolean') { if (v === '') continue; v = (v === 'Ja'); }
-    else if (col.type === 'date') { if (!v) continue; v = new Date(v + 'T00:00:00Z').toISOString(); }
-    fields[col.name] = v;
-  }
   if (btn) { btn.disabled = true; btn.textContent = 'Speichern …'; }
+  const fields = {};
+  const personDisplay = {};   // col.name → Anzeigename (für Cache-Update)
   try {
+    for (const col of (_ismsCols || [])) {
+      if (col.type === 'readonly') continue;
+      const el = document.getElementById(`isms-f-${col.name}`);
+      if (!el) continue;
+
+      if (col.type === 'person') {
+        const raw = el.value.trim();
+        if (!raw) {                                   // geleert → Person entfernen
+          fields[col.name + 'LookupId'] = col.multi ? [] : null;
+          if (col.multi) fields[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
+          personDisplay[col.name] = '';
+          continue;
+        }
+        const parts = col.multi ? raw.split(',') : [raw];
+        const ids = [];
+        const names = [];
+        for (const p of parts) {
+          const email = _ismsResolveEmail(p);
+          if (!email) { toast(`„${p.trim()}" nicht als Person erkannt – übersprungen.`, 'error'); continue; }
+          const lid = await spEnsureIsmsUserLookupId(email);
+          if (!lid) { toast(`„${email}" in SharePoint nicht gefunden (Person muss die ISMS-Site einmal besucht haben).`, 'error'); continue; }
+          ids.push(lid);
+          names.push((p.match(/^[^(]+/) || [p])[0].trim());
+        }
+        if (!ids.length) continue;
+        if (col.multi) { fields[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; fields[col.name + 'LookupId'] = ids; }
+        else fields[col.name + 'LookupId'] = ids[0];
+        personDisplay[col.name] = names.join(', ');
+        continue;
+      }
+
+      let v = el.value;
+      if (col.type === 'number') { if (v === '') continue; v = parseFloat(v); }
+      else if (col.type === 'boolean') { if (v === '') continue; v = (v === 'Ja'); }
+      else if (col.type === 'date') { if (!v) continue; v = new Date(v + 'T00:00:00Z').toISOString(); }
+      fields[col.name] = v;
+    }
+
     await spSaveIsmsItemFields(itemId, fields);
-    Object.assign(d.fields, fields);     // Cache aktualisieren
+    // Cache aktualisieren (Person-Felder als Anzeigeobjekt, nicht als LookupId)
+    for (const [k, v] of Object.entries(fields)) { if (!/LookupId/.test(k)) d.fields[k] = v; }
+    for (const [k, name] of Object.entries(personDisplay)) d.fields[k] = name ? { LookupValue: name } : null;
     toast('Metadaten gespeichert ✓', 'success');
     closeModal();
     renderIsmsDocs();

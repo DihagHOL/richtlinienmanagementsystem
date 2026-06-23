@@ -591,9 +591,11 @@ async function spGetIsmsColumns() {
              : c.dateTime ? 'date'
              : c.number ? 'number'
              : c.boolean ? 'boolean'
-             : (c.personOrGroup || c.lookup) ? 'readonly'
+             : c.personOrGroup ? 'person'
+             : c.lookup ? 'readonly'
              : 'text',
       choices: c.choice ? (c.choice.choices || []) : null,
+      multi:   !!(c.personOrGroup && c.personOrGroup.allowMultipleSelection),
     }));
   return _sp.ismsColMeta;
 }
@@ -693,6 +695,37 @@ async function spGetIsmsItemFields(itemId) {
   await _ismsLib(token);
   const it = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}?expand=fields`, token);
   return it.fields || {};
+}
+
+/** SharePoint-LookupId einer Person (für Person-Felder) über die Benutzer­informations­liste
+ *  der ISMS-Site auflösen. Gibt null, wenn die Person dort (noch) nicht existiert. */
+let _ismsUserListId = null;
+const _ismsUserLookup = {};   // email(lowercase) → LookupId
+async function spEnsureIsmsUserLookupId(email) {
+  const key = String(email || '').toLowerCase().trim();
+  if (!key) return null;
+  if (_ismsUserLookup[key]) return _ismsUserLookup[key];
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const siteId = await _ismsSiteId(token);
+  if (!_ismsUserListId) {
+    const lists = await _get(`${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name,list&$top=100`, token);
+    const uil = (lists.value || []).find(l => l.list && l.list.template === 'userInformationList');
+    if (!uil) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden.');
+    _ismsUserListId = uil.id;
+  }
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${_ismsUserListId}/items?$expand=fields($select=id,EMail,UserName,Title)&$top=500`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      const em = (f.EMail || '').toLowerCase();
+      if (em) _ismsUserLookup[em] = parseInt(it.id, 10) || it.id;
+    }
+    if (_ismsUserLookup[key]) break;
+    url = resp['@odata.nextLink'] || null;
+  }
+  return _ismsUserLookup[key] || null;
 }
 
 /** Metadaten eines ISMS-Dokuments speichern (nur vorhandene/bearbeitbare Spalten). */
