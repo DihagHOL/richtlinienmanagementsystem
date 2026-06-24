@@ -143,9 +143,10 @@ function anleitungHtml() {
           lassen sich <b>direkt in der Liste</b> umstellen (speichert sofort); oben nach Stand filtern.</li>
         <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: Metadaten (inkl. <b>Owner</b>)
           bearbeiten, Vorschau, Versionsverlauf.</li>
-        <li style="${liStyle}"><b>„✏️ Dokument bearbeiten“</b> öffnet die Datei in Office – beim Speichern
-          entsteht automatisch eine neue Version. Oder <b>„⬆ Neue Version“</b> → geänderte Datei
-          hochladen mit Pflicht-<b>Änderungsnotiz</b>.</li>
+        <li style=”${liStyle}”><b>„✏️ In Office bearbeiten”</b> (Desktop) oder <b>„🌐 Im Browser
+          bearbeiten”</b> (ohne installiertes Office) – beim Speichern entsteht automatisch eine
+          neue Version. Oder <b>„⬆ Neue Version”</b> → geänderte Datei hochladen mit
+          Pflicht-<b>Änderungsnotiz</b>.</li>
         <li style="${liStyle}"><b>„＋ Als Richtlinie übernehmen“</b> macht aus einem ISMS-Dokument eine
           Richtlinie im Schulungs-/Freigabe-Workflow.</li>
       </ul>

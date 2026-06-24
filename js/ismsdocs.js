@@ -391,7 +391,8 @@ async function openIsmsDoc(itemId) {
       </div>
 
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
-        <button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ Dokument bearbeiten</button>
+        ${_ismsOfficeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
+        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="ismsEditWeb('${esc(d.driveItemId)}')">🌐 Im Browser bearbeiten</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version hochladen</button>
         <button class="btn btn-outline btn-sm" onclick="ismsShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
         <button class="btn btn-outline btn-sm" onclick="ismsPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
@@ -532,12 +533,35 @@ function ismsEditOffice(driveItemId) {
   const fileUrl = d.fileUrl || d.webUrl;
   if (scheme && fileUrl) {
     window.location.href = `${scheme}:ofe|u|${fileUrl}`;   // ms-word/excel/powerpoint:ofe|u|<datei>
-    toast('Öffne in Office … Beim Speichern entsteht automatisch eine neue Version.');
+    toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser bearbeiten" nutzen.');
   } else if (d.webUrl) {
-    window.open(d.webUrl, '_blank', 'noopener');           // Nicht-Office → im Browser öffnen
+    ismsEditWeb(driveItemId);                              // Nicht-Office → direkt im Browser
   } else {
     toast('Keine Datei-URL verfügbar.', 'error');
   }
+}
+
+/** Web-Edit-URL (Office für das Web, Bearbeitungsmodus). Funktioniert auch ohne
+ *  installiertes Desktop-Office; Speichern erzeugt ebenfalls eine neue Version. */
+function _ismsWebEditUrl(d) {
+  let u = d.webUrl || '';
+  if (/Doc\.aspx/i.test(u)) {                               // Viewer-URL → action=edit erzwingen
+    u = u.replace(/([?&])action=[^&]*/i, '$1action=edit');
+    if (!/[?&]action=/i.test(u)) u += (u.includes('?') ? '&' : '?') + 'action=edit';
+    return u;
+  }
+  if (d.fileUrl) return d.fileUrl + (d.fileUrl.includes('?') ? '&' : '?') + 'web=1';
+  return u;
+}
+
+/** Dokument in Office für das Web öffnen (neuer Tab). */
+function ismsEditWeb(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  const url = _ismsWebEditUrl(d);
+  if (!url) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  window.open(url, '_blank', 'noopener');
+  toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
 }
 
 async function ismsPreview(driveItemId) {
