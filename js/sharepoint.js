@@ -32,7 +32,7 @@ const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
   courseListId: null,
   ismsSiteId: null,
-  ismsDriveId: null, ismsDriveName: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
+  ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
   ackFields: new Set(['Title']),
   courseFields: new Set(['Title']),
@@ -548,6 +548,7 @@ async function _ismsLib(token) {
 async function _ismsSetDrive(token, drive) {
   _sp.ismsDriveId = drive.id;
   _sp.ismsDriveName = drive.name;
+  _sp.ismsDriveWebUrl = drive.webUrl || '';   // Bibliothekswurzel-URL (für direkte Datei-URLs)
   _sp.ismsColMeta = null;   // Spalten gehören zur Bibliothek → neu laden
   const list = await _get(`${SP.graphBase}/drives/${drive.id}/list?$select=id`, token);
   _sp.ismsListId = list.id;
@@ -611,6 +612,16 @@ function _ismsFolderPath(di) {
   return (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
 }
 
+/** Direkte Datei-URL (Bibliothekswurzel + Ordner + Dateiname) – nötig für das
+ *  Office-URI-Schema (ms-word/excel/powerpoint:ofe|u|<DIREKTE-Datei-URL>).
+ *  di.webUrl liefert je nach Tenant nur die Doc.aspx-Viewer-URL, die Office nicht öffnen kann. */
+function _ismsFileUrl(folderPath, name) {
+  const base = (_sp.ismsDriveWebUrl || '').replace(/\/+$/, '');
+  if (!base || !name) return '';
+  const folder = String(folderPath || '').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  return base + (folder ? '/' + folder : '') + '/' + encodeURIComponent(name);
+}
+
 /** Ein DriveItem (mit expand listItem.fields) → vereinheitlichtes Dokument-Objekt. */
 function _ismsMapDriveItem(di, folderPath) {
   const li = di.listItem || {};
@@ -622,6 +633,7 @@ function _ismsMapDriveItem(di, folderPath) {
     folder:      folderPath || '',
     size:        di.size || 0,
     webUrl:      di.webUrl || '',
+    fileUrl:     _ismsFileUrl(folderPath, di.name),        // direkte Datei-URL für Office-Bearbeitung
     modified:    di.lastModifiedDateTime || '',
     modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName) || '',
     fields:      li.fields || {},                          // volle Metadaten (listItem expand)

@@ -13,6 +13,7 @@ let _ismsDocs = null;     // geladene Dokumente (Cache)
 let _ismsCols = null;     // bearbeitbare Spalten der Bibliothek
 let _ismsDrives = null;   // verfügbare ISMS-Bibliotheken (für Diagnose/Wechsel)
 let _ismsLoading = false; // wird gerade (im Hintergrund) nachgeladen?
+let _ismsEditOrig = {};   // Ausgangswerte der geöffneten Metadaten (col.name → Anfangs-String)
 let _ismsMembers = null;  // Mitarbeiter für die Personenauswahl (Owner)
 
 async function _ensureIsmsMembers() {
@@ -335,6 +336,19 @@ function _ismsPersonText(v) {
   return String(v);
 }
 
+/** Anfangswert eines Eingabefelds als String – exakt so, wie das Input-Element ihn beim
+ *  Öffnen hält. Dient dem Vergleich „geändert?“ beim Speichern (nur Änderungen werden gePATCHt). */
+function _ismsInitialInputValue(col, val) {
+  const v = (val == null) ? '' : val;
+  switch (col.type) {
+    case 'person':  return _ismsPersonText(v);
+    case 'boolean': return v === true ? 'Ja' : v === false ? 'Nein' : '';
+    case 'date':    return String(v).slice(0, 10);
+    case 'choice':  return (col.choices || []).includes(v) ? String(v) : '';  // unbekannter Wert → Select zeigt „– keine –“
+    default:        return String(v);
+  }
+}
+
 async function openIsmsDoc(itemId) {
   const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
   if (!d) return;
@@ -352,6 +366,10 @@ async function openIsmsDoc(itemId) {
   const peopleDatalist = hasPerson
     ? `<datalist id="isms-people">${(_ismsMembers || []).map(u => `<option value="${esc(u.name)} (${esc(u.upn)})"></option>`).join('')}</datalist>`
     : '';
+
+  // Ausgangswerte merken → beim Speichern nur tatsächlich geänderte Felder PATCHen
+  _ismsEditOrig = {};
+  (_ismsCols || []).forEach(col => { _ismsEditOrig[col.name] = _ismsInitialInputValue(col, d.fields?.[col.name]); });
 
   const metaRows = (_ismsCols || []).length
     ? _ismsCols.map(col => `
@@ -393,30 +411,41 @@ async function openIsmsDoc(itemId) {
     </div>`, true);
 }
 
+/** Klartext-Hinweis je nach HTTP-Status der Graph-Antwort. */
+function _ismsSaveErrHint(msg) {
+  if (/\(40[13]\)/.test(msg)) return ' – fehlende Schreibrechte auf der ISMS-Site.';
+  if (/\(400\)/.test(msg))    return ' – SharePoint hat den Feldwert abgelehnt.';
+  return '';
+}
+
 async function saveIsmsDocMeta(itemId) {
   const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
   if (!d) return;
   const btn = document.getElementById('isms-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Speichern …'; }
-  const fields = {};
-  const personDisplay = {};   // col.name → Anzeigename (für Cache-Update)
+
+  // Nur tatsächlich geänderte Felder einsammeln (jede Spalte als eigenes Teil-Payload,
+  // damit ein fehlerhaftes Feld isoliert werden kann statt das ganze Speichern zu kippen).
+  const changes = [];   // { col, payload, cacheVal, curStr }
   try {
     for (const col of (_ismsCols || [])) {
       if (col.type === 'readonly') continue;
       const el = document.getElementById(`isms-f-${col.name}`);
       if (!el) continue;
+      const curStr = el.value;
+      if (curStr.trim() === String(_ismsEditOrig[col.name] ?? '').trim()) continue;   // unverändert
 
       if (col.type === 'person') {
-        const raw = el.value.trim();
+        const raw = curStr.trim();
         if (!raw) {                                   // geleert → Person entfernen
-          fields[col.name + 'LookupId'] = col.multi ? [] : null;
-          if (col.multi) fields[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
-          personDisplay[col.name] = '';
+          const payload = {};
+          payload[col.name + 'LookupId'] = col.multi ? [] : null;
+          if (col.multi) payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
+          changes.push({ col, payload, cacheVal: null, curStr });
           continue;
         }
         const parts = col.multi ? raw.split(',') : [raw];
-        const ids = [];
-        const names = [];
+        const ids = [], names = [];
         for (const p of parts) {
           const email = _ismsResolveEmail(p);
           if (!email) { toast(`„${p.trim()}" nicht als Person erkannt – übersprungen.`, 'error'); continue; }
@@ -426,29 +455,61 @@ async function saveIsmsDocMeta(itemId) {
           names.push((p.match(/^[^(]+/) || [p])[0].trim());
         }
         if (!ids.length) continue;
-        if (col.multi) { fields[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; fields[col.name + 'LookupId'] = ids; }
-        else fields[col.name + 'LookupId'] = ids[0];
-        personDisplay[col.name] = names.join(', ');
+        const payload = {};
+        if (col.multi) { payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; payload[col.name + 'LookupId'] = ids; }
+        else payload[col.name + 'LookupId'] = ids[0];
+        changes.push({ col, payload, cacheVal: { LookupValue: names.join(', ') }, curStr });
         continue;
       }
 
-      let v = el.value;
-      if (col.type === 'number') { if (v === '') continue; v = parseFloat(v); }
-      else if (col.type === 'boolean') { if (v === '') continue; v = (v === 'Ja'); }
-      else if (col.type === 'date') { if (!v) continue; v = new Date(v + 'T00:00:00Z').toISOString(); }
-      fields[col.name] = v;
+      let v = curStr;
+      if (col.type === 'number')      { v = (v === '') ? null : parseFloat(v); }
+      else if (col.type === 'boolean'){ v = (v === '') ? null : (v === 'Ja'); }
+      else if (col.type === 'date')   { v = (!v) ? null : new Date(v + 'T00:00:00Z').toISOString(); }
+      const payload = {}; payload[col.name] = v;
+      changes.push({ col, payload, cacheVal: v, curStr });
     }
 
-    await spSaveIsmsItemFields(itemId, fields);
-    // Cache aktualisieren (Person-Felder als Anzeigeobjekt, nicht als LookupId)
-    for (const [k, v] of Object.entries(fields)) { if (!/LookupId/.test(k)) d.fields[k] = v; }
-    for (const [k, name] of Object.entries(personDisplay)) d.fields[k] = name ? { LookupValue: name } : null;
-    toast('Metadaten gespeichert ✓', 'success');
-    closeModal();
-    renderIsmsDocs();
+    if (!changes.length) { toast('Keine Änderungen vorgenommen.'); closeModal(); return; }
+
+    // 1. Versuch: alles in einem PATCH (schnell, ein Request).
+    const merged = Object.assign({}, ...changes.map(c => c.payload));
+    try {
+      await spSaveIsmsItemFields(itemId, merged);
+      _ismsApplyChanges(d, changes);
+      toast('Metadaten gespeichert ✓', 'success');
+      closeModal();
+      renderIsmsDocs();
+      return;
+    } catch (bulkErr) {
+      if (changes.length === 1) throw bulkErr;   // nur ein Feld → direkter Fehler
+      // 2. Versuch: Felder einzeln speichern, um das fehlerhafte zu isolieren.
+      const ok = [], failed = [];
+      for (const c of changes) {
+        try { await spSaveIsmsItemFields(itemId, c.payload); ok.push(c); }
+        catch (e) { failed.push({ label: c.col.label, msg: e.message }); }
+      }
+      _ismsApplyChanges(d, ok);
+      renderIsmsDocs();
+      if (!failed.length) {                       // doch alles durch (z.B. Reihenfolge)
+        toast('Metadaten gespeichert ✓', 'success'); closeModal(); return;
+      }
+      if (ok.length) toast(`${ok.length} Feld(er) gespeichert.`, 'success');
+      const f = failed[0];
+      toast(`Feld „${f.label}" nicht gespeichert${_ismsSaveErrHint(f.msg)}`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+    }
   } catch (e) {
-    toast('Speichern fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
+    toast('Speichern fehlgeschlagen: ' + e.message + _ismsSaveErrHint(e.message), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+  }
+}
+
+/** Cache + Ausgangswerte für erfolgreich gespeicherte Felder aktualisieren. */
+function _ismsApplyChanges(d, changes) {
+  for (const c of changes) {
+    d.fields[c.col.name] = c.cacheVal;
+    _ismsEditOrig[c.col.name] = c.curStr;   // gilt jetzt als neuer Ausgangswert
   }
 }
 
@@ -465,13 +526,17 @@ function _ismsOfficeScheme(name) {
  *  eine neue SharePoint-Version); andere → in SharePoint öffnen (dort Web-Edit). */
 function ismsEditOffice(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
-  if (!d || !d.webUrl) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
   const scheme = _ismsOfficeScheme(d.name);
-  if (scheme) {
-    window.location.href = `${scheme}:ofe|u|${d.webUrl}`;   // Office-URI-Schema
+  // Office-URI-Schema braucht die DIREKTE Datei-URL (nicht die Doc.aspx-Viewer-URL).
+  const fileUrl = d.fileUrl || d.webUrl;
+  if (scheme && fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;   // ms-word/excel/powerpoint:ofe|u|<datei>
     toast('Öffne in Office … Beim Speichern entsteht automatisch eine neue Version.');
+  } else if (d.webUrl) {
+    window.open(d.webUrl, '_blank', 'noopener');           // Nicht-Office → im Browser öffnen
   } else {
-    window.open(d.webUrl, '_blank', 'noopener');
+    toast('Keine Datei-URL verfügbar.', 'error');
   }
 }
 
