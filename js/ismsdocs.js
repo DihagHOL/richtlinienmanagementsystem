@@ -618,16 +618,22 @@ async function _ismsWfRun(itemId, label, build) {
 /** Aktion: Konformität bestätigt (Prüfer). */
 async function ismsWfKonform(itemId) {
   await _ismsWfRun(itemId, 'Konformität bestätigt', async (cols, patch, cache) => {
-    if (cols.konform) await _ismsSetSelf(cols.konform, patch, cache);
+    if (cols.konform) await _ismsTrySetSelf(cols.konform, patch, cache);   // Status läuft auch ohne Personen-Auflösung weiter
     _ismsAdvanceChoice(cols.stand, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i], patch, cache);
   });
+}
+
+/** Wie _ismsSetSelf, aber Fehler nur als Warnung (blockiert die Status-Änderung nicht). */
+async function _ismsTrySetSelf(col, patch, cache) {
+  try { await _ismsSetSelf(col, patch, cache); }
+  catch (e) { toast(`„${col.label}" nicht gesetzt: ${e.message}`, 'error'); }
 }
 
 /** Aktion: Freigabe durch Geschäftsleitung (setzt Freigabe + Unterschrift). */
 async function ismsWfFreigeben(itemId) {
   await _ismsWfRun(itemId, 'Freigegeben', async (cols, patch, cache) => {
     _ismsAdvanceChoice(cols.freigabe, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i], patch, cache);
-    if (cols.unterschrieben) await _ismsSetSelf(cols.unterschrieben, patch, cache);
+    if (cols.unterschrieben) await _ismsTrySetSelf(cols.unterschrieben, patch, cache);
     _ismsAdvanceChoice(cols.stand, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i], patch, cache);
   });
 }
