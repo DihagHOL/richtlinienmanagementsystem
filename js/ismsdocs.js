@@ -429,6 +429,7 @@ async function saveIsmsDocMeta(itemId) {
   // Nur tatsächlich geänderte Felder einsammeln (jede Spalte als eigenes Teil-Payload,
   // damit ein fehlerhaftes Feld isoliert werden kann statt das ganze Speichern zu kippen).
   const changes = [];   // { col, payload, cacheVal, curStr }
+  let softFail = false; // ein Feld (z.B. Person) konnte nicht vorbereitet werden
   try {
     for (const col of (_ismsCols || [])) {
       if (col.type === 'readonly') continue;
@@ -446,21 +447,27 @@ async function saveIsmsDocMeta(itemId) {
           changes.push({ col, payload, cacheVal: null, curStr });
           continue;
         }
-        const parts = col.multi ? raw.split(',') : [raw];
-        const ids = [], names = [];
-        for (const p of parts) {
-          const email = _ismsResolveEmail(p);
-          if (!email) { toast(`„${p.trim()}" nicht als Person erkannt – übersprungen.`, 'error'); continue; }
-          const lid = await spEnsureIsmsUserLookupId(email);
-          if (!lid) { toast(`„${email}" in SharePoint nicht gefunden (Person muss die ISMS-Site einmal besucht haben).`, 'error'); continue; }
-          ids.push(lid);
-          names.push((p.match(/^[^(]+/) || [p])[0].trim());
+        // Personen-Auflösung darf das Speichern der anderen Felder NICHT abbrechen.
+        try {
+          const parts = col.multi ? raw.split(',') : [raw];
+          const ids = [], names = [];
+          for (const p of parts) {
+            const email = _ismsResolveEmail(p);
+            if (!email) { toast(`„${p.trim()}" nicht als Person erkannt – übersprungen.`, 'error'); continue; }
+            const lid = await spEnsureIsmsUserLookupId(email);
+            if (!lid) { toast(`„${email}" in SharePoint nicht gefunden (Person muss die ISMS-Site einmal besucht haben).`, 'error'); continue; }
+            ids.push(lid);
+            names.push((p.match(/^[^(]+/) || [p])[0].trim());
+          }
+          if (!ids.length) continue;
+          const payload = {};
+          if (col.multi) { payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; payload[col.name + 'LookupId'] = ids; }
+          else payload[col.name + 'LookupId'] = ids[0];
+          changes.push({ col, payload, cacheVal: { LookupValue: names.join(', ') }, curStr });
+        } catch (e) {
+          softFail = true;
+          toast(`„${col.label}" nicht gespeichert: ${e.message}`, 'error');   // andere Felder laufen weiter
         }
-        if (!ids.length) continue;
-        const payload = {};
-        if (col.multi) { payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; payload[col.name + 'LookupId'] = ids; }
-        else payload[col.name + 'LookupId'] = ids[0];
-        changes.push({ col, payload, cacheVal: { LookupValue: names.join(', ') }, curStr });
         continue;
       }
 
@@ -472,16 +479,24 @@ async function saveIsmsDocMeta(itemId) {
       changes.push({ col, payload, cacheVal: v, curStr });
     }
 
-    if (!changes.length) { toast('Keine Änderungen vorgenommen.'); closeModal(); return; }
+    if (!changes.length) {
+      if (softFail) { if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; } return; }
+      toast('Keine Änderungen vorgenommen.'); closeModal(); return;
+    }
 
     // 1. Versuch: alles in einem PATCH (schnell, ein Request).
     const merged = Object.assign({}, ...changes.map(c => c.payload));
     try {
       await spSaveIsmsItemFields(itemId, merged);
       _ismsApplyChanges(d, changes);
+      renderIsmsDocs();
+      if (softFail) {   // andere Felder gespeichert, ein Personenfeld blieb offen → Dialog offen lassen
+        toast(`${changes.length} Feld(er) gespeichert.`, 'success');
+        if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+        return;
+      }
       toast('Metadaten gespeichert ✓', 'success');
       closeModal();
-      renderIsmsDocs();
       return;
     } catch (bulkErr) {
       if (changes.length === 1) throw bulkErr;   // nur ein Feld → direkter Fehler
@@ -493,8 +508,13 @@ async function saveIsmsDocMeta(itemId) {
       }
       _ismsApplyChanges(d, ok);
       renderIsmsDocs();
-      if (!failed.length) {                       // doch alles durch (z.B. Reihenfolge)
+      if (!failed.length && !softFail) {          // doch alles durch (z.B. Reihenfolge)
         toast('Metadaten gespeichert ✓', 'success'); closeModal(); return;
+      }
+      if (!failed.length) {                       // Choice/Text gespeichert, nur Personenfeld offen
+        toast(`${ok.length} Feld(er) gespeichert.`, 'success');
+        if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+        return;
       }
       if (ok.length) toast(`${ok.length} Feld(er) gespeichert.`, 'success');
       const f = failed[0];
@@ -699,11 +719,15 @@ function proposePolicyChange(policyId) {
 
 function openProposalModal(titel, ctx) {
   _proposalCtx = Object.assign({ titel }, ctx || {});
+  const rec = _proposalRecipients(_proposalCtx);
+  const recHtml = rec.length
+    ? `Geht per E-Mail an: <b>${rec.map(esc).join(', ')}</b>`
+    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt – bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
   openModal(`
     <div class="modal-header"><h3>✏️ Änderung vorschlagen</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b> – geht per E-Mail an die Verantwortlichen.</div>
+      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br>${recHtml}</div>
       <div class="form-grid">
         <div class="form-group full"><label>Abschnitt / Betreff</label>
           <input type="text" id="prop-betreff" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
@@ -760,11 +784,23 @@ async function sendProposal() {
       ${grund ? `<p><b>Begründung:</b><br>${br(grund)}</p>` : ''}
       <p style="color:#6b7280;font-size:12px;margin-top:16px">Eingereicht von ${esc(who)} · ${new Date().toLocaleString('de-DE')}<br>
       Automatisch aus dem DIHAG Richtlinienmanagement.</p></div>`;
-    await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html);
+    const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html);
+    if (sent === false) return;   // Consent-Redirect läuft – Seite lädt neu
     toast('Vorschlag gesendet ✓', 'success');
     closeModal();
   } catch (e) {
-    toast('Senden fehlgeschlagen: ' + e.message, 'error');
+    toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Vorschlag senden'; }
   }
+}
+
+/** Rohen Graph-Fehler (oft JSON) in eine verständliche Meldung übersetzen. */
+function _proposalErrHint(msg) {
+  msg = String(msg || '');
+  if (/MailboxNotEnabled|REST API is not yet supported|mailbox/i.test(msg)) return ': Das Postfach unterstützt keinen Mailversand. Bitte IT kontaktieren.';
+  if (/(\b40[13]\b)|AccessDenied|Authorization|insufficient|consent|scope/i.test(msg)) return ': Keine Berechtigung zum Mailversand (Mail.Send). Beim ersten Mal ggf. die Zustimmung erteilen und erneut versuchen.';
+  if (/quota|throttl|429/i.test(msg)) return ': Zu viele Anfragen – bitte kurz warten und erneut senden.';
+  // Kein erkanntes Muster → JSON-Ballast wegkürzen
+  const short = msg.replace(/\s*\{[\s\S]*$/, '').trim();
+  return short ? ': ' + short : ': Unbekannter Fehler beim Mailversand.';
 }

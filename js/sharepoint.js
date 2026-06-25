@@ -713,6 +713,33 @@ async function spGetIsmsItemFields(itemId) {
  *  der ISMS-Site auflösen. Gibt null, wenn die Person dort (noch) nicht existiert. */
 let _ismsUserListId = null;
 const _ismsUserLookup = {};   // email(lowercase) → LookupId
+
+/** Benutzerinformationsliste der ISMS-Site finden. Sie ist eine versteckte
+ *  Systemliste – mehrstufig suchen: Template/Name/Anzeigename (sprachunabhängig,
+ *  mit Paging), sonst Direktzugriff über bekannte (lokalisierte) Namen. */
+async function _ismsUserInfoListId(siteId, token) {
+  if (_ismsUserListId) return _ismsUserListId;
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name,list&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l =>
+        (l.list && l.list.template === 'userInformationList') ||
+        /user information|benutzerinfo/i.test(l.displayName || '') ||
+        /^users$/i.test(l.name || ''));
+      if (hit) { _ismsUserListId = hit.id; return _ismsUserListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter mit Direktzugriff */ }
+  for (const nm of ['User Information List', 'Benutzerinformationsliste', 'Users']) {
+    try {
+      const l = await _get(`${SP.graphBase}/sites/${siteId}/lists/${encodeURIComponent(nm)}?$select=id`, token);
+      if (l && l.id) { _ismsUserListId = l.id; return _ismsUserListId; }
+    } catch (e) { /* nächster Name */ }
+  }
+  return null;
+}
+
 async function spEnsureIsmsUserLookupId(email) {
   const key = String(email || '').toLowerCase().trim();
   if (!key) return null;
@@ -720,19 +747,18 @@ async function spEnsureIsmsUserLookupId(email) {
   const token = await acquireToken(SP.scopes);
   if (!token) return null;
   const siteId = await _ismsSiteId(token);
-  if (!_ismsUserListId) {
-    const lists = await _get(`${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name,list&$top=100`, token);
-    const uil = (lists.value || []).find(l => l.list && l.list.template === 'userInformationList');
-    if (!uil) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden.');
-    _ismsUserListId = uil.id;
-  }
-  let url = `${SP.graphBase}/sites/${siteId}/lists/${_ismsUserListId}/items?$expand=fields($select=id,EMail,UserName,Title)&$top=500`;
+  const listId = await _ismsUserInfoListId(siteId, token);
+  if (!listId) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden – Person ggf. direkt in SharePoint setzen.');
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields($select=id,EMail,UserName,Title)&$top=500`;
   while (url) {
     const resp = await _get(url, token);
     for (const it of (resp.value || [])) {
       const f = it.fields || {};
+      const id = parseInt(it.id, 10) || it.id;
       const em = (f.EMail || '').toLowerCase();
-      if (em) _ismsUserLookup[em] = parseInt(it.id, 10) || it.id;
+      if (em) _ismsUserLookup[em] = id;
+      const un = (f.UserName || '').toLowerCase();   // Fallback: Login-Name ist oft die UPN/E-Mail
+      if (un && /@/.test(un) && !_ismsUserLookup[un]) _ismsUserLookup[un] = id;
     }
     if (_ismsUserLookup[key]) break;
     url = resp['@odata.nextLink'] || null;
