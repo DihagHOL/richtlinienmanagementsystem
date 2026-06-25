@@ -102,10 +102,11 @@ function fillIsmsFolderFilter() {
 /* ── Anzeige-/Bearbeitungsfelder (gewünscht): per Anzeige-Label auf die echten
       SharePoint-Spaltennamen aufgelöst (interne Namen sind unbekannt). ── */
 const ISMS_FIELDS = [
-  { key: 'stand',          label: 'Bearbeitungsstand',    re: /bearbeitungs(stand|status)|status/i, inlineSelect: true },
-  { key: 'vertraulich',    label: 'Vertraulichkeit',      re: /vertraulich|geheimhaltung|einstufung|classification/i, inlineSelect: true },
-  { key: 'unterschrieben', label: 'Unterschrieben von',   re: /unterschrieben|unterzeichnet|signed|freigegeben.*von|genehmigt.*von/i },
-  { key: 'angefasst',      label: 'Zuletzt angefasst am', re: /zuletzt.*(angefasst|geändert|bearbeitet)|angefasst|geändert|geaendert|modified/i, date: true, fallbackModified: true },
+  { key: 'stand',        label: 'Bearbeitungsstand', re: /bearbeitungs(stand|status)|status/i, inlineSelect: true },
+  { key: 'vertraulich',  label: 'Vertraulichkeit',   re: /vertraulich|geheimhaltung|einstufung|classification/i, inlineSelect: true },
+  { key: 'konform_von',  label: 'Auf Konformität geprüft von', re: /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit|conformity|compliance.*(by|von|gepr)/i, inlineSelect: true },
+  { key: 'freigabe_gl',  label: 'Freigabe Geschäftsleitung',   re: /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)|management.*approv/i, inlineSelect: true },
+  { key: 'angefasst',    label: 'Zuletzt angefasst am', re: /zuletzt.*(angefasst|geändert|bearbeitet)|angefasst|geändert|geaendert|modified/i, date: true, fallbackModified: true },
 ];
 
 function _ismsColFor(re) {

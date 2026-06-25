@@ -139,8 +139,9 @@ function anleitungHtml() {
       <h3 style="${h3}">ISMS-Dokumente (ISO 27001)</h3>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
         <li style="${liStyle}">Spalten <b>Bearbeitungsstand</b>, <b>Vertraulichkeit</b>,
-          <b>Unterschrieben von</b>, <b>Zuletzt angefasst</b>. Bearbeitungsstand und Vertraulichkeit
-          lassen sich <b>direkt in der Liste</b> umstellen (speichert sofort); oben nach Stand filtern.</li>
+          <b>Auf Konformität geprüft von</b>, <b>Freigabe Geschäftsleitung</b>, <b>Zuletzt angefasst</b>.
+          Auswahl-Spalten lassen sich <b>direkt in der Liste</b> umstellen (speichert sofort); oben nach
+          Stand filtern.</li>
         <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: Metadaten (inkl. <b>Owner</b>)
           bearbeiten, Vorschau, Versionsverlauf.</li>
         <li style=”${liStyle}”><b>„✏️ In Office bearbeiten”</b> (Desktop) oder <b>„🌐 Im Browser
