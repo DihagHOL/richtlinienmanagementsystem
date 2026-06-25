@@ -140,22 +140,26 @@ function anleitungHtml() {
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
         <li style="${liStyle}">Spalten <b>Bearbeitungsstand</b>, <b>Vertraulichkeit</b>,
           <b>Auf Konformität geprüft von</b>, <b>Freigabe Geschäftsleitung</b>, <b>Zuletzt angefasst</b>.
-          Auswahl-Spalten lassen sich <b>direkt in der Liste</b> umstellen (speichert sofort); oben nach
-          Stand filtern.</li>
-        <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: Metadaten (inkl. <b>Owner</b>)
-          bearbeiten, Vorschau, Versionsverlauf.</li>
-        <li style=”${liStyle}”><b>„✏️ In Office bearbeiten”</b> (Desktop) oder <b>„🌐 Im Browser
-          bearbeiten”</b> (ohne installiertes Office) – beim Speichern entsteht automatisch eine
-          neue Version. Oder <b>„⬆ Neue Version”</b> → geänderte Datei hochladen mit
+          <b>Vertraulichkeit</b> ist direkt in der Liste umstellbar; oben nach Stand filtern.</li>
+        <li style="${liStyle}"><b>Status &amp; Freigabe</b> (Bearbeitungsstand, Konformität geprüft von,
+          Freigabe Geschäftsleitung, Unterschrieben von) werden <b>nicht manuell getippt</b>, sondern in
+          der Detailansicht per Knopf gesetzt: <b>Prüfer</b> → „✓ Konformität bestätigen“,
+          <b>Geschäftsleitung</b> → „✓ Freigeben“, Admins/Prüfer → „↩ Zurücksetzen“. Der angemeldete
+          Benutzer und der passende Status werden automatisch eingetragen.</li>
+        <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: Status-Workflow oben,
+          darunter restliche Metadaten (inkl. <b>Owner</b>) bearbeiten, Vorschau, Versionsverlauf.</li>
+        <li style="${liStyle}"><b>„✏️ In Office bearbeiten“</b> (Desktop) oder <b>„🌐 Im Browser
+          bearbeiten“</b> (ohne installiertes Office) – beim Speichern entsteht automatisch eine
+          neue Version. Oder <b>„⬆ Neue Version“</b> → geänderte Datei hochladen mit
           Pflicht-<b>Änderungsnotiz</b>.</li>
         <li style="${liStyle}"><b>„＋ Als Richtlinie übernehmen“</b> macht aus einem ISMS-Dokument eine
           Richtlinie im Schulungs-/Freigabe-Workflow.</li>
       </ul>
       <h3 style="${h3}">Einstellungen</h3>
       <p style="margin:0;line-height:1.55;color:var(--c-text)">Rollen pflegen: <b>Admins, Genehmiger,
-        Prüfer, Geschäftsleitung, KI-Gremium</b> und <b>ISMS-Verantwortliche</b> (Empfänger der
-        Änderungsvorschläge). Außerdem Genehmigungs-Schwellen und automatische
-        <b>Review-Erinnerungen</b>.</p>`)}
+        Prüfer, Geschäftsleitung, KI-Gremium</b>, <b>ISMS-Verantwortliche</b> und
+        <b>Vorschlags-Empfänger</b> (beide erhalten die Änderungsvorschläge). Außerdem
+        Genehmigungs-Schwellen und automatische <b>Review-Erinnerungen</b>.</p>`)}
 
     <!-- 5. Gut zu wissen -->
     ${_aCard(`

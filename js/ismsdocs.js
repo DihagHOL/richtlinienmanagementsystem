@@ -262,9 +262,10 @@ function renderIsmsDocs() {
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
-  // Auswahl-Spalten je inline-Feld vorab auflösen (Bearbeitungsstand, Vertraulichkeit)
+  // Auswahl-Spalten je inline-Feld vorab auflösen. Workflow-Felder (Bearbeitungsstand,
+  // Freigabe GL, geprüft von) sind NICHT inline editierbar – sie laufen über den Status-Workflow.
   const choiceCols = {};
-  ISMS_FIELDS.forEach(f => { const c = _ismsChoiceColFor(f); if (c) choiceCols[f.key] = c; });
+  ISMS_FIELDS.forEach(f => { if (ISMS_WF_TABLE_KEYS.has(f.key)) return; const c = _ismsChoiceColFor(f); if (c) choiceCols[f.key] = c; });
 
   mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr>
@@ -361,8 +362,11 @@ async function openIsmsDoc(itemId) {
       d.fieldsFull = true;
     } catch (e) { /* mit Teil-Feldern weitermachen */ }
   }
+  // Workflow-Felder (Status/Freigabe) werden separat oben gesetzt → aus dem Editor ausschließen
+  const editCols = (_ismsCols || []).filter(c => !_ismsIsWorkflowCol(c));
+
   // Für Person-Spalten (z.B. Owner) die Mitarbeiterliste laden → Auswahl-Datalist
-  const hasPerson = (_ismsCols || []).some(c => c.type === 'person');
+  const hasPerson = editCols.some(c => c.type === 'person');
   if (hasPerson) await _ensureIsmsMembers();
   const peopleDatalist = hasPerson
     ? `<datalist id="isms-people">${(_ismsMembers || []).map(u => `<option value="${esc(u.name)} (${esc(u.upn)})"></option>`).join('')}</datalist>`
@@ -370,15 +374,15 @@ async function openIsmsDoc(itemId) {
 
   // Ausgangswerte merken → beim Speichern nur tatsächlich geänderte Felder PATCHen
   _ismsEditOrig = {};
-  (_ismsCols || []).forEach(col => { _ismsEditOrig[col.name] = _ismsInitialInputValue(col, d.fields?.[col.name]); });
+  editCols.forEach(col => { _ismsEditOrig[col.name] = _ismsInitialInputValue(col, d.fields?.[col.name]); });
 
-  const metaRows = (_ismsCols || []).length
-    ? _ismsCols.map(col => `
+  const metaRows = editCols.length
+    ? editCols.map(col => `
         <div class="form-group${col.type === 'note' ? ' full' : ''}">
           <label>${esc(col.label)}</label>
           ${_ismsInput(col, d.fields?.[col.name])}
         </div>`).join('')
-    : '<div class="field-hint">Keine bearbeitbaren Bibliotheks-Spalten gefunden.</div>';
+    : '<div class="field-hint">Keine weiteren bearbeitbaren Bibliotheks-Spalten.</div>';
 
   openModal(`
     <div class="modal-header">
@@ -400,6 +404,8 @@ async function openIsmsDoc(itemId) {
         ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
 
+      ${_ismsWorkflowPanel(d)}
+
       <h4 style="font-size:.82rem;font-weight:700;color:#374151;margin:0 0 8px">Metadaten</h4>
       <div class="form-grid">${metaRows}</div>
       ${peopleDatalist}
@@ -409,7 +415,7 @@ async function openIsmsDoc(itemId) {
       <button class="btn btn-ghost" onclick="ismsToRichtlinie('${esc(d.driveItemId)}')">＋ Als Richtlinie übernehmen</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
-      ${(_ismsCols || []).length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta('${esc(d.itemId)}')">Metadaten speichern</button>` : ''}
+      ${editCols.length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta('${esc(d.itemId)}')">Metadaten speichern</button>` : ''}
     </div>`, true);
 }
 
@@ -533,6 +539,135 @@ function _ismsApplyChanges(d, changes) {
     d.fields[c.col.name] = c.cacheVal;
     _ismsEditOrig[c.col.name] = c.curStr;   // gilt jetzt als neuer Ausgangswert
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   ISMS-Freigabe-Workflow – Status-Felder automatisch setzen
+   Bearbeitungsstand, Auf Konformität geprüft von, Unterschrieben von und
+   Freigabe Geschäftsleitung werden NICHT manuell getippt, sondern über
+   Aktions-Buttons gesetzt (geprüft / freigegeben / zurückgesetzt). Die
+   Personenfelder bekommen den angemeldeten Benutzer; die Auswahl-Spalten
+   die erste passende vorhandene Option (kein Anlegen neuer Optionen).
+═══════════════════════════════════════════════════ */
+
+const ISMS_WF_RE = {
+  stand:          /bearbeitungs(stand|status)|status/i,
+  konform:        /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit/i,
+  unterschrieben: /unterschrieben|unterzeichnet|signed/i,
+  freigabe:       /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)/i,
+};
+const ISMS_WF_TABLE_KEYS = new Set(['stand', 'konform_von', 'freigabe_gl']);   // in der Tabelle nicht inline editierbar
+
+/** Bearbeitbare Workflow-Spalten der Bibliothek auflösen (Wert ist Spalte oder null). */
+function _ismsWfCols() {
+  const find = re => (_ismsCols || []).find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+  return { stand: find(ISMS_WF_RE.stand), konform: find(ISMS_WF_RE.konform),
+           unterschrieben: find(ISMS_WF_RE.unterschrieben), freigabe: find(ISMS_WF_RE.freigabe) };
+}
+
+/** Gehört eine Spalte zum (automatisch gesetzten) Workflow? → nicht manuell editierbar. */
+function _ismsIsWorkflowCol(col) {
+  return Object.values(ISMS_WF_RE).some(re => re.test(col.label || '') || re.test(col.name || ''));
+}
+
+/** Choice-Spalte setzen: Muster werden in Prioritäts-Reihenfolge geprüft; die erste
+ *  vorhandene passende Option gewinnt. Kein Treffer → Spalte bleibt unverändert. */
+function _ismsAdvanceChoice(col, patterns, patch, cache) {
+  if (!col || col.type !== 'choice') return;
+  const pats = Array.isArray(patterns) ? patterns : [patterns];
+  for (const re of pats) {
+    const opt = (col.choices || []).find(c => re.test(c));
+    if (opt) { patch[col.name] = opt; cache[col.name] = opt; return; }
+  }
+}
+
+/** Personen-/Textspalte auf den aktuell angemeldeten Benutzer setzen. */
+async function _ismsSetSelf(col, patch, cache) {
+  if (!col) return;
+  const me = (typeof State !== 'undefined' && State.user) ? State.user : {};
+  const name = me.name || me.upn || '';
+  if (col.type === 'person') {
+    const lid = await spEnsureIsmsUserLookupId(me.upn);
+    if (!lid) throw new Error('Angemeldete Person in SharePoint nicht gefunden (einmal die ISMS-Site besuchen).');
+    patch[col.name + 'LookupId'] = lid;
+    cache[col.name] = { LookupValue: name };
+  } else {
+    patch[col.name] = name;
+    cache[col.name] = name;
+  }
+}
+
+async function _ismsWfRun(itemId, label, build) {
+  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
+  if (!d) return;
+  const cols = _ismsWfCols();
+  const patch = {}, cache = {};
+  try {
+    await build(cols, patch, cache);
+    if (!Object.keys(patch).length) { toast('Keine passende Status-Option gefunden – bitte die Auswahloptionen der Spalten prüfen.', 'error'); return; }
+    await spSaveIsmsItemFields(itemId, patch);
+    Object.assign(d.fields, cache);
+    toast(label + ' ✓', 'success');
+    openIsmsDoc(itemId);   // Dialog mit neuem Status neu aufbauen
+    renderIsmsDocs();
+  } catch (e) {
+    toast('Aktion fehlgeschlagen: ' + e.message + _ismsSaveErrHint(e.message), 'error');
+  }
+}
+
+/** Aktion: Konformität bestätigt (Prüfer). */
+async function ismsWfKonform(itemId) {
+  await _ismsWfRun(itemId, 'Konformität bestätigt', async (cols, patch, cache) => {
+    if (cols.konform) await _ismsSetSelf(cols.konform, patch, cache);
+    _ismsAdvanceChoice(cols.stand, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i], patch, cache);
+  });
+}
+
+/** Aktion: Freigabe durch Geschäftsleitung (setzt Freigabe + Unterschrift). */
+async function ismsWfFreigeben(itemId) {
+  await _ismsWfRun(itemId, 'Freigegeben', async (cols, patch, cache) => {
+    _ismsAdvanceChoice(cols.freigabe, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i], patch, cache);
+    if (cols.unterschrieben) await _ismsSetSelf(cols.unterschrieben, patch, cache);
+    _ismsAdvanceChoice(cols.stand, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i], patch, cache);
+  });
+}
+
+/** Aktion: Status zurücksetzen (Personen/Freigabe leeren, Stand → „in Bearbeitung"). */
+async function ismsWfReset(itemId) {
+  await _ismsWfRun(itemId, 'Zurückgesetzt', async (cols, patch, cache) => {
+    for (const c of [cols.konform, cols.unterschrieben]) {
+      if (!c) continue;
+      if (c.type === 'person') { patch[c.name + 'LookupId'] = null; cache[c.name] = null; }
+      else { patch[c.name] = ''; cache[c.name] = ''; }
+    }
+    if (cols.freigabe) { patch[cols.freigabe.name] = ''; cache[cols.freigabe.name] = ''; }
+    _ismsAdvanceChoice(cols.stand, [/in bearbeitung/i, /bearbeitung/i, /entwurf/i, /in arbeit/i, /offen/i, /^neu$/i, /draft/i], patch, cache);
+  });
+}
+
+/** Status-Panel (Anzeige + Aktions-Buttons) für den Detail-Dialog. */
+function _ismsWorkflowPanel(d) {
+  const cols = _ismsWfCols();
+  if (!cols.stand && !cols.konform && !cols.freigabe && !cols.unterschrieben) return '';
+  const isPruefer = typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer();
+  const isGL = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
+  const isAdmin = typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin();
+  const chip = (lbl, c) => c ? `<div style="min-width:150px">
+      <div style="font-size:.7rem;color:var(--c-muted)">${esc(lbl)}</div>
+      <div style="font-weight:600;font-size:.85rem">${esc(_ismsPersonText(d.fields?.[c.name]) || '–')}</div></div>` : '';
+  const chips = [chip('Bearbeitungsstand', cols.stand), chip('Auf Konformität geprüft von', cols.konform),
+    chip('Freigabe Geschäftsleitung', cols.freigabe), chip('Unterschrieben von', cols.unterschrieben)].join('');
+  const btns = [];
+  if (cols.konform && (isPruefer || isAdmin)) btns.push(`<button class="btn btn-primary btn-sm" onclick="ismsWfKonform('${esc(d.itemId)}')">✓ Konformität bestätigen</button>`);
+  if ((cols.freigabe || cols.unterschrieben) && (isGL || isAdmin)) btns.push(`<button class="btn btn-primary btn-sm" onclick="ismsWfFreigeben('${esc(d.itemId)}')">✓ Freigeben (GL)</button>`);
+  if (isAdmin || isPruefer) btns.push(`<button class="btn btn-outline btn-sm" onclick="ismsWfReset('${esc(d.itemId)}')">↩ Zurücksetzen</button>`);
+  return `<div style="background:var(--c-primary-l);border:1px solid #dbe4ff;border-radius:12px;padding:14px 16px;margin:0 0 16px">
+    <div style="font-size:.82rem;font-weight:700;color:#374151;margin-bottom:10px">Status &amp; Freigabe
+      <span style="font-weight:500;color:var(--c-muted)">· wird automatisch gesetzt</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:${btns.length ? '12px' : '0'}">${chips}</div>
+    ${btns.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`
+      : `<div class="field-hint">Diese Felder setzen nur Prüfer, Geschäftsleitung oder Admins.</div>`}
+  </div>`;
 }
 
 /** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
@@ -759,6 +894,7 @@ function _proposalRecipients(ctx) {
       if (/verantwort|owner|ansprech/i.test(k)) out.push(..._extractEmails(v));
     }
   }
+  if (typeof getVorschlagEmpfaenger === 'function') out.push(...getVorschlagEmpfaenger());   // eigenes Empfänger-Feld
   if (typeof getIsmsVerantwortlich === 'function') out.push(...getIsmsVerantwortlich());
   if (!out.length && typeof getAccessConfig === 'function') out.push(...((getAccessConfig().admins) || []));
   return [...new Set(out.map(e => String(e).trim().toLowerCase()).filter(Boolean))];

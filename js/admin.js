@@ -1181,6 +1181,7 @@ function renderEinstellungen() {
       ${roleCard('geschaeftsleitung', 'Geschäftsleitung (Freigabe zur Veröffentlichung)')}
       ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard) – leer = Genehmiger-Liste gilt')}
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
+      ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
@@ -1348,7 +1349,7 @@ function roleCard(role, title) {
 const KI_GREMIUM_ROLLEN = ['Legal', 'Datenschutz', 'Compliance', 'IT'];
 
 function renderCfgLists() {
-  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich'].forEach(role => {
+  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
     if (!host) return;
     const arr = _cfgEdit[role] || [];

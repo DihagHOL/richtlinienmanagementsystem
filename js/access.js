@@ -111,6 +111,7 @@ function isCurrentUserGeschaeftsleitung() { return isGeschaeftsleitung(_currentU
 function getPruefer()           { return [...(_cfg().pruefer || [])]; }
 function getGeschaeftsleitung() { return [...(_cfg().geschaeftsleitung || [])]; }
 function getIsmsVerantwortlich(){ return [...(_cfg().ismsVerantwortlich || [])]; }   // Empfänger für Änderungsvorschläge
+function getVorschlagEmpfaenger(){ return [...(_cfg().vorschlagEmpfaenger || [])]; }  // zusätzliche, eigene Empfänger für Vorschläge
 function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
