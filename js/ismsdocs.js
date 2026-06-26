@@ -73,6 +73,16 @@ async function refreshIsmsDocs() {
   toast('ISMS-Dokumente aktualisiert', 'success');
 }
 
+/** ISMS-Cache verwerfen → der Reiter lädt beim nächsten Öffnen frisch.
+ *  Wird z. B. nach dem Status-Rückschreiben aus dem Freigabe-Workflow aufgerufen,
+ *  damit der neue Stand ohne manuelles Neuladen erscheint. Rendert sofort neu,
+ *  falls der ISMS-Reiter gerade aktiv ist. */
+function invalidateIsmsCache() {
+  _ismsDocs = null;
+  const view = document.getElementById('view-ismsdocs');
+  if (view && view.classList.contains('active')) initIsmsDocs();
+}
+
 /** Manuell auf eine andere ISMS-Bibliothek umstellen (Diagnose-Leerzustand). */
 async function selectIsmsLibrary(driveId) {
   const mount = document.getElementById('isms-mount');

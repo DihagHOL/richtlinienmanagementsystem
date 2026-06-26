@@ -794,7 +794,10 @@ async function _ismsWriteback(p, kind) {
   try {
     const ok = await spIsmsWritebackStatus(p.dokumentDriveId, p.dokumentItemId, kind,
       { upn: State.user.upn, name: State.user.name });
-    if (ok) toast(kind === 'freigabe' ? 'ISMS-Dokument: Freigabe vermerkt ✓' : 'ISMS-Dokument: Konformität vermerkt ✓', 'success');
+    if (ok) {
+      toast(kind === 'freigabe' ? 'ISMS-Dokument: Freigabe vermerkt ✓' : 'ISMS-Dokument: Konformität vermerkt ✓', 'success');
+      if (typeof invalidateIsmsCache === 'function') invalidateIsmsCache();   // ISMS-Reiter zeigt den neuen Stand frisch
+    }
   } catch (e) { console.warn('[wf] ISMS-Rückschreiben (' + kind + ') fehlgeschlagen:', e.message); }
 }
 
