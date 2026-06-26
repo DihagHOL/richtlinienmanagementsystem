@@ -855,7 +855,23 @@ function proposeIsmsChange(driveItemId) {
 /** Aus dem Detail-Reader (jeder Mitarbeiter): Vorschlag zu einer Richtlinie. */
 function proposePolicyChange(policyId) {
   const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === policyId) : null;
-  openProposalModal(p ? p.title : 'Richtlinie', {});
+  openProposalModal(p ? p.title : 'Richtlinie', { policy: p || null });
+}
+
+/** Direktlinks zum betroffenen Dokument/zur Richtlinie (für Dialog + Mail). */
+function _proposalLinks(ctx) {
+  const links = [];
+  const d = ctx && ctx.doc;
+  if (d && d.webUrl) links.push({ label: 'Dokument in SharePoint öffnen', url: d.webUrl });
+  const p = ctx && ctx.policy;
+  if (p) {
+    if (p.id) {
+      const base = location.origin + location.pathname;
+      links.push({ label: 'Richtlinie in der App öffnen', url: `${base}?richtlinie=${encodeURIComponent(p.id)}` });
+    }
+    if (p.dokumentUrl) links.push({ label: 'Dokument öffnen', url: p.dokumentUrl });
+  }
+  return links;
 }
 
 function openProposalModal(titel, ctx) {
@@ -864,11 +880,16 @@ function openProposalModal(titel, ctx) {
   const recHtml = rec.length
     ? `Geht per E-Mail an: <b>${rec.map(esc).join(', ')}</b>`
     : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt – bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
+  const links = _proposalLinks(_proposalCtx);
+  const linksHtml = links.length
+    ? `<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">${links.map(l =>
+        `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`).join('')}</div>`
+    : '';
   openModal(`
     <div class="modal-header"><h3>✏️ Änderung vorschlagen</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br>${recHtml}</div>
+      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br>${recHtml}${linksHtml}</div>
       <div class="form-grid">
         <div class="form-group full"><label>Abschnitt / Betreff</label>
           <input type="text" id="prop-betreff" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
@@ -919,8 +940,16 @@ async function sendProposal() {
   try {
     const who = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : 'Mitarbeiter';
     const br = s => esc(s).replace(/\n/g, '<br>');
+    const links = _proposalLinks(ctx);
+    const ver = ctx.doc && ctx.doc.fields ? ctx.doc.fields._UIVersionString : '';
+    const linkHtml = links.length
+      ? `<p><b>Dokument:</b><br>${links.map(l =>
+          `<a href="${esc(l.url)}" style="color:#1a56db">📄 ${esc(l.label)}</a>`).join('<br>')}
+          ${ver ? `<br><span style="color:#6b7280;font-size:12px">aktuelle Version: ${esc(ver)}</span>` : ''}</p>`
+      : '';
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
       <p><b>Änderungsvorschlag</b> zu: <b>${esc(ctx.titel || '')}</b></p>
+      ${linkHtml}
       ${betreff ? `<p><b>Abschnitt/Betreff:</b> ${esc(betreff)}</p>` : ''}
       <p><b>Vorschlag:</b><br>${br(text)}</p>
       ${grund ? `<p><b>Begründung:</b><br>${br(grund)}</p>` : ''}
