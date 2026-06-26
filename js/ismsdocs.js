@@ -542,12 +542,12 @@ function _ismsApplyChanges(d, changes) {
 }
 
 /* ═══════════════════════════════════════════════════
-   ISMS-Freigabe-Workflow – Status-Felder automatisch setzen
+   ISMS-Status – NUR ANZEIGE
    Bearbeitungsstand, Auf Konformität geprüft von, Unterschrieben von und
-   Freigabe Geschäftsleitung werden NICHT manuell getippt, sondern über
-   Aktions-Buttons gesetzt (geprüft / freigegeben / zurückgesetzt). Die
-   Personenfelder bekommen den angemeldeten Benutzer; die Auswahl-Spalten
-   die erste passende vorhandene Option (kein Anlegen neuer Optionen).
+   Freigabe Geschäftsleitung werden hier NICHT gesetzt. Der Ablauf läuft über
+   den Richtlinien-Freigabeprozess: Dokument per „＋ Als Richtlinie übernehmen"
+   einbinden und im Reiter „Freigaben" prüfen/freigeben. Dieses Panel zeigt nur
+   den aktuellen Stand und was noch offen ist.
 ═══════════════════════════════════════════════════ */
 
 const ISMS_WF_RE = {
@@ -570,109 +570,29 @@ function _ismsIsWorkflowCol(col) {
   return Object.values(ISMS_WF_RE).some(re => re.test(col.label || '') || re.test(col.name || ''));
 }
 
-/** Choice-Spalte setzen: Muster werden in Prioritäts-Reihenfolge geprüft; die erste
- *  vorhandene passende Option gewinnt. Kein Treffer → Spalte bleibt unverändert. */
-function _ismsAdvanceChoice(col, patterns, patch, cache) {
-  if (!col || col.type !== 'choice') return;
-  const pats = Array.isArray(patterns) ? patterns : [patterns];
-  for (const re of pats) {
-    const opt = (col.choices || []).find(c => re.test(c));
-    if (opt) { patch[col.name] = opt; cache[col.name] = opt; return; }
-  }
-}
-
-/** Personen-/Textspalte auf den aktuell angemeldeten Benutzer setzen. */
-async function _ismsSetSelf(col, patch, cache) {
-  if (!col) return;
-  const me = (typeof State !== 'undefined' && State.user) ? State.user : {};
-  const name = me.name || me.upn || '';
-  if (col.type === 'person') {
-    const lid = await spEnsureIsmsUserLookupId(me.upn);
-    if (!lid) throw new Error('Angemeldete Person in SharePoint nicht gefunden (einmal die ISMS-Site besuchen).');
-    patch[col.name + 'LookupId'] = lid;
-    cache[col.name] = { LookupValue: name };
-  } else {
-    patch[col.name] = name;
-    cache[col.name] = name;
-  }
-}
-
-async function _ismsWfRun(itemId, label, build) {
-  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
-  if (!d) return;
-  const cols = _ismsWfCols();
-  const patch = {}, cache = {};
-  try {
-    await build(cols, patch, cache);
-    if (!Object.keys(patch).length) { toast('Keine passende Status-Option gefunden – bitte die Auswahloptionen der Spalten prüfen.', 'error'); return; }
-    await spSaveIsmsItemFields(itemId, patch);
-    Object.assign(d.fields, cache);
-    toast(label + ' ✓', 'success');
-    openIsmsDoc(itemId);   // Dialog mit neuem Status neu aufbauen
-    renderIsmsDocs();
-  } catch (e) {
-    toast('Aktion fehlgeschlagen: ' + e.message + _ismsSaveErrHint(e.message), 'error');
-  }
-}
-
-/** Aktion: Konformität bestätigt (Prüfer). */
-async function ismsWfKonform(itemId) {
-  await _ismsWfRun(itemId, 'Konformität bestätigt', async (cols, patch, cache) => {
-    if (cols.konform) await _ismsTrySetSelf(cols.konform, patch, cache);   // Status läuft auch ohne Personen-Auflösung weiter
-    _ismsAdvanceChoice(cols.stand, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i], patch, cache);
-  });
-}
-
-/** Wie _ismsSetSelf, aber Fehler nur als Warnung (blockiert die Status-Änderung nicht). */
-async function _ismsTrySetSelf(col, patch, cache) {
-  try { await _ismsSetSelf(col, patch, cache); }
-  catch (e) { toast(`„${col.label}" nicht gesetzt: ${e.message}`, 'error'); }
-}
-
-/** Aktion: Freigabe durch Geschäftsleitung (setzt Freigabe + Unterschrift). */
-async function ismsWfFreigeben(itemId) {
-  await _ismsWfRun(itemId, 'Freigegeben', async (cols, patch, cache) => {
-    _ismsAdvanceChoice(cols.freigabe, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i], patch, cache);
-    if (cols.unterschrieben) await _ismsTrySetSelf(cols.unterschrieben, patch, cache);
-    _ismsAdvanceChoice(cols.stand, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i], patch, cache);
-  });
-}
-
-/** Aktion: Status zurücksetzen (Personen/Freigabe leeren, Stand → „in Bearbeitung"). */
-async function ismsWfReset(itemId) {
-  await _ismsWfRun(itemId, 'Zurückgesetzt', async (cols, patch, cache) => {
-    for (const c of [cols.konform, cols.unterschrieben]) {
-      if (!c) continue;
-      if (c.type === 'person') { patch[c.name + 'LookupId'] = null; cache[c.name] = null; }
-      else { patch[c.name] = ''; cache[c.name] = ''; }
-    }
-    if (cols.freigabe) { patch[cols.freigabe.name] = ''; cache[cols.freigabe.name] = ''; }
-    _ismsAdvanceChoice(cols.stand, [/in bearbeitung/i, /bearbeitung/i, /entwurf/i, /in arbeit/i, /offen/i, /^neu$/i, /draft/i], patch, cache);
-  });
-}
-
-/** Status-Panel (Anzeige + Aktions-Buttons) für den Detail-Dialog. */
+/** Status-Panel (NUR ANZEIGE) für den Detail-Dialog: aktueller Stand + was noch offen ist. */
 function _ismsWorkflowPanel(d) {
   const cols = _ismsWfCols();
   if (!cols.stand && !cols.konform && !cols.freigabe && !cols.unterschrieben) return '';
-  const isPruefer = typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer();
-  const isGL = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
-  const isAdmin = typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin();
+  const val = c => c ? (_ismsPersonText(d.fields?.[c.name]) || '') : '';
   const chip = (lbl, c) => c ? `<div style="min-width:150px">
       <div style="font-size:.7rem;color:var(--c-muted)">${esc(lbl)}</div>
-      <div style="font-weight:600;font-size:.85rem">${esc(_ismsPersonText(d.fields?.[c.name]) || '–')}</div></div>` : '';
+      <div style="font-weight:600;font-size:.85rem">${esc(val(c) || '–')}</div></div>` : '';
   const chips = [chip('Bearbeitungsstand', cols.stand), chip('Auf Konformität geprüft von', cols.konform),
     chip('Freigabe Geschäftsleitung', cols.freigabe), chip('Unterschrieben von', cols.unterschrieben)].join('');
-  const btns = [];
-  if (cols.konform && (isPruefer || isAdmin)) btns.push(`<button class="btn btn-primary btn-sm" onclick="ismsWfKonform('${esc(d.itemId)}')">✓ Konformität bestätigen</button>`);
-  if ((cols.freigabe || cols.unterschrieben) && (isGL || isAdmin)) btns.push(`<button class="btn btn-primary btn-sm" onclick="ismsWfFreigeben('${esc(d.itemId)}')">✓ Freigeben (GL)</button>`);
-  if (isAdmin || isPruefer) btns.push(`<button class="btn btn-outline btn-sm" onclick="ismsWfReset('${esc(d.itemId)}')">↩ Zurücksetzen</button>`);
+  const offen = [];
+  if (cols.konform && !val(cols.konform)) offen.push('Konformitätsprüfung');
+  if (cols.freigabe && !val(cols.freigabe)) offen.push('Freigabe Geschäftsleitung');
+  if (cols.unterschrieben && !val(cols.unterschrieben)) offen.push('Unterschrift');
+  const status = offen.length
+    ? `<span style="color:var(--c-warn);font-weight:600">Offen: ${offen.map(esc).join(', ')}</span>`
+    : `<span style="color:var(--c-success);font-weight:600">✓ Vollständig</span>`;
   return `<div style="background:var(--c-primary-l);border:1px solid #dbe4ff;border-radius:12px;padding:14px 16px;margin:0 0 16px">
     <div style="font-size:.82rem;font-weight:700;color:#374151;margin-bottom:10px">Status &amp; Freigabe
-      <span style="font-weight:500;color:var(--c-muted)">· wird automatisch gesetzt</span></div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:${btns.length ? '12px' : '0'}">${chips}</div>
-    ${btns.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`
-      : `<div class="field-hint">Diese Felder setzen nur Prüfer, Geschäftsleitung oder Admins.</div>`}
+      <span style="font-weight:500;color:var(--c-muted)">· nur Anzeige</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">${chips}</div>
+    <div style="font-size:.8rem;margin-bottom:6px">${status}</div>
+    <div class="field-hint">Wird über den Richtlinien-Freigabeprozess gesetzt: unten „＋ Als Richtlinie übernehmen“ und im Reiter „Freigaben“ prüfen/freigeben.</div>
   </div>`;
 }
 

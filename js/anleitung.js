@@ -143,11 +143,11 @@ function anleitungHtml() {
           <b>Auf Konformität geprüft von</b>, <b>Freigabe Geschäftsleitung</b>, <b>Zuletzt angefasst</b>.
           <b>Vertraulichkeit</b> ist direkt in der Liste umstellbar; oben nach Stand filtern.</li>
         <li style="${liStyle}"><b>Status &amp; Freigabe</b> (Bearbeitungsstand, Konformität geprüft von,
-          Freigabe Geschäftsleitung, Unterschrieben von) werden <b>nicht manuell getippt</b>, sondern in
-          der Detailansicht per Knopf gesetzt: <b>Prüfer</b> → „✓ Konformität bestätigen“,
-          <b>Geschäftsleitung</b> → „✓ Freigeben“, Admins/Prüfer → „↩ Zurücksetzen“. Der angemeldete
-          Benutzer und der passende Status werden automatisch eingetragen.</li>
-        <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: Status-Workflow oben,
+          Freigabe Geschäftsleitung, Unterschrieben von) sind <b>nur Anzeige</b> – das Panel zeigt den
+          aktuellen Stand und was noch offen ist. Gesetzt werden sie über den Freigabeprozess:
+          Dokument unten per <b>„＋ Als Richtlinie übernehmen“</b> einbinden und im Reiter
+          <b>„Freigaben“</b> prüfen/freigeben.</li>
+        <li style="${liStyle}"><b>Zeile anklicken</b> öffnet die Detailansicht: oben der Status (Anzeige),
           darunter restliche Metadaten (inkl. <b>Owner</b>) bearbeiten, Vorschau, Versionsverlauf.</li>
         <li style="${liStyle}"><b>„✏️ In Office bearbeiten“</b> (Desktop) oder <b>„🌐 Im Browser
           bearbeiten“</b> (ohne installiertes Office) – beim Speichern entsteht automatisch eine
