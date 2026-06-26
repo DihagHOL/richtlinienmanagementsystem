@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
-  <link rel="stylesheet" href="../css/style.css?v=46bf65ba"/>
-  <link rel="stylesheet" href="style.css?v=46bf65ba"/>
+  <link rel="stylesheet" href="../css/style.css?v=46c0c4ea"/>
+  <link rel="stylesheet" href="style.css?v=46c0c4ea"/>
 </head>
 <body>
 
@@ -249,13 +249,13 @@
 </div>
 
 <!-- Scripts: gemeinsame Anmeldung (RMS) + KI-App -->
-<script src="../js/auth.js?v=46bf65ba"></script>
+<script src="../js/auth.js?v=46c0c4ea"></script>
 <script>
   // MSAL-Redirect-URI auf die App-Wurzel setzen (nur diese ist in Azure als
   // SPA-Redirect-URI registriert). Nach dem Login leitet auth.js anhand des
   // state-Parameters wieder hierher (/ki/) zurück.
   _AUTH.redirectUri = _redirectBase().replace(/ki\/$/, '');
 </script>
-<script src="app.js?v=46bf65ba"></script>
+<script src="app.js?v=46c0c4ea"></script>
 </body>
 </html>
