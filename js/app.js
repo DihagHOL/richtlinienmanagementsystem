@@ -21,8 +21,8 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', freigaben: 'Freigaben',
-  compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung',
+  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', vorschlaege: 'Vorschläge',
+  freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung',
 };
 
 /* ═══════════════════════════════════════════════════
@@ -195,6 +195,7 @@ async function switchView(view) {
 
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
+  if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();

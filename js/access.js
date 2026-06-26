@@ -147,6 +147,11 @@ function _currentUpn() {
 }
 function isCurrentUserAdmin()      { return isAdmin(_currentUpn()); }
 function isCurrentUserGenehmiger() { return isGenehmiger(_currentUpn()); }
+/** Darf Änderungsvorschläge bearbeiten: Admins + ISMS-Verantwortliche + Vorschlags-Empfänger. */
+function isCurrentUserProposalManager() {
+  const u = _currentUpn();
+  return isAdmin(u) || _has(_cfg().ismsVerantwortlich, u) || _has(_cfg().vorschlagEmpfaenger, u);
+}
 
 /* ── Unternehmens-Rollen / Zielgruppen ── */
 
@@ -194,9 +199,10 @@ function initRoleNav() {
   const geneh = isCurrentUserGenehmiger();
   const kannFreigaben = admin || geneh || isCurrentUserPruefer() || isCurrentUserGeschaeftsleitung();
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-  show('nav-sep-admin',     admin || kannFreigaben);
+  show('nav-sep-admin',     admin || kannFreigaben || isCurrentUserProposalManager());
   show('nav-verwaltung',    admin);
   show('nav-ismsdocs',      admin);
+  show('nav-vorschlaege',   admin || isCurrentUserProposalManager());
   show('nav-freigaben',     kannFreigaben);
   show('nav-compliance',    admin);
   show('nav-einstellungen', admin);

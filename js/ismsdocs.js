@@ -958,7 +958,19 @@ async function sendProposal() {
     const cc = (typeof State !== 'undefined' && State.user) ? [State.user.upn] : [];   // Kopie an den Einreicher
     const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html, null, cc);
     if (sent === false) return;   // Consent-Redirect läuft – Seite lädt neu
-    toast('Vorschlag gesendet ✓ (Kopie an dich)', 'success');
+    // Best effort: Vorschlag zusätzlich in der App-Liste ablegen (für In-App-Bearbeitung).
+    let stored = false;
+    if (typeof spAddProposal === 'function') {
+      try {
+        await spAddProposal({
+          titel: ctx.titel || '', betreff, vorschlag: text, begruendung: grund,
+          link: (links[0] && links[0].url) || '', eingereicht: who,
+          quelle: ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : ''),
+        });
+        stored = true;
+      } catch (e) { console.warn('[proposal] nicht in Liste gespeichert:', e.message); }
+    }
+    toast('Vorschlag gesendet ✓ (Kopie an dich)' + (stored ? ' · im Reiter „Vorschläge" sichtbar' : ''), 'success');
     closeModal();
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');

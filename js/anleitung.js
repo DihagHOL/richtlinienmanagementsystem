@@ -82,8 +82,9 @@ function anleitungHtml() {
       <h3 style="${h3}">✏️ Eine Änderung vorschlagen</h3>
       <p style="margin:0;line-height:1.55;color:var(--c-text)">Fehler oder Verbesserung entdeckt?
         In der geöffneten Richtlinie oben rechts auf <b>„✏️ Änderung vorschlagen“</b> klicken,
-        kurz <b>was</b> und <b>warum</b> beschreiben, absenden – der Vorschlag geht per Mail an die
-        Verantwortlichen.</p>
+        kurz <b>was</b> und <b>warum</b> beschreiben, absenden. Der Vorschlag enthält einen
+        <b>Direktlink zum Dokument</b>, geht per Mail an die Verantwortlichen (du bekommst eine
+        <b>Kopie</b>) und landet im Reiter <b>„Vorschläge“</b> zur Nachverfolgung.</p>
 
       <h3 style="${h3}">📚 Kurse <span style="font-size:.7rem;color:var(--c-warn);font-weight:700">BETA</span></h3>
       <p style="margin:0;line-height:1.55;color:var(--c-muted)">Unter „Kurse“ sind mehrere Richtlinien
@@ -155,6 +156,12 @@ function anleitungHtml() {
         <li style="${liStyle}"><b>„＋ Als Richtlinie übernehmen“</b> macht aus einem ISMS-Dokument eine
           Richtlinie im Schulungs-/Freigabe-Workflow.</li>
       </ul>
+      <h3 style="${h3}">Vorschläge bearbeiten</h3>
+      <p style="margin:0;line-height:1.55;color:var(--c-text)">Reiter <b>„Vorschläge“</b> sammelt alle
+        eingereichten Änderungsvorschläge. Eine Zeile anklicken öffnet ein <b>Seitenpanel</b> rechts:
+        Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt /
+        Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins,
+        ISMS-Verantwortliche und Vorschlags-Empfänger.</p>
       <h3 style="${h3}">Einstellungen</h3>
       <p style="margin:0;line-height:1.55;color:var(--c-text)">Rollen pflegen: <b>Admins, Genehmiger,
         Prüfer, Geschäftsleitung, KI-Gremium</b>, <b>ISMS-Verantwortliche</b> und

@@ -16,6 +16,7 @@ const SP = {
   policyList:   'Richtlinien',
   ackList:      'Bestaetigungen',
   courseList:   'Kurse',            // optional (Beta)
+  proposalList: 'Aenderungsvorschlaege',   // Änderungsvorschläge (wird bei Bedarf angelegt)
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Richtliniendokumente (nur Lesezugriff) ──
@@ -30,7 +31,7 @@ const SP = {
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
-  courseListId: null,
+  courseListId: null, proposalListId: null,
   ismsSiteId: null,
   ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
@@ -143,6 +144,92 @@ async function _findListId(token, displayName) {
     throw new Error(`SharePoint-Liste "${displayName}" nicht gefunden (Site ${SP.appSiteHost}).`);
   }
   return lists.value[0].id;
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungsvorschläge (eigene SharePoint-Liste, bei Bedarf angelegt)
+═══════════════════════════════════════════════════ */
+
+const PROPOSAL_STATUS = ['Offen', 'In Bearbeitung', 'Erledigt', 'Abgelehnt'];
+
+/** Vorschlags-Liste finden – oder (für Berechtigte) automatisch anlegen. */
+async function spEnsureProposalList(create = true) {
+  if (_sp.proposalListId) return _sp.proposalListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  try {
+    _sp.proposalListId = await _findListId(token, SP.proposalList);
+    return _sp.proposalListId;
+  } catch (e) { /* nicht vorhanden → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.proposalList,
+    list: { template: 'genericList' },
+    columns: [
+      { name: 'Betreff', text: {} },
+      { name: 'Vorschlag', text: { allowMultipleLines: true } },
+      { name: 'Begruendung', text: { allowMultipleLines: true } },
+      { name: 'DokumentLink', text: {} },
+      { name: 'Eingereicht', text: {} },
+      { name: 'Quelle', text: {} },
+      { name: 'Status', choice: { choices: PROPOSAL_STATUS } },
+      { name: 'Bearbeiterkommentar', text: { allowMultipleLines: true } },
+    ],
+  };
+  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
+  _sp.proposalListId = created.id;
+  return _sp.proposalListId;
+}
+
+/** Einen Änderungsvorschlag in der Liste ablegen (best effort – wirft bei Fehler). */
+async function spAddProposal(p) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureProposalList(true);
+  const fields = {
+    Title: String(p.titel || 'Änderungsvorschlag').slice(0, 255),
+    Betreff: String(p.betreff || '').slice(0, 255),
+    Vorschlag: p.vorschlag || '',
+    Begruendung: p.begruendung || '',
+    DokumentLink: String(p.link || '').slice(0, 255),
+    Eingereicht: String(p.eingereicht || '').slice(0, 255),
+    Quelle: String(p.quelle || '').slice(0, 60),
+    Status: 'Offen',
+  };
+  return _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items`, token, { fields });
+}
+
+/** Alle Vorschläge laden (neueste zuerst). */
+async function spGetProposals() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureProposalList(true);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      out.push({
+        id: it.id, titel: f.Title || '', betreff: f.Betreff || '', vorschlag: f.Vorschlag || '',
+        begruendung: f.Begruendung || '', link: f.DokumentLink || '', eingereicht: f.Eingereicht || '',
+        quelle: f.Quelle || '', status: f.Status || 'Offen', kommentar: f.Bearbeiterkommentar || '',
+        created: it.createdDateTime || f.Created || '',
+      });
+    }
+    url = resp['@odata.nextLink'] || null;
+  }
+  out.sort((a, b) => String(b.created).localeCompare(String(a.created)));
+  return out;
+}
+
+/** Status/Kommentar eines Vorschlags aktualisieren. */
+async function spUpdateProposal(id, fields) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureProposalList(false);
+  if (!listId) throw new Error('Vorschlags-Liste nicht verfügbar.');
+  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, fields);
 }
 
 /* ═══════════════════════════════════════════════════
