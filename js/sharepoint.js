@@ -861,6 +861,67 @@ async function spSaveIsmsItemFields(itemId, fields) {
   return _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}/fields`, token, fields);
 }
 
+/* Spaltenerkennung für die Status-Rückkopplung aus dem Freigabe-Workflow. */
+const _ISMS_WB_RE = {
+  stand:          /bearbeitungs(stand|status)|status/i,
+  konform:        /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit/i,
+  unterschrieben: /unterschrieben|unterzeichnet|signed/i,
+  freigabe:       /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)/i,
+};
+
+/**
+ * Status am Ursprungs-ISMS-Dokument zurückschreiben, wenn die zugehörige Richtlinie
+ * im Freigabe-Workflow geprüft/freigegeben wurde. Läuft nur, wenn das Dokument in der
+ * ISMS-Bibliothek liegt (sonst still übersprungen). Best effort.
+ * @param kind   'konform' (Konformität erreicht) | 'freigabe' (veröffentlicht)
+ * @param person { upn, name } – handelnde Person (Prüfer bzw. Geschäftsleitung)
+ * @returns true bei erfolgreichem Zurückschreiben, sonst false
+ */
+async function spIsmsWritebackStatus(driveId, driveItemId, kind, person) {
+  if (!driveId || !driveItemId) return false;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return false;
+  await _ismsLib(token);
+  if (String(driveId) !== String(_sp.ismsDriveId)) return false;   // Dokument nicht aus der ISMS-Bibliothek
+  let listItemId;
+  try {
+    const li = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}/listItem?$select=id`, token);
+    listItemId = li && li.id;
+  } catch (e) { return false; }
+  if (!listItemId) return false;
+
+  const cols = await spGetIsmsColumns();
+  const find = re => (cols || []).find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+  const standCol = find(_ISMS_WB_RE.stand), konformCol = find(_ISMS_WB_RE.konform),
+        unterCol = find(_ISMS_WB_RE.unterschrieben), freigabeCol = find(_ISMS_WB_RE.freigabe);
+  const patch = {};
+  const setChoice = (col, pats) => {
+    if (!col || col.type !== 'choice') return;
+    for (const re of pats) { const o = (col.choices || []).find(c => re.test(c)); if (o) { patch[col.name] = o; return; } }
+  };
+  const setPerson = async (col) => {
+    if (!col || !person) return;
+    if (col.type === 'person') {
+      const lid = await spEnsureIsmsUserLookupId(person.upn);
+      if (lid) patch[col.name + 'LookupId'] = lid;
+    } else if (person.name || person.upn) {
+      patch[col.name] = person.name || person.upn;
+    }
+  };
+
+  if (kind === 'konform') {
+    await setPerson(konformCol);
+    setChoice(standCol, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i]);
+  } else if (kind === 'freigabe') {
+    setChoice(freigabeCol, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i]);
+    await setPerson(unterCol);
+    setChoice(standCol, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i]);
+  }
+  if (!Object.keys(patch).length) return false;
+  await _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${listItemId}/fields`, token, patch);
+  return true;
+}
+
 /** Datei-Inhalt eines ISMS-Dokuments ersetzen = neue SharePoint-Version.
  *  Mit Änderungsnotiz: über Check-out → Upload → Check-in(comment), damit die
  *  Notiz als echter SharePoint-Versionskommentar erscheint. Das Wieder-Einchecken

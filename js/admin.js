@@ -784,7 +784,18 @@ async function markKonform(policyId, konform) {
     renderFreigaben();
     toast(konform ? (toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓') : 'Als „nicht konform" vermerkt.', 'success');
     if (toGL) notifyGL(p);
+    if (toGL) _ismsWriteback(p, 'konform');   // Konformität ans Ursprungs-ISMS-Dokument zurückschreiben
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Status der Richtlinie an das Ursprungs-ISMS-Dokument zurückschreiben (best effort). */
+async function _ismsWriteback(p, kind) {
+  if (!p.dokumentDriveId || !p.dokumentItemId || typeof spIsmsWritebackStatus !== 'function') return;
+  try {
+    const ok = await spIsmsWritebackStatus(p.dokumentDriveId, p.dokumentItemId, kind,
+      { upn: State.user.upn, name: State.user.name });
+    if (ok) toast(kind === 'freigabe' ? 'ISMS-Dokument: Freigabe vermerkt ✓' : 'ISMS-Dokument: Konformität vermerkt ✓', 'success');
+  } catch (e) { console.warn('[wf] ISMS-Rückschreiben (' + kind + ') fehlgeschlagen:', e.message); }
 }
 
 async function markFreigabe(policyId) {
@@ -806,6 +817,7 @@ async function markFreigabe(policyId) {
     await reloadData();
     renderFreigaben();
     toast(published ? 'Freigegeben & veröffentlicht ✓' : 'Freigabe vermerkt (weitere GL nötig).', 'success');
+    if (published) _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 
