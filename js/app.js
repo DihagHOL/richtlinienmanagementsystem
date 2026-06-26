@@ -29,7 +29,7 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v-33c691a7';
+const APP_VERSION = 'v-46bf65ba';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
