@@ -849,13 +849,13 @@ let _proposalCtx = null;
 /** Aus ISMS-Reiter (Admin): Vorschlag zu einem Dokument. */
 function proposeIsmsChange(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
-  openProposalModal(d ? (d.fields?.Title || d.name) : 'Dokument', { doc: d || null });
+  openProposalModal(d ? (d.fields?.Title || d.name) : 'Dokument', { doc: d || null, betreff: d ? d.name : '' });
 }
 
 /** Aus dem Detail-Reader (jeder Mitarbeiter): Vorschlag zu einer Richtlinie. */
 function proposePolicyChange(policyId) {
   const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === policyId) : null;
-  openProposalModal(p ? p.title : 'Richtlinie', { policy: p || null });
+  openProposalModal(p ? p.title : 'Richtlinie', { policy: p || null, betreff: p ? (p.dokumentName || p.title) : '' });
 }
 
 /** Direktlinks zum betroffenen Dokument/zur Richtlinie (für Dialog + Mail). */
@@ -892,7 +892,7 @@ function openProposalModal(titel, ctx) {
       <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br>${recHtml}${linksHtml}</div>
       <div class="form-grid">
         <div class="form-group full"><label>Abschnitt / Betreff</label>
-          <input type="text" id="prop-betreff" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
+          <input type="text" id="prop-betreff" value="${esc(_proposalCtx.betreff || '')}" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
         <div class="form-group full"><label>Vorgeschlagene Änderung <span class="req">*</span></label>
           <textarea id="prop-text" placeholder="Was soll geändert werden?"></textarea></div>
         <div class="form-group full"><label>Begründung</label>
@@ -955,9 +955,10 @@ async function sendProposal() {
       ${grund ? `<p><b>Begründung:</b><br>${br(grund)}</p>` : ''}
       <p style="color:#6b7280;font-size:12px;margin-top:16px">Eingereicht von ${esc(who)} · ${new Date().toLocaleString('de-DE')}<br>
       Automatisch aus dem DIHAG Richtlinienmanagement.</p></div>`;
-    const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html);
+    const cc = (typeof State !== 'undefined' && State.user) ? [State.user.upn] : [];   // Kopie an den Einreicher
+    const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html, null, cc);
     if (sent === false) return;   // Consent-Redirect läuft – Seite lädt neu
-    toast('Vorschlag gesendet ✓', 'success');
+    toast('Vorschlag gesendet ✓ (Kopie an dich)', 'success');
     closeModal();
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');

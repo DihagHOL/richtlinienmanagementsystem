@@ -855,13 +855,14 @@ function _myMailDomain() {
  * (kein Versand an Externe). Scope Mail.Send wird separat angefordert.
  * @returns true bei Versand, false bei Redirect (Consent erforderlich)
  */
-async function spSendMail(toUpns, subject, htmlBody, attachments) {
+async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns) {
   const domain = _myMailDomain();
-  const recipients = (Array.isArray(toUpns) ? toUpns : [toUpns])
+  const clean = list => [...new Set((Array.isArray(list) ? list : [list])
     .map(u => String(u || '').trim().toLowerCase())
-    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!domain || u.endsWith('@' + domain)));
-  const unique = [...new Set(recipients)];
+    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!domain || u.endsWith('@' + domain))))];
+  const unique = clean(toUpns);
   if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
+  const cc = clean(ccUpns).filter(a => !unique.includes(a));   // keine Doppel-Empfänger
 
   const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
   if (!token) return false;   // Redirect zum Consent läuft
@@ -871,6 +872,7 @@ async function spSendMail(toUpns, subject, htmlBody, attachments) {
     body: { contentType: 'HTML', content: htmlBody || '' },
     toRecipients: unique.map(a => ({ emailAddress: { address: a } })),
   };
+  if (cc.length) message.ccRecipients = cc.map(a => ({ emailAddress: { address: a } }));
   if (attachments && attachments.length) message.attachments = attachments;
 
   await _post(`${SP.graphBase}/me/sendMail`, token, { message, saveToSentItems: true });
