@@ -31,9 +31,25 @@ async function initProposals() {
   try {
     _proposals = await spGetProposals();
   } catch (e) {
-    mount.innerHTML = `<div class="col-warning" style="display:block">Vorschläge konnten nicht geladen werden: ${esc(e.message)}<br>
-      <span class="field-hint">Die Liste „Aenderungsvorschlaege" wird beim ersten Vorschlag automatisch angelegt – sofern das Konto Listen anlegen darf.</span></div>`;
     _proposalsLoading = false;
+    const denied = /\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(e.message || '');
+    mount.innerHTML = denied
+      ? `<div class="col-warning" style="display:block">
+          <b>Vorschlags-Liste fehlt und konnte nicht automatisch angelegt werden</b> (das Konto darf in
+          SharePoint keine Listen erstellen). Vorschläge werden weiterhin <b>per E-Mail</b> versendet –
+          für die In-App-Übersicht muss die Liste einmalig manuell angelegt werden:
+          <div style="margin-top:10px;font-size:.86rem;line-height:1.7">
+            SharePoint-Site <code>sites/IT</code> → <b>Neu → Liste</b> → Name exakt
+            <b>„Aenderungsvorschlaege"</b>. Spalten anlegen:
+            <ul style="margin:6px 0 0;padding-left:20px">
+              <li><b>Betreff</b>, <b>DokumentLink</b>, <b>Eingereicht</b>, <b>Empfaenger</b>, <b>Quelle</b> – je „Einzelne Textzeile"</li>
+              <li><b>Vorschlag</b>, <b>Begruendung</b>, <b>Bearbeiterkommentar</b> – je „Mehrere Zeilen Text"</li>
+              <li><b>Status</b> – „Auswahl" mit: Offen, In Bearbeitung, Erledigt, Abgelehnt</li>
+            </ul>
+            <span class="field-hint">Die Spalte „Titel" ist bereits vorhanden. Danach hier „↻ Aktualisieren".</span>
+          </div></div>`
+      : `<div class="col-warning" style="display:block">Vorschläge konnten nicht geladen werden: ${esc(e.message)}
+          <br><span class="field-hint">Bitte „↻ Aktualisieren" versuchen oder die IT kontaktieren.</span></div>`;
     return;
   }
   _proposalsLoading = false;

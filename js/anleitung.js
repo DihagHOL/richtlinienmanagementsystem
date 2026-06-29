@@ -84,7 +84,8 @@ function anleitungHtml() {
         In der geöffneten Richtlinie oben rechts auf <b>„✏️ Änderung vorschlagen“</b> klicken,
         kurz <b>was</b> und <b>warum</b> beschreiben, absenden. Der Vorschlag enthält einen
         <b>Direktlink zum Dokument</b>, geht per Mail an die Verantwortlichen (du bekommst eine
-        <b>Kopie</b>) und landet im Reiter <b>„Vorschläge“</b> zur Nachverfolgung.</p>
+        <b>Kopie</b>) und landet im Reiter <b>„Vorschläge“</b> zur Nachverfolgung. Im Dialog können
+        unter <b>„Weitere Empfänger“</b> zusätzliche interne Adressen ergänzt werden.</p>
 
       <h3 style="${h3}">📚 Kurse <span style="font-size:.7rem;color:var(--c-warn);font-weight:700">BETA</span></h3>
       <p style="margin:0;line-height:1.55;color:var(--c-muted)">Unter „Kurse“ sind mehrere Richtlinien

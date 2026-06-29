@@ -878,6 +878,9 @@ function openProposalModal(titel, ctx) {
           <textarea id="prop-text" placeholder="Was soll geändert werden?"></textarea></div>
         <div class="form-group full"><label>Begründung</label>
           <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?"></textarea></div>
+        <div class="form-group full"><label>Weitere Empfänger (optional)</label>
+          <input type="text" id="prop-cc" placeholder="name@dihag.com, weitere@dihag.com">
+          <div class="field-hint">Mit Komma trennen. Nur interne Adressen (@${esc((typeof _myMailDomain === 'function' && _myMailDomain()) || 'dihag.com')}) werden versendet.</div></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -912,8 +915,10 @@ async function sendProposal() {
   const ctx = _proposalCtx || {};
   const text = (document.getElementById('prop-text')?.value || '').trim();
   if (!text) { toast('Bitte die vorgeschlagene Änderung eingeben.', 'error'); document.getElementById('prop-text')?.focus(); return; }
-  const recipients = _proposalRecipients(ctx);
-  if (!recipients.length) { toast('Keine Empfänger – bitte in den Einstellungen ISMS-Verantwortliche hinterlegen.', 'error'); return; }
+  const extra = (document.getElementById('prop-cc')?.value || '')
+    .split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);   // zusätzlich eingetragene Empfänger
+  const recipients = [...new Set([..._proposalRecipients(ctx), ...extra])];
+  if (!recipients.length) { toast('Keine Empfänger – bitte in den Einstellungen ISMS-Verantwortliche hinterlegen oder oben eintragen.', 'error'); return; }
   const betreff = (document.getElementById('prop-betreff')?.value || '').trim();
   const grund = (document.getElementById('prop-grund')?.value || '').trim();
   const btn = document.getElementById('prop-btn');
