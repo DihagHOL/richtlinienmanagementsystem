@@ -655,26 +655,66 @@ function ismsEditWeb(driveItemId) {
   toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
 }
 
+let _ismsPrevSeq = 0;        // laufende Nummer der aktuellen Vorschau (gegen Race/Mehrfach-Öffnen)
+let _ismsPrevLoaded = false; // hat die aktuelle Vorschau das load-Event gefeuert?
+
+/** iframe-load der Vorschau (inline onload, schon beim Parsen gebunden → kein Race). */
+function ismsPrevOnload(seq) {
+  if (seq !== _ismsPrevSeq) return;
+  _ismsPrevLoaded = true;
+  const ld = document.getElementById('isms-prev-loading'); if (ld) ld.style.display = 'none';
+  const fb = document.getElementById('isms-prev-fallback'); if (fb) fb.style.display = 'none';
+  const fr = document.getElementById('isms-prev-frame'); if (fr) fr.style.display = 'block';
+}
+
 async function ismsPreview(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) return;
   toast('Vorschau wird geladen …');
-  try {
-    const url = await spGetPreviewUrl(d.driveId, driveItemId);
-    if (!url) { toast('Keine Vorschau verfügbar.', 'error'); return; }
-    // Direkt in der App anzeigen (eingebettetes Office-Web-Preview), Fallback-Link auf SharePoint.
-    openModal(`
-      <div class="modal-header"><h3>👁 ${esc(d.name)}</h3>
-        <button class="modal-close" onclick="closeModal()">×</button></div>
-      <div class="modal-body" style="padding:0">
-        <iframe src="${esc(url)}" title="Dokumentvorschau" style="width:100%;height:74vh;border:0;display:block" allowfullscreen></iframe>
+  let url;
+  try { url = await spGetPreviewUrl(d.driveId, driveItemId); }
+  catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); return; }
+  if (!url) {   // keine Vorschau-URL → direkt SharePoint
+    if (d.webUrl) window.open(d.webUrl, '_blank', 'noopener');
+    else toast('Keine Vorschau verfügbar.', 'error');
+    return;
+  }
+  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
+  const seq = ++_ismsPrevSeq;
+  _ismsPrevLoaded = false;
+  // Direkt in der App anzeigen (eingebettetes Office-Web-Preview). Lädt die Einbettung nicht
+  // (z. B. blockiert/zu langsam), erscheint automatisch der SharePoint-Fallback.
+  openModal(`
+    <div class="modal-header"><h3>👁 ${esc(d.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body" style="padding:0;position:relative;min-height:62vh">
+      <div id="isms-prev-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--c-muted)">
+        <span class="sync-spinner"></span> Vorschau wird geladen …</div>
+      <div id="isms-prev-fallback" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center;min-height:62vh">
+        <div style="font-size:2rem">📄</div>
+        <div style="font-weight:600">Die Vorschau lässt sich hier nicht einbetten.</div>
+        <div class="field-hint">Das Dokument direkt in SharePoint öffnen.</div>
+        ${spBtn}
       </div>
-      <div class="modal-footer">
-        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : ''}
-        <div style="flex:1"></div>
-        <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
-      </div>`, true);
-  } catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); }
+      <iframe id="isms-prev-frame" src="${esc(url)}" title="Dokumentvorschau" onload="ismsPrevOnload(${seq})"
+        style="width:100%;height:74vh;border:0;display:block" allowfullscreen></iframe>
+    </div>
+    <div class="modal-footer">
+      ${spBtn}
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
+    </div>`, true);
+
+  // Kein load-Event innerhalb 7s → Einbettung scheitert → Fallback einblenden.
+  setTimeout(() => {
+    if (seq !== _ismsPrevSeq || _ismsPrevLoaded) return;
+    const fb = document.getElementById('isms-prev-fallback');
+    const fr = document.getElementById('isms-prev-frame');
+    if (!fb || !fr) return;   // Modal evtl. schon geschlossen
+    const ld = document.getElementById('isms-prev-loading'); if (ld) ld.style.display = 'none';
+    fr.style.display = 'none';
+    fb.style.display = 'flex';
+  }, 7000);
 }
 
 function ismsNewVersion(driveItemId, name) {
