@@ -1156,6 +1156,14 @@ async function _getAll(url, token, cap = 5000) {
   return out;
 }
 
+/** Antwort als JSON lesen – tolerant gegenüber leeren Bodies (z. B. 202/204 bei /sendMail). */
+async function _jsonOrNull(resp) {
+  if (resp.status === 204 || resp.status === 202) return null;
+  const txt = await resp.text();
+  if (!txt) return null;
+  try { return JSON.parse(txt); } catch (e) { return null; }
+}
+
 async function _post(url, token, body) {
   const resp = await _fetchRetry(url, {
     method: 'POST',
@@ -1163,7 +1171,7 @@ async function _post(url, token, body) {
     body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`Graph POST (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
-  return resp.json();
+  return _jsonOrNull(resp);
 }
 
 async function _patch(url, token, fields) {
@@ -1173,7 +1181,7 @@ async function _patch(url, token, fields) {
     body: JSON.stringify(fields),
   });
   if (!resp.ok) throw new Error(`Graph PATCH (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
-  return resp.json();
+  return _jsonOrNull(resp);
 }
 
 async function _del(url, token) {
