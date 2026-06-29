@@ -589,11 +589,10 @@ function _ismsWorkflowPanel(d) {
       <div style="font-size:.7rem;color:var(--c-muted)">${esc(lbl)}</div>
       <div style="font-weight:600;font-size:.85rem">${esc(val(c) || '–')}</div></div>` : '';
   const chips = [chip('Bearbeitungsstand', cols.stand), chip('Auf Konformität geprüft von', cols.konform),
-    chip('Freigabe Geschäftsleitung', cols.freigabe), chip('Unterschrieben von', cols.unterschrieben)].join('');
+    chip('Freigabe Geschäftsleitung', cols.freigabe)].join('');
   const offen = [];
   if (cols.konform && !val(cols.konform)) offen.push('Konformitätsprüfung');
   if (cols.freigabe && !val(cols.freigabe)) offen.push('Freigabe Geschäftsleitung');
-  if (cols.unterschrieben && !val(cols.unterschrieben)) offen.push('Unterschrift');
   const status = offen.length
     ? `<span style="color:var(--c-warn);font-weight:600">Offen: ${offen.map(esc).join(', ')}</span>`
     : `<span style="color:var(--c-success);font-weight:600">✓ Vollständig</span>`;
@@ -659,10 +658,22 @@ function ismsEditWeb(driveItemId) {
 async function ismsPreview(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) return;
+  toast('Vorschau wird geladen …');
   try {
     const url = await spGetPreviewUrl(d.driveId, driveItemId);
-    if (url) window.open(url, '_blank', 'noopener');
-    else toast('Keine Vorschau verfügbar.', 'error');
+    if (!url) { toast('Keine Vorschau verfügbar.', 'error'); return; }
+    // Direkt in der App anzeigen (eingebettetes Office-Web-Preview), Fallback-Link auf SharePoint.
+    openModal(`
+      <div class="modal-header"><h3>👁 ${esc(d.name)}</h3>
+        <button class="modal-close" onclick="closeModal()">×</button></div>
+      <div class="modal-body" style="padding:0">
+        <iframe src="${esc(url)}" title="Dokumentvorschau" style="width:100%;height:74vh;border:0;display:block" allowfullscreen></iframe>
+      </div>
+      <div class="modal-footer">
+        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : ''}
+        <div style="flex:1"></div>
+        <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
+      </div>`, true);
   } catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); }
 }
 
@@ -894,7 +905,7 @@ async function sendProposal() {
       try {
         await spAddProposal({
           titel: ctx.titel || '', betreff, vorschlag: text, begruendung: grund,
-          link: (links[0] && links[0].url) || '', eingereicht: who,
+          link: (links[0] && links[0].url) || '', eingereicht: who, empfaenger: recipients.join(', '),
           quelle: ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : ''),
         });
         stored = true;

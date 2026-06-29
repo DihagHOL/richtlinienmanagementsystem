@@ -107,6 +107,7 @@ function openProposalDrawer(id) {
     </div>
     <div style="padding:18px 20px">
       ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin-bottom:14px">📄 Dokument öffnen ↗</a>` : ''}
+      ${p.empfaenger ? `<div style="margin-bottom:12px"><div class="field-hint">Benachrichtigt (E-Mail)</div><div style="font-weight:600;font-size:.85rem">${esc(p.empfaenger)}</div></div>` : ''}
       ${p.betreff ? `<div style="margin-bottom:12px"><div class="field-hint">Abschnitt / Betreff</div><div style="font-weight:600">${esc(p.betreff)}</div></div>` : ''}
       <div style="margin-bottom:12px"><div class="field-hint">Vorgeschlagene Änderung</div>
         <div style="background:var(--c-bg);border-radius:8px;padding:10px 12px;line-height:1.5">${br(p.vorschlag) || '–'}</div></div>

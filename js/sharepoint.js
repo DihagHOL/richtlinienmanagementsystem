@@ -171,6 +171,7 @@ async function spEnsureProposalList(create = true) {
       { name: 'Begruendung', text: { allowMultipleLines: true } },
       { name: 'DokumentLink', text: {} },
       { name: 'Eingereicht', text: {} },
+      { name: 'Empfaenger', text: {} },
       { name: 'Quelle', text: {} },
       { name: 'Status', choice: { choices: PROPOSAL_STATUS } },
       { name: 'Bearbeiterkommentar', text: { allowMultipleLines: true } },
@@ -193,6 +194,7 @@ async function spAddProposal(p) {
     Begruendung: p.begruendung || '',
     DokumentLink: String(p.link || '').slice(0, 255),
     Eingereicht: String(p.eingereicht || '').slice(0, 255),
+    Empfaenger: String(p.empfaenger || '').slice(0, 255),
     Quelle: String(p.quelle || '').slice(0, 60),
     Status: 'Offen',
   };
@@ -213,7 +215,7 @@ async function spGetProposals() {
       out.push({
         id: it.id, titel: f.Title || '', betreff: f.Betreff || '', vorschlag: f.Vorschlag || '',
         begruendung: f.Begruendung || '', link: f.DokumentLink || '', eingereicht: f.Eingereicht || '',
-        quelle: f.Quelle || '', status: f.Status || 'Offen', kommentar: f.Bearbeiterkommentar || '',
+        empfaenger: f.Empfaenger || '', quelle: f.Quelle || '', status: f.Status || 'Offen', kommentar: f.Bearbeiterkommentar || '',
         created: it.createdDateTime || f.Created || '',
       });
     }
@@ -893,7 +895,7 @@ async function spIsmsWritebackStatus(driveId, driveItemId, kind, person) {
   const cols = await spGetIsmsColumns();
   const find = re => (cols || []).find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
   const standCol = find(_ISMS_WB_RE.stand), konformCol = find(_ISMS_WB_RE.konform),
-        unterCol = find(_ISMS_WB_RE.unterschrieben), freigabeCol = find(_ISMS_WB_RE.freigabe);
+        freigabeCol = find(_ISMS_WB_RE.freigabe);
   const patch = {};
   const setChoice = (col, pats) => {
     if (!col || col.type !== 'choice') return;
@@ -914,7 +916,6 @@ async function spIsmsWritebackStatus(driveId, driveItemId, kind, person) {
     setChoice(standCol, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i]);
   } else if (kind === 'freigabe') {
     setChoice(freigabeCol, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i]);
-    await setPerson(unterCol);
     setChoice(standCol, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i]);
   }
   if (!Object.keys(patch).length) return false;
