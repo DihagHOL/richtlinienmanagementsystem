@@ -885,7 +885,9 @@ function openProposalModal(titel, ctx) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" id="prop-btn" onclick="sendProposal()">Vorschlag senden</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" id="prop-btn-more" onclick="sendProposal(true)" title="Senden und für einen weiteren Vorschlag offen lassen">Senden &amp; weiterer</button>
+      <button class="btn btn-primary" id="prop-btn" onclick="sendProposal(false)">Vorschlag senden</button>
     </div>`);
 }
 
@@ -911,7 +913,7 @@ function _proposalRecipients(ctx) {
   return [...new Set(out.map(e => String(e).trim().toLowerCase()).filter(Boolean))];
 }
 
-async function sendProposal() {
+async function sendProposal(keepOpen) {
   const ctx = _proposalCtx || {};
   const text = (document.getElementById('prop-text')?.value || '').trim();
   if (!text) { toast('Bitte die vorgeschlagene Änderung eingeben.', 'error'); document.getElementById('prop-text')?.focus(); return; }
@@ -921,8 +923,12 @@ async function sendProposal() {
   if (!recipients.length) { toast('Keine Empfänger – bitte in den Einstellungen ISMS-Verantwortliche hinterlegen oder oben eintragen.', 'error'); return; }
   const betreff = (document.getElementById('prop-betreff')?.value || '').trim();
   const grund = (document.getElementById('prop-grund')?.value || '').trim();
-  const btn = document.getElementById('prop-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sende …'; }
+  const setBusy = (on) => {   // beide Senden-Buttons sperren/entsperren
+    const a = document.getElementById('prop-btn'), b = document.getElementById('prop-btn-more');
+    if (a) { a.disabled = on; a.textContent = on ? 'Sende …' : 'Vorschlag senden'; }
+    if (b) b.disabled = on;
+  };
+  setBusy(true);
   try {
     const who = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : 'Mitarbeiter';
     const br = s => esc(s).replace(/\n/g, '<br>');
@@ -956,19 +962,24 @@ async function sendProposal() {
         stored = true;
       } catch (e) { storeErr = e.message || ''; console.warn('[proposal] nicht in Liste gespeichert:', storeErr); }
     }
-    closeModal();
-    if (stored) {
-      toast('Vorschlag gesendet ✓ (Kopie an dich) · im Reiter „Vorschläge" sichtbar', 'success');
+    if (keepOpen) {
+      // Dialog offen lassen → Felder für den nächsten Vorschlag leeren (Dokument/Empfänger bleiben).
+      setBusy(false);
+      ['prop-text', 'prop-grund'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('prop-text')?.focus();
     } else {
-      // Mail ist raus; nur das Speichern in der Liste hat nicht geklappt → ehrlich, aber kein Fehlerton.
-      const denied = /\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr);
-      toast('Vorschlag per E-Mail gesendet ✓ (Kopie an dich). ' +
-        (denied ? 'Nicht in die Liste geschrieben – die Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge" zum Anlegen).'
-                : 'Nicht in die Liste geschrieben.'), 'success');
+      closeModal();
     }
+    const suffix = stored
+      ? ' · im Reiter „Vorschläge" sichtbar'
+      : (/\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr)
+          ? '. Nicht in die Liste geschrieben – Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge").'
+          : '. Nicht in die Liste geschrieben.');
+    toast((stored ? 'Vorschlag gesendet ✓ (Kopie an dich)' : 'Vorschlag per E-Mail gesendet ✓ (Kopie an dich)') + suffix
+      + (keepOpen ? ' – weiteren Vorschlag möglich.' : ''), 'success');
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Vorschlag senden'; }
+    setBusy(false);
   }
 }
 
