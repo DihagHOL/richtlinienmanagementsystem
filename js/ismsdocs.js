@@ -945,7 +945,7 @@ async function sendProposal() {
     const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html, null, cc);
     if (sent === false) return;   // Consent-Redirect läuft – Seite lädt neu
     // Best effort: Vorschlag zusätzlich in der App-Liste ablegen (für In-App-Bearbeitung).
-    let stored = false;
+    let stored = false, storeErr = '';
     if (typeof spAddProposal === 'function') {
       try {
         await spAddProposal({
@@ -954,10 +954,18 @@ async function sendProposal() {
           quelle: ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : ''),
         });
         stored = true;
-      } catch (e) { console.warn('[proposal] nicht in Liste gespeichert:', e.message); }
+      } catch (e) { storeErr = e.message || ''; console.warn('[proposal] nicht in Liste gespeichert:', storeErr); }
     }
-    toast('Vorschlag gesendet ✓ (Kopie an dich)' + (stored ? ' · im Reiter „Vorschläge" sichtbar' : ''), 'success');
     closeModal();
+    if (stored) {
+      toast('Vorschlag gesendet ✓ (Kopie an dich) · im Reiter „Vorschläge" sichtbar', 'success');
+    } else {
+      // Mail ist raus; nur das Speichern in der Liste hat nicht geklappt → ehrlich, aber kein Fehlerton.
+      const denied = /\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr);
+      toast('Vorschlag per E-Mail gesendet ✓ (Kopie an dich). ' +
+        (denied ? 'Nicht in die Liste geschrieben – die Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge" zum Anlegen).'
+                : 'Nicht in die Liste geschrieben.'), 'success');
+    }
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Vorschlag senden'; }
