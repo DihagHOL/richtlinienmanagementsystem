@@ -25,13 +25,16 @@ function _propStatusBadge(s) {
 async function initProposals() {
   const mount = document.getElementById('vorschlaege-mount');
   if (!mount) return;
-  if (_proposals) { renderProposals(); return; }
-  mount.innerHTML = '<div class="doc-loading">Lade Vorschläge …</div>';
+  // Beim Öffnen IMMER frisch laden. Vorhandene Daten sofort zeigen (kein Leer-Flackern),
+  // im Hintergrund neu laden und dann neu rendern.
+  if (_proposals) renderProposals();
+  else mount.innerHTML = '<div class="doc-loading">Lade Vorschläge …</div>';
   _proposalsLoading = true;
   try {
     _proposals = await spGetProposals();
   } catch (e) {
     _proposalsLoading = false;
+    if (_proposals && _proposals.length) { toast('Aktualisieren fehlgeschlagen: ' + e.message, 'error'); return; }   // Cache behalten
     const denied = /\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(e.message || '');
     mount.innerHTML = denied
       ? `<div class="col-warning" style="display:block">
