@@ -151,16 +151,40 @@ async function _findListId(token, displayName) {
 ═══════════════════════════════════════════════════ */
 
 const PROPOSAL_STATUS = ['Offen', 'In Bearbeitung', 'Erledigt', 'Abgelehnt'];
+let _proposalCols = null;   // Set vorhandener interner Spaltennamen (Spalten-Toleranz beim Schreiben)
 
-/** Vorschlags-Liste finden – oder (für Berechtigte) automatisch anlegen. */
+/** Normalisierung für Listen-Namensvergleich (Umlaut-/Schreibweise-tolerant). */
+function _normName(s) {
+  return String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]/g, '');
+}
+
+/** Vorhandene Spalten der Vorschlags-Liste laden (für spaltentolerantes Schreiben). */
+async function _loadProposalCols(token) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.proposalListId}/columns?$select=name`, token);
+    _proposalCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _proposalCols = null; }
+}
+
+/** Vorschlags-Liste robust finden (Schreibweise/Umlaut-tolerant) – oder anlegen. */
 async function spEnsureProposalList(create = true) {
   if (_sp.proposalListId) return _sp.proposalListId;
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
+  // 1) Alle Listen durchsuchen (zuverlässiger als $filter) – normalisierter Name oder „…vorschläge"-Muster
+  const target = _normName(SP.proposalList);   // 'aenderungsvorschlaege'
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists?$select=id,displayName,name&$top=200`;
   try {
-    _sp.proposalListId = await _findListId(token, SP.proposalList);
-    return _sp.proposalListId;
-  } catch (e) { /* nicht vorhanden → ggf. anlegen */ }
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => {
+        const dn = _normName(l.displayName), nm = _normName(l.name);
+        return dn === target || nm === target || /vorschl/.test(dn) || /vorschl/.test(nm);
+      });
+      if (hit) { _sp.proposalListId = hit.id; await _loadProposalCols(token); return _sp.proposalListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
   if (!create) return null;
   const body = {
     displayName: SP.proposalList,
@@ -179,15 +203,17 @@ async function spEnsureProposalList(create = true) {
   };
   const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
   _sp.proposalListId = created.id;
+  await _loadProposalCols(token);
   return _sp.proposalListId;
 }
 
-/** Einen Änderungsvorschlag in der Liste ablegen (best effort – wirft bei Fehler). */
+/** Einen Änderungsvorschlag in der Liste ablegen (best effort – wirft bei Fehler).
+ *  Sendet nur Felder, deren Spalten existieren → keine 400er bei Teil-Listen. */
 async function spAddProposal(p) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureProposalList(true);
-  const fields = {
+  const all = {
     Title: String(p.titel || 'Änderungsvorschlag').slice(0, 255),
     Betreff: String(p.betreff || '').slice(0, 255),
     Vorschlag: p.vorschlag || '',
@@ -198,6 +224,10 @@ async function spAddProposal(p) {
     Quelle: String(p.quelle || '').slice(0, 60),
     Status: 'Offen',
   };
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_proposalCols || _proposalCols.has(k)) fields[k] = v;   // nur vorhandene Spalten
+  }
   return _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items`, token, { fields });
 }
 
@@ -231,7 +261,10 @@ async function spUpdateProposal(id, fields) {
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureProposalList(false);
   if (!listId) throw new Error('Vorschlags-Liste nicht verfügbar.');
-  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, fields);
+  const send = {};
+  for (const [k, v] of Object.entries(fields)) { if (!_proposalCols || _proposalCols.has(k)) send[k] = v; }
+  if (!Object.keys(send).length) throw new Error('Spalten Status/Bearbeiterkommentar fehlen in der Liste.');
+  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, send);
 }
 
 /* ═══════════════════════════════════════════════════
