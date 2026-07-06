@@ -300,6 +300,8 @@ function showHealthReport() {
         <span>${(_HC_BADGE[r.status] || _HC_BADGE.na)[0]}</span>
         <b style="flex:1">${esc(p.title)}</b>
         <span style="font-size:.75rem;color:var(--c-muted)">${esc(r.fileName || '')}</span>
+        ${r.findings.length ? `<button class="btn btn-outline btn-sm" style="flex:none"
+          onclick="proposeFromHealth('${esc(p.id)}')" title="Befunde als vorausgefüllten Änderungsvorschlag an die ISMS-Verantwortlichen senden">✏️ Als Vorschlag</button>` : ''}
       </div>
       ${r.findings.length ? `<ul style="margin:6px 0 0 26px;padding:0;font-size:.83rem">
         ${r.findings.map(f => `<li style="color:${(SEV[f.sev] || SEV.info)[1]}">${(SEV[f.sev] || SEV.info)[0]} ${esc(f.text)}</li>`).join('')}
@@ -318,7 +320,49 @@ function showHealthReport() {
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">Schließen</button></div>`);
 }
 
+/* ═══════════════════════════════════════════════════
+   Befund → Änderungsvorschlag
+═══════════════════════════════════════════════════ */
+
+/** Einen Prüf-Befund in eine handlungsorientierte Korrektur-Zeile übersetzen. */
+function hcFindingAction(f) {
+  const t = f.text;
+  if (/identisch mit/i.test(t))            return 'Verwechselte Datei ersetzen – ' + t + ' (korrektes Dokument hochladen).';
+  if (/Titel im Dokument passt nicht/i.test(t)) return 'Falsches Dokument prüfen/austauschen – ' + t;
+  if (/Komformit/i.test(t))                return 'Tippfehler korrigieren: „Komformitätsprüfung" → „Konformitätsprüfung".';
+  if (/Platzhalter|XX\.XX/i.test(t))       return 'Freigabetabelle und Termine ausfüllen (Datums-Platzhalter ersetzen).';
+  if (/\btbd\b/i.test(t))                  return 'Offene „tbd"-Stellen ergänzen.';
+  if (/Kapitel .* ist leer/i.test(t))      return 'Leeres Pflichtkapitel befüllen oder ausdrücklich als „entfällt" kennzeichnen – ' + t + '.';
+  if (/Review-Termin|Wiedervorlage/i.test(t)) return 'Wiedervorlage-/Review-Termin (Feld „Nächste Überprüfung") setzen.';
+  if (/Kein Dokument/i.test(t))            return 'Dokument der Richtlinie zuordnen.';
+  return t;
+}
+
+/** Aus den Health-Befunden einer Richtlinie einen vorausgefüllten Vorschlag öffnen. */
+function proposeFromHealth(id) {
+  const r = HealthState.results[id];
+  const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === id) : null;
+  if (!r || !p) return;
+  if (typeof openProposalModal !== 'function') {
+    if (typeof toast === 'function') toast('Vorschlagsfunktion nicht verfügbar.', 'error');
+    return;
+  }
+  // Doppelte Aktionen (z. B. mehrere Platzhalter-Zeilen) zusammenfassen.
+  const actions = [...new Set(r.findings.map(hcFindingAction))];
+  const datum = HealthState.ranAt ? HealthState.ranAt.toLocaleDateString('de-DE') : new Date().toLocaleDateString('de-DE');
+  const vorschlag = `Aus der Dokumentprüfung vom ${datum} ergeben sich folgende zu behebende Punkte:\n`
+    + actions.map(a => '• ' + a).join('\n');
+  const grund = 'Ergebnis des automatischen Dokument-Health-Checks im Richtlinienmanagement '
+    + '(deterministische Prüfung auf Inhalts-Dubletten, Titel-Abgleich, Platzhalter und leere Kapitel – ohne KI).';
+  openProposalModal(p.title, {
+    policy: p,
+    betreff: 'Dokumentprüfung – ' + (p.dokumentName || p.title),
+    vorschlag, grund,
+    quelle: 'Health-Check',
+  });
+}
+
 /* Node-Export nur für Tests (im Browser wirkungslos). */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { hcExtractZipEntry, hcSha256Hex, hcXmlToText, hcAnalyzeText, _hcZipEntries };
+  module.exports = { hcExtractZipEntry, hcSha256Hex, hcXmlToText, hcAnalyzeText, _hcZipEntries, hcFindingAction };
 }

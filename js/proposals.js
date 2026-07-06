@@ -22,6 +22,15 @@ function _propStatusBadge(s) {
   return `<span style="display:inline-block;font-size:.7rem;font-weight:700;background:${bg};color:${fg};border-radius:999px;padding:2px 10px">${esc(s || 'Offen')}</span>`;
 }
 
+/** Herkunfts-Chip (Quelle): Health-Check-Vorschläge hervorheben, sonst dezent. */
+function _propSourceChip(q) {
+  if (!q) return '';
+  const health = /health/i.test(q);
+  const label = health ? '🩺 Dokumentprüfung' : esc(q);
+  const style = health ? 'background:#fef9c3;color:#854d0e' : 'background:#eef2ff;color:#3730a3';
+  return `<span style="display:inline-block;font-size:.66rem;font-weight:700;${style};border-radius:999px;padding:1px 8px;margin-left:6px">${label}</span>`;
+}
+
 async function initProposals() {
   const mount = document.getElementById('vorschlaege-mount');
   if (!mount) return;
@@ -89,7 +98,7 @@ function renderProposals() {
     <tbody>${rows.map(p => `
       <tr onclick="openProposalDrawer('${esc(p.id)}')" style="cursor:pointer">
         <td>${_propStatusBadge(p.status)}</td>
-        <td><b>${esc(p.titel || '–')}</b>${p.betreff ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(p.betreff)}</div>` : ''}</td>
+        <td><b>${esc(p.titel || '–')}</b>${_propSourceChip(p.quelle)}${p.betreff ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(p.betreff)}</div>` : ''}</td>
         <td style="color:var(--c-muted)">${esc(p.eingereicht || '–')}</td>
         <td style="color:var(--c-muted)">${p.created ? fmtDate(p.created) : '–'}</td>
       </tr>`).join('')}</tbody></table></div>`;
@@ -121,7 +130,7 @@ function openProposalDrawer(id) {
     <div style="position:sticky;top:0;background:var(--c-surface);border-bottom:1px solid var(--c-border);
                 padding:16px 20px;display:flex;align-items:center;gap:10px;z-index:1">
       <div style="flex:1"><div style="font-weight:800;font-size:1.02rem">${esc(p.titel || 'Vorschlag')}</div>
-        <div style="font-size:.76rem;color:var(--c-muted)">${_propStatusBadge(p.status)} &nbsp; eingereicht ${p.created ? 'am ' + esc(fmtDate(p.created)) : ''} von ${esc(p.eingereicht || '–')}</div></div>
+        <div style="font-size:.76rem;color:var(--c-muted)">${_propStatusBadge(p.status)}${_propSourceChip(p.quelle)} &nbsp; eingereicht ${p.created ? 'am ' + esc(fmtDate(p.created)) : ''} von ${esc(p.eingereicht || '–')}</div></div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div style="padding:18px 20px">

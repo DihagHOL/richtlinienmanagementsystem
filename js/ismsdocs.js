@@ -875,9 +875,9 @@ function openProposalModal(titel, ctx) {
         <div class="form-group full"><label>Abschnitt / Betreff</label>
           <input type="text" id="prop-betreff" value="${esc(_proposalCtx.betreff || '')}" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
         <div class="form-group full"><label>Vorgeschlagene Änderung <span class="req">*</span></label>
-          <textarea id="prop-text" placeholder="Was soll geändert werden?"></textarea></div>
+          <textarea id="prop-text" placeholder="Was soll geändert werden?">${esc(_proposalCtx.vorschlag || '')}</textarea></div>
         <div class="form-group full"><label>Begründung</label>
-          <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?"></textarea></div>
+          <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?">${esc(_proposalCtx.grund || '')}</textarea></div>
         <div class="form-group full"><label>Weitere Empfänger (optional)</label>
           <input type="text" id="prop-cc" placeholder="name@dihag.com, weitere@dihag.com">
           <div class="field-hint">Mit Komma trennen. Nur interne Adressen (@${esc((typeof _myMailDomain === 'function' && _myMailDomain()) || 'dihag.com')}) werden versendet.</div></div>
@@ -957,7 +957,7 @@ async function sendProposal(keepOpen) {
         await spAddProposal({
           titel: ctx.titel || '', betreff, vorschlag: text, begruendung: grund,
           link: (links[0] && links[0].url) || '', eingereicht: who, empfaenger: recipients.join(', '),
-          quelle: ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : ''),
+          quelle: ctx.quelle || (ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : '')),
         });
         stored = true;
       } catch (e) { storeErr = e.message || ''; console.warn('[proposal] nicht in Liste gespeichert:', storeErr); }
