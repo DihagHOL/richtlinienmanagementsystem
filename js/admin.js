@@ -40,7 +40,7 @@ function renderAdminList() {
     <div class="item-card" onclick="openPolicyEditor('${p.id}')">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
-        <div class="ic-topright">${workflowBadge(p.status)}</div>
+        <div class="ic-topright">${typeof healthBadge === 'function' ? healthBadge(p) : ''}${workflowBadge(p.status)}</div>
       </div>
       <div class="ic-tags">
         ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}

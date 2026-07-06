@@ -153,6 +153,8 @@
             <option value="Archiviert">Archiviert</option>
           </select>
           <div class="toolbar-spacer"></div>
+          <button class="btn btn-outline" id="btn-health" onclick="runHealthCheck()"
+            title="Prüft die angehängten Word-Dokumente auf Inhalts-Dubletten, Titel-Abweichungen, Platzhalter und leere Kapitel – deterministisch im Browser, ohne externe Dienste">🩺 Dokumente prüfen</button>
           <button class="btn btn-primary" onclick="openPolicyEditor()">+ Neue Richtlinie</button>
         </div>
         <div id="list-admin" class="item-cards"></div>
@@ -233,6 +235,7 @@
 <script src="js/sharepoint.js?v=bb4563b7"></script>
 <script src="js/quiz.js?v=bb4563b7"></script>
 <script src="js/app.js?v=bb4563b7"></script>
+<script src="js/health.js?v=bb4563b7"></script>
 <script src="js/admin.js?v=bb4563b7"></script>
 <script src="js/kurse.js?v=bb4563b7"></script>
 <script src="js/ismsdocs.js?v=bb4563b7"></script>
