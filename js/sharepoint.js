@@ -62,6 +62,7 @@ const POLICY_COLUMNS = [
   { name: 'KonformitaetJson',    typ: 'Mehrere Zeilen Text' },
   { name: 'FreigabeJson',        typ: 'Mehrere Zeilen Text' },
   { name: 'PruefungSeit',        typ: 'Datum und Uhrzeit' },
+  { name: 'NormbezugJson',       typ: 'Mehrere Zeilen Text' },
 ];
 
 /** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
@@ -293,6 +294,8 @@ function _mapPolicy(item) {
   try { konformitaet = f.KonformitaetJson ? JSON.parse(f.KonformitaetJson) : []; } catch { konformitaet = []; }
   let freigaben = [];
   try { freigaben = f.FreigabeJson ? JSON.parse(f.FreigabeJson) : []; } catch { freigaben = []; }
+  let normbezug = [];
+  try { normbezug = f.NormbezugJson ? JSON.parse(f.NormbezugJson) : []; } catch { normbezug = []; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -315,6 +318,7 @@ function _mapPolicy(item) {
     freigegebenVon:      f.FreigegebenVon || '',
     konformitaet,
     freigaben,
+    normbezug:           Array.isArray(normbezug) ? normbezug : [],
     pruefungSeit:        f.PruefungSeit || '',
     modifiedAt:          item.lastModifiedDateTime || '',
   };
@@ -354,6 +358,7 @@ async function spSavePolicy(p) {
     KonformitaetJson:    JSON.stringify(p.konformitaet || []),
     FreigabeJson:        JSON.stringify(p.freigaben || []),
     PruefungSeit:        p.pruefungSeit || '',
+    NormbezugJson:       JSON.stringify(p.normbezug || []),
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))

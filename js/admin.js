@@ -50,6 +50,7 @@ function renderAdminList() {
         <span class="ic-tag">👥 ${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? esc(p.zielgruppen.join(', ')) : 'Alle'}</span>
         ${p.wiederholungMonate ? `<span class="ic-tag">↻ ${p.wiederholungMonate == 12 ? 'jährlich' : 'alle ' + p.wiederholungMonate + ' Mon.'}</span>` : ''}
         ${p.naechsteReview ? `<span class="ic-tag" style="${new Date(p.naechsteReview) < new Date() ? 'background:#fef2f2;color:#b91c1c' : ''}">🔎 Review ${fmtDate(p.naechsteReview)}</span>` : ''}
+        ${(p.normbezug && p.normbezug.length) ? `<span class="ic-tag" title="${esc(p.normbezug.map(id => typeof normLabel === 'function' ? normLabel(id) : id).join(' · '))}">🔖 ${p.normbezug.length} Controls</span>` : ''}
       </div>
       <div class="ic-footer">
         <span class="grow">${p.dokumentName ? ('📄 ' + esc(p.dokumentName)) : '<span style="color:#b45309">⚠ kein Dokument</span>'}</span>
@@ -270,7 +271,7 @@ function newPolicy() {
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
-    veroeffentlichtAm: '', freigegebenVon: '',
+    veroeffentlichtAm: '', freigegebenVon: '', normbezug: [],
   };
 }
 
@@ -351,6 +352,7 @@ function renderPolicyEditor() {
         </div>
       </div>
       ${renderZielgruppenSection()}
+      ${typeof renderNormbezugSection === 'function' ? renderNormbezugSection() : ''}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -451,6 +453,74 @@ function zgToggleRole(ri, checked) {
   _editing.zielgruppen = _editing.zielgruppen.filter(x => x !== 'ALLE' && x !== r);
   if (checked) _editing.zielgruppen.push(r);
 }
+
+/* ── Normbezug (ISO 27001 / NIS2) im Editor ── */
+
+function renderNormbezugSection() {
+  if (typeof NORMEN === 'undefined') return '';
+  if (!Array.isArray(_editing.normbezug)) _editing.normbezug = [];
+  const seed = (typeof normbezugSeedFor === 'function') ? normbezugSeedFor(_editing.title) : null;
+  const seedNeu = seed ? seed.filter(id => !_editing.normbezug.includes(id)).length : 0;
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:.9rem">Normbezug (ISO 27001 / NIS2) <span id="nb-count" style="color:var(--c-muted);font-weight:500">(${_editing.normbezug.length} ausgewählt)</span></div>
+        <div style="flex:1"></div>
+        ${seed ? `<button class="btn btn-outline btn-sm" onclick="nbApplySeed()" title="Vorschlag aus der Review-Zuordnung übernehmen">↩ Aus Review übernehmen${seedNeu ? ' (+' + seedNeu + ')' : ''}</button>` : ''}
+        ${_editing.normbezug.length ? `<button class="btn btn-ghost btn-sm" onclick="nbClear()">Leeren</button>` : ''}
+      </div>
+      <div class="field-hint" style="margin-bottom:8px">Welche ISO-27001-Klauseln/Annex-A-Controls (und optional NIS2-Artikel) diese Richtlinie abdeckt. Grundlage für die ISMS-Abdeckungs-Heatmap.</div>
+      <input type="text" id="nb-filter" placeholder="Filtern (z. B. „A.8", „Audit", „Krypto") …" oninput="nbRenderList()"
+        style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.85rem;font-family:inherit;margin-bottom:8px">
+      <div id="nb-list" style="max-height:320px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${nbListHtml('')}</div>
+    </div>`;
+}
+
+function nbListHtml(filter) {
+  const sel = new Set(_editing.normbezug || []);
+  const f = String(filter || '').toLowerCase().trim();
+  const match = it => !f || it.id.toLowerCase().includes(f) || it.label.toLowerCase().includes(f);
+  let html = '';
+  for (const g of NORMEN) {
+    const items = g.items.filter(match);
+    if (!items.length) continue;
+    html += `<div style="font-size:.72rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.03em;margin:8px 2px 4px">${esc(g.group)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
+      ${items.map(it => `<label class="ack-check" style="font-weight:500;align-items:flex-start">
+        <input type="checkbox" ${sel.has(it.id) ? 'checked' : ''} onchange="nbToggle('${esc(it.id)}', this.checked)">
+        <span><b>${esc(it.id)}</b> ${esc(it.label)}</span></label>`).join('')}
+      </div>`;
+  }
+  return html || '<div class="field-hint">Keine Treffer.</div>';
+}
+
+function nbRenderList() {
+  const el = document.getElementById('nb-list');
+  if (el) el.innerHTML = nbListHtml(document.getElementById('nb-filter')?.value || '');
+}
+
+function nbToggle(id, checked) {
+  if (!Array.isArray(_editing.normbezug)) _editing.normbezug = [];
+  _editing.normbezug = _editing.normbezug.filter(x => x !== id);
+  if (checked) _editing.normbezug.push(id);
+  nbUpdateCount();
+}
+
+function nbUpdateCount() {
+  const c = document.getElementById('nb-count');
+  if (c) c.textContent = `(${_editing.normbezug.length} ausgewählt)`;
+}
+
+function nbApplySeed() {
+  const seed = (typeof normbezugSeedFor === 'function') ? normbezugSeedFor(_editing.title) : null;
+  if (!seed) return;
+  const set = new Set(_editing.normbezug || []);
+  seed.forEach(id => set.add(id));
+  _editing.normbezug = [...set];
+  renderPolicyEditor();   // Seed-Button-Zähler & Häkchen neu
+}
+
+function nbClear() { _editing.normbezug = []; renderPolicyEditor(); }
 
 async function savePolicy(newStatus) {
   const p = _editing;

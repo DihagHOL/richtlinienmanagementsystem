@@ -202,6 +202,7 @@ function initRoleNav() {
   show('nav-sep-admin',     admin || kannFreigaben || isCurrentUserProposalManager());
   show('nav-verwaltung',    admin);
   show('nav-ismsdocs',      admin);
+  show('nav-abdeckung',     admin);
   show('nav-vorschlaege',   admin || isCurrentUserProposalManager());
   show('nav-freigaben',     kannFreigaben);
   show('nav-compliance',    admin);

@@ -21,7 +21,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', vorschlaege: 'Vorschläge',
+  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung',
 };
 
@@ -174,7 +174,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -195,6 +195,7 @@ async function switchView(view) {
 
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
+  if (view === 'abdeckung'    && typeof renderAbdeckung === 'function')   renderAbdeckung();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
