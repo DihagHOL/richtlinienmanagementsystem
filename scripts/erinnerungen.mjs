@@ -259,7 +259,10 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     let phase = '', roleRecipients = [], voted = [];
     if (status === 'Konformitätsprüfung' || status === 'InReview') {
       phase = 'Konformitätsprüfung';
-      roleRecipients = pruefer;
+      // Pro-Richtlinie-Prüfer haben Vorrang; sonst die globale Prüferliste.
+      let ownPruefer = [];
+      try { const pk = JSON.parse(f.PruefKonfigJson || '{}'); if (Array.isArray(pk.pruefer)) ownPruefer = pk.pruefer.filter(Boolean); } catch { ownPruefer = []; }
+      roleRecipients = ownPruefer.length ? ownPruefer : pruefer;
       try { voted = (JSON.parse(f.KonformitaetJson || '[]')).map((v) => lc(v.upn)); } catch { voted = []; }
     } else if (status === 'Freigabe' || status === 'Freigabe ausstehend') {
       phase = 'Freigabe';

@@ -51,6 +51,7 @@ function renderAdminList() {
         ${p.wiederholungMonate ? `<span class="ic-tag">↻ ${p.wiederholungMonate == 12 ? 'jährlich' : 'alle ' + p.wiederholungMonate + ' Mon.'}</span>` : ''}
         ${p.naechsteReview ? `<span class="ic-tag" style="${new Date(p.naechsteReview) < new Date() ? 'background:#fef2f2;color:#b91c1c' : ''}">🔎 Review ${fmtDate(p.naechsteReview)}</span>` : ''}
         ${(p.normbezug && p.normbezug.length) ? `<span class="ic-tag" title="${esc(p.normbezug.map(id => typeof normLabel === 'function' ? normLabel(id) : id).join(' · '))}">🔖 ${p.normbezug.length} Controls</span>` : ''}
+        ${(typeof policyHasPrueferOverride === 'function' && policyHasPrueferOverride(p)) ? `<span class="ic-tag" title="Eigene Konformitätsprüfer: ${esc((p.pruefKonfig.pruefer || []).join(', '))}">👤 eigene Prüfer</span>` : ''}
       </div>
       <div class="ic-footer">
         <span class="grow">${p.dokumentName ? ('📄 ' + esc(p.dokumentName)) : '<span style="color:#b45309">⚠ kein Dokument</span>'}</span>
@@ -272,6 +273,7 @@ function newPolicy() {
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
     veroeffentlichtAm: '', freigegebenVon: '', normbezug: [],
+    pruefKonfig: { pruefer: [], schwelle: '' },
   };
 }
 
@@ -353,6 +355,7 @@ function renderPolicyEditor() {
       </div>
       ${renderZielgruppenSection()}
       ${typeof renderNormbezugSection === 'function' ? renderNormbezugSection() : ''}
+      ${renderPruefKonfigSection()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -521,6 +524,47 @@ function nbApplySeed() {
 }
 
 function nbClear() { _editing.normbezug = []; renderPolicyEditor(); }
+
+/* ── Konformitätsprüfer pro Richtlinie (optional, Fallback: global) ── */
+
+function renderPruefKonfigSection() {
+  const pk = _editing.pruefKonfig || (_editing.pruefKonfig = { pruefer: [], schwelle: '' });
+  const global = (typeof getPruefer === 'function') ? getPruefer() : [];
+  const gSchwelle = (typeof getKonformSchwelle === 'function') ? getKonformSchwelle() : 'alle';
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Konformitätsprüfung – nur für diese Richtlinie (optional)</div>
+      <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globalen</b> Prüfer/Schwelle aus den Einstellungen gelten. Trägst du hier Prüfer ein, gelten für diese Richtlinie <b>ausschließlich diese</b>.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Prüfer (E-Mails, kommagetrennt)</label>
+          <input type="text" id="pk-pruefer" value="${esc((pk.pruefer || []).join(', '))}"
+            placeholder="z. B. it-sibe@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="pkSetPruefer(this.value)">
+          <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
+        </div>
+        <div class="form-group">
+          <label>„Konform", wenn …</label>
+          <select onchange="pkSetSchwelle(this.value)">
+            <option value="" ${!pk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
+            <option value="alle" ${pk.schwelle === 'alle' ? 'selected' : ''}>alle Prüfer zustimmen</option>
+            <option value="einer" ${pk.schwelle === 'einer' ? 'selected' : ''}>ein Prüfer reicht</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function pkSetPruefer(str) {
+  if (!_editing.pruefKonfig) _editing.pruefKonfig = { pruefer: [], schwelle: '' };
+  const list = String(str || '').split(/[,;\s]+/).map(s => s.trim().toLowerCase())
+    .filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  _editing.pruefKonfig.pruefer = [...new Set(list)];
+}
+
+function pkSetSchwelle(v) {
+  if (!_editing.pruefKonfig) _editing.pruefKonfig = { pruefer: [], schwelle: '' };
+  _editing.pruefKonfig.schwelle = (v === 'alle' || v === 'einer') ? v : '';
+}
 
 async function savePolicy(newStatus) {
   const p = _editing;
@@ -702,18 +746,19 @@ function renderFreigaben() {
   const list = document.getElementById('list-freigaben');
   if (!list) return;
   const admin = isCurrentUserAdmin();
-  const istPruefer = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer()) || admin;
+  const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
+  const inFreigabe = State.policies.filter(p => p.status === 'Freigabe');
+  // Prüfer-Sicht: global ODER für mindestens eine laufende Richtlinie individuell hinterlegt.
+  const istPruefer = admin || (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
+    || (typeof isCurrentUserPrueferForPolicy === 'function' && inPruefung.some(p => isCurrentUserPrueferForPolicy(p)));
   const istGL = (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung()) || admin;
 
   const prozess = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="font-size:.85rem;line-height:1.6;color:#374151">
     <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
     (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>2. Freigabe</b> durch die Geschäftsleitung
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
-    Bei „nicht konform" bleibt die Richtlinie in Prüfung. Erinnerungen &amp; Eskalation laufen automatisch (Einstellungen → „Erinnerungen &amp; Eskalation").
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer/Schwelle haben.</i> Erinnerungen &amp; Eskalation laufen automatisch.
   </div></div>`;
-
-  const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
-  const inFreigabe = State.policies.filter(p => p.status === 'Freigabe');
   const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
 
   let html = prozess;
@@ -744,10 +789,10 @@ function handleMailAction(id, aktion) {
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
   setTimeout(() => {
     if (aktion === 'konform') {
-      if (typeof isCurrentUserPruefer === 'function' && !isCurrentUserPruefer()) { toast('Nur Prüfer dürfen die Konformität bewerten.'); return; }
+      if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       if (confirm(`„${p.title}" als KONFORM markieren?`)) markKonform(id, true);
     } else if (aktion === 'nicht_konform') {
-      if (typeof isCurrentUserPruefer === 'function' && !isCurrentUserPruefer()) { toast('Nur Prüfer dürfen die Konformität bewerten.'); return; }
+      if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       markKonform(id, false);   // fragt anschließend nach der Anmerkung
     } else if (aktion === 'freigeben') {
       if (typeof isCurrentUserGeschaeftsleitung === 'function' && !isCurrentUserGeschaeftsleitung()) { toast('Nur die Geschäftsleitung darf freigeben.'); return; }
@@ -780,7 +825,7 @@ function kommentarFeldHtml(id, placeholder) {
 
 function pruefCardHtml(p) {
   const mein = (p.konformitaet || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
-  const kannPruefen = typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer();
+  const kannPruefen = typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p);
   return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
@@ -816,10 +861,11 @@ function freigabeCardHtml(p) {
 }
 
 function konformErreicht(p) {
-  const pruefer = getPruefer();
+  const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
   if (!pruefer.length) return false;
+  const schwelle = (typeof getPolicyKonformSchwelle === 'function') ? getPolicyKonformSchwelle(p) : getKonformSchwelle();
   const ja = (p.konformitaet || []).filter(v => v.entscheidung === 'konform').map(v => (v.upn || '').toLowerCase());
-  return getKonformSchwelle() === 'einer' ? ja.length >= 1 : pruefer.every(u => ja.includes(u.toLowerCase()));
+  return schwelle === 'einer' ? ja.length >= 1 : pruefer.every(u => ja.includes(u.toLowerCase()));
 }
 function freigabeErreicht(p) {
   const gl = getGeschaeftsleitung();
@@ -899,8 +945,8 @@ async function notifyPruefer(p) {
     console.info('[wf] Genehmigung über Power Automate – App-Prüfer-Mail übersprungen.');
     return;   // Power Automate verschickt die Genehmigungs-Mail
   }
-  const pruefer = getPruefer();
-  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
+  const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
+  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Richtlinie im Editor).', 'error'); return; }
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     await spSendMail(pruefer, `Neue Richtlinie zur Sichtung: ${p.title}`,

@@ -122,6 +122,23 @@ function getErinnerungErsteNachTagen() { return _posInt(_cfg().erinnerungErsteNa
 function getErinnerungDannAlleTage()   { return _posInt(_cfg().erinnerungDannAlleTage, 3); }
 function getEskalationAbTagen()        { return _posInt(_cfg().eskalationAbTagen, 14); }
 
+/* ── Pro-Richtlinie-Überschreibung: Prüfer/Schwelle je Richtlinie, sonst global ──
+   Eine Richtlinie kann eigene Konformitätsprüfer haben (p.pruefKonfig.pruefer).
+   Ist dort nichts hinterlegt, gilt die globale Prüfer-/Schwellen-Konfiguration. */
+function getPolicyPruefer(p) {
+  const o = (p && p.pruefKonfig && Array.isArray(p.pruefKonfig.pruefer)) ? p.pruefKonfig.pruefer.filter(Boolean) : [];
+  return o.length ? [...o] : getPruefer();
+}
+function getPolicyKonformSchwelle(p) {
+  const s = p && p.pruefKonfig && p.pruefKonfig.schwelle;
+  return (s === 'alle' || s === 'einer') ? s : getKonformSchwelle();
+}
+function policyHasPrueferOverride(p) {
+  return !!(p && p.pruefKonfig && Array.isArray(p.pruefKonfig.pruefer) && p.pruefKonfig.pruefer.filter(Boolean).length);
+}
+function isPrueferForPolicy(p, upn)      { return _has(getPolicyPruefer(p), upn); }
+function isCurrentUserPrueferForPolicy(p) { return isPrueferForPolicy(p, _currentUpn()); }
+
 /** Config im Speicher aktualisieren (nach dem Speichern in SP). */
 function setRuntimeConfig(cfg) { _runtimeConfig = cfg; _myRolesCache = null; }
 
