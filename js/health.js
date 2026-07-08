@@ -123,10 +123,45 @@ const _HC_HEADINGS = [
   'Außer Kraft gesetzte/ Mitgeltende Konzernregelungen', 'Anhänge',
 ];
 
+/* ─────────────────────────────────────────────────────────────
+   Terminologie-Wörterbuch: veraltete / zu ersetzende Begriffe.
+   PFLEGBAR – hier neue Einträge ergänzen. Jeder Eintrag:
+     { re: RegExp (mit /g!),  text: Kurzbefund,  ersatz?: Handlungshinweis,  sev }
+   re sollte \b-Wortgrenzen nutzen, damit keine Teiltreffer entstehen
+   (z. B. „CCO" nicht innerhalb anderer Wörter). Groß/Klein je nach Bedarf.
+   Grundlage: Review-Korrekturen (alte CO-/OZB-Namen, EMH, CCO = A. Muster …).
+───────────────────────────────────────────────────────────── */
+const HC_TERMS = [
+  { re: /\bEMH\b/g,  sev: 'warn', text: 'Veraltete Bezeichnung „EMH"',
+    ersatz: 'entfernen bzw. durch die aktuell gültige Bezeichnung ersetzen' },
+  { re: /\bCCO\b/g,  sev: 'warn', text: 'Rolle „CCO" genannt',
+    ersatz: 'Zuständigkeit liegt jetzt bei Max Muster – Rolle/Namen prüfen und aktualisieren' },
+  // Beispiele für weitere veraltete CO-/OZB-Namen (bei Bedarf aktivieren/ergänzen):
+  // { re: /\bMustermann\b/gi, sev: 'warn', text: 'Veralteter Name „Mustermann"', ersatz: 'auf den aktuellen Rolleninhaber aktualisieren' },
+];
+
+/** Im Kopfbereich genannte Dokument-Version/Revision extrahieren (z. B. „Version: 1.1"). */
+function _hcDocVersion(text) {
+  const head = text.split('\n').slice(0, 60).join('\n');
+  // Schlüsselwort + Nummer MÜSSEN auf derselben Zeile stehen ([ \t]*, kein \s*),
+  // damit eine „Version"-Spaltenüberschrift mit der Nummer in der Zeile darunter nicht falsch trifft.
+  const m = head.match(/\b(?:Versionsstand|Revision|Version|Rev\.?|Stand)[ \t]*:?[ \t]*v?[ \t]*(\d+(?:\.\d+){0,2})/i);
+  return m ? m[1] : null;
+}
+
+/** Versionsvergleich mit Normalisierung: „1" = „1.0" = „1.0.0". */
+function _hcVersionEq(a, b) {
+  const norm = s => String(s).trim().replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+  const A = norm(a), B = norm(b), n = Math.max(A.length, B.length);
+  for (let i = 0; i < n; i++) if ((A[i] || 0) !== (B[i] || 0)) return false;
+  return true;
+}
+
 /**
  * Deterministische Inhalts-Checks. findings: [{ sev: 'error'|'warn'|'info', text }]
+ * @param policy  optional – erlaubt Metadaten-Abgleich (Version) mit den App-Feldern.
  */
-function hcAnalyzeText(text, policyTitle) {
+function hcAnalyzeText(text, policyTitle, policy) {
   const findings = [];
   const lines = text.split('\n').map(l => l.trim());
   const nonEmpty = lines.filter(l => l);
@@ -155,6 +190,24 @@ function hcAnalyzeText(text, policyTitle) {
 
   // 3) Bekannte Tippfehler
   if (/Komformit/.test(text)) findings.push({ sev: 'warn', text: 'Tippfehler „Komformitätsprüfung" (Template)' });
+
+  // 3b) Terminologie: veraltete / zu ersetzende Begriffe (pflegbares Wörterbuch)
+  for (const term of HC_TERMS) {
+    const m = text.match(term.re);
+    if (m && m.length) {
+      findings.push({ sev: term.sev || 'warn', kind: 'term',
+        text: `${m.length}× ${term.text}${term.ersatz ? ' – ' + term.ersatz : ''}` });
+    }
+  }
+
+  // 3c) Metadaten: im Dokument genannte Version vs. App-Version
+  if (policy && policy.version) {
+    const dv = _hcDocVersion(text);
+    if (dv && !_hcVersionEq(dv, policy.version)) {
+      findings.push({ sev: 'warn', kind: 'version',
+        text: `Version im Dokument (${dv}) weicht von der App-Version (${policy.version}) ab – Metadaten abgleichen` });
+    }
+  }
 
   // 4) Leere Pflichtkapitel: Überschrift direkt gefolgt von nächster Überschrift
   const idxOf = h => nonEmpty.findIndex(l => l === h || l.replace(/\s+/g, ' ') === h);
@@ -224,7 +277,7 @@ async function runHealthCheck() {
         }
         res.hash = await hcSha256Hex(xmlBytes);
         const text = hcXmlToText(new TextDecoder('utf-8').decode(xmlBytes));
-        res.findings.push(...hcAnalyzeText(text, p.title));
+        res.findings.push(...hcAnalyzeText(text, p.title, p));
       } catch (e) {
         res.status = 'na';
         res.findings.push({ sev: 'info', text: 'Nicht prüfbar: ' + e.message });
@@ -313,7 +366,7 @@ function showHealthReport() {
       <div class="field-hint" style="margin-bottom:10px">
         ${rows.length} Richtlinien geprüft (${counts.error || 0} kritisch · ${counts.warn || 0} Hinweise · ${counts.na || 0} nicht prüfbar)
         – geprüft ${HealthState.ranAt ? HealthState.ranAt.toLocaleString('de-DE') : ''}.
-        Prüfumfang: Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel – deterministisch im Browser, ohne externe Dienste.
+        Prüfumfang: Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe (Terminologie) und Versions-/Metadaten-Abgleich – deterministisch im Browser, ohne externe Dienste.
       </div>
       ${body}
     </div>
@@ -330,6 +383,8 @@ function hcFindingAction(f) {
   if (/identisch mit/i.test(t))            return 'Verwechselte Datei ersetzen – ' + t + ' (korrektes Dokument hochladen).';
   if (/Titel im Dokument passt nicht/i.test(t)) return 'Falsches Dokument prüfen/austauschen – ' + t;
   if (/Komformit/i.test(t))                return 'Tippfehler korrigieren: „Komformitätsprüfung" → „Konformitätsprüfung".';
+  if (/Version im Dokument .* weicht/i.test(t)) return 'Versionsangabe/Metadaten im Dokument mit der App-Version abgleichen – ' + t + '.';
+  if (/Veraltete Bezeichnung|Rolle „|liegt jetzt bei|aktualisieren/i.test(t)) return 'Veralteten Begriff/Namen aktualisieren – ' + t + '.';
   if (/Platzhalter|XX\.XX/i.test(t))       return 'Freigabetabelle und Termine ausfüllen (Datums-Platzhalter ersetzen).';
   if (/\btbd\b/i.test(t))                  return 'Offene „tbd"-Stellen ergänzen.';
   if (/Kapitel .* ist leer/i.test(t))      return 'Leeres Pflichtkapitel befüllen oder ausdrücklich als „entfällt" kennzeichnen – ' + t + '.';
@@ -353,7 +408,7 @@ function proposeFromHealth(id) {
   const vorschlag = `Aus der Dokumentprüfung vom ${datum} ergeben sich folgende zu behebende Punkte:\n`
     + actions.map(a => '• ' + a).join('\n');
   const grund = 'Ergebnis des automatischen Dokument-Health-Checks im Richtlinienmanagement '
-    + '(deterministische Prüfung auf Inhalts-Dubletten, Titel-Abgleich, Platzhalter und leere Kapitel – ohne KI).';
+    + '(deterministische Prüfung auf Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe und Versions-/Metadaten-Abgleich – ohne KI).';
   openProposalModal(p.title, {
     policy: p,
     betreff: 'Dokumentprüfung – ' + (p.dokumentName || p.title),
@@ -364,5 +419,5 @@ function proposeFromHealth(id) {
 
 /* Node-Export nur für Tests (im Browser wirkungslos). */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { hcExtractZipEntry, hcSha256Hex, hcXmlToText, hcAnalyzeText, _hcZipEntries, hcFindingAction };
+  module.exports = { hcExtractZipEntry, hcSha256Hex, hcXmlToText, hcAnalyzeText, _hcZipEntries, hcFindingAction, HC_TERMS, _hcDocVersion, _hcVersionEq };
 }

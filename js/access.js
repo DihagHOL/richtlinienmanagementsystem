@@ -139,6 +139,22 @@ function policyHasPrueferOverride(p) {
 function isPrueferForPolicy(p, upn)      { return _has(getPolicyPruefer(p), upn); }
 function isCurrentUserPrueferForPolicy(p) { return isPrueferForPolicy(p, _currentUpn()); }
 
+/* Analog für die Freigabe (Geschäftsleitung): eigene Freigeber je Richtlinie
+   (p.freigabeKonfig.freigeber) haben Vorrang, sonst die globale GL-Konfiguration. */
+function getPolicyGeschaeftsleitung(p) {
+  const o = (p && p.freigabeKonfig && Array.isArray(p.freigabeKonfig.freigeber)) ? p.freigabeKonfig.freigeber.filter(Boolean) : [];
+  return o.length ? [...o] : getGeschaeftsleitung();
+}
+function getPolicyFreigabeSchwelle(p) {
+  const s = p && p.freigabeKonfig && p.freigabeKonfig.schwelle;
+  return (s === 'alle' || s === 'einer') ? s : getFreigabeSchwelle();
+}
+function policyHasFreigabeOverride(p) {
+  return !!(p && p.freigabeKonfig && Array.isArray(p.freigabeKonfig.freigeber) && p.freigabeKonfig.freigeber.filter(Boolean).length);
+}
+function isGeschaeftsleitungForPolicy(p, upn)      { return _has(getPolicyGeschaeftsleitung(p), upn); }
+function isCurrentUserGeschaeftsleitungForPolicy(p) { return isGeschaeftsleitungForPolicy(p, _currentUpn()); }
+
 /** Config im Speicher aktualisieren (nach dem Speichern in SP). */
 function setRuntimeConfig(cfg) { _runtimeConfig = cfg; _myRolesCache = null; }
 
@@ -220,6 +236,7 @@ function initRoleNav() {
   show('nav-verwaltung',    admin);
   show('nav-ismsdocs',      admin);
   show('nav-abdeckung',     admin);
+  show('nav-faelligkeit',   admin);
   show('nav-vorschlaege',   admin || isCurrentUserProposalManager());
   show('nav-freigaben',     kannFreigaben);
   show('nav-compliance',    admin);

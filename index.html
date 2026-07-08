@@ -65,6 +65,10 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2h1v10H3a1 1 0 100 2h14a1 1 0 100-2h-1V5h1a1 1 0 100-2H3zm3 4a1 1 0 012 0v6a1 1 0 11-2 0V7zm4 2a1 1 0 012 0v4a1 1 0 11-2 0V9zm4-1a1 1 0 10-2 0v5a1 1 0 102 0V8z" clip-rule="evenodd"/></svg>
         ISMS-Abdeckung
       </a>
+      <a class="nav-item" data-view="faelligkeit" id="nav-faelligkeit" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+        Fälligkeiten
+      </a>
       <a class="nav-item" data-view="vorschlaege" id="nav-vorschlaege" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2.5 0a.5.5 0 00-.4.8l5.5 4.4a.5.5 0 00.8 0l5.5-4.4a.5.5 0 00-.4-.8h-11z"/></svg>
         Vorschläge
@@ -193,6 +197,16 @@
         <div id="abdeckung-mount"></div>
       </section>
 
+      <!-- ── VIEW: Fälligkeiten / Wiedervorlage (Admin) ── -->
+      <section id="view-faelligkeit" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Fälligkeiten / Wiedervorlage der Richtlinien</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="renderFaelligkeit()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="faelligkeit-mount"></div>
+      </section>
+
       <!-- ── VIEW: Vorschläge (Admin / Verantwortliche) ── -->
       <section id="view-vorschlaege" class="view">
         <div class="view-toolbar">
@@ -253,6 +267,7 @@
 <script src="js/health.js?v=775c3e94"></script>
 <script src="js/admin.js?v=775c3e94"></script>
 <script src="js/abdeckung.js?v=775c3e94"></script>
+<script src="js/faelligkeit.js?v=775c3e94"></script>
 <script src="js/kurse.js?v=775c3e94"></script>
 <script src="js/ismsdocs.js?v=775c3e94"></script>
 <script src="js/proposals.js?v=775c3e94"></script>

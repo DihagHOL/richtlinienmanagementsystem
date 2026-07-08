@@ -21,7 +21,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', vorschlaege: 'Vorschläge',
+  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung',
 };
 
@@ -55,8 +55,8 @@ function dbg(msg) {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
-  // Deep-Link aus Mail (?richtlinie=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
-  if (/[?&]richtlinie=/.test(location.search)) {
+  // Deep-Link aus Mail (?richtlinie=… oder ?ansicht=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
+  if (/[?&](richtlinie|ansicht)=/.test(location.search)) {
     try { sessionStorage.setItem('rms_deeplink', location.search); } catch (e) {}
   }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
@@ -88,9 +88,15 @@ async function applyDeepLinkOrDefault() {
   try { sessionStorage.removeItem('rms_deeplink'); } catch (e) {}
   const params = new URLSearchParams(search);
   const deepId = params.get('richtlinie');
-  if (!deepId) { await switchView('meine'); return; }
-
   const ansicht = (params.get('ansicht') || '').toLowerCase();
+  if (!deepId) {
+    // Bare Ansichts-Deeplink (z. B. Fälligkeits-Digest → ?ansicht=faelligkeit), nur für Admins.
+    if ((ansicht === 'faelligkeit' || ansicht === 'abdeckung') && typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) {
+      await switchView(ansicht); return;
+    }
+    await switchView('meine'); return;
+  }
+
   const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
                  || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
 
@@ -174,7 +180,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -196,6 +202,7 @@ async function switchView(view) {
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
   if (view === 'abdeckung'    && typeof renderAbdeckung === 'function')   renderAbdeckung();
+  if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();

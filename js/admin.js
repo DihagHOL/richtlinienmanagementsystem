@@ -52,6 +52,7 @@ function renderAdminList() {
         ${p.naechsteReview ? `<span class="ic-tag" style="${new Date(p.naechsteReview) < new Date() ? 'background:#fef2f2;color:#b91c1c' : ''}">🔎 Review ${fmtDate(p.naechsteReview)}</span>` : ''}
         ${(p.normbezug && p.normbezug.length) ? `<span class="ic-tag" title="${esc(p.normbezug.map(id => typeof normLabel === 'function' ? normLabel(id) : id).join(' · '))}">🔖 ${p.normbezug.length} Controls</span>` : ''}
         ${(typeof policyHasPrueferOverride === 'function' && policyHasPrueferOverride(p)) ? `<span class="ic-tag" title="Eigene Konformitätsprüfer: ${esc((p.pruefKonfig.pruefer || []).join(', '))}">👤 eigene Prüfer</span>` : ''}
+        ${(typeof policyHasFreigabeOverride === 'function' && policyHasFreigabeOverride(p)) ? `<span class="ic-tag" title="Eigene Freigeber: ${esc((p.freigabeKonfig.freigeber || []).join(', '))}">👤 eigene Freigeber</span>` : ''}
       </div>
       <div class="ic-footer">
         <span class="grow">${p.dokumentName ? ('📄 ' + esc(p.dokumentName)) : '<span style="color:#b45309">⚠ kein Dokument</span>'}</span>
@@ -274,6 +275,7 @@ function newPolicy() {
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
     veroeffentlichtAm: '', freigegebenVon: '', normbezug: [],
     pruefKonfig: { pruefer: [], schwelle: '' },
+    freigabeKonfig: { freigeber: [], schwelle: '' },
   };
 }
 
@@ -356,6 +358,7 @@ function renderPolicyEditor() {
       ${renderZielgruppenSection()}
       ${typeof renderNormbezugSection === 'function' ? renderNormbezugSection() : ''}
       ${renderPruefKonfigSection()}
+      ${renderFreigabeKonfigSection()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -566,6 +569,47 @@ function pkSetSchwelle(v) {
   _editing.pruefKonfig.schwelle = (v === 'alle' || v === 'einer') ? v : '';
 }
 
+/* ── Freigabe (Geschäftsleitung) pro Richtlinie (optional, Fallback: global) ── */
+
+function renderFreigabeKonfigSection() {
+  const fk = _editing.freigabeKonfig || (_editing.freigabeKonfig = { freigeber: [], schwelle: '' });
+  const global = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
+  const gSchwelle = (typeof getFreigabeSchwelle === 'function') ? getFreigabeSchwelle() : 'einer';
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Freigabe (Geschäftsleitung) – nur für diese Richtlinie (optional)</div>
+      <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globale</b> Geschäftsleitung/Schwelle aus den Einstellungen gilt. Trägst du hier Freigeber ein, gelten für diese Richtlinie <b>ausschließlich diese</b>.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Freigeber (E-Mails, kommagetrennt)</label>
+          <input type="text" id="fk-freigeber" value="${esc((fk.freigeber || []).join(', '))}"
+            placeholder="z. B. gf@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="fkSetFreigeber(this.value)">
+          <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
+        </div>
+        <div class="form-group">
+          <label>„Freigegeben", wenn …</label>
+          <select onchange="fkSetSchwelle(this.value)">
+            <option value="" ${!fk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
+            <option value="alle" ${fk.schwelle === 'alle' ? 'selected' : ''}>alle Freigeber zustimmen</option>
+            <option value="einer" ${fk.schwelle === 'einer' ? 'selected' : ''}>ein Freigeber reicht</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function fkSetFreigeber(str) {
+  if (!_editing.freigabeKonfig) _editing.freigabeKonfig = { freigeber: [], schwelle: '' };
+  const list = String(str || '').split(/[,;\s]+/).map(s => s.trim().toLowerCase())
+    .filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  _editing.freigabeKonfig.freigeber = [...new Set(list)];
+}
+
+function fkSetSchwelle(v) {
+  if (!_editing.freigabeKonfig) _editing.freigabeKonfig = { freigeber: [], schwelle: '' };
+  _editing.freigabeKonfig.schwelle = (v === 'alle' || v === 'einer') ? v : '';
+}
+
 async function savePolicy(newStatus) {
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
@@ -751,13 +795,15 @@ function renderFreigaben() {
   // Prüfer-Sicht: global ODER für mindestens eine laufende Richtlinie individuell hinterlegt.
   const istPruefer = admin || (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
     || (typeof isCurrentUserPrueferForPolicy === 'function' && inPruefung.some(p => isCurrentUserPrueferForPolicy(p)));
-  const istGL = (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung()) || admin;
+  // GL-Sicht: global ODER für mindestens eine wartende Richtlinie individuell hinterlegt.
+  const istGL = admin || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung())
+    || (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && inFreigabe.some(p => isCurrentUserGeschaeftsleitungForPolicy(p)));
 
   const prozess = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="font-size:.85rem;line-height:1.6;color:#374151">
     <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
     (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>2. Freigabe</b> durch die Geschäftsleitung
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
-    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer/Schwelle haben.</i> Erinnerungen &amp; Eskalation laufen automatisch.
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben – dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
   </div></div>`;
   const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
 
@@ -795,7 +841,7 @@ function handleMailAction(id, aktion) {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       markKonform(id, false);   // fragt anschließend nach der Anmerkung
     } else if (aktion === 'freigeben') {
-      if (typeof isCurrentUserGeschaeftsleitung === 'function' && !isCurrentUserGeschaeftsleitung()) { toast('Nur die Geschäftsleitung darf freigeben.'); return; }
+      if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && !isCurrentUserGeschaeftsleitungForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegte Geschäftsleitung darf freigeben.'); return; }
       if (confirm(`„${p.title}" freigeben und veröffentlichen?`)) markFreigabe(id);
     } else if (aktion === 'zurueck') {
       markKonform(id, false);
@@ -844,7 +890,7 @@ function pruefCardHtml(p) {
 
 function freigabeCardHtml(p) {
   const mein = (p.freigaben || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
-  const kannFreigeben = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
+  const kannFreigeben = typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p);
   return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
@@ -868,10 +914,11 @@ function konformErreicht(p) {
   return schwelle === 'einer' ? ja.length >= 1 : pruefer.every(u => ja.includes(u.toLowerCase()));
 }
 function freigabeErreicht(p) {
-  const gl = getGeschaeftsleitung();
+  const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
   if (!gl.length) return false;
+  const schwelle = (typeof getPolicyFreigabeSchwelle === 'function') ? getPolicyFreigabeSchwelle(p) : getFreigabeSchwelle();
   const ja = (p.freigaben || []).map(v => (v.upn || '').toLowerCase());
-  return getFreigabeSchwelle() === 'alle' ? gl.every(u => ja.includes(u.toLowerCase())) : ja.length >= 1;
+  return schwelle === 'alle' ? gl.every(u => ja.includes(u.toLowerCase())) : ja.length >= 1;
 }
 
 async function markKonform(policyId, konform) {
@@ -962,7 +1009,7 @@ async function notifyGL(p) {
     console.info('[wf] Genehmigung über Power Automate – App-GL-Mail übersprungen.');
     return;   // Power Automate verschickt die Freigabe-Mail
   }
-  const gl = getGeschaeftsleitung();
+  const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
   if (!gl.length) return;
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);

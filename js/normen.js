@@ -172,11 +172,11 @@ function normLabel(id) { return NORMEN_LABEL[id] ? (id + ' — ' + NORMEN_LABEL[
    Seed aus der Review-Mail (Max Muster) – Ein-Klick-Vorbefüllung
 ═══════════════════════════════════════════════════ */
 const NORMBEZUG_SEED = {
-  leitlinie:        ['5.1', '5.2', '5.3', '10.1', '10.2', 'A.5.1', 'A.5.4'],
-  auditmanagement:  ['9.2', '10.1', '10.2', '9.1', 'A.5.35', 'A.5.36', 'A.5.31', 'A.5.22', 'A.6.6', 'A.5.34', 'A.8.8'],
-  zieleplanung:     ['6.2', '6.1', '9.1', '9.3', '5.2', '10.1', 'A.5.1'],
-  changemanagement: ['A.8.32', '6.3', 'A.8.9', 'A.5.37', 'A.8.8', 'A.5.24', 'A.5.36'],
-  verhaltenskodex:  ['A.5.1', 'A.5.4', 'A.5.10', 'A.5.31', 'A.5.34', 'A.6.2', 'A.6.4', 'A.6.6', 'A.6.8', 'A.5.24'],
+  leitlinie:        ['5.1', '5.2', '5.3', '10.1', '10.2', 'A.5.1', 'A.5.4', 'NIS2-20', 'NIS2-21.2a'],
+  auditmanagement:  ['9.2', '10.1', '10.2', '9.1', 'A.5.35', 'A.5.36', 'A.5.31', 'A.5.22', 'A.6.6', 'A.5.34', 'A.8.8', 'NIS2-21.2f'],
+  zieleplanung:     ['6.2', '6.1', '9.1', '9.3', '5.2', '10.1', 'A.5.1', 'NIS2-20', 'NIS2-21.2f'],
+  changemanagement: ['A.8.32', '6.3', 'A.8.9', 'A.5.37', 'A.8.8', 'A.5.24', 'A.5.36', 'NIS2-21.2e'],
+  verhaltenskodex:  ['A.5.1', 'A.5.4', 'A.5.10', 'A.5.31', 'A.5.34', 'A.6.2', 'A.6.4', 'A.6.6', 'A.6.8', 'A.5.24', 'NIS2-21.2g', 'NIS2-21.2i'],
 };
 
 /** Passt der Titel einer Richtlinie zu einem Seed? → Liste der Control-IDs (Kopie) oder null. */

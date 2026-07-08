@@ -266,7 +266,10 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
       try { voted = (JSON.parse(f.KonformitaetJson || '[]')).map((v) => lc(v.upn)); } catch { voted = []; }
     } else if (status === 'Freigabe' || status === 'Freigabe ausstehend') {
       phase = 'Freigabe';
-      roleRecipients = gl;
+      // Pro-Richtlinie-Freigeber haben Vorrang; sonst die globale GL-Liste.
+      let ownFreigeber = [];
+      try { const fk = JSON.parse(f.FreigabeKonfigJson || '{}'); if (Array.isArray(fk.freigeber)) ownFreigeber = fk.freigeber.filter(Boolean); } catch { ownFreigeber = []; }
+      roleRecipients = ownFreigeber.length ? ownFreigeber : gl;
       try { voted = (JSON.parse(f.FreigabeJson || '[]')).map((v) => lc(v.upn)); } catch { voted = []; }
     } else {
       continue; // nur laufende Workflow-Schritte
@@ -288,5 +291,46 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
       mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : []);
     if (ok) sent++;
   }
+
+  // ── Review-Fälligkeiten (Wiedervorlage) als Sammel-Mail an die Admins (ISO 27001 A.5.1) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    const reviewVorlauf = posInt(cfg.reviewVorlaufTage, 14);
+    if (!admins.length) {
+      console.log('Review-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const due = [];
+      for (const it of items) {
+        const f = it.fields || {};
+        if ((f.Status || '') === 'Archiviert' || !f.NaechsteReview) continue;
+        const d = new Date(f.NaechsteReview); if (isNaN(d)) continue;
+        d.setHours(0, 0, 0, 0);
+        const tageBis = Math.round((d - today) / 86400000);
+        if (tageBis <= reviewVorlauf) due.push({ title: f.Title || '(ohne Titel)', tageBis });
+      }
+      if (!due.length) {
+        console.log('Review-Digest: keine fälligen Überprüfungen.');
+      } else {
+        due.sort((a, b) => a.tageBis - b.tageBis);
+        const rows = due.map((x) => {
+          const lab = x.tageBis < 0 ? `überfällig seit ${-x.tageBis} Tag(en)` : (x.tageBis === 0 ? 'heute fällig' : `fällig in ${x.tageBis} Tag(en)`);
+          const col = x.tageBis < 0 ? '#b91c1c' : (x.tageBis <= 7 ? '#b45309' : '#374151');
+          return `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.title)}</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${col};font-weight:600;white-space:nowrap">${esc(lab)}</td></tr>`;
+        }).join('');
+        const overdue = due.filter((x) => x.tageBis < 0).length;
+        const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+          <p><b>Fällige Richtlinien-Überprüfungen (Wiedervorlage)</b></p>
+          <p>Folgende Richtlinien sind überfällig oder werden in den nächsten ${reviewVorlauf} Tagen zur internen Überprüfung fällig (ISO&nbsp;27001 A.5.1):</p>
+          <table style="border-collapse:collapse;width:100%">${rows}</table>
+          <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=faelligkeit" style="background:#1a56db;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Fälligkeiten öffnen →</a></p>
+          <p style="color:#6b7280;font-size:12px">Automatische Nachricht des DIHAG Richtlinienmanagements.</p></div>`;
+        const ok = await sendMail(admins, `Richtlinien-Überprüfung: ${due.length} fällig/überfällig${overdue ? ` (davon ${overdue} überfällig)` : ''}`, html, []);
+        if (ok) sent++;
+        console.log(`Review-Digest: ${due.length} fällige Überprüfung(en) (${overdue} überfällig) an ${admins.join(', ')}`);
+      }
+    }
+  } catch (e) { console.log('Review-Digest übersprungen:', e.message); }
+
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 })().catch((e) => { console.error('FEHLER:', e.message); process.exit(1); });
