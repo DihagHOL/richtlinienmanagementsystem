@@ -30,22 +30,23 @@ function _dBadge(role) {
 
 /* Inhaltsverzeichnis – Reihenfolge & Titel zentral. */
 const _DOKU_TOC = [
-  ['start',        '1 · Erste Schritte'],
-  ['lesen',        '2 · Richtlinien lesen & bestätigen'],
-  ['vorschlag',    '3 · Änderung vorschlagen'],
-  ['kurse',        '4 · Kurse'],
-  ['ki',           '5 · KI-Systeme beantragen'],
-  ['verwalten',    '6 · Richtlinien anlegen & verwalten'],
-  ['freigabe',     '7 · Konformitätsprüfung & Freigabe'],
-  ['health',       '8 · Dokument-Health-Check'],
-  ['abdeckung',    '9 · ISMS-Abdeckung (Heatmap) & Export'],
-  ['faelligkeit',  '10 · Fälligkeiten / Wiedervorlage'],
-  ['ismsdocs',     '11 · ISMS-Dokumente (ISO 27001)'],
-  ['vorschlaege',  '12 · Vorschläge bearbeiten'],
-  ['compliance',   '13 · Compliance-Nachweis'],
-  ['einstellungen','14 · Einstellungen'],
-  ['glossar',      '15 · Begriffe & Normbezug'],
-  ['faq',          '16 · Häufige Fragen & Hilfe'],
+  ['start',         'Erste Schritte'],
+  ['rollen',        'Rollen im System'],
+  ['lesen',         'Richtlinien lesen & bestätigen'],
+  ['vorschlag',     'Änderung vorschlagen'],
+  ['kurse',         'Kurse'],
+  ['ki',            'KI-Systeme beantragen'],
+  ['verwalten',     'Richtlinien anlegen & verwalten'],
+  ['freigabe',      'Konformitätsprüfung & Freigabe'],
+  ['health',        'Dokument-Health-Check'],
+  ['abdeckung',     'ISMS-Abdeckung (Heatmap) & Export'],
+  ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
+  ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
+  ['vorschlaege',   'Vorschläge bearbeiten'],
+  ['compliance',    'Compliance-Nachweis'],
+  ['einstellungen', 'Einstellungen'],
+  ['glossar',       'Begriffe & Normbezug'],
+  ['faq',           'Häufige Fragen & Hilfe'],
 ];
 
 /* ── Bausteine der einzelnen Abschnitte (auch für den Druck genutzt) ── */
@@ -54,11 +55,15 @@ function _dokuSections() {
   const ol = 'padding-left:20px;margin:10px 0 0';
   const h3 = 'margin:16px 0 6px;font-size:.98rem;font-weight:700';
   const hint = 'margin-top:12px;font-size:.85rem;color:var(--c-muted);background:var(--c-bg,#f8fafc);border-left:3px solid var(--c-primary,#1a56db);padding:8px 12px;border-radius:0 8px 8px 0';
-  const sec = (id, title, badge, body) => `
+  const norm = t => `<div class="doku-norm">📐 <b>Normbezug:</b> ${t}</div>`;
+  const sec = (id, title, badge, body, n) => `
     <section id="doku-${id}" class="doku-sec">
       <h2 class="doku-h2">${title} ${_dBadge(badge)}</h2>
       ${body}
+      ${n ? norm(n) : ''}
     </section>`;
+  const tbl = (rows) => `<table class="doku-tbl"><tbody>${rows.map(r =>
+    `<tr><td style="font-weight:600;white-space:nowrap">${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>`;
 
   return [
     sec('start', 'Erste Schritte', 'all', `
@@ -71,6 +76,19 @@ function _dokuSections() {
       </ul>
       <div style="${hint}">💡 Diese Dokumentation ist die Langfassung. Für den 3-Minuten-Schnellstart gibt es den Reiter <b>„Anleitung"</b>.</div>`),
 
+    sec('rollen', 'Rollen im System', 'all', `
+      <p style="margin:0 0 8px;line-height:1.55">Was jemand sieht und darf, ergibt sich aus seiner Rolle. Rollen werden von der Administration unter <b>„Einstellungen"</b> gepflegt (E-Mail-Adressen je Rolle).</p>
+      ${tbl([
+        ['Mitarbeitende', 'Richtlinien lesen &amp; bestätigen, Wissenstest, Änderungen vorschlagen, KI-Systeme beantragen. Jede angemeldete Person.'],
+        ['Konformitätsprüfer', 'Prüfen Richtlinien fachlich auf Konformität (ISO 27001 / NIS2) und markieren „konform / nicht konform". Global oder pro Richtlinie hinterlegbar.'],
+        ['Geschäftsleitung', 'Gibt die geprüften Richtlinien frei → Veröffentlichung. Global oder pro Richtlinie hinterlegbar.'],
+        ['Genehmiger', 'App-interne Freigabeberechtigung (wie GL); sieht den Reiter „Freigaben".'],
+        ['Administration', 'Richtlinien &amp; ISMS-Dokumente verwalten, Health-Check, ISMS-Abdeckung, Fälligkeiten, Compliance-Auswertung, Einstellungen.'],
+        ['ISMS-Verantwortliche / Vorschlags-Empfänger', 'Erhalten und bearbeiten die Änderungsvorschläge (Reiter „Vorschläge").'],
+        ['KI-Gremium', 'Entscheidet über KI-Anträge im KI-Dashboard (leer = Genehmiger-Liste gilt).'],
+      ])}`,
+      'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), A.5.2 (Informationssicherheitsrollen); NIS2 Art. 20 (Verantwortung der Leitungsorgane).'),
+
     sec('lesen', 'Richtlinien lesen & bestätigen', 'all', `
       <ol style="${ol}">
         <li style="${li}">Reiter <b>„Meine Richtlinien"</b> öffnen – oben die Quote (zugewiesen / offen / abgeschlossen).</li>
@@ -79,7 +97,8 @@ function _dokuSections() {
         <li style="${li}"><b>Wissenstest</b> (falls erforderlich): „Wissenstest starten" → Fragen beantworten. Nicht bestanden? Einfach erneut versuchen.</li>
         <li style="${li}"><b>Teilnahmenachweis</b> kann per Mail an dich selbst gesendet werden.</li>
       </ol>
-      <div style="${hint}">ℹ️ Manche Richtlinien müssen <b>regelmäßig</b> erneut bestätigt werden (z. B. jährlich) und erscheinen dann automatisch wieder als „offen". Auch eine <b>neue Version</b> setzt die Bestätigung zurück.</div>`),
+      <div style="${hint}">ℹ️ Manche Richtlinien müssen <b>regelmäßig</b> erneut bestätigt werden (z. B. jährlich) und erscheinen dann automatisch wieder als „offen". Auch eine <b>neue Version</b> setzt die Bestätigung zurück.</div>`,
+      'ISO 27001 Klausel 7.3 (Bewusstsein), A.6.3 (Informationssicherheitsbewusstsein &amp; -schulung), A.5.1 (Richtlinien); NIS2 Art. 21(2g) (Cyberhygiene &amp; Schulung).'),
 
     sec('vorschlag', 'Änderung vorschlagen', 'all', `
       <p style="margin:0;line-height:1.55">Fehler oder Verbesserung entdeckt? In der geöffneten Richtlinie oben rechts auf <b>„✏️ Änderung vorschlagen"</b>, kurz <b>was</b> und <b>warum</b> beschreiben, absenden.</p>
@@ -98,7 +117,8 @@ function _dokuSections() {
         <li style="${li}"><b>„Neuer Antrag"</b> → Formular gemäß KI-Richtlinie (CO-10-01) ausfüllen (Richtlinie & Verhaltenskodex sind oben verlinkt).</li>
         <li style="${li}">Absenden → das KI-Koordinierungsgremium wird automatisch informiert.</li>
         <li style="${li}">Status jederzeit unter <b>„Anträge"</b>; auf Rückfragen des Gremiums direkt antworten.</li>
-      </ol>`),
+      </ol>`,
+      'ISO 27001 Klausel 5.3 (Rollen &amp; Befugnisse); NIS2 Art. 20 (Governance). Intern: KI-Richtlinie CO-10-01.'),
 
     sec('verwalten', 'Richtlinien anlegen & verwalten', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Richtlinien verwalten"</b> → <b>„+ Neue Richtlinie"</b> oder bestehende anklicken. Mehrere Word-/PDF-Dateien lassen sich per <b>Import</b> gleichzeitig als Entwürfe anlegen.</p>
@@ -108,16 +128,25 @@ function _dokuSections() {
         <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten).</li>
         <li style="${li}"><b>Zielgruppe</b> – wer die Richtlinie sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
         <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Wiederholungspflicht</b>.</li>
-        <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe Abschnitt 10).</li>
-        <li style="${li}"><b>Normbezug</b> – welche ISO-27001-/NIS2-Controls die Richtlinie abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe Abschnitt 9).</li>
+        <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
+        <li style="${li}"><b>Normbezug</b> – welche ISO-27001-/NIS2-Controls die Richtlinie abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
         <li style="${li}"><b>Konformitätsprüfung – nur für diese Richtlinie</b> (optional): eigene Prüfer/Schwelle. Leer = globale Einstellung.</li>
         <li style="${li}"><b>Freigabe (Geschäftsleitung) – nur für diese Richtlinie</b> (optional): eigene Freigeber/Schwelle. Leer = globale Einstellung.</li>
       </ul>
       <div style="${hint}">🔒 <b>Pro-Richtlinie-Prüfer/-Freigeber ersetzen</b> die globalen für genau diese Richtlinie (nicht additiv). Karten-Tags „👤 eigene Prüfer" / „👤 eigene Freigeber" zeigen an, wo das gesetzt ist.</div>
-      <div style="margin-top:10px;line-height:1.55"><b>„Zur Konformitätsprüfung"</b> startet den Freigabe-Workflow (Abschnitt 7).</div>`),
+      <div style="margin-top:10px;line-height:1.55"><b>„Zur Konformitätsprüfung"</b> startet den Freigabe-Workflow (siehe „Konformitätsprüfung &amp; Freigabe").</div>`,
+      'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik), A.5.1 (Informationssicherheitsrichtlinien).'),
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
       <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
+      <div style="${h3}">Die Status einer Richtlinie</div>
+      ${tbl([
+        ['Entwurf', 'In Bearbeitung durch die Administration; noch nicht im Prüf-/Freigabeprozess.'],
+        ['Konformitätsprüfung', 'Bei den Prüfern zur fachlichen Konformitätsprüfung.'],
+        ['Freigabe', 'Konform – wartet auf die Freigabe der Geschäftsleitung.'],
+        ['Veröffentlicht', 'Freigegeben und für die Zielgruppe sichtbar/zu bestätigen.'],
+        ['Archiviert', 'Außer Kraft gesetzt; nicht mehr aktiv (nicht in Auswertungen).'],
+      ])}
       <div style="${h3}">1 · Konformitätsprüfung (Prüfer)</div>
       <ul style="${ol}">
         <li style="${li}">Richtlinie öffnen, Dokument ansehen, dann <b>„Konform"</b> oder <b>„Nicht konform"</b>.</li>
@@ -131,7 +160,8 @@ function _dokuSections() {
       </ul>
       <div style="${h3}">Direkt aus der E-Mail entscheiden</div>
       <p style="margin:0;line-height:1.55">Prüf- und Freigabe-Mails enthalten Buttons <b>„✓ Konform / ✗ Nicht konform"</b> bzw. <b>„✓ Freigeben / ✗ Zurück"</b>. Ein Klick öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).</p>
-      <div style="${hint}">⏰ <b>Erinnerungen & Eskalation</b> laufen automatisch (GitHub-Cron): erst nach X Tagen, dann alle Y Tage, ab Z Tagen zusätzlich an den Ersatz-Empfänger. Die richtige Person je Richtlinie wird erinnert (pro-Richtlinie-Prüfer/-Freigeber bevorzugt).</div>`),
+      <div style="${hint}">⏰ <b>Erinnerungen & Eskalation</b> laufen automatisch (GitHub-Cron): erst nach X Tagen, dann alle Y Tage, ab Z Tagen zusätzlich an den Ersatz-Empfänger. Die richtige Person je Richtlinie wird erinnert (pro-Richtlinie-Prüfer/-Freigeber bevorzugt).</div>`,
+      'ISO 27001 A.5.1 (Genehmigung &amp; Überprüfung der Richtlinien), Klausel 7.5.2 (Erstellen/Freigeben), 5.3 (Rollen); NIS2 Art. 20 (Verantwortung der Leitung).'),
 
     sec('health', 'Dokument-Health-Check', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter „Richtlinien verwalten" → Button <b>„🩺 Dokumente prüfen"</b>. Prüft die angehängten Word-Dokumente <b>direkt im Browser, deterministisch und ohne KI</b>. Geprüft wird auf:</p>
@@ -147,7 +177,8 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}">Je Richtlinie erscheint ein Ampel-Badge (🟢 ohne Befund · 🟡 Hinweise · 🔴 kritisch · ⚪ nicht prüfbar).</li>
         <li style="${li}">Im Ergebnisbericht macht <b>„✏️ Als Vorschlag"</b> aus den Befunden einen vorausgefüllten Änderungsvorschlag an die Verantwortlichen.</li>
-      </ul>`),
+      </ul>`,
+      'ISO 27001 Klausel 7.5.2/7.5.3 (Angemessenheit &amp; Lenkung dokumentierter Information), A.5.1 (Konsistenz der Richtlinien).'),
 
     sec('abdeckung', 'ISMS-Abdeckung (Heatmap) & Export', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Abdeckung"</b> zeigt als Heatmap, welche ISO-27001-/NIS2-Controls durch mindestens eine Richtlinie abgedeckt sind.</p>
@@ -161,7 +192,8 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>🖨 Report</b> – öffnet einen druck-/PDF-fähigen Nachweis: Kennzahlen, Richtlinien mit Konformitäts-/Freigabestatus und Normbezug sowie die vollständige Control-Abdeckung.</li>
         <li style="${li}"><b>⬇ CSV</b> – lädt die Abdeckungsmatrix als CSV-Datei (öffnet in Excel).</li>
-      </ul>`),
+      </ul>`,
+      'ISO 27001 Klausel 6.1.3 (Risikobehandlung / Erklärung zur Anwendbarkeit), 4.3 (Anwendungsbereich), Annex A (Controls); NIS2 Art. 21(2) (Maßnahmenkatalog).'),
 
     sec('faelligkeit', 'Fälligkeiten / Wiedervorlage', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Fälligkeiten"</b> bündelt die interne Überprüfung der Richtlinien anhand des Termins <b>„Nächste Überprüfung"</b> – <b>ISO 27001 A.5.1</b> verlangt die regelmäßige Überprüfung.</p>
@@ -170,7 +202,8 @@ function _dokuSections() {
         <li style="${li}"><b>„🔁 +12 Monate"</b> setzt den nächsten Überprüfungstermin sofort auf heute + 12 Monate.</li>
         <li style="${li}"><b>„✏ Bearbeiten"</b> öffnet die Richtlinie im Editor (z. B. um den Termin frei zu wählen).</li>
       </ul>
-      <div style="${hint}">📧 Der Erinnerungs-Cron schickt zusätzlich einen <b>Fälligkeits-Digest</b> an die Admins: alle überfälligen und in den nächsten Tagen fälligen Überprüfungen, mit Direktlink in diesen Reiter.</div>`),
+      <div style="${hint}">📧 Der Erinnerungs-Cron schickt zusätzlich einen <b>Fälligkeits-Digest</b> an die Admins: alle überfälligen und in den nächsten Tagen fälligen Überprüfungen, mit Direktlink in diesen Reiter.</div>`,
+      'ISO 27001 A.5.1 (regelmäßige Überprüfung der Richtlinien), Klausel 9.3/10.1 (Bewertung &amp; fortlaufende Verbesserung).'),
 
     sec('ismsdocs', 'ISMS-Dokumente (ISO 27001)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Dokumente"</b> verwaltet die ISO-27001-Dokumente direkt auf der ISMS-Site.</p>
@@ -179,13 +212,15 @@ function _dokuSections() {
         <li style="${li}"><b>Status & Freigabe sind nur Anzeige</b> – sie werden über den Freigabeprozess gesetzt: Dokument per <b>„＋ Als Richtlinie übernehmen"</b> einbinden und im Reiter „Freigaben" prüfen/freigeben (Rückschreibung erfolgt automatisch).</li>
         <li style="${li}"><b>„👁 Vorschau"</b> öffnet das Dokument in der App; Versionsverlauf einsehbar.</li>
         <li style="${li}"><b>„✏️ In Office bearbeiten"</b> (Desktop) oder <b>„🌐 Im Browser bearbeiten"</b> – beim Speichern entsteht automatisch eine neue Version. Alternativ <b>„⬆ Neue Version"</b> mit Pflicht-Änderungsnotiz.</li>
-      </ul>`),
+      </ul>`,
+      'ISO 27001 Klausel 7.5 (Dokumentierte Information – Lenkung &amp; Versionierung), A.5.37 (Dokumentierte Betriebsabläufe), A.5.12/A.5.13 (Klassifizierung/Kennzeichnung).'),
 
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),
 
     sec('compliance', 'Compliance-Nachweis', 'admin', `
-      <p style="margin:0;line-height:1.55">Reiter <b>„Compliance"</b> zeigt, wer welche Pflicht-Richtlinie erledigt hat – mit Filtern und <b>CSV-Export</b> als Nachweis.</p>`),
+      <p style="margin:0;line-height:1.55">Reiter <b>„Compliance"</b> zeigt, wer welche Pflicht-Richtlinie erledigt hat – mit Filtern und <b>CSV-Export</b> als Nachweis.</p>`,
+      'ISO 27001 Klausel 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung), A.6.3 (Schulung), A.5.36 (Einhaltung von Richtlinien).'),
 
     sec('einstellungen', 'Einstellungen', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Einstellungen"</b> (Admin) pflegt zentrale Rollen und Automatiken:</p>
@@ -194,7 +229,8 @@ function _dokuSections() {
         <li style="${li}"><b>Genehmigungs-Schwellen:</b> „konform/freigegeben, wenn alle zustimmen" oder „einer reicht" (global; je Richtlinie überschreibbar).</li>
         <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger.</li>
         <li style="${li}"><b>Power Automate:</b> Ist der Modus aktiv, verschickt die App keine Prüf-/Freigabe-Mails – die Genehmigung läuft über den Power-Automate-Flow.</li>
-      </ul>`),
+      </ul>`,
+      'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
 
     sec('glossar', 'Begriffe & Normbezug', 'all', `
       <ul style="${ol}">
@@ -219,8 +255,8 @@ function _dokuSections() {
 }
 
 function dokumentationHtml() {
-  const toc = _DOKU_TOC.map(([id, t]) =>
-    `<a href="#doku-${id}" class="doku-toc-link" onclick="event.preventDefault();dokuGoto('${id}')">${t}</a>`).join('');
+  const toc = _DOKU_TOC.map(([id, t], i) =>
+    `<a href="#doku-${id}" class="doku-toc-link" onclick="event.preventDefault();dokuGoto('${id}')">${i + 1} · ${t}</a>`).join('');
 
   return `
   <style>
@@ -232,7 +268,11 @@ function dokumentationHtml() {
     .doku-toc-link:hover{background:var(--c-bg,#eef2ff);color:var(--c-primary)}
     .doku-sec{background:var(--c-surface);border:1px solid var(--c-border);border-radius:14px;padding:18px 22px;margin:0 0 16px;scroll-margin-top:16px}
     .doku-h2{margin:0 0 6px;font-size:1.12rem;font-weight:800;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    @media (max-width:900px){ .doku-grid{grid-template-columns:1fr} .doku-toc{position:static;max-height:none;margin-bottom:8px} }
+    .doku-norm{margin-top:12px;font-size:.8rem;color:var(--c-muted);border-top:1px dashed var(--c-border);padding-top:8px}
+    .doku-tbl{width:100%;border-collapse:collapse;margin:8px 0 2px;font-size:.86rem}
+    .doku-tbl td{border:1px solid var(--c-border);padding:6px 10px;vertical-align:top;line-height:1.5}
+    .doku-tbl tr td:first-child{width:210px;color:var(--c-text)}
+    @media (max-width:900px){ .doku-grid{grid-template-columns:1fr} .doku-toc{position:static;max-height:none;margin-bottom:8px} .doku-tbl tr td:first-child{width:auto} }
   </style>
   <div class="doku-wrap">
     <div class="view-header" style="margin-bottom:16px">
@@ -269,6 +309,10 @@ function dokuPrint() {
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:28px;font-size:13px;line-height:1.5;max-width:820px}
       h1{font-size:20px;margin:0 0 4px} .doku-h2{font-size:15px;font-weight:800;margin:0 0 6px;border-bottom:2px solid #111827;padding-bottom:3px}
       .doku-sec{border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px;margin:0 0 14px;page-break-inside:avoid}
+      .doku-norm{margin-top:10px;font-size:11.5px;color:#6b7280;border-top:1px dashed #d1d5db;padding-top:7px}
+      .doku-tbl{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+      .doku-tbl td{border:1px solid #d1d5db;padding:5px 9px;vertical-align:top}
+      .doku-tbl tr td:first-child{width:210px;font-weight:600}
       a{color:#1a56db} ul,ol{margin:8px 0 0} :root{--c-muted:#6b7280;--c-primary:#1a56db;--c-text:#111827;--c-bg:#f8fafc;--c-surface:#fff;--c-border:#e5e7eb;--c-faint:#9ca3af}
       .noprint{margin-bottom:14px}@media print{.noprint{display:none}}
     </style></head><body>
