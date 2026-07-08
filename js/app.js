@@ -22,7 +22,7 @@ const DATA_TTL = 5 * 60 * 1000;
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
   verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', vorschlaege: 'Vorschläge',
-  freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung',
+  freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
 /* ═══════════════════════════════════════════════════
@@ -209,6 +209,7 @@ async function switchView(view) {
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();
   if (view === 'kurse'        && typeof initKurse === 'function')         initKurse();
   if (view === 'anleitung'    && typeof initAnleitung === 'function')     initAnleitung();
+  if (view === 'dokumentation'&& typeof initDokumentation === 'function') initDokumentation();
 }
 
 /* ═══════════════════════════════════════════════════
