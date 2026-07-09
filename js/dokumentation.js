@@ -43,7 +43,7 @@ const _DOKU_TOC = [
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
-  ['compliance',    'Compliance-Nachweis'],
+  ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
   ['glossar',       'Begriffe & Normbezug'],
   ['faq',           'Häufige Fragen & Hilfe'],
@@ -121,7 +121,7 @@ function _dokuSections() {
       'ISO 27001 Klausel 5.3 (Rollen &amp; Befugnisse); NIS2 Art. 20 (Governance). Intern: KI-Richtlinie CO-10-01.'),
 
     sec('verwalten', 'Richtlinien anlegen & verwalten', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Richtlinien verwalten"</b> → <b>„+ Neue Richtlinie"</b> oder bestehende anklicken. Mehrere Word-/PDF-Dateien lassen sich per <b>Import</b> gleichzeitig als Entwürfe anlegen.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Richtlinien Dashboard"</b> → <b>„+ Neue Richtlinie"</b> oder bestehende anklicken. Mehrere Word-/PDF-Dateien lassen sich per <b>Import</b> gleichzeitig als Entwürfe anlegen.</p>
       <div style="${h3}">Der Editor im Überblick</div>
       <ul style="${ol}">
         <li style="${li}"><b>Titel, Beschreibung, Kategorie, Version</b> – neue Version ⇒ alle müssen erneut bestätigen.</li>
@@ -164,7 +164,7 @@ function _dokuSections() {
       'ISO 27001 A.5.1 (Genehmigung &amp; Überprüfung der Richtlinien), Klausel 7.5.2 (Erstellen/Freigeben), 5.3 (Rollen); NIS2 Art. 20 (Verantwortung der Leitung).'),
 
     sec('health', 'Dokument-Health-Check', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter „Richtlinien verwalten" → Button <b>„🩺 Dokumente prüfen"</b>. Prüft die angehängten Word-Dokumente <b>direkt im Browser, deterministisch und ohne KI</b>. Geprüft wird auf:</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter „Richtlinien Dashboard" → Button <b>„🩺 Dokumente prüfen"</b>. Prüft die angehängten Word-Dokumente <b>direkt im Browser, deterministisch und ohne KI</b>. Geprüft wird auf:</p>
       <ul style="${ol}">
         <li style="${li}"><b>Inhalts-Dubletten</b> – zwei Richtlinien mit identischem Dokumentinhalt (z. B. versehentlich falsche Datei angehängt).</li>
         <li style="${li}"><b>Titel-Abgleich</b> – passt der Dokumenttitel zur Richtlinie?</li>
@@ -218,8 +218,8 @@ function _dokuSections() {
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),
 
-    sec('compliance', 'Compliance-Nachweis', 'admin', `
-      <p style="margin:0;line-height:1.55">Reiter <b>„Compliance"</b> zeigt, wer welche Pflicht-Richtlinie erledigt hat – mit Filtern und <b>CSV-Export</b> als Nachweis.</p>`,
+    sec('compliance', 'Audit Report', 'admin', `
+      <p style="margin:0;line-height:1.55">Reiter <b>„Audit Report"</b> (Compliance-Nachweis) zeigt, wer welche Pflicht-Richtlinie erledigt hat – mit Filtern und <b>CSV-Export</b> als Nachweis.</p>`,
       'ISO 27001 Klausel 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung), A.6.3 (Schulung), A.5.36 (Einhaltung von Richtlinien).'),
 
     sec('einstellungen', 'Einstellungen', 'admin', `

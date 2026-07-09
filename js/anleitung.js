@@ -128,15 +128,15 @@ function anleitungHtml() {
     <!-- 4. Administratoren -->
     ${_aCard(`
       <h2 style="${h2}">4. Verwaltung ${_aBadge('Administratoren', 'admin')}</h2>
-      <h3 style="${h3}">Richtlinien verwalten</h3>
+      <h3 style="${h3}">Richtlinien Dashboard</h3>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
-        <li style="${liStyle}"><b>„Richtlinien verwalten“</b> → „+ Neue Richtlinie“ oder bestehende
+        <li style="${liStyle}"><b>„Richtlinien Dashboard“</b> → „+ Neue Richtlinie“ oder bestehende
           anklicken.</li>
         <li style="${liStyle}">Titel, Beschreibung, Kategorie, Zielgruppe (wer sie sehen muss),
           Pflicht/optional, Wissenstest und das zugehörige <b>Dokument</b> festlegen.</li>
         <li style="${liStyle}">„Zur Konformitätsprüfung“ startet den Freigabe-Workflow (siehe Abschnitt 3).</li>
-        <li style="${liStyle}"><b>Compliance</b> zeigt, wer welche Pflicht-Richtlinie erledigt hat
-          (inkl. CSV-Export).</li>
+        <li style="${liStyle}"><b>Audit Report</b> (Compliance) zeigt, wer welche Pflicht-Richtlinie
+          erledigt hat (inkl. CSV-Export).</li>
       </ul>
       <h3 style="${h3}">ISMS-Dokumente (ISO 27001)</h3>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">

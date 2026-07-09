@@ -21,8 +21,8 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien verwalten', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', vorschlaege: 'Vorschläge',
-  freigaben: 'Freigaben', compliance: 'Compliance', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
+  verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', vorschlaege: 'Vorschläge',
+  freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
 /* ═══════════════════════════════════════════════════
