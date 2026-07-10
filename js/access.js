@@ -19,6 +19,9 @@ const ACCESS_CONFIG_DEFAULT = {
   genehmiger: ['pruefer@dihag.com', 'pruefer@dihag.com'],
   roles:      null,   // null → COMPANY_ROLES_DEFAULT
   userRoles:  {},     // { "user@dihag.com": ["IT", "Qualitätsmanagement"] }
+  // Reiter-Berechtigungen (zusätzlich zu den Standard-Rollenrechten, rein additiv):
+  //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
+  reiterRechte: {},
   // ── Genehmigungsverfahren ──
   pruefer:          [],        // Konformitätsprüfer (UPNs)
   geschaeftsleitung: [],       // Freigeber / Geschäftsleitung (UPNs)
@@ -60,6 +63,7 @@ async function loadRuntimeAccessConfig() {
         genehmiger: Array.isArray(cfg.genehmiger) ? cfg.genehmiger : [],
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
+        reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
         pruefer:           Array.isArray(cfg.pruefer) ? cfg.pruefer : [],
         geschaeftsleitung: Array.isArray(cfg.geschaeftsleitung) ? cfg.geschaeftsleitung : [],
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
@@ -86,6 +90,7 @@ function getAccessConfig() {
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
     userRoles:  JSON.parse(JSON.stringify(c.userRoles || {})),
+    reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
     pruefer:           [...(c.pruefer || [])],
     geschaeftsleitung: [...(c.geschaeftsleitung || [])],
     konformSchwelle:   c.konformSchwelle || 'alle',
@@ -224,22 +229,89 @@ function policyMatchesRoles(zielgruppen, roles) {
   return zielgruppen.some(z => set.has(String(z).toLowerCase().trim()));
 }
 
+/* ═══════════════════════════════════════════════════
+   Reiter-Berechtigungen (pro Reiter: Lesen/Schreiben)
+   ===================================================
+   Zusätzlich (additiv) zu den Standard-Rollenrechten. Ein Eintrag je Reiter kann
+   E-Mail-Adressen UND Rollen/Abteilungen enthalten. „Schreiben" schließt „Lesen"
+   ein. Admins haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
+   (Berechtigungsvergabe = kein Privilege-Escalation). Gepflegt in access-config.json. */
+const GOVERNABLE_TABS = [
+  { view: 'verwaltung',  label: 'Richtlinien Dashboard' },
+  { view: 'ismsdocs',    label: 'ISMS-Dokumente' },
+  { view: 'governance',  label: 'Governance-Board' },
+  { view: 'abdeckung',   label: 'ISMS-Abdeckung' },
+  { view: 'faelligkeit', label: 'Fälligkeiten' },
+  { view: 'vorschlaege', label: 'Vorschläge' },
+  { view: 'freigaben',   label: 'Freigaben' },
+  { view: 'compliance',  label: 'Audit Report' },
+];
+
+function _reiterRechte() { return _cfg().reiterRechte || {}; }
+
+/** Normalisierte Rechte eines Reiters: { lesen:[…], schreiben:[…] }. */
+function getReiterRechte(view) {
+  const r = _reiterRechte()[view] || {};
+  return {
+    lesen:     Array.isArray(r.lesen)     ? r.lesen.filter(Boolean)     : [],
+    schreiben: Array.isArray(r.schreiben) ? r.schreiben.filter(Boolean) : [],
+  };
+}
+
+/** Liste (E-Mails ODER Rollennamen) gegen den aktuellen Nutzer/seine Rollen matchen. */
+function _matchesUserOrRole(list, upn, roles) {
+  if (!Array.isArray(list) || !list.length) return false;
+  const u = (upn || '').toLowerCase().trim();
+  const rset = new Set((roles || []).map(r => String(r).toLowerCase().trim()));
+  return list.some(x => { const s = String(x).toLowerCase().trim(); return s === u || rset.has(s); });
+}
+
+/** Effektive Rollen des aktuellen Nutzers (synchron; aus State, in bootApp gesetzt). */
+function _currentRolesSync() {
+  return (typeof State !== 'undefined' && Array.isArray(State.myRoles)) ? State.myRoles : [];
+}
+
+/** Standard-Lesbarkeit eines Reiters ohne Sonderberechtigung (bisheriges Verhalten). */
+function _defaultTabRead(view) {
+  if (isCurrentUserAdmin()) return true;
+  if (view === 'vorschlaege') return isCurrentUserProposalManager();
+  if (view === 'freigaben')   return isCurrentUserGenehmiger() || isCurrentUserPruefer() || isCurrentUserGeschaeftsleitung();
+  return false;   // verwaltung, ismsdocs, governance, abdeckung, faelligkeit, compliance → sonst admin-only
+}
+
+/** Darf der Reiter gesehen/geöffnet werden? (Standard ODER additive Freigabe). */
+function canReadTab(view) {
+  if (_defaultTabRead(view)) return true;
+  const r = getReiterRechte(view);
+  const upn = _currentUpn(), roles = _currentRolesSync();
+  return _matchesUserOrRole(r.lesen, upn, roles) || _matchesUserOrRole(r.schreiben, upn, roles);
+}
+
+/** Darf im Reiter geschrieben/bearbeitet werden? (Standard-Schreiber ODER schreiben-Freigabe). */
+function canWriteTab(view) {
+  if (_defaultTabRead(view)) return true;   // Standard-Zugriffsberechtigte (v. a. Admins) schreiben wie bisher
+  return _matchesUserOrRole(getReiterRechte(view).schreiben, _currentUpn(), _currentRolesSync());
+}
+
+/** Nur-Lese-Zugriff: sichtbar, aber ohne Schreibrecht. */
+function isReadOnlyTab(view) { return canReadTab(view) && !canWriteTab(view); }
+
 /**
- * Navigations-Einträge je nach Berechtigungs-Rolle ein-/ausblenden.
+ * Navigations-Einträge je nach Berechtigung ein-/ausblenden.
+ * Sichtbarkeit über canReadTab (Standardrollen + additive Reiter-Freigaben).
  */
 function initRoleNav() {
   const admin = isCurrentUserAdmin();
-  const geneh = isCurrentUserGenehmiger();
-  const kannFreigaben = admin || geneh || isCurrentUserPruefer() || isCurrentUserGeschaeftsleitung();
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-  show('nav-sep-admin',     admin || kannFreigaben || isCurrentUserProposalManager());
-  show('nav-verwaltung',    admin);
-  show('nav-ismsdocs',      admin);
-  show('nav-governance',    admin);
-  show('nav-abdeckung',     admin);
-  show('nav-faelligkeit',   admin);
-  show('nav-vorschlaege',   admin || isCurrentUserProposalManager());
-  show('nav-freigaben',     kannFreigaben);
-  show('nav-compliance',    admin);
+  const anyAdminTab = GOVERNABLE_TABS.some(t => canReadTab(t.view));
+  show('nav-sep-admin',     admin || anyAdminTab);
+  show('nav-verwaltung',    canReadTab('verwaltung'));
+  show('nav-ismsdocs',      canReadTab('ismsdocs'));
+  show('nav-governance',    canReadTab('governance'));
+  show('nav-abdeckung',     canReadTab('abdeckung'));
+  show('nav-faelligkeit',   canReadTab('faelligkeit'));
+  show('nav-vorschlaege',   canReadTab('vorschlaege'));
+  show('nav-freigaben',     canReadTab('freigaben'));
+  show('nav-compliance',    canReadTab('compliance'));
   show('nav-einstellungen', admin);
 }

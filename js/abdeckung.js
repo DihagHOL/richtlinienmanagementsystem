@@ -125,7 +125,7 @@ function renderAbdeckung() {
     ${unsaved.length ? `<div style="display:block;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:#fefce8;border:1px solid #fde68a">
       <b>${unsaved.length} Richtlinie(n) haben eine Review-Zuordnung, die noch nicht gespeichert ist</b> (gelb dargestellt):
       ${unsaved.map(p => `<span class="ic-tag" title="${esc((normbezugSeedFor(p.title) || []).map(id => typeof normLabel === 'function' ? normLabel(id) : id).join(' · '))}">${esc(p.title)}</span>`).join(' ')}
-      <div style="margin-top:8px"><button class="btn btn-primary btn-sm" id="ab-apply-btn" onclick="abdeckungApplySeeds()"${missingCol ? ' disabled title="Erst die Spalte NormbezugJson anlegen"' : ''}>✔ Review-Zuordnungen jetzt speichern</button></div>
+      ${(typeof canWriteTab !== 'function' || canWriteTab('abdeckung')) ? `<div style="margin-top:8px"><button class="btn btn-primary btn-sm" id="ab-apply-btn" onclick="abdeckungApplySeeds()"${missingCol ? ' disabled title="Erst die Spalte NormbezugJson anlegen"' : ''}>✔ Review-Zuordnungen jetzt speichern</button></div>` : ''}
     </div>` : ''}
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.75rem;margin-bottom:14px">
       <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;${_abColor('saved', 1)};border:1px solid;vertical-align:-1px"></span> gespeichert</span>
@@ -156,6 +156,9 @@ function abdeckungShowControl(id) {
 
 /** Review-Seeds auf alle passenden Richtlinien anwenden und speichern. */
 async function abdeckungApplySeeds() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('abdeckung')) {
+    if (typeof toast === 'function') toast('Nur Lesezugriff auf „ISMS-Abdeckung".', 'error'); return;
+  }
   const targets = _abdeckungUnsaved();
   if (!targets.length) return;
   const btn = document.getElementById('ab-apply-btn');

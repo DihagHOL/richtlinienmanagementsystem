@@ -61,7 +61,8 @@ function _faelligCard(entry, accent) {
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <span style="flex:1;min-width:0;font-size:.8rem;color:var(--c-muted)">${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ kein Dokument'}</span>
       <button class="btn btn-outline btn-sm" onclick="openPolicyEditor('${esc(p.id)}')">✏ Bearbeiten</button>
-      <button class="btn btn-success btn-sm" onclick="faelligSetReview('${esc(p.id)}',12)" title="Nächste Überprüfung auf heute + 12 Monate setzen">🔁 +12 Monate</button>
+      ${(typeof canWriteTab !== 'function' || canWriteTab('faelligkeit'))
+        ? `<button class="btn btn-success btn-sm" onclick="faelligSetReview('${esc(p.id)}',12)" title="Nächste Überprüfung auf heute + 12 Monate setzen">🔁 +12 Monate</button>` : ''}
     </div>
   </div>`;
 }
@@ -97,6 +98,9 @@ function renderFaelligkeit() {
 
 /** Nächste Überprüfung auf heute + N Monate setzen und speichern. */
 async function faelligSetReview(id, months) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('faelligkeit')) {
+    if (typeof toast === 'function') toast('Nur Lesezugriff auf „Fälligkeiten".', 'error'); return;
+  }
   const src = State.policies.find(x => x.id === id);
   if (!src) return;
   const d = new Date(); d.setMonth(d.getMonth() + (months || 12));

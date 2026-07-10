@@ -20,11 +20,16 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
 function renderAdminList() {
   const list = document.getElementById('list-admin');
   if (!list) return;
+  // Nur-Lese-Zugriff (Reiter-Berechtigung): Anlegen ausblenden, Hinweis zeigen.
+  const readOnly = typeof isReadOnlyTab === 'function' && isReadOnlyTab('verwaltung');
+  const newBtn = document.getElementById('btn-new-policy');
+  if (newBtn) newBtn.style.display = readOnly ? 'none' : '';
+  const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Richtlinien Dashboard" – Anlegen und Bearbeiten sind gesperrt.</div>` : '';
   const _colBanner = (liste, miss) => miss.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
       Bitte in SharePoint anlegen: ${miss.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
     </div>` : '';
-  const warn =
+  const warn = roBanner +
     _colBanner('Richtlinien', (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : []) +
     _colBanner('Bestaetigungen', (typeof spMissingAckColumns === 'function') ? spMissingAckColumns() : []);
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
@@ -362,11 +367,14 @@ function renderPolicyEditor() {
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
-      ${p.id ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>` : ''}
-      <button class="btn btn-outline" onclick="savePolicy()">Speichern (Entwurf)</button>
-      ${(!p.id || p.status === 'Entwurf' || p.status === 'Konformitätsprüfung' || p.status === 'InReview')
-        ? `<button class="btn btn-primary" onclick="savePolicy('Konformitätsprüfung')">${p.status === 'Konformitätsprüfung' ? '↻ Erneut zur Prüfung' : 'Zur Konformitätsprüfung →'}</button>`
-        : ''}
+      ${(typeof canWriteTab === 'function' && !canWriteTab('verwaltung'))
+        ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff – Änderungen können nicht gespeichert werden.</span>
+           <button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
+        : `${p.id ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>` : ''}
+           <button class="btn btn-outline" onclick="savePolicy()">Speichern (Entwurf)</button>
+           ${(!p.id || p.status === 'Entwurf' || p.status === 'Konformitätsprüfung' || p.status === 'InReview')
+             ? `<button class="btn btn-primary" onclick="savePolicy('Konformitätsprüfung')">${p.status === 'Konformitätsprüfung' ? '↻ Erneut zur Prüfung' : 'Zur Konformitätsprüfung →'}</button>`
+             : ''}`}
     </div>`;
   openModal(body, true);
 }
@@ -611,6 +619,9 @@ function fkSetSchwelle(v) {
 }
 
 async function savePolicy(newStatus) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
+    toast('Nur Lesezugriff auf „Richtlinien Dashboard" – Speichern nicht möglich.', 'error'); return;
+  }
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
   if (!p.dokumentItemId && !p.dokumentUrl) { toast('Bitte ein Dokument zuordnen.', 'error'); return; }
@@ -1360,6 +1371,7 @@ function renderEinstellungen() {
       ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard) – leer = Genehmiger-Liste gilt')}
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
+      ${reiterRechteCard()}
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
@@ -1521,6 +1533,44 @@ function roleCard(role, title) {
       </div>
     </div>
   </div>`;
+}
+
+/* ── Reiter-Berechtigungen (Lesen/Schreiben pro Reiter) ── */
+function reiterRechteCard() {
+  if (typeof GOVERNABLE_TABS === 'undefined') return '';
+  const rr = _cfgEdit.reiterRechte || (_cfgEdit.reiterRechte = {});
+  const roles = (typeof getCompanyRoles === 'function') ? getCompanyRoles() : [];
+  const inp = 'width:100%;border:1px solid #d1d5db;border-radius:7px;padding:6px 9px;font-size:.82rem;font-family:inherit';
+  const rows = GOVERNABLE_TABS.map(t => {
+    const e = rr[t.view] || { lesen: [], schreiben: [] };
+    return `<tr>
+      <td style="font-weight:600;white-space:nowrap;padding:6px 8px;vertical-align:middle">${esc(t.label)}</td>
+      <td style="padding:6px 8px"><input type="text" value="${esc((e.lesen || []).join(', '))}" placeholder="E-Mails / Rollen …" oninput="rrSet('${t.view}','lesen',this.value)" style="${inp}"></td>
+      <td style="padding:6px 8px"><input type="text" value="${esc((e.schreiben || []).join(', '))}" placeholder="E-Mails / Rollen …" oninput="rrSet('${t.view}','schreiben',this.value)" style="${inp}"></td>
+    </tr>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="card-header"><h2>Reiter-Berechtigungen (Lesen / Schreiben)</h2></div>
+    <div class="card-body">
+      <div class="field-hint" style="margin-bottom:10px">
+        Zusätzlicher Zugriff auf einzelne Reiter – vergebbar an <b>E-Mail-Adressen</b> und/oder <b>Rollen/Abteilungen</b> (kommagetrennt).
+        <b>Additiv</b>: Standardrechte bleiben, <b>Admins</b> haben immer Zugriff. <b>Schreiben</b> schließt <b>Lesen</b> ein
+        (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
+        ${roles.length ? `<br>Verfügbare Rollen: ${roles.map(r => `<span class="ic-tag">${esc(r)}</span>`).join(' ')}` : ''}
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="text-align:left;color:var(--c-muted)">
+          <th style="padding:4px 8px">Reiter</th><th style="padding:4px 8px">Lesen</th><th style="padding:4px 8px">Schreiben</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+    </div></div>`;
+}
+
+function rrSet(view, kind, str) {
+  if (!_cfgEdit.reiterRechte) _cfgEdit.reiterRechte = {};
+  if (!_cfgEdit.reiterRechte[view]) _cfgEdit.reiterRechte[view] = { lesen: [], schreiben: [] };
+  const list = String(str || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+    .map(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s) ? s.toLowerCase() : s);
+  _cfgEdit.reiterRechte[view][kind] = [...new Set(list)];
 }
 
 /* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */

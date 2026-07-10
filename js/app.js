@@ -71,8 +71,8 @@ async function bootApp(account) {
   try {
     await spInit();
     await loadRuntimeAccessConfig();
+    State.myRoles = await getCurrentUserRoles();   // vor initRoleNav: Reiter-Rechte können an Rollen hängen
     initRoleNav();
-    State.myRoles = await getCurrentUserRoles();
     await applyDeepLinkOrDefault();   // lädt Daten + rendert (Mail-Deeplink oder Standard)
   } catch (e) {
     console.error(e);
@@ -90,8 +90,8 @@ async function applyDeepLinkOrDefault() {
   const deepId = params.get('richtlinie');
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
-    // Bare Ansichts-Deeplink (z. B. Fälligkeits-Digest → ?ansicht=faelligkeit), nur für Admins.
-    if ((ansicht === 'faelligkeit' || ansicht === 'abdeckung') && typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) {
+    // Bare Ansichts-Deeplink (z. B. Fälligkeits-Digest → ?ansicht=faelligkeit), nur bei Leserecht.
+    if ((ansicht === 'faelligkeit' || ansicht === 'abdeckung') && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
     await switchView('meine'); return;
