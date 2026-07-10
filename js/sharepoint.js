@@ -670,6 +670,38 @@ async function spGetPreviewUrl(driveId, itemId) {
   return r && r.getUrl ? r.getUrl : null;
 }
 
+/* Bibliothekswurzel-URL je Drive (für die direkte Datei-URL), pro Drive gecacht. */
+const _driveWebUrlCache = new Map();
+async function _driveRootWebUrl(token, driveId) {
+  if (_driveWebUrlCache.has(driveId)) return _driveWebUrlCache.get(driveId);
+  const d = await _get(`${SP.graphBase}/drives/${driveId}?$select=webUrl`, token);
+  const u = d.webUrl || '';
+  _driveWebUrlCache.set(driveId, u);
+  return u;
+}
+
+/** Direkte Datei-URL eines beliebigen DriveItems (Bibliothekswurzel + Ordner + Dateiname) –
+ *  nötig für das Office-URI-Schema (ms-word/excel/powerpoint:ofe|u|<DIREKTE-Datei-URL>);
+ *  die normale webUrl ist oft nur eine Doc.aspx-Viewer-URL, die Desktop-Office nicht zuverlässig
+ *  öffnet (siehe ISMS-Dokumente). Für beliebige Richtlinien-Dokumente (nicht nur ISMS). */
+async function spGetDirectFileUrl(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token || !driveId || !itemId) return '';
+  try {
+    const [it, base] = await Promise.all([
+      _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,parentReference,webUrl`, token),
+      _driveRootWebUrl(token, driveId),
+    ]);
+    const ref = it.parentReference || {};
+    const m = (ref.path || '').match(/root:?(.*)$/);
+    const folder = (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
+    const folderEnc = folder.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const b = (base || '').replace(/\/+$/, '');
+    if (!b || !it.name) return it.webUrl || '';
+    return b + (folderEnc ? '/' + folderEnc : '') + '/' + encodeURIComponent(it.name);
+  } catch (e) { return ''; }
+}
+
 /* ═══════════════════════════════════════════════════
    ISMS-Dokumentbibliothek (Reiter „ISMS-Dokumente")
    Anzeigen + Metadaten/Datei bearbeiten. Schreiben setzt SharePoint-
@@ -1009,6 +1041,105 @@ async function spIsmsUploadVersion(driveItemId, bytes, contentType, comment) {
   } finally {
     if (checkedOut) { try { await _post(`${item}/checkin`, token, { comment: comment || '' }); } catch (e) { console.warn('[isms] checkin-Fallback fehlgeschlagen:', e.message); } }
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   Governance-Board (Legal, sites/ArbeitsplatzLegal)
+   ==================================================
+   Hier liegen die Entwürfe der Konzernregelungen (Corporate Governance-Board).
+   Zugriff analog zu den ISMS-Dokumenten (Site + Bibliothek + Ordner auflisten,
+   Office/Browser-Bearbeitung, Versionen), aber ohne die ISMS-eigenen Metadaten-/
+   Workflow-Spalten – die gehören nur zur ISO-27001-Bibliothek. Sobald ein Entwurf
+   die RMS-interne Konformitätsprüfung + Freigabe durchlaufen hat, wird das
+   Dokument hier von Legal überschrieben/neu erstellt und veröffentlicht.
+═══════════════════════════════════════════════════ */
+
+const GOV = {
+  siteHost:   'dihag.sharepoint.com:/sites/ArbeitsplatzLegal',
+  folderPath: 'Entwurf_010_Corporate Govenance-Board',   // exakter Ordnername (Original-Schreibweise)
+};
+const _gov = { siteId: null, driveId: null, driveName: null, driveWebUrl: null, folderId: null };
+
+async function _govSiteId(token) {
+  if (_gov.siteId) return _gov.siteId;
+  const site = await _get(`${SP.graphBase}/sites/${GOV.siteHost}`, token);
+  _gov.siteId = site.id;
+  return _gov.siteId;
+}
+
+/** Bibliothek + Zielordner der Legal-Site einmalig auflösen (gecacht). */
+async function _govResolve(token) {
+  if (_gov.driveId && _gov.folderId) return;
+  const siteId = await _govSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const list = drives.value || [];
+  const drive = list.find(d => /^(Freigegebene Dokumente|Shared Documents|Dokumente|Documents)$/i.test(d.name || '')) || list[0];
+  if (!drive) throw new Error('Keine Dokumentbibliothek auf sites/ArbeitsplatzLegal gefunden.');
+  _gov.driveId = drive.id; _gov.driveName = drive.name; _gov.driveWebUrl = drive.webUrl || '';
+  const enc = GOV.folderPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  let folder;
+  try {
+    folder = await _get(`${SP.graphBase}/drives/${drive.id}/root:/${enc}?$select=id,name`, token);
+  } catch (e) {
+    throw new Error(`Ordner „${GOV.folderPath}" nicht gefunden (Bibliothek „${drive.name}").`);
+  }
+  _gov.folderId = folder.id;
+}
+
+/** Name der genutzten Bibliothek (für Diagnose). */
+function spGovCurrentLibrary() { return _gov.driveName || ''; }
+
+/** Direkte Datei-URL (Bibliothekswurzel + Ordner + Dateiname) für das Office-URI-Schema. */
+function _govFileUrl(subPath, name) {
+  const base = (_gov.driveWebUrl || '').replace(/\/+$/, '');
+  if (!base || !name) return '';
+  const full = (GOV.folderPath + (subPath ? '/' + subPath : '')).split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  return base + '/' + full + '/' + encodeURIComponent(name);
+}
+
+function _govMapDriveItem(di, subPath) {
+  return {
+    driveItemId: di.id || '',
+    driveId:     _gov.driveId,
+    name:        di.name || '(ohne Name)',
+    folder:      subPath || '',
+    size:        di.size || 0,
+    webUrl:      di.webUrl || '',
+    fileUrl:     _govFileUrl(subPath, di.name),
+    modified:    di.lastModifiedDateTime || '',
+    modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName) || '',
+  };
+}
+
+/** Ordnerinhalt rekursiv einsammeln (nur Dateien). onProgress(out) nach jeder Seite. */
+async function _govCollectFolder(token, folderId, subPath, out, onProgress, cap = 2000) {
+  let url = `${SP.graphBase}/drives/${_gov.driveId}/items/${folderId}/children`
+          + `?$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder&$top=200`;
+  const subfolders = [];
+  while (url) {
+    const resp = await _get(url, token);
+    for (const di of (resp.value || [])) {
+      if (di.folder) { subfolders.push({ id: di.id, path: (subPath ? subPath + '/' : '') + di.name }); continue; }
+      out.push(_govMapDriveItem(di, subPath));
+      if (out.length >= cap) { if (onProgress) onProgress(out); return; }
+    }
+    if (onProgress) onProgress(out);
+    url = resp['@odata.nextLink'] || null;
+  }
+  for (const sf of subfolders) {
+    await _govCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+    if (out.length >= cap) return;
+  }
+}
+
+/** Alle Entwurfsdateien im Governance-Board-Ordner (rekursiv). onProgress(partialList). */
+async function spGetGovDocs(onProgress) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _govResolve(token);
+  const out = [];
+  await _govCollectFolder(token, _gov.folderId, '', out, onProgress);
+  return out;
 }
 
 /* ═══════════════════════════════════════════════════

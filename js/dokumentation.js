@@ -42,6 +42,7 @@ const _DOKU_TOC = [
   ['abdeckung',     'ISMS-Abdeckung (Heatmap) & Export'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
+  ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
@@ -125,11 +126,11 @@ function _dokuSections() {
       <div style="${h3}">Der Editor im Überblick</div>
       <ul style="${ol}">
         <li style="${li}"><b>Titel, Beschreibung, Kategorie, Version</b> – neue Version ⇒ alle müssen erneut bestätigen.</li>
-        <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten).</li>
+        <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten). Ist bereits ein Dokument zugeordnet, stehen <b>„✏️ In Office bearbeiten"</b> (On-Premise Office) und <b>„🌐 Im Browser bearbeiten"</b> zur Verfügung – wie bei den ISMS-Dokumenten legt SharePoint beim Speichern automatisch eine neue Version an.</li>
         <li style="${li}"><b>Zielgruppe</b> – wer die Richtlinie sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
         <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Wiederholungspflicht</b>.</li>
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
-        <li style="${li}"><b>Normbezug</b> – welche ISO-27001-/NIS2-Controls die Richtlinie abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
+        <li style="${li}"><b>Normbezug</b> – erscheint nur bei Kategorie <b>„ISO 27001"</b> oder <b>„NIS2"</b>: welche Controls/Artikel die Richtlinie abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
         <li style="${li}"><b>Konformitätsprüfung – nur für diese Richtlinie</b> (optional): eigene Prüfer/Schwelle. Leer = globale Einstellung.</li>
         <li style="${li}"><b>Freigabe (Geschäftsleitung) – nur für diese Richtlinie</b> (optional): eigene Freigeber/Schwelle. Leer = globale Einstellung.</li>
       </ul>
@@ -215,12 +216,27 @@ function _dokuSections() {
       </ul>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information – Lenkung &amp; Versionierung), A.5.37 (Dokumentierte Betriebsabläufe), A.5.12/A.5.13 (Klassifizierung/Kennzeichnung).'),
 
+    sec('governance', 'Governance-Board (Legal-Entwürfe)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Governance-Board"</b> zeigt die Entwürfe aus dem Legal-SharePoint (Corporate Governance-Board) – gleicher Zugriffsmechanismus wie bei den ISMS-Dokumenten.</p>
+      <ul style="${ol}">
+        <li style="${li}">Im Governance-Board liegen <b>alle Entwürfe</b> der Konzernregelungen. Sobald ein Entwurf die interne <b>Konformitätsprüfung + Freigabe</b> hier im RMS durchlaufen hat, wird das Dokument dort von Legal überschrieben/neu erstellt und veröffentlicht.</li>
+        <li style="${li}"><b>„👁 Vorschau"</b>, <b>„✏️ In Office bearbeiten"</b> / <b>„🌐 Im Browser bearbeiten"</b> und <b>„🕘 Versionsverlauf"</b> wie bei ISMS-Dokumenten; <b>„↗ SharePoint"</b> öffnet den Ordner direkt.</li>
+        <li style="${li}"><b>„＋ Als Richtlinie übernehmen"</b> holt einen Entwurf in den Richtlinien-Workflow (Editor mit vorbefülltem Dokument) – der Start der Konformitätsprüfung/Freigabe.</li>
+      </ul>`,
+      'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik) – gemeinsam mit der Konformitätsprüfung/Freigabe im RMS.'),
+
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),
 
     sec('compliance', 'Audit Report', 'admin', `
-      <p style="margin:0;line-height:1.55">Reiter <b>„Audit Report"</b> (Compliance-Nachweis) zeigt, wer welche Pflicht-Richtlinie erledigt hat – mit Filtern und <b>CSV-Export</b> als Nachweis.</p>`,
-      'ISO 27001 Klausel 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung), A.6.3 (Schulung), A.5.36 (Einhaltung von Richtlinien).'),
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Audit Report"</b> hat drei Ansichten:</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Gesamtübersicht</b> – wer welche Pflicht-Richtlinie erledigt hat (Soll/Ist je Richtlinie und Abteilung).</li>
+        <li style="${li}"><b>Einzelne Richtlinie</b> – Detailliste je Mitarbeiter (Status, Datum, Quiz-Score).</li>
+        <li style="${li}"><b>Freigabe-Audit</b> – lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat: jede Konformitätsprüfung (konform/nicht konform, mit Anmerkung), jede Freigabe und jede Veröffentlichung, über alle Richtlinien hinweg (auch archivierte), neueste zuerst.</li>
+      </ul>
+      <div class="field-hint">Alle drei Ansichten mit <b>CSV-Export</b>.</div>`,
+      'ISO 27001 Klausel 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung), A.6.3 (Schulung), A.5.36 (Einhaltung von Richtlinien); Freigabe-Audit zusätzlich A.5.1 (Genehmigung &amp; Überprüfung), Klausel 9.2 (internes Audit).'),
 
     sec('einstellungen', 'Einstellungen', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Einstellungen"</b> (Admin) pflegt zentrale Rollen und Automatiken:</p>

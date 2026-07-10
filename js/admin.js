@@ -271,6 +271,44 @@ async function openDocVersions() {
   }
 }
 
+/* ── Richtliniendokument direkt bearbeiten (On-Premise Office / Browser), wie bei ISMS-Dokumenten ── */
+
+function _policyOfficeScheme(name) {
+  const ext = (String(name || '').split('.').pop() || '').toLowerCase();
+  if (['doc', 'docx', 'docm', 'dot', 'dotx', 'rtf'].includes(ext)) return 'ms-word';
+  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'].includes(ext)) return 'ms-excel';
+  if (['ppt', 'pptx', 'pps', 'ppsx'].includes(ext)) return 'ms-powerpoint';
+  return null;
+}
+
+/** Zugeordnetes Dokument im Desktop-Office öffnen (speichert automatisch eine neue Version). */
+async function policyEditOffice() {
+  if (!_editing || !_editing.dokumentDriveId || !_editing.dokumentItemId) { toast('Diesem Eintrag ist noch kein Dokument zugeordnet.', 'error'); return; }
+  const scheme = _policyOfficeScheme(_editing.dokumentName);
+  if (!scheme) { policyEditWeb(); return; }
+  toast('Datei-URL wird ermittelt …');
+  let fileUrl = '';
+  try { fileUrl = await spGetDirectFileUrl(_editing.dokumentDriveId, _editing.dokumentItemId); } catch (e) { fileUrl = ''; }
+  if (fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;
+    toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser bearbeiten" nutzen.');
+  } else {
+    policyEditWeb();
+  }
+}
+
+/** Zugeordnetes Dokument in Office für das Web öffnen (Bearbeitungsmodus, neuer Tab). */
+function policyEditWeb() {
+  if (!_editing || !_editing.dokumentUrl) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  let u = _editing.dokumentUrl;
+  if (/Doc\.aspx/i.test(u)) {
+    u = u.replace(/([?&])action=[^&]*/i, '$1action=edit');
+    if (!/[?&]action=/i.test(u)) u += (u.includes('?') ? '&' : '?') + 'action=edit';
+  }
+  window.open(u, '_blank', 'noopener');
+  toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
+}
+
 function newPolicy() {
   return {
     id: null, title: '', beschreibung: '', kategorie: 'ISO 27001',
@@ -296,7 +334,7 @@ function openPolicyEditor(policyId) {
 
 function renderPolicyEditor() {
   const p = _editing;
-  const cats = ['ISO 27001', 'ISMS allgemein', 'Datenschutz', 'IT-Sicherheit', 'Arbeitssicherheit', 'Allgemein'];
+  const cats = ['ISO 27001', 'NIS2', 'ISMS allgemein', 'Datenschutz', 'IT-Sicherheit', 'Arbeitssicherheit', 'Allgemein'];
   const body = `
     <div class="modal-header">
       <h3>${p.id ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'}</h3>
@@ -314,7 +352,7 @@ function renderPolicyEditor() {
         </div>
         <div class="form-group">
           <label>Kategorie</label>
-          <select onchange="_editing.kategorie=this.value">
+          <select onchange="_editing.kategorie=this.value;renderPolicyEditor()">
             ${cats.map(c => `<option ${c === p.kategorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
         </div>
@@ -331,10 +369,12 @@ function renderPolicyEditor() {
             </span>
             <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Aus Bibliothek …</button>
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('ed-upload-input').click()">⬆ Hochladen</button>
+            ${p.dokumentDriveId && p.dokumentItemId && _policyOfficeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()">✏️ In Office bearbeiten</button>` : ''}
+            ${p.dokumentDriveId && p.dokumentItemId ? `<button class="btn btn-outline btn-sm" onclick="policyEditWeb()">🌐 Im Browser bearbeiten</button>` : ''}
             ${p.dokumentDriveId && p.dokumentItemId ? `<button class="btn btn-outline btn-sm" onclick="openDocVersions()">🕘 Versionen</button>` : ''}
             <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0]); this.value='';">
           </div>
-          <span class="field-hint">„Hochladen" öffnet einen <b>Zielordner-Wähler</b> (Bibliothek + Ordner). Ist bereits ein Dokument zugeordnet, kannst du dort auch eine <b>neue Version</b> am selben Ort ablegen — der Versionsverlauf bleibt erhalten und ist über „🕘 Versionen" einsehbar.</span>
+          <span class="field-hint">„In Office bearbeiten"/„Im Browser bearbeiten" öffnet die aktuell zugeordnete Datei direkt zum Bearbeiten (On-Premise Office bzw. Office für das Web) – beim Speichern legt SharePoint automatisch eine neue Version an. „Hochladen" öffnet einen <b>Zielordner-Wähler</b> (Bibliothek + Ordner); ist bereits ein Dokument zugeordnet, kannst du dort auch eine <b>neue Version</b> am selben Ort ablegen. Versionsverlauf über „🕘 Versionen".</span>
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.pflicht ? 'checked' : ''} onchange="_editing.pflicht=this.checked"> Pflichtlektüre</label>
@@ -361,7 +401,7 @@ function renderPolicyEditor() {
         </div>
       </div>
       ${renderZielgruppenSection()}
-      ${typeof renderNormbezugSection === 'function' ? renderNormbezugSection() : ''}
+      ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
       ${renderPruefKonfigSection()}
       ${renderFreigabeKonfigSection()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
@@ -1115,25 +1155,118 @@ function renderCompliance() {
   const mode = AdminState.complianceMode || 'overview';
   mount.innerHTML = `
     <div class="view-toolbar">
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm ${mode === 'overview' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('overview')">Gesamtübersicht</button>
         <button class="btn btn-sm ${mode === 'single' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('single')">Einzelne Richtlinie</button>
+        <button class="btn btn-sm ${mode === 'freigabeaudit' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('freigabeaudit')">Freigabe-Audit</button>
       </div>
       <div class="toolbar-spacer"></div>
       ${mode === 'overview'
         ? `<button class="btn btn-outline btn-sm" onclick="exportOverviewCsv()">CSV-Export (gesamt)</button>`
+        : mode === 'freigabeaudit'
+        ? `<input type="text" id="search-freigabeaudit" class="sort-select" placeholder="Suchen (Richtlinie, Person) …" oninput="renderFreigabeAudit()" style="width:220px">
+           <button class="btn btn-outline btn-sm" onclick="exportFreigabeAuditCsv()">CSV-Export</button>`
         : `<select id="compliance-policy" class="sort-select" onchange="renderComplianceDetail()"></select>
            <button class="btn btn-outline btn-sm" onclick="exportComplianceCsv()">CSV-Export</button>`}
     </div>
     <div id="compliance-body"></div>`;
   if (mode === 'overview') {
     renderComplianceOverview();
+  } else if (mode === 'freigabeaudit') {
+    renderFreigabeAudit();
   } else {
     fillPolicySelect();
     const sel = document.getElementById('compliance-policy');
     if (sel && AdminState._jumpToPolicy) { sel.value = AdminState._jumpToPolicy; AdminState._jumpToPolicy = null; }
     renderComplianceDetail();
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   Freigabe-Audit: Wer hat wann was geprüft/freigegeben (Audit Report)
+═══════════════════════════════════════════════════ */
+
+/** Alle Konformitäts-/Freigabe-Ereignisse aller Richtlinien als flache, chronologische Liste. */
+function _freigabeAuditRows() {
+  const out = [];
+  for (const p of (State.policies || [])) {
+    for (const v of (p.konformitaet || [])) {
+      out.push({
+        datum: v.datum || '', policy: p.title, version: p.version,
+        aktion: v.entscheidung === 'konform' ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
+        wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+      });
+    }
+    for (const v of (p.freigaben || [])) {
+      out.push({
+        datum: v.datum || '', policy: p.title, version: p.version,
+        aktion: 'Freigabe erteilt', wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+      });
+    }
+    if (p.veroeffentlichtAm) {
+      out.push({
+        datum: p.veroeffentlichtAm, policy: p.title, version: p.version,
+        aktion: 'Veröffentlicht', wer: p.freigegebenVon || '', anmerkung: '',
+      });
+    }
+  }
+  out.sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+  return out;
+}
+
+function renderFreigabeAudit() {
+  const body = document.getElementById('compliance-body');
+  if (!body) return;
+  const q = (document.getElementById('search-freigabeaudit')?.value || '').toLowerCase().trim();
+  let rows = _freigabeAuditRows();
+  if (q) rows = rows.filter(r => (r.policy + ' ' + r.wer + ' ' + r.aktion).toLowerCase().includes(q));
+  AdminState.lastFreigabeAuditRows = rows;
+
+  if (!rows.length) { body.innerHTML = emptyState('Noch keine Konformitätsprüfungen oder Freigaben protokolliert.'); return; }
+
+  const aktionBadge = (a) => {
+    if (a === 'Veröffentlicht') return `<span class="status-badge sb-done">✓ ${esc(a)}</span>`;
+    if (a === 'Freigabe erteilt') return `<span class="status-badge sb-done">✓ ${esc(a)}</span>`;
+    if (/nicht konform/.test(a)) return `<span class="status-badge sb-open">✗ ${esc(a)}</span>`;
+    return `<span class="status-badge sb-read">${esc(a)}</span>`;
+  };
+
+  body.innerHTML = `
+    <div class="view-desc" style="margin:0 0 12px">
+      Lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat – über alle Richtlinien (auch archivierte), neueste zuerst.
+      <b>${rows.length}</b> Ereignis(se).
+    </div>
+    <div class="card">
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr><th>Datum</th><th>Richtlinie</th><th>Version</th><th>Aktion</th><th>Wer</th><th>Anmerkung</th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td style="white-space:nowrap">${r.datum ? fmtDateTime(r.datum) : '–'}</td>
+            <td>${esc(r.policy)}</td>
+            <td>${esc(r.version)}</td>
+            <td>${aktionBadge(r.aktion)}</td>
+            <td>${esc(r.wer || '–')}</td>
+            <td style="color:var(--c-muted)">${esc(r.anmerkung || '–')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function exportFreigabeAuditCsv() {
+  const rows = AdminState.lastFreigabeAuditRows;
+  if (!rows || !rows.length) { toast('Nichts zu exportieren.', 'error'); return; }
+  const lines = ['Datum;Richtlinie;Version;Aktion;Wer;Anmerkung'];
+  rows.forEach(r => lines.push([
+    _csv(r.datum ? fmtDateTime(r.datum) : ''), _csv(r.policy), _csv(r.version),
+    _csv(r.aktion), _csv(r.wer), _csv(r.anmerkung),
+  ].join(';')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Freigabe-Audit_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function fillPolicySelect() {

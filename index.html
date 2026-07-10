@@ -65,7 +65,7 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
         ISMS-Dokumente
       </a>
-      <a class="nav-item" id="nav-governance" href="https://dihag.sharepoint.com/sites/ArbeitsplatzLegal/Freigegebene%20Dokumente/Forms/AllItems.aspx?id=%2Fsites%2FArbeitsplatzLegal%2FFreigegebene%20Dokumente%2FEntwurf_010_Corporate%20Govenance-Board&viewid=9d48f2f0-0117-46a3-a4cf-cf65f3cdfc29" target="_blank" rel="noopener" style="display:none">
+      <a class="nav-item" data-view="governance" id="nav-governance" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a1 1 0 01.5.134l6 3.5A1 1 0 0117 5.5v.5a1 1 0 01-1 1h-.5l-1.02 5.61A3 3 0 0016.9 15H17a1 1 0 110 2h-4a1 1 0 110-2h.1a3 3 0 001.42-.29L13.5 9.1 11 8.2V15h1a1 1 0 110 2H8a1 1 0 110-2h1V8.2l-2.5.9-1.02 5.61A3 3 0 006.9 15H7a1 1 0 110 2H3a1 1 0 110-2h.1a3 3 0 001.42-.29L3.5 9.1 3 7H2.5a1 1 0 01-1-1v-.5a1 1 0 01.5-.866l6-3.5A1 1 0 019 1h1z" clip-rule="evenodd"/></svg>
         Governance-Board
       </a>
@@ -195,6 +195,20 @@
         <div id="isms-mount"></div>
       </section>
 
+      <!-- ── VIEW: Governance-Board (Admin) ── -->
+      <section id="view-governance" class="view">
+        <div class="view-toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+            <input type="text" id="search-governance" placeholder="Entwurf suchen …" oninput="renderGovernanceDocs()"/>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <a class="btn btn-sm btn-outline" href="https://dihag.sharepoint.com/sites/ArbeitsplatzLegal/Freigegebene%20Dokumente/Forms/AllItems.aspx?id=%2Fsites%2FArbeitsplatzLegal%2FFreigegebene%20Dokumente%2FEntwurf_010_Corporate%20Govenance-Board&viewid=9d48f2f0-0117-46a3-a4cf-cf65f3cdfc29" target="_blank" rel="noopener">↗ SharePoint</a>
+          <button class="btn btn-sm btn-ghost" onclick="refreshGovernanceDocs()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="governance-mount"></div>
+      </section>
+
       <!-- ── VIEW: ISMS-Abdeckung (Admin) ── -->
       <section id="view-abdeckung" class="view">
         <div class="view-toolbar">
@@ -283,6 +297,7 @@
 <script src="js/faelligkeit.js?v=8b48dadd"></script>
 <script src="js/kurse.js?v=8b48dadd"></script>
 <script src="js/ismsdocs.js?v=8b48dadd"></script>
+<script src="js/governance.js?v=8b48dadd"></script>
 <script src="js/proposals.js?v=8b48dadd"></script>
 <script src="js/anleitung.js?v=8b48dadd"></script>
 <script src="js/dokumentation.js?v=8b48dadd"></script>
