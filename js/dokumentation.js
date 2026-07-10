@@ -229,7 +229,7 @@ function _dokuSections() {
         <li style="${li}"><b>Genehmigungs-Schwellen:</b> „konform/freigegeben, wenn alle zustimmen" oder „einer reicht" (global; je Richtlinie überschreibbar).</li>
         <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger.</li>
         <li style="${li}"><b>Power Automate:</b> Ist der Modus aktiv, verschickt die App keine Prüf-/Freigabe-Mails – die Genehmigung läuft über den Power-Automate-Flow.</li>
-        <li style="${li}"><b>Reiter-Berechtigungen (Lesen/Schreiben):</b> zusätzlicher Zugriff auf einzelne Reiter (z. B. Richtlinien Dashboard, Audit Report, Fälligkeiten) für E-Mail-Adressen und/oder Rollen – <b>additiv</b> zu den Standardrechten, Admins haben immer Zugriff. „Nur Lesen" = Reiter sichtbar, aber Anlegen/Bearbeiten gesperrt; „Schreiben" schließt Lesen ein. „Einstellungen" bleibt Admins vorbehalten.</li>
+        <li style="${li}"><b>Reiter-Berechtigungen (Lesen/Schreiben):</b> Benutzer per E-Mail hinzufügen, dann je Reiter (z. B. Richtlinien Dashboard, Audit Report, Fälligkeiten) <b>Lesen/Schreiben per Häkchen</b> vergeben – <b>additiv</b> zu den Standardrechten, Admins haben immer Zugriff. „Nur Lesen" = Reiter sichtbar, aber Anlegen/Bearbeiten gesperrt; „Schreiben" schließt Lesen ein. „Einstellungen" bleibt Admins vorbehalten.</li>
       </ul>`,
       'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
 

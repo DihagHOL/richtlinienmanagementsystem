@@ -1468,6 +1468,7 @@ function renderEinstellungen() {
       </div>
     </div>`;
   renderCfgLists();
+  rrRenderBody();
   renderRolesList();
   renderUserRolesList();
   loadAdDepartments();
@@ -1535,42 +1536,104 @@ function roleCard(role, title) {
   </div>`;
 }
 
-/* ── Reiter-Berechtigungen (Lesen/Schreiben pro Reiter) ── */
+/* ── Reiter-Berechtigungen: Checkbox-Matrix je Benutzer (E-Mail) ── */
+let _rrExtraUsers = [];   // hinzugefügte Benutzer, die (noch) kein Häkchen haben
+
+/** Alle Benutzer, die in irgendeiner Reiter-Liste stehen oder frisch hinzugefügt wurden (lowercase). */
+function _rrAllUsers() {
+  const set = new Set(_rrExtraUsers);
+  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
+    (v.lesen || []).forEach(u => set.add(String(u).toLowerCase()));
+    (v.schreiben || []).forEach(u => set.add(String(u).toLowerCase()));
+  }
+  return [...set].sort();
+}
+
 function reiterRechteCard() {
   if (typeof GOVERNABLE_TABS === 'undefined') return '';
-  const rr = _cfgEdit.reiterRechte || (_cfgEdit.reiterRechte = {});
-  const roles = (typeof getCompanyRoles === 'function') ? getCompanyRoles() : [];
-  const inp = 'width:100%;border:1px solid #d1d5db;border-radius:7px;padding:6px 9px;font-size:.82rem;font-family:inherit';
-  const rows = GOVERNABLE_TABS.map(t => {
-    const e = rr[t.view] || { lesen: [], schreiben: [] };
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap;padding:6px 8px;vertical-align:middle">${esc(t.label)}</td>
-      <td style="padding:6px 8px"><input type="text" value="${esc((e.lesen || []).join(', '))}" placeholder="E-Mails / Rollen …" oninput="rrSet('${t.view}','lesen',this.value)" style="${inp}"></td>
-      <td style="padding:6px 8px"><input type="text" value="${esc((e.schreiben || []).join(', '))}" placeholder="E-Mails / Rollen …" oninput="rrSet('${t.view}','schreiben',this.value)" style="${inp}"></td>
-    </tr>`;
-  }).join('');
+  _rrExtraUsers = [];   // frischer Aufbau des Einstellungen-Reiters
   return `<div class="card" style="margin-bottom:14px">
     <div class="card-header"><h2>Reiter-Berechtigungen (Lesen / Schreiben)</h2></div>
     <div class="card-body">
       <div class="field-hint" style="margin-bottom:10px">
-        Zusätzlicher Zugriff auf einzelne Reiter – vergebbar an <b>E-Mail-Adressen</b> und/oder <b>Rollen/Abteilungen</b> (kommagetrennt).
+        Zusätzlicher Zugriff auf einzelne Reiter je <b>Benutzer (E-Mail)</b> – einfach an-/abhaken.
         <b>Additiv</b>: Standardrechte bleiben, <b>Admins</b> haben immer Zugriff. <b>Schreiben</b> schließt <b>Lesen</b> ein
         (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
-        ${roles.length ? `<br>Verfügbare Rollen: ${roles.map(r => `<span class="ic-tag">${esc(r)}</span>`).join(' ')}` : ''}
       </div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
-        <thead><tr style="text-align:left;color:var(--c-muted)">
-          <th style="padding:4px 8px">Reiter</th><th style="padding:4px 8px">Lesen</th><th style="padding:4px 8px">Schreiben</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
+      <div id="rr-body"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input type="email" id="rr-input-user" placeholder="name@dihag.com"
+          style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+          onkeydown="if(event.key==='Enter')rrAddUser()">
+        <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Benutzer</button>
+      </div>
     </div></div>`;
 }
 
-function rrSet(view, kind, str) {
+function rrRenderBody() {
+  const host = document.getElementById('rr-body');
+  if (!host) return;
+  const users = _rrAllUsers();
+  if (!users.length) {
+    host.innerHTML = '<div class="field-hint">Noch keine Benutzer berechtigt – unten per E-Mail hinzufügen, dann Häkchen setzen.</div>';
+    return;
+  }
+  const rr = _cfgEdit.reiterRechte || {};
+  const has = (view, kind, u) => ((rr[view] || {})[kind] || []).some(x => String(x).toLowerCase() === u);
+  host.innerHTML = users.map(u => `
+    <div style="border:1px solid var(--c-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span>👤</span><b style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(u)}</b>
+        <button class="btn btn-ghost btn-sm" onclick="rrRemoveUser('${esc(u)}')" title="Benutzer und alle seine Reiter-Rechte entfernen">✕ entfernen</button>
+      </div>
+      <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.83rem;width:100%">
+        <thead><tr style="text-align:left;color:var(--c-muted)">
+          <th style="padding:3px 8px">Reiter</th>
+          <th style="padding:3px 8px;text-align:center;width:80px">Lesen</th>
+          <th style="padding:3px 8px;text-align:center;width:80px">Schreiben</th></tr></thead>
+        <tbody>${GOVERNABLE_TABS.map(t => `<tr>
+          <td style="padding:3px 8px">${esc(t.label)}</td>
+          <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${has(t.view, 'lesen', u) ? 'checked' : ''} onchange="rrToggle('${t.view}','lesen','${esc(u)}',this.checked)"></td>
+          <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${has(t.view, 'schreiben', u) ? 'checked' : ''} onchange="rrToggle('${t.view}','schreiben','${esc(u)}',this.checked)"></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`).join('');
+}
+
+function rrAddUser() {
+  const inp = document.getElementById('rr-input-user');
+  const val = (inp.value || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) { toast('Bitte gültige E-Mail eingeben.', 'error'); return; }
+  if (_rrAllUsers().includes(val)) { toast('Bereits vorhanden.', 'error'); return; }
+  _rrExtraUsers.push(val);
+  inp.value = '';
+  rrRenderBody();
+}
+
+function rrRemoveUser(u) {
+  const lc = String(u).toLowerCase();
+  _rrExtraUsers = _rrExtraUsers.filter(x => x !== lc);
+  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
+    if (Array.isArray(v.lesen))     v.lesen     = v.lesen.filter(x => String(x).toLowerCase() !== lc);
+    if (Array.isArray(v.schreiben)) v.schreiben = v.schreiben.filter(x => String(x).toLowerCase() !== lc);
+  }
+  rrRenderBody();
+}
+
+function rrToggle(view, kind, u, on) {
   if (!_cfgEdit.reiterRechte) _cfgEdit.reiterRechte = {};
   if (!_cfgEdit.reiterRechte[view]) _cfgEdit.reiterRechte[view] = { lesen: [], schreiben: [] };
-  const list = String(str || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
-    .map(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s) ? s.toLowerCase() : s);
-  _cfgEdit.reiterRechte[view][kind] = [...new Set(list)];
+  const lc = String(u).toLowerCase();
+  const e = _cfgEdit.reiterRechte[view];
+  e[kind] = (e[kind] || []).filter(x => String(x).toLowerCase() !== lc);
+  if (on) e[kind].push(lc);
+  // Schreiben schließt Lesen ein → beim Anhaken von „Schreiben" auch „Lesen" sichtbar setzen.
+  if (kind === 'schreiben' && on && !e.lesen.some(x => String(x).toLowerCase() === lc)) {
+    e.lesen.push(lc);
+    rrRenderBody();
+  }
+  // Beim Abhaken des letzten Häkchens bleibt der Benutzer bis zum Verlassen des Reiters sichtbar.
+  if (!on && !_rrAllUsers().includes(lc)) _rrExtraUsers.push(lc);
 }
 
 /* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */

@@ -232,9 +232,10 @@ function policyMatchesRoles(zielgruppen, roles) {
 /* ═══════════════════════════════════════════════════
    Reiter-Berechtigungen (pro Reiter: Lesen/Schreiben)
    ===================================================
-   Zusätzlich (additiv) zu den Standard-Rollenrechten. Ein Eintrag je Reiter kann
-   E-Mail-Adressen UND Rollen/Abteilungen enthalten. „Schreiben" schließt „Lesen"
-   ein. Admins haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
+   Zusätzlich (additiv) zu den Standard-Rollenrechten. Gepflegt in den Einstellungen
+   als Checkbox-Matrix je Benutzer (E-Mail); die Engine erkennt zur Sicherheit auch
+   Rollennamen in den Listen (Altbestand). „Schreiben" schließt „Lesen" ein. Admins
+   haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
    (Berechtigungsvergabe = kein Privilege-Escalation). Gepflegt in access-config.json. */
 const GOVERNABLE_TABS = [
   { view: 'verwaltung',  label: 'Richtlinien Dashboard' },
