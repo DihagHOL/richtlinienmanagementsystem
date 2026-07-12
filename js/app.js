@@ -21,7 +21,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', vorschlaege: 'Vorschläge',
+  cockpit: 'Cockpit', verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
@@ -90,11 +90,13 @@ async function applyDeepLinkOrDefault() {
   const deepId = params.get('richtlinie');
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
-    // Bare Ansichts-Deeplink (z. B. Fälligkeits-Digest → ?ansicht=faelligkeit), nur bei Leserecht.
-    if ((ansicht === 'faelligkeit' || ansicht === 'abdeckung') && typeof canReadTab === 'function' && canReadTab(ansicht)) {
+    // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
+    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit'].includes(ansicht) && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
-    await switchView('meine'); return;
+    // Startansicht: Cockpit für Berechtigte (Admins), sonst „Meine Richtlinien".
+    const start = (typeof canReadTab === 'function' && canReadTab('cockpit')) ? 'cockpit' : 'meine';
+    await switchView(start); return;
   }
 
   const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
@@ -180,7 +182,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -199,11 +201,13 @@ async function switchView(view) {
     }
   }
 
+  if (view === 'cockpit'      && typeof initCockpit === 'function')       initCockpit();
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
   if (view === 'governance'   && typeof initGovernance === 'function')    initGovernance();
   if (view === 'abdeckung'    && typeof renderAbdeckung === 'function')   renderAbdeckung();
   if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
+  if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();

@@ -332,5 +332,60 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     }
   } catch (e) { console.log('Review-Digest übersprungen:', e.message); }
 
+  // ── Risiko-Digest: überfällige Maßnahmen + Risiko-Reviews an die Admins (ISO 27001 6.1.3/8.3) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Risiko-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      // Liste „Risiken" suchen (existiert erst nach dem ersten Öffnen des Reiters)
+      const rl = await gget(`/sites/${siteId}/lists?$filter=displayName eq 'Risiken'`);
+      const riskList = (rl.value || [])[0];
+      if (!riskList) {
+        console.log('Risiko-Digest: Liste „Risiken" existiert (noch) nicht – übersprungen.');
+      } else {
+        const risks = [];
+        let url = `/sites/${siteId}/lists/${riskList.id}/items?$expand=fields&$top=200`;
+        while (url) {
+          const resp = await gget(url);
+          for (const it of (resp.value || [])) risks.push(it.fields || {});
+          url = resp['@odata.nextLink'] || null;
+        }
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const rowsOut = [];
+        for (const f of risks) {
+          if ((f.RiskStatus || 'offen') === 'geschlossen') continue;
+          let ms = [];
+          try { ms = JSON.parse(f.MassnahmenJson || '[]'); } catch (e) { ms = []; }
+          for (const m of ms) {
+            if (m && m.status !== 'erledigt' && m.frist && String(m.frist).slice(0, 10) < todayStr) {
+              rowsOut.push({ risiko: f.Title || '(ohne Titel)', was: `Maßnahme „${m.titel || '?'}" überfällig seit ${String(m.frist).slice(0, 10)}`, wer: m.verantwortlich || '' });
+            }
+          }
+          if (f.NaechsteReview && String(f.NaechsteReview).slice(0, 10) < todayStr) {
+            rowsOut.push({ risiko: f.Title || '(ohne Titel)', was: `Risiko-Review überfällig (${String(f.NaechsteReview).slice(0, 10)})`, wer: f.Eigner || '' });
+          }
+        }
+        if (!rowsOut.length) {
+          console.log('Risiko-Digest: nichts überfällig.');
+        } else {
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.risiko)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#b91c1c;font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Risiko-Register: überfällige Maßnahmen und Reviews</b></p>
+            <p>Im Risiko-Register sind Fristen abgelaufen (ISO&nbsp;27001 6.1.3/8.3):</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=risiken" style="background:#1a56db;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Risiko-Register öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht des DIHAG Richtlinienmanagements.</p></div>`;
+          const ok = await sendMail(admins, `Risiko-Register: ${rowsOut.length} überfällige Frist(en)`, html, []);
+          if (ok) sent++;
+          console.log(`Risiko-Digest: ${rowsOut.length} überfällige Frist(en) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Risiko-Digest übersprungen:', e.message); }
+
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 })().catch((e) => { console.error('FEHLER:', e.message); process.exit(1); });

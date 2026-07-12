@@ -36,11 +36,13 @@ const _DOKU_TOC = [
   ['vorschlag',     'Änderung vorschlagen'],
   ['kurse',         'Kurse'],
   ['ki',            'KI-Systeme beantragen'],
+  ['cockpit',       'Cockpit (Admin-Startseite)'],
   ['verwalten',     'Richtlinien anlegen & verwalten'],
   ['freigabe',      'Konformitätsprüfung & Freigabe'],
   ['health',        'Dokument-Health-Check'],
-  ['abdeckung',     'ISMS-Abdeckung (Heatmap) & Export'],
+  ['abdeckung',     'ISMS-Abdeckung & SoA'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
+  ['risiken',       'Risiko-Register'],
   ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
@@ -121,6 +123,16 @@ function _dokuSections() {
       </ol>`,
       'ISO 27001 Klausel 5.3 (Rollen &amp; Befugnisse); NIS2 Art. 20 (Governance). Intern: KI-Richtlinie CO-10-01.'),
 
+    sec('cockpit', 'Cockpit (Admin-Startseite)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Richtlinien</b> (aktiv/veröffentlicht/Entwürfe/im Workflow) · <b>Prüfung &amp; Freigabe</b> (inkl. Alter des ältesten Vorgangs) · <b>Fälligkeiten</b> (überfällig / ≤ 30 Tage).</li>
+        <li style="${li}"><b>ISMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen).</li>
+        <li style="${li}"><b>Audit Report</b> (Erfüllungsquote, offene Kenntnisnahmen) · <b>Vorschläge</b> (offen / in Bearbeitung).</li>
+      </ul>
+      <div style="${hint}">💡 Schnelle Kennzahlen erscheinen sofort; aufwendigere (Compliance-Quote, SoA, Risiken) laden im Hintergrund nach und füllen ihre Kachel, sobald sie da sind.</div>`,
+      'ISO 27001 Klausel 9.1 (Überwachung, Messung, Analyse &amp; Bewertung), 9.3 (Managementbewertung – Eingaben).'),
+
     sec('verwalten', 'Richtlinien anlegen & verwalten', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Richtlinien Dashboard"</b> → <b>„+ Neue Richtlinie"</b> oder bestehende anklicken. Mehrere Word-/PDF-Dateien lassen sich per <b>Import</b> gleichzeitig als Entwürfe anlegen.</p>
       <div style="${h3}">Der Editor im Überblick</div>
@@ -181,7 +193,7 @@ function _dokuSections() {
       </ul>`,
       'ISO 27001 Klausel 7.5.2/7.5.3 (Angemessenheit &amp; Lenkung dokumentierter Information), A.5.1 (Konsistenz der Richtlinien).'),
 
-    sec('abdeckung', 'ISMS-Abdeckung (Heatmap) & Export', 'admin', `
+    sec('abdeckung', 'ISMS-Abdeckung & SoA', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Abdeckung"</b> zeigt als Heatmap, welche ISO-27001-/NIS2-Controls durch mindestens eine Richtlinie abgedeckt sind.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Grün = gespeichert</b> (im Normbezug einer Richtlinie hinterlegt), <b>Gelb ◔ = vorläufig</b> aus der Review-Zuordnung (noch nicht gespeichert), <b>Rot = Lücke</b>.</li>
@@ -193,8 +205,14 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>🖨 Report</b> – öffnet einen druck-/PDF-fähigen Nachweis: Kennzahlen, Richtlinien mit Konformitäts-/Freigabestatus und Normbezug sowie die vollständige Control-Abdeckung.</li>
         <li style="${li}"><b>⬇ CSV</b> – lädt die Abdeckungsmatrix als CSV-Datei (öffnet in Excel).</li>
+      </ul>
+      <div style="${h3}">SoA – Erklärung zur Anwendbarkeit (zweiter Modus im Reiter)</div>
+      <ul style="${ol}">
+        <li style="${li}">Je Control: <b>anwendbar / ausgeschlossen</b>, <b>Umsetzungsstatus</b> (umgesetzt / teilweise / geplant / nicht umgesetzt) und <b>Begründung</b> – für <b>ausgeschlossene Controls ist die Begründung Pflicht</b>.</li>
+        <li style="${li}">Die Richtlinien-Abdeckung wird je Control automatisch eingeblendet; <b>„⚡ Aus Abdeckung vorbelegen"</b> setzt alle noch offenen Controls auf anwendbar und leitet den Status aus der Abdeckung ab (gespeichert → umgesetzt, Review → geplant) – bereits Gepflegtes bleibt unangetastet.</li>
+        <li style="${li}">Gespeichert wird versioniert (SoA-Version, wer, wann) in <code>soa-config.json</code>; Exporte: <b>🖨 SoA-Report</b> (das klassische Audit-Dokument) und <b>⬇ CSV</b>.</li>
       </ul>`,
-      'ISO 27001 Klausel 6.1.3 (Risikobehandlung / Erklärung zur Anwendbarkeit), 4.3 (Anwendungsbereich), Annex A (Controls); NIS2 Art. 21(2) (Maßnahmenkatalog).'),
+      'ISO 27001 Klausel 6.1.3 d) (Erklärung zur Anwendbarkeit – Pflichtdokument), 4.3 (Anwendungsbereich), Annex A (Controls); NIS2 Art. 21(2) (Maßnahmenkatalog).'),
 
     sec('faelligkeit', 'Fälligkeiten / Wiedervorlage', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Fälligkeiten"</b> bündelt die interne Überprüfung der Richtlinien anhand des Termins <b>„Nächste Überprüfung"</b> – <b>ISO 27001 A.5.1</b> verlangt die regelmäßige Überprüfung.</p>
@@ -205,6 +223,24 @@ function _dokuSections() {
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron schickt zusätzlich einen <b>Fälligkeits-Digest</b> an die Admins: alle überfälligen und in den nächsten Tagen fälligen Überprüfungen, mit Direktlink in diesen Reiter.</div>`,
       'ISO 27001 A.5.1 (regelmäßige Überprüfung der Richtlinien), Klausel 9.3/10.1 (Bewertung &amp; fortlaufende Verbesserung).'),
+
+    sec('risiken', 'Risiko-Register', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Risiko-Register"</b>: vollständiges Informationssicherheits-Risikomanagement. Die SharePoint-Liste „Risiken" wird beim ersten Öffnen automatisch angelegt.</p>
+      <div style="${h3}">Bewertung</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>Brutto</b> (vor Maßnahmen) und <b>Netto/Restrisiko</b> (nach Maßnahmen), je <b>Eintrittswahrscheinlichkeit × Auswirkung (1–5)</b>. Stufen: Score <b>≥ 15 hoch</b>, <b>≥ 8 mittel</b>, sonst niedrig.</li>
+        <li style="${li}"><b>5×5-Risikomatrix</b> (umschaltbar Brutto/Netto) zeigt die offenen Risiken je Zelle; Zellen-Klick filtert die Liste.</li>
+        <li style="${li}"><b>Schutzziele</b> (Vertraulichkeit/Integrität/Verfügbarkeit) je Risiko markierbar.</li>
+      </ul>
+      <div style="${h3}">Behandlung &amp; Maßnahmen</div>
+      <ul style="${ol}">
+        <li style="${li}">Strategie <b>mitigieren / vermeiden / übertragen / akzeptieren</b> – bei <b>„akzeptieren" ist die Begründung Pflicht</b> (Risikoakzeptanz, 6.1.3 f).</li>
+        <li style="${li}"><b>Maßnahmenplan</b> je Risiko: Maßnahme, Verantwortlicher, Frist, Status (offen / in Umsetzung / erledigt). Überfällige Fristen werden rot markiert.</li>
+        <li style="${li}"><b>Verknüpfungen</b> zu ISO-/NIS2-Controls (Normbezug-Katalog) und zu Richtlinien.</li>
+        <li style="${li}"><b>Wiedervorlage-Termin</b> je Risiko + automatische <b>Historie</b> (wer hat wann angelegt/geändert).</li>
+      </ul>
+      <div style="${hint}">📧 Der Erinnerungs-Cron mailt <b>überfällige Maßnahmen und Risiko-Reviews</b> automatisch an die Admins (mit Direktlink). Exporte: <b>🖨 Risikobericht</b> (Druck/PDF) und <b>⬇ CSV</b>. Tipp: Statt Löschen besser „Status: geschlossen" – so bleibt der Audit-Trail erhalten.</div>`,
+      'ISO 27001 Klausel 6.1.2 (Risikobeurteilung), 6.1.3 (Risikobehandlung), 8.2/8.3 (Durchführung), A.5.2 (Verantwortlichkeiten); NIS2 Art. 21(1) (Risikomanagementmaßnahmen).'),
 
     sec('ismsdocs', 'ISMS-Dokumente (ISO 27001)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Dokumente"</b> verwaltet die ISO-27001-Dokumente direkt auf der ISMS-Site.</p>

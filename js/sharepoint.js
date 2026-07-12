@@ -17,6 +17,7 @@ const SP = {
   ackList:      'Bestaetigungen',
   courseList:   'Kurse',            // optional (Beta)
   proposalList: 'Aenderungsvorschlaege',   // Änderungsvorschläge (wird bei Bedarf angelegt)
+  riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Richtliniendokumente (nur Lesezugriff) ──
@@ -31,7 +32,7 @@ const SP = {
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
-  courseListId: null, proposalListId: null,
+  courseListId: null, proposalListId: null, riskListId: null,
   ismsSiteId: null,
   ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
@@ -1264,6 +1265,196 @@ async function spSaveAccessConfig(config) {
   const json = JSON.stringify(config, null, 2);
   await _uploadFile(token, `${SP.configFolder}/access-config.json`,
     new TextEncoder().encode(json), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   soa-config.json (Erklärung zur Anwendbarkeit, ISO 27001 6.1.3 d)
+   Struktur: { controls: { "A.5.1": { anwendbar, begruendung, status } }, meta: {...} }
+═══════════════════════════════════════════════════ */
+
+async function spLoadSoa() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/soa-config.json:/content`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return null; // 404 = noch nicht angelegt
+  return resp.json();
+}
+
+async function spSaveSoa(data) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  await _uploadFile(token, `${SP.configFolder}/soa-config.json`,
+    new TextEncoder().encode(JSON.stringify(data, null, 2)), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   Risiko-Register (SharePoint-Liste „Risiken", wird bei Bedarf angelegt)
+═══════════════════════════════════════════════════ */
+
+let _riskCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
+
+async function _loadRiskCols(token) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.riskListId}/columns?$select=name`, token);
+    _riskCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _riskCols = null; }
+}
+
+/** Risiken-Liste robust finden – oder anlegen (analog Aenderungsvorschlaege). */
+async function spEnsureRiskList(create = true) {
+  if (_sp.riskListId) return _sp.riskListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  const target = _normName(SP.riskList);   // 'risiken'
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) { _sp.riskListId = hit.id; await _loadRiskCols(token); return _sp.riskListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.riskList,
+    list: { template: 'genericList' },
+    columns: [
+      { name: 'Beschreibung',           text: { allowMultipleLines: true } },
+      { name: 'Kategorie',              text: {} },
+      { name: 'Eigner',                 text: {} },
+      { name: 'Schutzziele',            text: {} },
+      { name: 'BruttoEintritt',         number: {} },
+      { name: 'BruttoAuswirkung',       number: {} },
+      { name: 'NettoEintritt',          number: {} },
+      { name: 'NettoAuswirkung',        number: {} },
+      { name: 'Behandlung',             text: {} },
+      { name: 'BehandlungBegruendung',  text: { allowMultipleLines: true } },
+      { name: 'MassnahmenJson',         text: { allowMultipleLines: true } },
+      { name: 'ControlsJson',           text: { allowMultipleLines: true } },
+      { name: 'RichtlinienJson',        text: { allowMultipleLines: true } },
+      { name: 'RiskStatus',             text: {} },
+      { name: 'NaechsteReview',         dateTime: {} },
+      { name: 'HistorieJson',           text: { allowMultipleLines: true } },
+    ],
+  };
+  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
+  _sp.riskListId = created.id;
+  await _loadRiskCols(token);
+  return _sp.riskListId;
+}
+
+function _riskParseJson(s, fallback) {
+  try { const v = JSON.parse(s || ''); return v == null ? fallback : v; } catch (e) { return fallback; }
+}
+
+/** SP-Item → Risiko-Objekt (App-Modell). */
+function _mapRisk(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:        f.Title || '',
+    beschreibung: f.Beschreibung || '',
+    kategorie:    f.Kategorie || '',
+    eigner:       f.Eigner || '',
+    schutzziele:  String(f.Schutzziele || '').split(',').map(s => s.trim()).filter(Boolean),
+    brutto:       { e: Number(f.BruttoEintritt) || 0, a: Number(f.BruttoAuswirkung) || 0 },
+    netto:        { e: Number(f.NettoEintritt) || 0, a: Number(f.NettoAuswirkung) || 0 },
+    behandlung:   f.Behandlung || '',
+    behandlungBegruendung: f.BehandlungBegruendung || '',
+    massnahmen:   _riskParseJson(f.MassnahmenJson, []),
+    controls:     _riskParseJson(f.ControlsJson, []),
+    richtlinien:  _riskParseJson(f.RichtlinienJson, []),
+    status:       f.RiskStatus || 'offen',
+    naechsteReview: f.NaechsteReview || '',
+    historie:     _riskParseJson(f.HistorieJson, []),
+    created:      it.createdDateTime || '',
+    modified:     it.lastModifiedDateTime || '',
+  };
+}
+
+/** Risiko-Objekt → SP-Felder (nur vorhandene Spalten). */
+function _riskFields(r) {
+  const all = {
+    Title:                 String(r.titel || '(ohne Titel)').slice(0, 255),
+    Beschreibung:          r.beschreibung || '',
+    Kategorie:             String(r.kategorie || '').slice(0, 255),
+    Eigner:                String(r.eigner || '').slice(0, 255),
+    Schutzziele:           (r.schutzziele || []).join(','),
+    BruttoEintritt:        Number(r.brutto?.e) || 0,
+    BruttoAuswirkung:      Number(r.brutto?.a) || 0,
+    NettoEintritt:         Number(r.netto?.e) || 0,
+    NettoAuswirkung:       Number(r.netto?.a) || 0,
+    Behandlung:            String(r.behandlung || '').slice(0, 60),
+    BehandlungBegruendung: r.behandlungBegruendung || '',
+    MassnahmenJson:        JSON.stringify(r.massnahmen || []),
+    ControlsJson:          JSON.stringify(r.controls || []),
+    RichtlinienJson:       JSON.stringify(r.richtlinien || []),
+    RiskStatus:            String(r.status || 'offen').slice(0, 60),
+    HistorieJson:          JSON.stringify(r.historie || []),
+  };
+  if (r.naechsteReview) all.NaechsteReview = r.naechsteReview;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_riskCols || _riskCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Risiken-Liste (nach spEnsureRiskList). */
+function spMissingRiskColumns() {
+  if (!_riskCols) return [];
+  return ['Beschreibung', 'Kategorie', 'Eigner', 'Schutzziele', 'BruttoEintritt', 'BruttoAuswirkung',
+    'NettoEintritt', 'NettoAuswirkung', 'Behandlung', 'BehandlungBegruendung', 'MassnahmenJson',
+    'ControlsJson', 'RichtlinienJson', 'RiskStatus', 'NaechsteReview', 'HistorieJson']
+    .filter(n => !_riskCols.has(n));
+}
+
+async function spGetRisks() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureRiskList(true);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapRisk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddRisk(r) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(true);
+  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items`, token, { fields: _riskFields(r) });
+  return created && created.id;
+}
+
+async function spUpdateRisk(id, r) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(false);
+  if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
+  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, _riskFields(r));
+}
+
+async function spDeleteRisk(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(false);
+  if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
+  const resp = await fetch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
 }
 
 /* ═══════════════════════════════════════════════════

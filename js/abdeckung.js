@@ -13,6 +13,20 @@
  */
 
 let _abdeckungPublishedOnly = false;
+let _abdeckungMode = 'heatmap';   // 'heatmap' | 'soa' (Erklärung zur Anwendbarkeit)
+
+/** Umschalter Heatmap ↔ SoA (beide Renderer setzen ihn an den Anfang des Mounts). */
+function _abModeSwitcher(active) {
+  const b = (mode, label) => `<button class="btn btn-sm ${active === mode ? 'btn-primary' : 'btn-outline'}"
+    onclick="abdeckungSetMode('${mode}')">${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA – Erklärung zur Anwendbarkeit')}</div>`;
+}
+
+function abdeckungSetMode(mode) {
+  _abdeckungMode = mode === 'soa' ? 'soa' : 'heatmap';
+  if (_abdeckungMode === 'soa' && typeof initSoa === 'function') initSoa();
+  else renderAbdeckung();
+}
 
 /** Relevante (nicht archivierte) Richtlinien, optional nur veröffentlichte. */
 function _abdeckungPolicies() {
@@ -63,6 +77,7 @@ function renderAbdeckung() {
   const mount = document.getElementById('abdeckung-mount');
   if (!mount) return;
   if (typeof NORMEN === 'undefined') { mount.innerHTML = '<div class="col-warning" style="display:block">Normen-Katalog nicht geladen.</div>'; return; }
+  if (_abdeckungMode === 'soa' && typeof renderSoa === 'function') { renderSoa(); return; }
   const data = _abdeckungData();
   const savedN = id => (data[id] ? data[id].saved.length : 0);
   const provN  = id => (data[id] ? data[id].prov.length  : 0);
@@ -108,7 +123,7 @@ function renderAbdeckung() {
     </div>`;
   }).join('');
 
-  mount.innerHTML = `
+  mount.innerHTML = _abModeSwitcher('heatmap') + `
     <div class="view-desc" style="margin:0 0 12px">
       Abdeckung der ISO-27001-/NIS2-Controls durch die Richtlinien.
       <b>Annex-A: ${annexSaved}/${annexIds.length} gespeichert (${pctSaved}%)${annexAny > annexSaved ? ` · ${annexAny}/${annexIds.length} inkl. Review (${pctAny}%)` : ''}</b>

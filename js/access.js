@@ -238,11 +238,13 @@ function policyMatchesRoles(zielgruppen, roles) {
    haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
    (Berechtigungsvergabe = kein Privilege-Escalation). Gepflegt in access-config.json. */
 const GOVERNABLE_TABS = [
+  { view: 'cockpit',     label: 'Cockpit' },
   { view: 'verwaltung',  label: 'Richtlinien Dashboard' },
   { view: 'ismsdocs',    label: 'ISMS-Dokumente' },
   { view: 'governance',  label: 'Governance-Board' },
-  { view: 'abdeckung',   label: 'ISMS-Abdeckung' },
+  { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' },
   { view: 'faelligkeit', label: 'Fälligkeiten' },
+  { view: 'risiken',     label: 'Risiko-Register' },
   { view: 'vorschlaege', label: 'Vorschläge' },
   { view: 'freigaben',   label: 'Freigaben' },
   { view: 'compliance',  label: 'Audit Report' },
@@ -306,11 +308,13 @@ function initRoleNav() {
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
   const anyAdminTab = GOVERNABLE_TABS.some(t => canReadTab(t.view));
   show('nav-sep-admin',     admin || anyAdminTab);
+  show('nav-cockpit',       canReadTab('cockpit'));
   show('nav-verwaltung',    canReadTab('verwaltung'));
   show('nav-ismsdocs',      canReadTab('ismsdocs'));
   show('nav-governance',    canReadTab('governance'));
   show('nav-abdeckung',     canReadTab('abdeckung'));
   show('nav-faelligkeit',   canReadTab('faelligkeit'));
+  show('nav-risiken',       canReadTab('risiken'));
   show('nav-vorschlaege',   canReadTab('vorschlaege'));
   show('nav-freigaben',     canReadTab('freigaben'));
   show('nav-compliance',    canReadTab('compliance'));
