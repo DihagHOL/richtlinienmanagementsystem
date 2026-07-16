@@ -138,6 +138,15 @@ let allAntraege = [], allLizenzen = [], allRegister = [];
 // Richtlinienmanagement gepflegt, Namen werden via Graph aufgelöst
 let _genehmigerLive = null;   // [{email, name}] – wird in boot() befüllt
 function getGenehmiger() { return _genehmigerLive || []; }
+
+/** Lizenzen- und KI-Register-Reiter ein-/ausblenden: nur für Gremium UND wenn
+ *  in den Einstellungen aktiviert (Register zusätzlich nur, wenn die Liste existiert). */
+function applyKiTabVisibility() {
+  const liz = document.querySelector('[data-view="lizenzen"]');
+  const reg = document.querySelector('[data-view="register"]');
+  if (liz) liz.style.display = (isGremium && _kiCfg.kiZeigeLizenzen) ? '' : 'none';
+  if (reg) reg.style.display = (isGremium && _kiCfg.kiZeigeRegister && !!listRegisterId) ? '' : 'none';
+}
 let currentView = 'antraege';
 let currentPanelItemId = null;   // aktuell geöffnetes Antrag-Panel
 let editLizenzId = null;
@@ -584,13 +593,10 @@ async function boot() {
       _genehmigerLive = await resolveGenehmigerNamen(defAdmins);
     }
 
-    // Tab-Sichtbarkeit: Gremium sieht alles, normale User nur Antrag + eigene Anträge
+    // Tab-Sichtbarkeit: Gremium sieht die Verwaltungs-Reiter, normale User nur Antrag + eigene Anträge
     if (isGremium) {
       $id('gremium-badge').classList.remove('hidden');
     } else {
-      // Nicht-Gremium: Lizenzen, Register und Einstellungen ausblenden
-      document.querySelector('[data-view="lizenzen"]').style.display = 'none';
-      document.querySelector('[data-view="register"]').style.display = 'none';
       // Filter-Toolbar auf Anträge-View ausblenden (sehen nur eigene → kein Filter nötig)
       const toolbar = document.querySelector('#view-antraege .toolbar');
       if (toolbar) toolbar.style.display = 'none';
@@ -599,10 +605,8 @@ async function boot() {
     if (isAdmin) {
       $id('tab-einstellungen').style.display = '';
     }
-    // Register-Tab auch für Gremium ausblenden wenn Liste nicht gefunden
-    if (!listRegisterId) {
-      document.querySelector('[data-view="register"]').style.display = 'none';
-    }
+    // Lizenzen & KI-Register: standardmäßig aus, nur wenn per Einstellung aktiviert (+ Gremium)
+    applyKiTabVisibility();
 
     renderAntragForm();
 
@@ -652,6 +656,8 @@ const KI_CFG_DEFAULTS = {
   kiMailBeiEinreichung:  true,
   kiMailBeiEntscheidung: true,
   kiMailDomains:         ['dihag.com'],
+  kiZeigeLizenzen:       false,   // Lizenzen-Reiter standardmäßig ausgeblendet
+  kiZeigeRegister:       false,   // KI-Register-Reiter standardmäßig ausgeblendet
 };
 let _kiCfg = { ...KI_CFG_DEFAULTS };
 
@@ -675,6 +681,8 @@ async function loadRmsAccessConfig() {
     kiMailBeiEntscheidung: cfg?.kiMailBeiEntscheidung !== false,
     kiMailDomains:         (Array.isArray(cfg?.kiMailDomains) && cfg.kiMailDomains.length)
                              ? cfg.kiMailDomains : [...KI_CFG_DEFAULTS.kiMailDomains],
+    kiZeigeLizenzen:       cfg?.kiZeigeLizenzen === true,
+    kiZeigeRegister:       cfg?.kiZeigeRegister === true,
   };
   // KI-Gremium: eigenes Feld kiGenehmiger hat Vorrang – fällt es leer aus,
   // gilt die allgemeine Genehmiger-Liste des RMS (gleiche Personenkreise)
@@ -3076,6 +3084,22 @@ function renderEinstellungen() {
         </div>
       </div>
 
+      <div class="settings-card">
+        <div class="settings-card-title">🧩 Reiter-Sichtbarkeit</div>
+        <p style="font-size:.82rem;color:#6b7280;margin-bottom:14px;line-height:1.5">
+          Die Reiter <strong>Lizenzen</strong> und <strong>KI-Register</strong> sind standardmäßig
+          <strong>ausgeblendet</strong>. Hier lassen sie sich für das KI-Gremium wieder einblenden.
+        </p>
+        <label class="settings-check">
+          <input type="checkbox" id="show-lizenzen" ${_kiCfg.kiZeigeLizenzen ? 'checked' : ''}>
+          <span>Reiter <strong>Lizenzen</strong> anzeigen</span>
+        </label>
+        <label class="settings-check" style="margin-top:6px">
+          <input type="checkbox" id="show-register" ${_kiCfg.kiZeigeRegister ? 'checked' : ''}>
+          <span>Reiter <strong>KI-Register</strong> anzeigen</span>
+        </label>
+      </div>
+
     </div>
     <div style="margin-top:20px;display:flex;gap:10px;align-items:center">
       <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()">💾 Einstellungen speichern</button>
@@ -3100,7 +3124,10 @@ async function saveSettings() {
       kiMailBeiEinreichung:  $id('notif-einreichung')?.checked  ?? true,
       kiMailBeiEntscheidung: $id('notif-entscheidung')?.checked ?? true,
       kiMailDomains:         domains,
+      kiZeigeLizenzen:       $id('show-lizenzen')?.checked === true,
+      kiZeigeRegister:       $id('show-register')?.checked === true,
     });
+    applyKiTabVisibility();   // Reiter sofort ein-/ausblenden (ohne Reload)
     showToast('Einstellungen zentral gespeichert.');
     const saved = $id('settings-saved');
     if (saved) { saved.style.display = ''; setTimeout(() => saved.style.display = 'none', 2500); }
