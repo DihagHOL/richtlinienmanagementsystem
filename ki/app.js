@@ -130,7 +130,7 @@ const LIZENZ_FIELDS = [
 let account;                  // wird in onAuthReady aus auth.js (getAuthUser) übernommen
 let siteId, listAntragId, listLizenzId, listRegisterId;
 let isGremium       = false;
-let canReadLizenzen = false;  // Fallback-Flag: SP-Lizenzen lesbar (für leere Settings)
+let _cfgFallback    = '';     // gesetzt, wenn access-config.json nicht lesbar war → Hinweis + eingeschränkte Rechte
 let isAdmin         = false;  // aus RMS access-config.json (admins) → Einstellungen-Tab
 let _rmsAdmins      = [];     // Admin-UPNs aus der RMS-Config (für Anzeige in Einstellungen)
 let allAntraege = [], allLizenzen = [], allRegister = [];
@@ -504,7 +504,6 @@ async function boot() {
         console.log('✓ KI_Lizenzen:', lL.displayName, listLizenzId);
         try {
           await gGet(`/sites/${siteId}/lists/${listLizenzId}/items?$top=1`);
-          canReadLizenzen = true;
           console.log('✓ KI_Lizenzen lesbar');
 
           try {
@@ -584,13 +583,16 @@ async function boot() {
       console.log('✓ Berechtigungen aus RMS access-config:',
         `admin=${isAdmin}, gremium=${isGremium}, genehmiger=${rmsCfg.genehmiger.join(', ')}`);
     } catch(eCfg) {
-      // Config nicht lesbar → gleiche Defaults wie das RMS (ACCESS_CONFIG_DEFAULT)
+      // Config nicht lesbar → FAIL-CLOSED: nur die Notfall-Admins bekommen Rechte.
+      // Bewusst NICHT aus der Lizenz-Leseberechtigung ableiten – sonst würde jeder,
+      // der die Lizenzliste lesen darf, zum Gremium (sähe alle Anträge + Entscheid-Buttons).
       console.warn('RMS access-config nicht lesbar, nutze Defaults:', eCfg.message);
       const defAdmins = ['pruefer@dihag.com', 'pruefer@dihag.com'];
       _rmsAdmins = defAdmins;
-      isAdmin    = defAdmins.includes(_myUpn);
-      isGremium  = isAdmin || canReadLizenzen;   // Bootstrapping-Fallback
+      isAdmin    = defAdmins.some(a => a.toLowerCase().trim() === _myUpn);
+      isGremium  = isAdmin;
       _genehmigerLive = await resolveGenehmigerNamen(defAdmins);
+      _cfgFallback = eCfg.message || 'unbekannter Fehler';
     }
 
     // Tab-Sichtbarkeit: Gremium sieht die Verwaltungs-Reiter, normale User nur Antrag + eigene Anträge
@@ -607,6 +609,12 @@ async function boot() {
     }
     // Lizenzen & KI-Register: standardmäßig aus, nur wenn per Einstellung aktiviert (+ Gremium)
     applyKiTabVisibility();
+
+    // Config nicht lesbar → Rechte sind eingeschränkt. Sichtbar machen statt still zu bleiben.
+    if (_cfgFallback) {
+      showToast('Berechtigungs-Konfiguration (access-config.json) nicht lesbar – es gelten eingeschränkte Rechte. Bitte IT prüfen.', 'error');
+      console.warn('[ki] Fail-closed aktiv, Grund:', _cfgFallback);
+    }
 
     renderAntragForm();
 
