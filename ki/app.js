@@ -66,10 +66,6 @@ const COL = {
 
 const STATUS_OPTS = ['Eingereicht', 'In Prüfung', 'Genehmigt', 'Abgelehnt', 'Rückfrage'];
 
-// Werke der DIHAG-Gruppe – je Werk kann in den Einstellungen eine Betriebsrats-
-// Mailadresse hinterlegt werden. Wird im Antrag als „betroffene BR" ausgewählt.
-const MITBESTIMMUNG_WERKE = ['SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA'];
-
 const ANLAGE_ROLLEN  = ['Legal', 'Datenschutz', 'Compliance', 'IT', 'User', 'Sonstiges'];
 // Interner Konfigurationseintrag in KI_Antraege (wird in allen Listenansichten ausgeblendet)
 const SP_CONFIG_TITLE = '__KI_CFG__';
@@ -670,8 +666,6 @@ const KI_CFG_DEFAULTS = {
   kiMailDomains:         ['dihag.com'],
   kiZeigeLizenzen:       false,   // Lizenzen-Reiter standardmäßig ausgeblendet
   kiZeigeRegister:       false,   // KI-Register-Reiter standardmäßig ausgeblendet
-  kiKbrMail:             '',      // Mail des Konzernbetriebsrats (Mitbestimmung)
-  kiBrMails:             {},      // { Werk-Code → BR-Mail }, z.B. { SHB: 'br@…' }
 };
 let _kiCfg = { ...KI_CFG_DEFAULTS };
 
@@ -697,9 +691,6 @@ async function loadRmsAccessConfig() {
                              ? cfg.kiMailDomains : [...KI_CFG_DEFAULTS.kiMailDomains],
     kiZeigeLizenzen:       cfg?.kiZeigeLizenzen === true,
     kiZeigeRegister:       cfg?.kiZeigeRegister === true,
-    kiKbrMail:             typeof cfg?.kiKbrMail === 'string' ? cfg.kiKbrMail : '',
-    kiBrMails:             (cfg?.kiBrMails && typeof cfg.kiBrMails === 'object' && !Array.isArray(cfg.kiBrMails))
-                             ? cfg.kiBrMails : {},
   };
   // KI-Gremium: eigenes Feld kiGenehmiger hat Vorrang – fällt es leer aus,
   // gilt die allgemeine Genehmiger-Liste des RMS (gleiche Personenkreise)
@@ -921,36 +912,6 @@ function renderAntragForm() {
   }
 
   closeSection();
-
-  // ── Mitbestimmung (KBR / Betriebsräte) ────────────────────────────
-  // Kein SP-Pflichtfeld: wird gesondert erfasst und steuert den Mailversand
-  // an Konzernbetriebsrat bzw. die Betriebsräte der betroffenen Werke.
-  html += `
-    <div class="form-section">
-      <div class="form-section-title">Mitbestimmung</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="f-KBRBetroffen">Konzernbetriebsrat (KBR) betroffen?</label>
-          <select id="f-KBRBetroffen" name="KBRBetroffen" class="form-control">
-            <option value="Nein">Nein</option>
-            <option value="Ja">Ja</option>
-          </select>
-          <div class="form-hint">Bei „Ja" wird der Antrag zusätzlich zur Prüfung an den Konzernbetriebsrat gesendet.</div>
-        </div>
-        <div class="form-group full">
-          <label class="form-label">Betroffene Betriebsräte (Werke)</label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:4px">
-            ${MITBESTIMMUNG_WERKE.map(code => `
-              <label class="settings-check" style="margin:0;font-size:.85rem;white-space:nowrap">
-                <input type="checkbox" class="werk-check" value="${code}" id="werk-${code}">
-                <span>${code}</span>
-              </label>`).join('')}
-          </div>
-          <div class="form-hint">Werke auswählen, deren Betriebsrat zu beteiligen ist – der Antrag geht an den jeweils in den Einstellungen hinterlegten Betriebsrat.</div>
-        </div>
-      </div>
-    </div>`;
-
   $id('form-antrag-fields').innerHTML = html;
 }
 
@@ -998,9 +959,6 @@ async function submitAntrag(e) {
   const titleEl = $id(`f-Title`);
   const titleVal = titleEl?.value.trim() || '–';
 
-  // Mitbestimmung erfassen (vor form.reset() – Werte werden für Mailversand gebraucht)
-  const kbrBetroffen    = $id('f-KBRBetroffen')?.value === 'Ja';
-  const betroffeneWerke = [...document.querySelectorAll('.werk-check:checked')].map(c => c.value);
 
   try {
     // ── Schritt 1: Item mit nur Title erstellen ──────────────────────
@@ -1047,19 +1005,6 @@ async function submitAntrag(e) {
       showAntragError('Antrag erstellt, aber Details konnten nicht gespeichert werden: ' + ePatch.message);
     }
 
-    // ── Mitbestimmung best-effort in SP schreiben (isoliert – darf den
-    //    Antrag nicht gefährden; Spalten optional, sonst still verworfen) ──
-    const mitPayload = {};
-    if (colOk('KBRBetroffen'))            mitPayload['KBRBetroffen'] = kbrBetroffen ? 'Ja' : 'Nein';
-    if (colOk('BetroffeneBetriebsraete')) mitPayload['BetroffeneBetriebsraete'] = betroffeneWerke.join(', ');
-    if (Object.keys(mitPayload).length) {
-      try {
-        await gPatch(`/sites/${siteId}/lists/${listAntragId}/items/${newItem.id}/fields`, mitPayload);
-      } catch(eMit) {
-        console.warn('Mitbestimmungs-Felder nicht gespeichert (Spalten fehlen/falscher Typ):', eMit.message);
-      }
-    }
-
     $id('form-antrag').reset();
     const s = $id('antrag-success');
     s.innerHTML = `✓ Ihr Antrag <strong>${esc(titleVal)}</strong> wurde eingereicht. Das KI-Koordinierungsgremium wird ihn prüfen.`;
@@ -1092,54 +1037,6 @@ async function submitAntrag(e) {
          showToast('Antrag eingereicht – E-Mail-Benachrichtigung fehlgeschlagen (' + esc(e.message) + ')', 'error', 7000);
        });
     }
-
-    // ── Mitbestimmung: KBR und betroffene Betriebsräte benachrichtigen ──
-    // Empfänger stammen aus der zentralen Config (admin-gepflegt, vertrauenswürdig),
-    // daher wird die jeweilige Domain für diesen Versand freigeschaltet.
-    // Einzelversand: Betriebsräte sollen sich nicht gegenseitig als Empfänger sehen.
-    (async () => {
-      const recipients = [];
-      if (kbrBetroffen) {
-        const kbr = String(_kiCfg.kiKbrMail || '').trim();
-        if (kbr) recipients.push({ address: kbr, name: 'Konzernbetriebsrat' });
-        else showToast('Hinweis: KBR ist betroffen, aber es ist keine KBR-Mail hinterlegt (Einstellungen → Mitbestimmung).', 'error', 8000);
-      }
-      const fehlendeBr = [];
-      for (const code of betroffeneWerke) {
-        const m = String(_kiCfg.kiBrMails?.[code] || '').trim();
-        if (m) recipients.push({ address: m, name: `Betriebsrat ${code}` });
-        else fehlendeBr.push(code);
-      }
-      if (fehlendeBr.length) {
-        showToast('Hinweis: Für diese Werke ist keine BR-Mail hinterlegt: ' + esc(fehlendeBr.join(', ')) + ' (Einstellungen → Mitbestimmung).', 'error', 8000);
-      }
-      if (!recipients.length) return;
-
-      const senderC  = account?.name || account?.username || 'Antragsteller';
-      const deepUrlC = `${location.origin}${location.pathname}?antrag=${newItem.id}`;
-      const bodyC = mailTemplate(
-        'KI-Antrag – Prüfung durch Mitbestimmung erforderlich',
-        [
-          ['Bezeichnung',    titleVal],
-          ['Antragsteller',  senderC],
-          ['Eingereicht am', new Date().toLocaleDateString('de-DE')],
-        ],
-        '🔍 Antrag ansehen',
-        deepUrlC
-      );
-      let sentC = 0;
-      for (const r of recipients) {
-        const dom = r.address.includes('@') ? r.address.split('@').pop() : '';
-        try {
-          await sendMail([{ address: r.address, name: r.name }],
-            `[KI-Antrag] #${newItem.id} ${titleVal} – Mitbestimmungsprüfung`,
-            bodyC, dom ? [dom] : []);
-          sentC++;
-        } catch(eC) { console.warn('Mitbestimmungs-Mail fehlgeschlagen an', r.address, eC.message); }
-      }
-      if (sentC) showToast(`📧 Mitbestimmung: ${sentC} Empfänger (KBR/Betriebsrat) benachrichtigt.`);
-    })();
-
     s.classList.remove('hidden');
     allAntraege = [];
     updateOpenBadge();
@@ -1321,18 +1218,6 @@ function openAntragPanel(itemId) {
       ${row('Anwendungsbereich intern',   esc(f[COL.zweckUnternehmen]), true)}
     </div>`;
 
-  // ── Mitbestimmung (nur anzeigen, wenn Werte vorhanden) ────────────
-  const _kbrRaw   = f.KBRBetroffen;
-  const _kbrDisp  = (_kbrRaw === true || _kbrRaw === 'Ja')  ? 'Ja'
-                  : (_kbrRaw === false || _kbrRaw === 'Nein') ? 'Nein' : '';
-  const _werkeDisp = f.BetroffeneBetriebsraete || '';
-  const mitbestimmungSection = (_kbrDisp || _werkeDisp) ? `
-    <div class="panel-section">
-      <div class="panel-section-title">Mitbestimmung</div>
-      ${row('Konzernbetriebsrat (KBR)', _kbrDisp ? esc(_kbrDisp) : '')}
-      ${row('Betroffene Betriebsräte',  _werkeDisp ? esc(_werkeDisp) : '')}
-    </div>` : '';
-
   // APPROVALS-Token aus Kommentar für die Anzeige entfernen
   const kommentarClean = (f[COL.gremiumKommentar] || '').replace(/\[APPROVALS:[^\]]*\]\n?/g, '').trim();
 
@@ -1475,7 +1360,7 @@ function openAntragPanel(itemId) {
       ` : ''}
     </div>`;
 
-  $id('panel-body').innerHTML = rows1 + mitbestimmungSection + statusSection + verlaufSection + gremiumSection + attachSection;
+  $id('panel-body').innerHTML = rows1 + statusSection + verlaufSection + gremiumSection + attachSection;
   openPanel();
 
   // Anhänge asynchron nachladen (ohne await – kein Blockieren)
@@ -2892,16 +2777,11 @@ async function refreshPanel() {
 // E-MAIL VIA GRAPH (Mail.Send)
 // ═══════════════════════════════════════════════════════════════════
 // toList: [{address, name}] oder ['email@...'] oder 'email@...'
-async function sendMail(toList, subject, bodyHtml, extraDomains = []) {
+async function sendMail(toList, subject, bodyHtml) {
   // Erlaubte Empfänger-Domains aus der zentralen Config (kiMailDomains) –
-  // verhindert dass eine manipulierte Genehmiger-Liste externe Adressen erreicht.
-  // extraDomains: für admin-gepflegte Empfänger (KBR/BR-Mails aus der Config),
-  // die bewusst auch auf anderen Domains zugestellt werden dürfen.
+  // verhindert dass eine manipulierte Genehmiger-Liste externe Adressen erreicht
   const ALLOWED_MAIL_DOMAINS = new Set(
-    (_kiCfg.kiMailDomains || ['dihag.com'])
-      .concat(extraDomains || [])
-      .map(d => String(d).toLowerCase().trim())
-      .filter(Boolean)
+    (_kiCfg.kiMailDomains || ['dihag.com']).map(d => String(d).toLowerCase().trim())
   );
   const toArr = (Array.isArray(toList) ? toList : [toList]).map(r =>
     typeof r === 'string'
@@ -3228,35 +3108,6 @@ function renderEinstellungen() {
         </label>
       </div>
 
-      <div class="settings-card">
-        <div class="settings-card-title">🏛️ Mitbestimmung (KBR / Betriebsräte)</div>
-        <p style="font-size:.82rem;color:#6b7280;margin-bottom:14px;line-height:1.5">
-          E-Mail-Adressen für die Mitbestimmungsprüfung. Markiert der Antragsteller im Antrag
-          den <strong>Konzernbetriebsrat</strong> oder den <strong>Betriebsrat eines Werks</strong> als
-          betroffen, wird der Antrag automatisch an die hier hinterlegte Adresse gesendet.
-        </p>
-        <div class="form-group">
-          <label class="form-label" for="kbr-mail">Konzernbetriebsrat (KBR)</label>
-          <input id="kbr-mail" type="email" class="form-control" placeholder="kbr@dihag.com"
-            value="${esc(_kiCfg.kiKbrMail || '')}">
-        </div>
-        <div style="margin-top:14px;font-size:.82rem;font-weight:600;color:#374151;margin-bottom:8px">
-          Betriebsräte je Werk
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px 14px">
-          ${MITBESTIMMUNG_WERKE.map(code => `
-            <div class="form-group" style="margin:0">
-              <label class="form-label" for="br-mail-${code}" style="font-size:.75rem">${code}</label>
-              <input id="br-mail-${code}" type="email" class="form-control"
-                placeholder="br-${code.toLowerCase()}@…" value="${esc((_kiCfg.kiBrMails || {})[code] || '')}">
-            </div>`).join('')}
-        </div>
-        <div class="form-hint" style="margin-top:10px">
-          Leer lassen, wenn (noch) kein Betriebsrat hinterlegt ist. Diese Adressen werden auch dann
-          zugestellt, wenn sie auf einer anderen Domain liegen (z.&nbsp;B. ewa-guss.de).
-        </div>
-      </div>
-
     </div>
     <div style="margin-top:20px;display:flex;gap:10px;align-items:center">
       <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()">💾 Einstellungen speichern</button>
@@ -3274,19 +3125,6 @@ async function saveSettings() {
   const domains = ($id('mail-domains')?.value || '')
     .split(',').map(d => d.trim().toLowerCase()).filter(d => d.includes('.'));
   if (!domains.length) { showToast('Mindestens eine gültige Mail-Domain angeben.', 'error'); return; }
-
-  // Mitbestimmung: KBR-Mail + BR-Mails je Werk einsammeln (nur nicht-leere)
-  const isMail = v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
-  const kbrMail = ($id('kbr-mail')?.value || '').trim();
-  if (kbrMail && !isMail(kbrMail)) { showToast('KBR-Mail ist keine gültige E-Mail-Adresse.', 'error'); return; }
-  const brMails = {};
-  for (const code of MITBESTIMMUNG_WERKE) {
-    const v = ($id('br-mail-' + code)?.value || '').trim();
-    if (!v) continue;
-    if (!isMail(v)) { showToast(`BR-Mail für ${code} ist keine gültige E-Mail-Adresse.`, 'error'); return; }
-    brMails[code] = v;
-  }
-
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Speichern…'; }
   try {
     await saveKiConfig({
@@ -3296,8 +3134,6 @@ async function saveSettings() {
       kiMailDomains:         domains,
       kiZeigeLizenzen:       $id('show-lizenzen')?.checked === true,
       kiZeigeRegister:       $id('show-register')?.checked === true,
-      kiKbrMail:             kbrMail,
-      kiBrMails:             brMails,
     });
     applyKiTabVisibility();   // Reiter sofort ein-/ausblenden (ohne Reload)
     showToast('Einstellungen zentral gespeichert.');
