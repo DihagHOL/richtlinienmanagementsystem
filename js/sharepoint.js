@@ -321,14 +321,15 @@ function _mapPolicy(item) {
       freigabeKonfig = { freigeber: Array.isArray(fk.freigeber) ? fk.freigeber : [], schwelle: (fk.schwelle === 'alle' || fk.schwelle === 'einer') ? fk.schwelle : '' };
     }
   } catch { freigabeKonfig = { freigeber: [], schwelle: '' }; }
-  let kbrBetroffen = false, mitbestimmungWerke = [];
+  let kbrBetroffen = false, mitbestimmungWerke = [], mitbestimmung = null;
   try {
     if (f.MitbestimmungJson) {
       const mb = JSON.parse(f.MitbestimmungJson);
       kbrBetroffen = mb.kbrBetroffen === true;
       mitbestimmungWerke = Array.isArray(mb.werke) ? mb.werke : [];
+      mitbestimmung = (mb.bestaetigung && typeof mb.bestaetigung === 'object') ? mb.bestaetigung : null;
     }
-  } catch { kbrBetroffen = false; mitbestimmungWerke = []; }
+  } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -356,6 +357,7 @@ function _mapPolicy(item) {
     freigabeKonfig,
     kbrBetroffen,
     mitbestimmungWerke,
+    mitbestimmung,
     pruefungSeit:        f.PruefungSeit || '',
     modifiedAt:          item.lastModifiedDateTime || '',
   };
@@ -398,7 +400,7 @@ async function spSavePolicy(p) {
     NormbezugJson:       JSON.stringify(p.normbezug || []),
     PruefKonfigJson:     JSON.stringify(p.pruefKonfig || { pruefer: [], schwelle: '' }),
     FreigabeKonfigJson:  JSON.stringify(p.freigabeKonfig || { freigeber: [], schwelle: '' }),
-    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [] }),
+    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [], bestaetigung: p.mitbestimmung || null }),
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))
@@ -425,6 +427,18 @@ async function spDeletePolicy(id) {
   if (!token) return;
   await spInit();
   await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}`, token);
+}
+
+/** Nächsten Überprüfungstermin gezielt setzen (ISO-String) oder leeren (null/'').
+ *  Eigene Funktion, weil spSavePolicy leere Datumsfelder auslässt (kann also nicht leeren). */
+async function spSetPolicyReview(id, iso) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  return _patch(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}/fields`,
+    token, { NaechsteReview: iso || null }   // null → Feld in SharePoint leeren
+  );
 }
 
 /* ═══════════════════════════════════════════════════

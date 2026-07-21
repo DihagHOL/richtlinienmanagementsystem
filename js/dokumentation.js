@@ -151,11 +151,12 @@ function _dokuSections() {
       'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik), A.5.1 (Informationssicherheitsrichtlinien).'),
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
-      <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
       <div style="${h3}">Die Status einer Richtlinie</div>
       ${tbl([
         ['Entwurf', 'In Bearbeitung durch die Administration; noch nicht im Prüf-/Freigabeprozess.'],
         ['Konformitätsprüfung', 'Bei den Prüfern zur fachlichen Konformitätsprüfung.'],
+        ['Mitbestimmung (BR)', 'Konform – wird beim betroffenen Konzern-/Betriebsrat mitbestimmt (nur wenn im Editor als betroffen markiert). Nach Dokumentation geht es zur Freigabe.'],
         ['Freigabe', 'Konform – wartet auf die Freigabe der Geschäftsleitung.'],
         ['Veröffentlicht', 'Freigegeben und für die Zielgruppe sichtbar/zu bestätigen.'],
         ['Archiviert', 'Außer Kraft gesetzt; nicht mehr aktiv (nicht in Auswertungen).'],

@@ -117,10 +117,13 @@ function anleitungHtml() {
       </ul>
       <h3 style="${h3}">Richtlinien freigeben (Reiter „Freigaben“)</h3>
       <p style="margin:0 0 8px;line-height:1.5;color:var(--c-muted)">Ablauf:
-        <b>Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</b></p>
+        <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b></p>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
         <li style="${liStyle}"><b>Prüfer:</b> „Konform“ oder „Nicht konform“ markieren – bei
           <i>„nicht konform“ ist eine Begründung Pflicht</i>.</li>
+        <li style="${liStyle}"><b>Mitbestimmung:</b> Ist im Editor der Konzern-/Betriebsrat als betroffen
+          markiert, geht die konforme Richtlinie (mit Dokument) automatisch an den zuständigen Betriebsrat.
+          Nach dessen Beteiligung wird das im Reiter „Freigaben“ dokumentiert → dann zur Freigabe.</li>
         <li style="${liStyle}"><b>Geschäftsleitung:</b> „Freigeben“ (optional mit Kommentar) → die
           Richtlinie wird veröffentlicht. Kommentare erscheinen im Verlauf der Karte.</li>
       </ul>`)}

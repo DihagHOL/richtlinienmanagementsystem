@@ -517,19 +517,34 @@ function renderNormbezugSection() {
   if (!Array.isArray(_editing.normbezug)) _editing.normbezug = [];
   const seed = (typeof normbezugSeedFor === 'function') ? normbezugSeedFor(_editing.title) : null;
   const seedNeu = seed ? seed.filter(id => !_editing.normbezug.includes(id)).length : 0;
+  // Standardmäßig eingeklappt (klappbar) – der Zähler bleibt im Kopf sichtbar.
+  const open = _editing._nbOpen === true;
   return `
     <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:.9rem">Normbezug (ISO 27001 / NIS2) <span id="nb-count" style="color:var(--c-muted);font-weight:500">(${_editing.normbezug.length} ausgewählt)</span></div>
+        <div onclick="nbToggleOpen()" style="font-weight:700;font-size:.9rem;cursor:pointer;user-select:none">
+          <span id="nb-caret" style="display:inline-block;width:1em;color:var(--c-muted)">${open ? '▾' : '▸'}</span>
+          Normbezug (ISO 27001 / NIS2) <span id="nb-count" style="color:var(--c-muted);font-weight:500">(${_editing.normbezug.length} ausgewählt)</span></div>
         <div style="flex:1"></div>
         ${seed ? `<button class="btn btn-outline btn-sm" onclick="nbApplySeed()" title="Vorschlag aus der Review-Zuordnung übernehmen">↩ Aus Review übernehmen${seedNeu ? ' (+' + seedNeu + ')' : ''}</button>` : ''}
         ${_editing.normbezug.length ? `<button class="btn btn-ghost btn-sm" onclick="nbClear()">Leeren</button>` : ''}
       </div>
-      <div class="field-hint" style="margin-bottom:8px">Welche ISO-27001-Klauseln/Annex-A-Controls (und optional NIS2-Artikel) diese Richtlinie abdeckt. Grundlage für die ISMS-Abdeckungs-Heatmap.</div>
-      <input type="text" id="nb-filter" placeholder="Filtern (z. B. „A.8", „Audit", „Krypto") …" oninput="nbRenderList()"
-        style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.85rem;font-family:inherit;margin-bottom:8px">
-      <div id="nb-list" style="max-height:320px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${nbListHtml('')}</div>
+      <div id="nb-body" style="${open ? '' : 'display:none'}">
+        <div class="field-hint" style="margin-bottom:8px">Welche ISO-27001-Klauseln/Annex-A-Controls (und optional NIS2-Artikel) diese Richtlinie abdeckt. Grundlage für die ISMS-Abdeckungs-Heatmap.</div>
+        <input type="text" id="nb-filter" placeholder="Filtern (z. B. „A.8", „Audit", „Krypto") …" oninput="nbRenderList()"
+          style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.85rem;font-family:inherit;margin-bottom:8px">
+        <div id="nb-list" style="max-height:320px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${nbListHtml('')}</div>
+      </div>
     </div>`;
+}
+
+/** Normbezug-Sektion ein-/ausklappen (ohne Editor-Neuaufbau → kein Scroll-Sprung). */
+function nbToggleOpen() {
+  _editing._nbOpen = !_editing._nbOpen;
+  const body = document.getElementById('nb-body');
+  const caret = document.getElementById('nb-caret');
+  if (body) body.style.display = _editing._nbOpen ? '' : 'none';
+  if (caret) caret.textContent = _editing._nbOpen ? '▾' : '▸';
 }
 
 function nbListHtml(filter) {
@@ -719,6 +734,7 @@ async function savePolicy(newStatus) {
   if (newStatus === 'Konformitätsprüfung') {
     p.pruefungSeit = new Date().toISOString();
     p.konformitaet = [];                    // neue Prüfrunde startet ohne Votes
+    p.mitbestimmung = null;                 // Betriebsrat muss im neuen Zyklus erneut beteiligt werden
   }
   try {
     await spSavePolicy(p);
@@ -728,7 +744,6 @@ async function savePolicy(newStatus) {
     if (newStatus === 'Konformitätsprüfung') {
       toast('Gespeichert & zur Konformitätsprüfung eingereicht ✓', 'success');
       if (typeof notifyPruefer === 'function') notifyPruefer(p);   // Mail an Prüfer (Etappe B)
-      if (typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);   // KBR/BR bei Betroffenheit
     } else {
       toast('Als Entwurf gespeichert ✓', 'success');
     }
@@ -882,6 +897,7 @@ function renderFreigaben() {
   if (!list) return;
   const admin = isCurrentUserAdmin();
   const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
+  const inMitbestimmung = State.policies.filter(p => p.status === 'Mitbestimmung');
   const inFreigabe = State.policies.filter(p => p.status === 'Freigabe');
   // Prüfer-Sicht: global ODER für mindestens eine laufende Richtlinie individuell hinterlegt.
   const istPruefer = admin || (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
@@ -892,16 +908,22 @@ function renderFreigaben() {
 
   const prozess = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="font-size:.85rem;line-height:1.6;color:#374151">
     <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
-    (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>2. Freigabe</b> durch die Geschäftsleitung
+    (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>1.5 Mitbestimmung</b> (Betriebsrat, nur wenn im Editor als betroffen markiert)
+    → <b>2. Freigabe</b> durch die Geschäftsleitung
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
     Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben – dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
   </div></div>`;
   const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
 
+  const kannBR = istPruefer || istGL;   // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten
   let html = prozess;
   if (istPruefer) {
     html += sub('1 · Konformitätsprüfung', inPruefung.length);
     html += inPruefung.length ? inPruefung.map(p => pruefCardHtml(p)).join('') : emptyState('Aktuell nichts zu prüfen.', '✓');
+  }
+  if (kannBR) {
+    html += sub('1.5 · Mitbestimmung (Betriebsrat)', inMitbestimmung.length);
+    html += inMitbestimmung.length ? inMitbestimmung.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : emptyState('Aktuell nichts in der Mitbestimmung.', '✓');
   }
   if (istGL) {
     html += sub('2 · Freigabe zur Veröffentlichung', inFreigabe.length);
@@ -979,6 +1001,30 @@ function pruefCardHtml(p) {
   </div>`;
 }
 
+function mitbestimmungCardHtml(p, kannHandeln) {
+  const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
+  const betroffen = [p.kbrBetroffen ? 'KBR' : null, ...werke].filter(Boolean).join(', ');
+  const ziel = [p.kbrBetroffen ? 'den Konzernbetriebsrat' : null,
+    werke.length ? 'die Betriebsräte (' + esc(werke.join(', ')) + ')' : null].filter(Boolean).join(' und ');
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span>
+      <span class="ic-tag" style="background:#eef2ff;color:#3730a3">🏛️ Betroffen: ${esc(betroffen || '–')}</span></div>
+    ${_votesHtml(p)}
+    <div class="field-hint" style="margin-top:8px">Die Richtlinie ist konform und wurde zur Mitbestimmungsprüfung an ${ziel || 'die Mitbestimmung'} gesendet. Nach Beteiligung des Betriebsrats hier dokumentieren – dann geht sie zur GL-Freigabe.</div>
+    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung zur Mitbestimmung (z. B. „BR SHB zugestimmt am …") – optional') : ''}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      <div style="flex:1"></div>
+      ${kannHandeln ? `
+        <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)" title="Zurück in die Konformitätsprüfung">Zurück</button>
+        <button class="btn btn-outline btn-sm" onclick="resendMitbestimmung('${p.id}')" title="Mitbestimmungs-Mail an KBR/BR erneut senden">✉ Erneut an BR senden</button>
+        <button class="btn btn-success btn-sm" onclick="markMitbestimmung('${p.id}')">✓ Mitbestimmung dokumentiert → Freigabe</button>` : ''}
+    </div>
+  </div>`;
+}
+
 function freigabeCardHtml(p) {
   const mein = (p.freigaben || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
   const kannFreigeben = typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p);
@@ -1012,6 +1058,15 @@ function freigabeErreicht(p) {
   return schwelle === 'alle' ? gl.every(u => ja.includes(u.toLowerCase())) : ja.length >= 1;
 }
 
+/** Ist die Mitbestimmung betroffen (KBR oder mind. ein Werks-BR gewählt)? */
+function mitbestimmungPflicht(p) {
+  return !!(p && (p.kbrBetroffen || (Array.isArray(p.mitbestimmungWerke) && p.mitbestimmungWerke.length)));
+}
+/** Wurde die Mitbestimmung (Betriebsrat) bereits dokumentiert bestätigt? */
+function mitbestimmungBestaetigt(p) {
+  return !!(p && p.mitbestimmung && p.mitbestimmung.bestaetigt);
+}
+
 async function markKonform(policyId, konform) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
   if (!p) return;
@@ -1029,16 +1084,25 @@ async function markKonform(policyId, konform) {
   }
   p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
   p.konformitaet.push({ upn: State.user.upn, name: State.user.name, entscheidung: konform ? 'konform' : 'nicht_konform', anmerkung: anmerkung || '', datum: new Date().toISOString() });
-  let toGL = false;
+  let toGL = false, toBR = false;
   if (!konform) p.status = 'Konformitätsprüfung';
-  else if (konformErreicht(p)) { p.status = 'Freigabe'; toGL = true; }
+  else if (konformErreicht(p)) {
+    // Ist die Mitbestimmung betroffen und noch nicht bestätigt → erst zum Betriebsrat,
+    // sonst direkt zur GL-Freigabe.
+    if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
+    else { p.status = 'Freigabe'; toGL = true; }
+  }
   try {
     await spSavePolicy(p);
     await reloadData();
     renderFreigaben();
-    toast(konform ? (toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓') : 'Als „nicht konform" vermerkt.', 'success');
+    toast(konform
+      ? (toBR ? 'Konform – geht jetzt zur Mitbestimmung (Betriebsrat) ✓'
+         : toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓')
+      : 'Als „nicht konform" vermerkt.', 'success');
+    if (toBR && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);   // KBR/BR benachrichtigen
     if (toGL) notifyGL(p);
-    if (toGL) _ismsWriteback(p, 'konform');   // Konformität ans Ursprungs-ISMS-Dokument zurückschreiben
+    if (toGL || toBR) _ismsWriteback(p, 'konform');   // Konformität ans Ursprungs-ISMS-Dokument zurückschreiben
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 
@@ -1053,6 +1117,33 @@ async function _ismsWriteback(p, kind) {
       if (typeof invalidateIsmsCache === 'function') invalidateIsmsCache();   // ISMS-Reiter zeigt den neuen Stand frisch
     }
   } catch (e) { console.warn('[wf] ISMS-Rückschreiben (' + kind + ') fehlgeschlagen:', e.message); }
+}
+
+/** Mitbestimmung (Betriebsrat) dokumentieren → Richtlinie geht weiter zur GL-Freigabe. */
+async function markMitbestimmung(policyId) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  const field = document.getElementById('fg-kom-' + policyId);
+  const anmerkung = (field ? field.value : '').trim();
+  p.mitbestimmung = {
+    bestaetigt: true,
+    upn: State.user.upn, name: State.user.name,
+    datum: new Date().toISOString(), anmerkung,
+  };
+  p.status = 'Freigabe';   // Betriebsrat beteiligt/dokumentiert → weiter zur Geschäftsleitung
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast('Mitbestimmung dokumentiert – geht jetzt zur Freigabe ✓', 'success');
+    notifyGL(p);
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Mitbestimmungs-Mail (KBR/BR) für eine Richtlinie erneut senden. */
+function resendMitbestimmung(policyId) {
+  const p = State.policies.find(x => x.id === policyId);
+  if (p && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);
 }
 
 async function markFreigabe(policyId) {

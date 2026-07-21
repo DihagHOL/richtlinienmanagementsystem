@@ -857,20 +857,21 @@ function _proposalLinks(ctx) {
 
 function openProposalModal(titel, ctx) {
   _proposalCtx = Object.assign({ titel }, ctx || {});
-  const rec = _proposalRecipients(_proposalCtx);
-  const recHtml = rec.length
-    ? `Geht per E-Mail an: <b>${rec.map(esc).join(', ')}</b>`
-    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt – bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
   const links = _proposalLinks(_proposalCtx);
-  const linksHtml = links.length
-    ? `<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">${links.map(l =>
-        `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`).join('')}</div>`
-    : '';
+  const linkEls = links.map(l =>
+    `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`);
+  // „In Office öffnen" – wie bei der Richtlinie selbst (Desktop-Office via ms-word/excel/…-Schema)
+  const officeName = _proposalCtx.doc ? _proposalCtx.doc.name : (_proposalCtx.policy ? _proposalCtx.policy.dokumentName : '');
+  if (typeof _policyOfficeScheme === 'function' && _policyOfficeScheme(officeName)) {
+    linkEls.push(`<a href="javascript:void(0)" onclick="proposalOpenOffice()" style="color:var(--c-primary);font-weight:600">📝 In Office öffnen ↗</a>`);
+  }
+  const linksHtml = linkEls.length
+    ? `<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">${linkEls.join('')}</div>` : '';
   openModal(`
     <div class="modal-header"><h3>✏️ Änderung vorschlagen</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br>${recHtml}${linksHtml}</div>
+      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br><span id="prop-rec-line">${_proposalRecipientLine(_proposalCtx)}</span>${linksHtml}</div>
       <div class="form-grid">
         <div class="form-group full"><label>Abschnitt / Betreff</label>
           <input type="text" id="prop-betreff" value="${esc(_proposalCtx.betreff || '')}" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
@@ -879,7 +880,7 @@ function openProposalModal(titel, ctx) {
         <div class="form-group full"><label>Begründung</label>
           <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?">${esc(_proposalCtx.grund || '')}</textarea></div>
         <div class="form-group full"><label>Weitere Empfänger (optional)</label>
-          <input type="text" id="prop-cc" placeholder="name@dihag.com, weitere@dihag.com">
+          <input type="text" id="prop-cc" oninput="proposalUpdateRecipients()" placeholder="name@dihag.com, weitere@dihag.com">
           <div class="field-hint">Mit Komma trennen. Nur interne Adressen (@${esc((typeof _myMailDomain === 'function' && _myMailDomain()) || 'dihag.com')}) werden versendet.</div></div>
       </div>
     </div>
@@ -911,6 +912,48 @@ function _proposalRecipients(ctx) {
   if (typeof getIsmsVerantwortlich === 'function') out.push(...getIsmsVerantwortlich());
   if (!out.length && typeof getAccessConfig === 'function') out.push(...((getAccessConfig().admins) || []));
   return [...new Set(out.map(e => String(e).trim().toLowerCase()).filter(Boolean))];
+}
+
+/** Empfänger-Zeile („Geht per E-Mail an: …") aus Basis-Empfängern + optionalen Extras. */
+function _proposalRecipientLine(ctx, extra) {
+  const all = [...new Set([..._proposalRecipients(ctx || {}), ...(extra || [])])];
+  return all.length
+    ? `Geht per E-Mail an: <b>${all.map(esc).join(', ')}</b>`
+    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt – bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
+}
+
+/** Empfänger-Zeile live aktualisieren, wenn „Weitere Empfänger" getippt wird
+ *  (zeigt nur gültige interne Adressen – so wie sie tatsächlich versendet werden). */
+function proposalUpdateRecipients() {
+  const el = document.getElementById('prop-rec-line');
+  if (!el) return;
+  const dom = (typeof _myMailDomain === 'function' && _myMailDomain()) || '';
+  const extra = (document.getElementById('prop-cc')?.value || '')
+    .split(/[,;\s]+/).map(s => s.trim().toLowerCase())
+    .filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && (!dom || e.endsWith('@' + dom)));
+  el.innerHTML = _proposalRecipientLine(_proposalCtx || {}, extra);
+}
+
+/** Betroffenes Dokument im Desktop-Office öffnen – wie bei der Richtlinie selbst. */
+async function proposalOpenOffice() {
+  const ctx = _proposalCtx || {};
+  const d = ctx.doc, p = ctx.policy;
+  const name = d ? d.name : (p ? p.dokumentName : '');
+  const scheme = (typeof _policyOfficeScheme === 'function') ? _policyOfficeScheme(name) : null;
+  if (!scheme) { toast('Dieses Dokument lässt sich nicht direkt in Office öffnen.', 'error'); return; }
+  toast('Datei-URL wird ermittelt …');
+  let fileUrl = '';
+  try {
+    if (d && d.fileUrl) fileUrl = d.fileUrl;
+    else if (d && d.driveId && d.driveItemId) fileUrl = await spGetDirectFileUrl(d.driveId, d.driveItemId);
+    else if (p && p.dokumentDriveId && p.dokumentItemId) fileUrl = await spGetDirectFileUrl(p.dokumentDriveId, p.dokumentItemId);
+  } catch (e) { fileUrl = ''; }
+  if (fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;
+    toast('Öffne in Office … Öffnet sich nichts? „Dokument öffnen" nutzen.');
+  } else {
+    toast('Datei-URL nicht verfügbar – bitte „Dokument öffnen" nutzen.', 'error');
+  }
 }
 
 async function sendProposal(keepOpen) {

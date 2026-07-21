@@ -579,6 +579,7 @@ function workflowBadge(status) {
     'Entwurf':              ['sb-draft', 'Entwurf'],
     'Konformitätsprüfung':  ['sb-review', 'Konformitätsprüfung'],
     'InReview':             ['sb-review', 'In Prüfung'],
+    'Mitbestimmung':        ['sb-review', 'Mitbestimmung (BR)'],
     'Freigabe':             ['sb-read', 'Freigabe ausstehend'],
     'Veröffentlicht':       ['sb-published', 'Veröffentlicht'],
     'Archiviert':           ['sb-archived', 'Archiviert'],

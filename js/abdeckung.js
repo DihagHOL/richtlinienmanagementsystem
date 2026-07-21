@@ -212,6 +212,7 @@ function _abStatusWord(d) {
 function _abKonformStatus(p) {
   if (p.status === 'Veröffentlicht') return 'veröffentlicht';
   if (p.status === 'Freigabe')       return 'konform – in Freigabe';
+  if (p.status === 'Mitbestimmung')  return 'konform – in Mitbestimmung (BR)';
   if (typeof konformErreicht === 'function' && konformErreicht(p)) return 'konform';
   if (p.status === 'Konformitätsprüfung' || p.status === 'InReview') return 'in Konformitätsprüfung';
   return p.status || '–';

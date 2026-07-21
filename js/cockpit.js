@@ -82,13 +82,13 @@ function _ckRenderPolicies() {
     _ckBig(pols.filter(p => p.status !== 'Archiviert').length, 'aktiv', '#1a56db') +
     _ckBig(by('Veröffentlicht'), 'veröffentlicht', '#15803d') +
     _ckBig(by('Entwurf'), 'Entwürfe', '#6b7280') +
-    _ckBig(pruef + by('Freigabe'), 'im Workflow', (pruef + by('Freigabe')) ? '#b45309' : '#15803d'));
+    _ckBig(pruef + by('Mitbestimmung') + by('Freigabe'), 'im Workflow', (pruef + by('Mitbestimmung') + by('Freigabe')) ? '#b45309' : '#15803d'));
 }
 
 function _ckRenderWorkflow() {
   const pols = State.policies || [];
   const pruef = pols.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
-  const frei = pols.filter(p => p.status === 'Freigabe');
+  const frei = pols.filter(p => p.status === 'Freigabe' || p.status === 'Mitbestimmung');
   const oldest = [...pruef, ...frei]
     .map(p => p.pruefungSeit ? Math.floor((Date.now() - Date.parse(p.pruefungSeit)) / 86400000) : 0)
     .reduce((m, d) => Math.max(m, d), 0);

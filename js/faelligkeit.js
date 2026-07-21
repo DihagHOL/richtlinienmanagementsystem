@@ -61,8 +61,12 @@ function _faelligCard(entry, accent) {
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <span style="flex:1;min-width:0;font-size:.8rem;color:var(--c-muted)">${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ kein Dokument'}</span>
       <button class="btn btn-outline btn-sm" onclick="openPolicyEditor('${esc(p.id)}')">✏ Bearbeiten</button>
-      ${(typeof canWriteTab !== 'function' || canWriteTab('faelligkeit'))
-        ? `<button class="btn btn-success btn-sm" onclick="faelligSetReview('${esc(p.id)}',12)" title="Nächste Überprüfung auf heute + 12 Monate setzen">🔁 +12 Monate</button>` : ''}
+      ${(typeof canWriteTab !== 'function' || canWriteTab('faelligkeit')) ? `
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--c-muted)">heute +
+          <input type="number" id="fael-m-${esc(p.id)}" min="1" max="120" value="${p.wiederholungMonate || 12}"
+            style="width:58px;border:1px solid #d1d5db;border-radius:6px;padding:4px 6px;font-size:.82rem;font-family:inherit" title="Monate bis zur nächsten Überprüfung"> Mon.</span>
+        <button class="btn btn-success btn-sm" onclick="faelligSetReviewMonths('${esc(p.id)}')" title="Nächste Überprüfung auf heute + eingetragene Monate setzen">🔁 Setzen</button>
+        ${p.naechsteReview ? `<button class="btn btn-ghost btn-sm" onclick="faelligClearReview('${esc(p.id)}')" title="Überprüfungstermin entfernen">✕ Termin entfernen</button>` : ''}` : ''}
     </div>
   </div>`;
 }
@@ -96,23 +100,33 @@ function renderFaelligkeit() {
     ${b.later.length ? section('Später terminiert', b.later, '#22c55e', '') : ''}`;
 }
 
-/** Nächste Überprüfung auf heute + N Monate setzen und speichern. */
-async function faelligSetReview(id, months) {
+/** Nächste Überprüfung auf heute + N Monate setzen (N aus dem Karten-Eingabefeld). */
+async function faelligSetReviewMonths(id) {
+  const inp = document.getElementById('fael-m-' + id);
+  const months = Math.max(1, Math.min(120, parseInt(inp?.value, 10) || 12));
+  const d = new Date(); d.setMonth(d.getMonth() + months);
+  await _faelligApplyReview(id, d.toISOString(), `Nächste Überprüfung: ${fmtDate(d.toISOString())} ✓`);
+}
+
+/** Überprüfungstermin entfernen (Feld leeren – dokumentiert bewusst „kein Termin"). */
+async function faelligClearReview(id) {
+  await _faelligApplyReview(id, '', 'Überprüfungstermin entfernt ✓');
+}
+
+/** Termin (ISO oder '') gezielt speichern + Ansichten aktualisieren. */
+async function _faelligApplyReview(id, iso, okMsg) {
   if (typeof canWriteTab === 'function' && !canWriteTab('faelligkeit')) {
     if (typeof toast === 'function') toast('Nur Lesezugriff auf „Fälligkeiten".', 'error'); return;
   }
   const src = State.policies.find(x => x.id === id);
   if (!src) return;
-  const d = new Date(); d.setMonth(d.getMonth() + (months || 12));
-  const p = JSON.parse(JSON.stringify(src));
-  p.naechsteReview = d.toISOString();
   try {
-    await spSavePolicy(p);
+    await spSetPolicyReview(id, iso);   // eigener PATCH: kann auch leeren
     if (typeof reloadData === 'function') await reloadData();
-    else src.naechsteReview = p.naechsteReview;
+    else src.naechsteReview = iso;
     renderFaelligkeit();
     if (typeof renderAdminList === 'function') renderAdminList();
-    if (typeof toast === 'function') toast(`Nächste Überprüfung: ${fmtDate(p.naechsteReview)} ✓`, 'success');
+    if (typeof toast === 'function') toast(okMsg, 'success');
   } catch (e) {
     if (typeof toast === 'function') toast('Speichern fehlgeschlagen: ' + e.message, 'error');
   }
