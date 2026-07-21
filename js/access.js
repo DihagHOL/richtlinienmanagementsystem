@@ -22,6 +22,9 @@ const ACCESS_CONFIG_DEFAULT = {
   // Reiter-Berechtigungen (zusätzlich zu den Standard-Rollenrechten, rein additiv):
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
+  // ── Mitbestimmung (Betriebsverfassung) ──
+  kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
+  brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
   // ── Genehmigungsverfahren ──
   pruefer:          [],        // Konformitätsprüfer (UPNs)
   geschaeftsleitung: [],       // Freigeber / Geschäftsleitung (UPNs)
@@ -46,6 +49,10 @@ const COMPANY_ROLES_DEFAULT = [
 
 const ZIELGRUPPE_ALLE = 'ALLE';
 
+/* Werke der DIHAG-Gruppe – je Werk kann in den Einstellungen eine
+   Betriebsrats-Mailadresse hinterlegt werden (Mitbestimmung je Richtlinie). */
+const MITBESTIMMUNG_WERKE = ['SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA'];
+
 let _runtimeConfig = null;
 let _myRolesCache = null;
 
@@ -64,6 +71,8 @@ async function loadRuntimeAccessConfig() {
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
+        kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
+        brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
         pruefer:           Array.isArray(cfg.pruefer) ? cfg.pruefer : [],
         geschaeftsleitung: Array.isArray(cfg.geschaeftsleitung) ? cfg.geschaeftsleitung : [],
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
@@ -91,6 +100,8 @@ function getAccessConfig() {
     roles:      [...getCompanyRoles()],
     userRoles:  JSON.parse(JSON.stringify(c.userRoles || {})),
     reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
+    kbrMail:           c.kbrMail || '',
+    brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
     pruefer:           [...(c.pruefer || [])],
     geschaeftsleitung: [...(c.geschaeftsleitung || [])],
     konformSchwelle:   c.konformSchwelle || 'alle',
@@ -119,6 +130,10 @@ function getIsmsVerantwortlich(){ return [...(_cfg().ismsVerantwortlich || [])];
 function getVorschlagEmpfaenger(){ return [...(_cfg().vorschlagEmpfaenger || [])]; }  // zusätzliche, eigene Empfänger für Vorschläge
 function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
+/* ── Mitbestimmung: KBR- und je-Werk-BR-Mailadressen ── */
+function getKbrMail()           { return _cfg().kbrMail || ''; }
+function getBrMails()           { const m = _cfg().brMails; return (m && typeof m === 'object') ? { ...m } : {}; }
+function getBrMail(werk)        { return getBrMails()[werk] || ''; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
 function getGenehmigungPA()     { return _cfg().genehmigungPA === true; }
 function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }

@@ -66,6 +66,7 @@ const POLICY_COLUMNS = [
   { name: 'NormbezugJson',       typ: 'Mehrere Zeilen Text' },
   { name: 'PruefKonfigJson',     typ: 'Mehrere Zeilen Text' },
   { name: 'FreigabeKonfigJson',  typ: 'Mehrere Zeilen Text' },
+  { name: 'MitbestimmungJson',   typ: 'Mehrere Zeilen Text' },
 ];
 
 /** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
@@ -313,6 +314,14 @@ function _mapPolicy(item) {
       freigabeKonfig = { freigeber: Array.isArray(fk.freigeber) ? fk.freigeber : [], schwelle: (fk.schwelle === 'alle' || fk.schwelle === 'einer') ? fk.schwelle : '' };
     }
   } catch { freigabeKonfig = { freigeber: [], schwelle: '' }; }
+  let kbrBetroffen = false, mitbestimmungWerke = [];
+  try {
+    if (f.MitbestimmungJson) {
+      const mb = JSON.parse(f.MitbestimmungJson);
+      kbrBetroffen = mb.kbrBetroffen === true;
+      mitbestimmungWerke = Array.isArray(mb.werke) ? mb.werke : [];
+    }
+  } catch { kbrBetroffen = false; mitbestimmungWerke = []; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -338,6 +347,8 @@ function _mapPolicy(item) {
     normbezug:           Array.isArray(normbezug) ? normbezug : [],
     pruefKonfig,
     freigabeKonfig,
+    kbrBetroffen,
+    mitbestimmungWerke,
     pruefungSeit:        f.PruefungSeit || '',
     modifiedAt:          item.lastModifiedDateTime || '',
   };
@@ -380,6 +391,7 @@ async function spSavePolicy(p) {
     NormbezugJson:       JSON.stringify(p.normbezug || []),
     PruefKonfigJson:     JSON.stringify(p.pruefKonfig || { pruefer: [], schwelle: '' }),
     FreigabeKonfigJson:  JSON.stringify(p.freigabeKonfig || { freigeber: [], schwelle: '' }),
+    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [] }),
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))
@@ -1194,11 +1206,15 @@ function _myMailDomain() {
  * (kein Versand an Externe). Scope Mail.Send wird separat angefordert.
  * @returns true bei Versand, false bei Redirect (Consent erforderlich)
  */
-async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns) {
+async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraDomains) {
   const domain = _myMailDomain();
+  // Erlaubte Domains: eigene Firmendomain + optional admin-gepflegte Ausnahmen
+  // (z. B. Betriebsrats-Mails auf Gruppengesellschafts-Domains wie ewa-guss.de).
+  const allowed = new Set([domain, ...(Array.isArray(extraDomains) ? extraDomains : [])]
+    .map(d => String(d || '').trim().toLowerCase()).filter(Boolean));
   const clean = list => [...new Set((Array.isArray(list) ? list : [list])
     .map(u => String(u || '').trim().toLowerCase())
-    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!domain || u.endsWith('@' + domain))))];
+    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!allowed.size || allowed.has(u.split('@').pop()))))];
   const unique = clean(toUpns);
   if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
   const cc = clean(ccUpns).filter(a => !unique.includes(a));   // keine Doppel-Empfänger

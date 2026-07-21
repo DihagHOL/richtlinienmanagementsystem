@@ -319,6 +319,7 @@ function newPolicy() {
     veroeffentlichtAm: '', freigegebenVon: '', normbezug: [],
     pruefKonfig: { pruefer: [], schwelle: '' },
     freigabeKonfig: { freigeber: [], schwelle: '' },
+    kbrBetroffen: false, mitbestimmungWerke: [],
   };
 }
 
@@ -404,6 +405,7 @@ function renderPolicyEditor() {
       ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
       ${renderPruefKonfigSection()}
       ${renderFreigabeKonfigSection()}
+      ${renderMitbestimmungSection()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -658,6 +660,43 @@ function fkSetSchwelle(v) {
   _editing.freigabeKonfig.schwelle = (v === 'alle' || v === 'einer') ? v : '';
 }
 
+/* ── Mitbestimmung (Betriebsverfassung): KBR + Betriebsräte je Werk ──
+   Ist der KBR bzw. ein Werks-BR betroffen, geht die Richtlinie beim
+   Einreichen zur Konformitätsprüfung zusätzlich zur Mitbestimmungsprüfung
+   an die in den Einstellungen hinterlegten Mailadressen. */
+function renderMitbestimmungSection() {
+  const p = _editing;
+  const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
+  const werkeList = (typeof MITBESTIMMUNG_WERKE !== 'undefined') ? MITBESTIMMUNG_WERKE : [];
+  const kbrHinterlegt = (typeof getKbrMail === 'function') && getKbrMail();
+  const brMails = (typeof getBrMails === 'function') ? getBrMails() : {};
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Mitbestimmung (Betriebsverfassung)</div>
+      <div class="field-hint" style="margin-bottom:10px">Ist die Mitbestimmung betroffen, wird die Richtlinie beim Einreichen zur Konformitätsprüfung zusätzlich zur Prüfung an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke gesendet (Mailadressen unter <b>Einstellungen → Mitbestimmung</b>).</div>
+      <label class="ack-check" style="font-weight:600;margin-bottom:8px">
+        <input type="checkbox" ${p.kbrBetroffen ? 'checked' : ''} onchange="_editing.kbrBetroffen=this.checked">
+        <span>Konzernbetriebsrat (KBR) betroffen${!kbrHinterlegt ? ' <span style="color:#b45309;font-weight:600">– keine KBR-Mail hinterlegt</span>' : ''}</span>
+      </label>
+      <div style="font-weight:500;font-size:.82rem;margin:8px 0 6px">Betroffene Betriebsräte (Werke)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:2px 12px">
+        ${werkeList.map(code => {
+          const sel = werke.includes(code);
+          const fehlt = sel && !((brMails[code] || '').trim());
+          return `<label class="ack-check" style="font-weight:500">
+            <input type="checkbox" ${sel ? 'checked' : ''} onchange="mitEditorToggleWerk('${code}', this.checked)">
+            <span>${esc(code)}${fehlt ? ' <span style="color:#b45309">⚠</span>' : ''}</span></label>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function mitEditorToggleWerk(code, on) {
+  if (!Array.isArray(_editing.mitbestimmungWerke)) _editing.mitbestimmungWerke = [];
+  _editing.mitbestimmungWerke = _editing.mitbestimmungWerke.filter(x => x !== code);
+  if (on) _editing.mitbestimmungWerke.push(code);
+}
+
 async function savePolicy(newStatus) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
     toast('Nur Lesezugriff auf „Richtlinien Dashboard" – Speichern nicht möglich.', 'error'); return;
@@ -689,6 +728,7 @@ async function savePolicy(newStatus) {
     if (newStatus === 'Konformitätsprüfung') {
       toast('Gespeichert & zur Konformitätsprüfung eingereicht ✓', 'success');
       if (typeof notifyPruefer === 'function') notifyPruefer(p);   // Mail an Prüfer (Etappe B)
+      if (typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);   // KBR/BR bei Betroffenheit
     } else {
       toast('Als Entwurf gespeichert ✓', 'success');
     }
@@ -1070,6 +1110,64 @@ async function notifyGL(p) {
         att ? att.name : '', 'freigabe'),
       att ? [att] : []);
   } catch (e) { console.warn('GL-Mail:', e.message); }
+}
+
+/* ── Mitbestimmung: KBR + Betriebsräte der betroffenen Werke benachrichtigen ──
+   Einzelversand pro Empfänger (Betriebsräte sehen sich nicht gegenseitig).
+   Admin-gepflegte Adressen dürfen auch auf Gruppengesellschafts-Domains liegen. */
+async function notifyMitbestimmung(p) {
+  const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
+  if (!p.kbrBetroffen && !werke.length) return;   // nichts betroffen → keine Mail
+
+  const recipients = [];   // { mail, label }
+  const fehlt = [];
+  if (p.kbrBetroffen) {
+    const kbr = (typeof getKbrMail === 'function' ? getKbrMail() : '').trim();
+    if (kbr) recipients.push({ mail: kbr, label: 'Konzernbetriebsrat' });
+    else fehlt.push('KBR');
+  }
+  for (const code of werke) {
+    const m = (typeof getBrMail === 'function' ? getBrMail(code) : '').trim();
+    if (m) recipients.push({ mail: m, label: 'Betriebsrat ' + code });
+    else fehlt.push(code);
+  }
+  if (fehlt.length) {
+    toast('Mitbestimmung: keine Mail hinterlegt für ' + fehlt.join(', ') + ' – bitte in den Einstellungen ergänzen.', 'error');
+  }
+  if (!recipients.length) return;
+
+  // Dokument einmal laden und an jede Council-Mail anhängen
+  let att = null;
+  try { att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName); }
+  catch (e) { console.warn('Mitbestimmung: Anhang nicht ladbar:', e.message); }
+
+  let sent = 0;
+  for (const r of recipients) {
+    const dom = r.mail.includes('@') ? r.mail.split('@').pop() : '';
+    try {
+      await spSendMail([r.mail], `Mitbestimmung – Richtlinie zur Prüfung: ${p.title}`,
+        _mitMailHtml(p, r.label, att ? att.name : ''),
+        att ? [att] : [], null, dom ? [dom] : []);
+      sent++;
+    } catch (e) { console.warn('Mitbestimmungs-Mail an', r.mail, e.message); }
+  }
+  if (sent) toast(`Mitbestimmung: ${sent} Empfänger (KBR/Betriebsrat) benachrichtigt ✓`, 'success');
+}
+
+function _mitMailHtml(p, label, attachmentName) {
+  const base = 'https://richtlinienmanagement.dihag-extern.com/';
+  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
+    <p>Empfänger: <b>${esc(label)}</b></p>
+    <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
+    <p style="font-size:16px"><a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    ${p.beschreibung ? `<p style="color:#374151">${esc(p.beschreibung)}</p>` : ''}
+    ${attachmentName
+      ? `<p>📎 Das Richtliniendokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
+      : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar) – bitte bei der ISMS-Stelle anfordern.</p>`}
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+  </div>`;
 }
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
   const base = 'https://richtlinienmanagement.dihag-extern.com/';
@@ -1532,6 +1630,30 @@ function renderEinstellungen() {
       </div>
 
       <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Mitbestimmung (KBR / Betriebsräte)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Mailadressen für die Mitbestimmungsprüfung. Markierst du im Richtlinien-Editor den
+            <b>Konzernbetriebsrat</b> oder den <b>Betriebsrat eines Werks</b> als betroffen, geht die
+            Richtlinie beim Einreichen zur Konformitätsprüfung automatisch (mit Dokument) an die hier
+            hinterlegte Adresse. Adressen dürfen auf Gruppengesellschafts-Domains liegen (z. B. ewa-guss.de).
+          </div>
+          <div class="form-grid">
+            <div class="form-group full"><label>Konzernbetriebsrat (KBR)</label>
+              <input type="email" value="${esc(_cfgEdit.kbrMail || '')}" oninput="_cfgEdit.kbrMail=this.value.trim()" placeholder="kbr@dihag.com"></div>
+          </div>
+          <div style="font-weight:600;font-size:.82rem;margin:12px 0 8px">Betriebsräte je Werk</div>
+          <div class="form-grid">
+            ${(typeof MITBESTIMMUNG_WERKE !== 'undefined' ? MITBESTIMMUNG_WERKE : []).map(code => `
+              <div class="form-group"><label>${esc(code)}</label>
+                <input type="email" value="${esc((_cfgEdit.brMails || {})[code] || '')}"
+                  oninput="mitSetBrMail('${code}', this.value)" placeholder="br-${esc(code.toLowerCase())}@…"></div>`).join('')}
+          </div>
+          <div class="field-hint" style="margin-top:10px">Leer lassen, wenn (noch) kein Betriebsrat hinterlegt ist. Fehlt eine Adresse für ein betroffenes Werk, erscheint beim Einreichen ein Hinweis.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Erinnerungen &amp; Eskalation (automatisch)</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">
@@ -1899,6 +2021,13 @@ function urToggle(ui, ri, checked) {
   if (checked && idx < 0) arr.push(role);
   else if (!checked && idx >= 0) arr.splice(idx, 1);
   renderUserRolesList();
+}
+
+/** Betriebsrats-Mail eines Werks im Config-Entwurf setzen/entfernen (leer = löschen). */
+function mitSetBrMail(code, val) {
+  if (!_cfgEdit.brMails || typeof _cfgEdit.brMails !== 'object' || Array.isArray(_cfgEdit.brMails)) _cfgEdit.brMails = {};
+  const v = String(val || '').trim();
+  if (v) _cfgEdit.brMails[code] = v; else delete _cfgEdit.brMails[code];
 }
 
 async function saveCfg() {
