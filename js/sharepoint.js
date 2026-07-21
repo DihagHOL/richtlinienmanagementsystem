@@ -30,6 +30,10 @@ const SP = {
   ],
 };
 
+/** Browser-URL der App-Site (dort liegen alle App-Listen), z. B.
+ *  https://dihag.sharepoint.com/sites/IT – für Hinweise/Links beim manuellen Anlegen. */
+function spAppSiteUrl() { return 'https://' + SP.appSiteHost.replace(':/', '/'); }
+
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
   courseListId: null, proposalListId: null, riskListId: null,
@@ -1312,6 +1316,36 @@ async function spSaveSoa(data) {
    Risiko-Register (SharePoint-Liste „Risiken", wird bei Bedarf angelegt)
 ═══════════════════════════════════════════════════ */
 
+/* Erwartete Spalten der Liste „Risiken" – EINE Quelle für: Auto-Anlage,
+   Fehlende-Spalten-Warnung und die Anleitung beim manuellen Anlegen.
+   Interne Namen exakt so (ASCII, keine Umlaute → kein kodierter interner Name). */
+const RISK_COLUMNS = [
+  { name: 'Beschreibung',          typ: 'Mehrere Zeilen Text' },
+  { name: 'Kategorie',             typ: 'Einzelne Textzeile' },
+  { name: 'Eigner',                typ: 'Einzelne Textzeile' },
+  { name: 'Schutzziele',           typ: 'Einzelne Textzeile' },
+  { name: 'BruttoEintritt',        typ: 'Zahl' },
+  { name: 'BruttoAuswirkung',      typ: 'Zahl' },
+  { name: 'NettoEintritt',         typ: 'Zahl' },
+  { name: 'NettoAuswirkung',       typ: 'Zahl' },
+  { name: 'Behandlung',            typ: 'Einzelne Textzeile' },
+  { name: 'BehandlungBegruendung', typ: 'Mehrere Zeilen Text' },
+  { name: 'MassnahmenJson',        typ: 'Mehrere Zeilen Text' },
+  { name: 'ControlsJson',          typ: 'Mehrere Zeilen Text' },
+  { name: 'RichtlinienJson',       typ: 'Mehrere Zeilen Text' },
+  { name: 'RiskStatus',            typ: 'Einzelne Textzeile' },
+  { name: 'NaechsteReview',        typ: 'Datum und Uhrzeit' },
+  { name: 'HistorieJson',          typ: 'Mehrere Zeilen Text' },
+];
+
+/** Menschlicher Spaltentyp → Graph-Spaltendefinition (für die Auto-Anlage). */
+function _riskColGraphDef(typ) {
+  if (typ === 'Zahl')                return { number: {} };
+  if (typ === 'Datum und Uhrzeit')   return { dateTime: {} };
+  if (typ === 'Mehrere Zeilen Text') return { text: { allowMultipleLines: true } };
+  return { text: {} };   // Einzelne Textzeile
+}
+
 let _riskCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
 
 async function _loadRiskCols(token) {
@@ -1341,24 +1375,7 @@ async function spEnsureRiskList(create = true) {
   const body = {
     displayName: SP.riskList,
     list: { template: 'genericList' },
-    columns: [
-      { name: 'Beschreibung',           text: { allowMultipleLines: true } },
-      { name: 'Kategorie',              text: {} },
-      { name: 'Eigner',                 text: {} },
-      { name: 'Schutzziele',            text: {} },
-      { name: 'BruttoEintritt',         number: {} },
-      { name: 'BruttoAuswirkung',       number: {} },
-      { name: 'NettoEintritt',          number: {} },
-      { name: 'NettoAuswirkung',        number: {} },
-      { name: 'Behandlung',             text: {} },
-      { name: 'BehandlungBegruendung',  text: { allowMultipleLines: true } },
-      { name: 'MassnahmenJson',         text: { allowMultipleLines: true } },
-      { name: 'ControlsJson',           text: { allowMultipleLines: true } },
-      { name: 'RichtlinienJson',        text: { allowMultipleLines: true } },
-      { name: 'RiskStatus',             text: {} },
-      { name: 'NaechsteReview',         dateTime: {} },
-      { name: 'HistorieJson',           text: { allowMultipleLines: true } },
-    ],
+    columns: RISK_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
   };
   const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
   _sp.riskListId = created.id;
@@ -1426,10 +1443,7 @@ function _riskFields(r) {
 /** Fehlende Spalten der Risiken-Liste (nach spEnsureRiskList). */
 function spMissingRiskColumns() {
   if (!_riskCols) return [];
-  return ['Beschreibung', 'Kategorie', 'Eigner', 'Schutzziele', 'BruttoEintritt', 'BruttoAuswirkung',
-    'NettoEintritt', 'NettoAuswirkung', 'Behandlung', 'BehandlungBegruendung', 'MassnahmenJson',
-    'ControlsJson', 'RichtlinienJson', 'RiskStatus', 'NaechsteReview', 'HistorieJson']
-    .filter(n => !_riskCols.has(n));
+  return RISK_COLUMNS.map(c => c.name).filter(n => !_riskCols.has(n));
 }
 
 async function spGetRisks() {
