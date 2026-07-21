@@ -30,9 +30,12 @@ const SP = {
   ],
 };
 
-/** Browser-URL der App-Site (dort liegen alle App-Listen), z. B.
+/** Browser-URL der App-Site (dort liegen die meisten App-Listen), z. B.
  *  https://dihag.sharepoint.com/sites/IT – für Hinweise/Links beim manuellen Anlegen. */
 function spAppSiteUrl() { return 'https://' + SP.appSiteHost.replace(':/', '/'); }
+/** Browser-URL der ISMS-Site (dort liegt bewusst die Risiken-Liste), z. B.
+ *  https://dihag.sharepoint.com/sites/ISMS. */
+function spIsmsSiteUrl() { return 'https://' + SP.ismsSiteHost.replace(':/', '/'); }
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
@@ -1348,26 +1351,27 @@ function _riskColGraphDef(typ) {
 
 let _riskCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
 
-async function _loadRiskCols(token) {
+async function _loadRiskCols(token, siteId) {
   try {
-    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.riskListId}/columns?$select=name`, token);
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.riskListId}/columns?$select=name`, token);
     _riskCols = new Set((cols.value || []).map(c => c.name));
   } catch (e) { _riskCols = null; }
 }
 
-/** Risiken-Liste robust finden – oder anlegen (analog Aenderungsvorschlaege). */
+/** Risiken-Liste robust finden – oder anlegen. Liegt BEWUSST auf der ISMS-Site
+ *  (sites/ISMS), nicht auf der App-Site – so gewünscht. */
 async function spEnsureRiskList(create = true) {
   if (_sp.riskListId) return _sp.riskListId;
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
-  await spInit();
+  const siteId = await _ismsSiteId(token);
   const target = _normName(SP.riskList);   // 'risiken'
-  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists?$select=id,displayName,name&$top=200`;
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
   try {
     while (url) {
       const r = await _get(url, token);
       const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
-      if (hit) { _sp.riskListId = hit.id; await _loadRiskCols(token); return _sp.riskListId; }
+      if (hit) { _sp.riskListId = hit.id; await _loadRiskCols(token, siteId); return _sp.riskListId; }
       url = r['@odata.nextLink'] || null;
     }
   } catch (e) { /* weiter → ggf. anlegen */ }
@@ -1377,9 +1381,9 @@ async function spEnsureRiskList(create = true) {
     list: { template: 'genericList' },
     columns: RISK_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
   };
-  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, body);
   _sp.riskListId = created.id;
-  await _loadRiskCols(token);
+  await _loadRiskCols(token, siteId);
   return _sp.riskListId;
 }
 
@@ -1450,8 +1454,9 @@ async function spGetRisks() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   const listId = await spEnsureRiskList(true);
+  const siteId = await _ismsSiteId(token);
   const out = [];
-  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
   while (url) {
     const resp = await _get(url, token);
     for (const it of (resp.value || [])) out.push(_mapRisk(it));
@@ -1464,7 +1469,8 @@ async function spAddRisk(r) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureRiskList(true);
-  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items`, token, { fields: _riskFields(r) });
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _riskFields(r) });
   return created && created.id;
 }
 
@@ -1473,7 +1479,8 @@ async function spUpdateRisk(id, r) {
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureRiskList(false);
   if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
-  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, _riskFields(r));
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _riskFields(r));
 }
 
 async function spDeleteRisk(id) {
@@ -1481,7 +1488,8 @@ async function spDeleteRisk(id) {
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureRiskList(false);
   if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
-  const resp = await fetch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}`, {
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);

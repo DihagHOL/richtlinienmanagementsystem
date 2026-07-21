@@ -73,26 +73,22 @@ async function initRisiken() {
   } catch (e) {
     _risks = null;
     _risksLoading = false;
-    const appUrl    = (typeof spAppSiteUrl === 'function') ? spAppSiteUrl() : 'https://dihag.sharepoint.com/sites/IT';
-    const contents  = appUrl + '/_layouts/15/viewlsts.aspx';
-    const riskCols  = (typeof RISK_COLUMNS !== 'undefined') ? RISK_COLUMNS : [];
-    const colList   = riskCols.map(c => `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ');
+    const ismsUrl  = (typeof spIsmsSiteUrl === 'function') ? spIsmsSiteUrl() : 'https://dihag.sharepoint.com/sites/ISMS';
+    const contents = ismsUrl + '/_layouts/15/viewlsts.aspx';
+    const riskCols = (typeof RISK_COLUMNS !== 'undefined') ? RISK_COLUMNS : [];
+    const colList  = riskCols.map(c => `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ');
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Risiko-Register nicht ladbar:</b> ${esc(e.message)}
-      <div style="margin-top:10px">Die App legt die Liste „Risiken" beim ersten Zugriff automatisch an –
-        dafür fehlt deinem Konto das Recht, auf der App-Site Listen zu erstellen.</div>
-      <div style="margin-top:10px;padding:9px 11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px">
-        <b>Wichtig – richtige Site:</b> Die Liste muss auf der <b>App-Site</b>
-        <a href="${esc(appUrl)}" target="_blank" rel="noopener">${esc(appUrl)}</a> liegen –
-        dort, wo auch „Richtlinien" und „Bestaetigungen" liegen. <b>Nicht</b> auf
-        <code>sites/ISMS</code> (das ist nur die Dokumentquelle); eine dort angelegte Liste findet die App nicht.</div>
+      <div style="margin-top:10px">Die Liste „Risiken" liegt bewusst auf der <b>ISMS-Site</b>
+        <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
+        ersten Zugriff automatisch an – dafür braucht dein Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
-        <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte der App-Site öffnen ↗</a>
+        <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Risiken</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
       <div style="margin-top:8px;line-height:1.9">${colList}</div>
       <div style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">
         Interne Namen exakt übernehmen (Groß-/Kleinschreibung, keine Umlaute). „Mehrere Zeilen Text" = einfacher Text.
-        Alternativ: ein Admin gibt deinem Konto auf der App-Site das Recht „Listen erstellen" – dann legt die App die Liste selbst an.</div>
+        Alternativ: ein Admin gibt deinem Konto auf der ISMS-Site das Recht „Listen erstellen" – dann legt die App die Liste selbst an.</div>
     </div>`;
     return;
   }
