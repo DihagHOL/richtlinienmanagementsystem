@@ -1640,14 +1640,14 @@ function renderEinstellungen() {
           </div>
           <div class="form-grid">
             <div class="form-group full"><label>Konzernbetriebsrat (KBR)</label>
-              <input type="email" value="${esc(_cfgEdit.kbrMail || '')}" oninput="_cfgEdit.kbrMail=this.value.trim()" placeholder="kbr@dihag.com"></div>
+              <input type="email" value="${esc(_cfgEdit.kbrMail || '')}" oninput="_cfgEdit.kbrMail=this.value.trim()"></div>
           </div>
           <div style="font-weight:600;font-size:.82rem;margin:12px 0 8px">Betriebsräte je Werk</div>
           <div class="form-grid">
             ${(typeof MITBESTIMMUNG_WERKE !== 'undefined' ? MITBESTIMMUNG_WERKE : []).map(code => `
               <div class="form-group"><label>${esc(code)}</label>
                 <input type="email" value="${esc((_cfgEdit.brMails || {})[code] || '')}"
-                  oninput="mitSetBrMail('${code}', this.value)" placeholder="br-${esc(code.toLowerCase())}@…"></div>`).join('')}
+                  oninput="mitSetBrMail('${code}', this.value)"></div>`).join('')}
           </div>
           <div class="field-hint" style="margin-top:10px">Leer lassen, wenn (noch) kein Betriebsrat hinterlegt ist. Fehlt eine Adresse für ein betroffenes Werk, erscheint beim Einreichen ein Hinweis.</div>
         </div>
