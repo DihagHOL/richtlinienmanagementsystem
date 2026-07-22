@@ -13,6 +13,7 @@
 let _reifegrad = null;          // { ratings:{mid:{werk:stufe}}, kommentare:{mid:text}, meta:{} }
 let _reifegradLoading = false;
 let _reifegradDirty = false;
+let _reifegradSeeded = false;   // true → Startbelegung aus Dokument, noch nicht gespeichert
 let _rgFilter = { q: '', stufe: '', werk: '' };   // werk='' → alle Werke
 const RG_CYCLE = ['weiss', 'gruen', 'gelb', 'rot'];   // Klick-Reihenfolge einer Zelle
 let _rgOpen = {};               // { topicId: false } → eingeklappt (Standard: offen)
@@ -37,7 +38,24 @@ async function initReifegrad() {
   };
   _reifegradLoading = false;
   _reifegradDirty = false;
+  _reifegradSeeded = false;
+  // Erststart ohne gespeicherte Bewertung → Ampeln aus dem Dokument vorbelegen.
+  if (!Object.keys(_reifegrad.ratings).length && typeof REIFEGRAD_SEED === 'object' && REIFEGRAD_SEED) {
+    _rgApplySeed();
+  }
   renderReifegrad();
+}
+
+/** Übernimmt die Ampeln aus REIFEGRAD_SEED (Dokument) als Startbelegung. */
+function _rgApplySeed() {
+  const seed = (typeof REIFEGRAD_SEED === 'object' && REIFEGRAD_SEED && REIFEGRAD_SEED.ratings) || null;
+  if (!seed) return;
+  const r = {};
+  for (const mid in seed) r[mid] = Object.assign({}, seed[mid]);
+  _reifegrad.ratings = r;
+  _reifegrad.meta = Object.assign({ quelle: (REIFEGRAD_SEED.meta && REIFEGRAD_SEED.meta.quelle) || '' }, _reifegrad.meta);
+  _reifegradSeeded = true;
+  _reifegradDirty = true;
 }
 
 /* ── Aggregation ── */
@@ -113,6 +131,11 @@ function renderReifegrad() {
       Ampel: 🟢 funktioniert · 🟡 teilweise · 🔴 nicht gelebt · ⚪ keine Einschätzung. Zelle anklicken zum Ändern.
       ${meta.aktualisiertAm ? `<span style="color:var(--c-faint)"> · zuletzt: ${esc(fmtDate(meta.aktualisiertAm))}${meta.aktualisiertVon ? ' von ' + esc(meta.aktualisiertVon) : ''}</span>` : ''}
     </div>
+    ${_reifegradSeeded ? `<div class="banner banner-info" style="display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:9px 13px;border:1px solid #99b7cd;background:#eef4f9;border-radius:9px;font-size:.83rem">
+      <span style="font-size:1.1rem">📥</span>
+      <span style="flex:1">Ampeln wurden aus dem Dokument <b>„IT und OT Betrieb"</b> vorbelegt (gilt zunächst gleich für DIHAG/EIS/DSO). Prüfen, ggf. je Werk anpassen und <b>speichern</b>, damit die Bewertung erhalten bleibt.</span>
+      ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="saveReifegrad()">💾 Jetzt speichern</button>` : ''}
+    </div>` : ''}
     <div id="rg-kpis">${_rgKpisHtml()}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Maßnahme/Thema suchen …" value="${esc(_rgFilter.q)}"
@@ -257,6 +280,7 @@ async function saveReifegrad() {
     });
     await spSaveReifegrad(_reifegrad);
     _reifegradDirty = false;
+    _reifegradSeeded = false;
     toast('Reifegrad-Bewertung gespeichert ✓', 'success');
     renderReifegrad();
   } catch (e) {
