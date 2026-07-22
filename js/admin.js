@@ -215,7 +215,7 @@ async function doFolderUpload() {
     _editing.dokumentUrl = doc.webUrl || '';
     pickerClose();
     const disp = document.getElementById('ed-doc-display');
-    if (disp) { disp.innerHTML = '📄 ' + esc(doc.name); disp.style.color = ''; }
+    if (disp) { disp.innerHTML = '📄 ' + esc(doc.name); disp.classList.remove('doc-chip-empty'); }
     toast('Hochgeladen ✓', 'success');
   } catch (e) { toast('Upload fehlgeschlagen: ' + e.message, 'error'); pickerClose(); }
 }
@@ -232,7 +232,7 @@ async function doUploadAsVersion() {
     _editing.dokumentUrl = res.webUrl || _editing.dokumentUrl;
     pickerClose();
     const disp = document.getElementById('ed-doc-display');
-    if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.style.color = ''; }
+    if (disp) { disp.innerHTML = '📄 ' + esc(_editing.dokumentName); disp.classList.remove('doc-chip-empty'); }
     toast('Neue Version hochgeladen ✓ (in SharePoint versioniert)', 'success');
   } catch (e) { toast('Upload fehlgeschlagen: ' + e.message, 'error'); pickerClose(); }
 }
@@ -364,18 +364,25 @@ function renderPolicyEditor() {
         </div>
         <div class="form-group full">
           <label>Richtliniendokument <span class="req">*</span></label>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span id="ed-doc-display" style="flex:1;min-width:0;font-size:.85rem;${p.dokumentName ? '' : 'color:#b45309'}">
-              ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
-            </span>
-            <button class="btn btn-outline btn-sm" onclick="openDocPicker()">Aus Bibliothek …</button>
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ed-upload-input').click()">⬆ Hochladen</button>
-            ${p.dokumentDriveId && p.dokumentItemId && _policyOfficeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()">✏️ In Office bearbeiten</button>` : ''}
-            ${p.dokumentDriveId && p.dokumentItemId ? `<button class="btn btn-outline btn-sm" onclick="policyEditWeb()">🌐 Im Browser bearbeiten</button>` : ''}
-            ${p.dokumentDriveId && p.dokumentItemId ? `<button class="btn btn-outline btn-sm" onclick="openDocVersions()">🕘 Versionen</button>` : ''}
+          <div id="ed-doc-display" class="doc-chip ${p.dokumentName ? '' : 'doc-chip-empty'}">
+            ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
+          </div>
+          <div class="doc-actions">
+            <div class="doc-actions-grp">
+              <span class="doc-actions-lbl">Zuordnen</span>
+              <button class="btn btn-outline btn-sm" onclick="openDocPicker()" title="Dokument aus der ISMS-Bibliothek wählen">📁 Aus Bibliothek</button>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('ed-upload-input').click()" title="Neue Datei hochladen (Zielordner wählbar; bei zugeordnetem Dokument als neue Version)">⬆ Hochladen</button>
+            </div>
+            ${p.dokumentDriveId && p.dokumentItemId ? `
+            <div class="doc-actions-grp">
+              <span class="doc-actions-lbl">Bearbeiten</span>
+              ${_policyOfficeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()" title="In der Desktop-Office-App öffnen – beim Speichern legt SharePoint automatisch eine neue Version an">✏️ In Office</button>` : ''}
+              <button class="btn btn-outline btn-sm" onclick="policyEditWeb()" title="In Office für das Web öffnen – beim Speichern neue Version">🌐 Im Browser</button>
+              <button class="btn btn-outline btn-sm" onclick="openDocVersions()" title="Versionsverlauf ansehen">🕘 Versionen</button>
+            </div>` : ''}
             <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0]); this.value='';">
           </div>
-          <span class="field-hint">„In Office bearbeiten"/„Im Browser bearbeiten" öffnet die aktuell zugeordnete Datei direkt zum Bearbeiten (On-Premise Office bzw. Office für das Web) – beim Speichern legt SharePoint automatisch eine neue Version an. „Hochladen" öffnet einen <b>Zielordner-Wähler</b> (Bibliothek + Ordner); ist bereits ein Dokument zugeordnet, kannst du dort auch eine <b>neue Version</b> am selben Ort ablegen. Versionsverlauf über „🕘 Versionen".</span>
+          <span class="field-hint">„In Office"/„Im Browser" öffnet die zugeordnete Datei direkt zum Bearbeiten – beim Speichern legt SharePoint automatisch eine neue Version an. „Hochladen" öffnet einen Zielordner-Wähler (bei zugeordnetem Dokument auch als neue Version am selben Ort). Versionsverlauf über „🕘 Versionen".</span>
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.pflicht ? 'checked' : ''} onchange="_editing.pflicht=this.checked"> Pflichtlektüre</label>
@@ -884,7 +891,7 @@ function dpSelect(idx) {
   // Editor bleibt erhalten – nur die Dokumentzeile direkt aktualisieren (kein Neuaufbau)
   const disp = document.getElementById('ed-doc-display');
   dbg('dpSelect gesetzt: editing.dokumentName="' + _editing.dokumentName + '" | ed-doc-display gefunden=' + !!disp);
-  if (disp) { disp.innerHTML = '📄 ' + esc(it.name); disp.style.color = ''; }
+  if (disp) { disp.innerHTML = '📄 ' + esc(it.name); disp.classList.remove('doc-chip-empty'); }
   toast('Dokument zugeordnet: ' + it.name, 'success');
 }
 
