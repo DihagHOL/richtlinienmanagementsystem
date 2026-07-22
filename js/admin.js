@@ -1357,6 +1357,7 @@ function renderCompliance() {
         <button class="btn btn-sm ${mode === 'freigabeaudit' ? 'btn-primary' : 'btn-outline'}" onclick="setComplianceMode('freigabeaudit')">Freigabe-Audit</button>
       </div>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-primary btn-sm" onclick="openClevelReport()" title="Management-/C-Level-Bericht (ISO 27001 / NIS2) ansehen, drucken und per Mail senden">📧 C-Level-Bericht</button>
       ${mode === 'overview'
         ? `<button class="btn btn-outline btn-sm" onclick="exportOverviewCsv()">CSV-Export (gesamt)</button>`
         : mode === 'freigabeaudit'
@@ -1748,6 +1749,22 @@ function renderEinstellungen() {
                   oninput="mitSetBrMail('${code}', this.value)"></div>`).join('')}
           </div>
           <div class="field-hint" style="margin-top:10px">Leer lassen, wenn (noch) kein Betriebsrat hinterlegt ist. Fehlt eine Adresse für ein betroffenes Werk, erscheint beim Einreichen ein Hinweis.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>C-Level-Bericht (Audit / Management)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Empfänger für den <b>C-Level-/Management-Bericht</b> aus dem Reiter <b>Audit Report</b>.
+            Der Bericht fasst den ISMS-Status (ISO 27001 / NIS2) mit den wesentlichen Kennzahlen und einer
+            Normkonformitäts-Prüfung zusammen und wird per Mausklick versendet. Mehrere Adressen mit Komma/Semikolon trennen.
+          </div>
+          <div class="form-grid">
+            <div class="form-group full"><label>Empfänger C-Level-Bericht</label>
+              <input type="text" value="${esc(_cfgEdit.clevelMail || '')}" oninput="_cfgEdit.clevelMail=this.value.trim()"
+                placeholder="geschaeftsfuehrung@dihag.com, ciso@dihag.com"></div>
+          </div>
         </div>
       </div>
 

@@ -347,9 +347,9 @@ function openProcessDraftPicker() {
     <div class="modal-header"><h3>✨ Prozess-Entwurf aus Richtlinie</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:12px">Erzeugt einen BPMN-Starter-Prozess passend zur gewählten Richtlinie
-        (Auslöser → <b>Richtlinie anwenden</b> → Gateway <b>„Konform?"</b> → Umsetzen/Dokumentieren bzw. Abweichung behandeln).
-        Der Prozess ist automatisch benannt und mit der Richtlinie verknüpft – danach frei anpassbar.</div>
+      <div class="field-hint" style="margin-bottom:12px">Liest den <b>Text der Richtlinie</b> (verknüpftes Word-Dokument) aus und
+        erzeugt daraus einen echten Prozessentwurf: nummerierte/aufgezählte Schritte werden zu Aufgaben,
+        Entscheidungen (z. B. „…konform?", „…genehmigt?") zu Gateways. Danach im Modeler frei anpassbar.</div>
       <div class="form-group full"><label>Richtlinie</label>
         <select id="proc-draft-policy" class="form-control">
           ${pols.map(p => `<option value="${esc(p.id)}">${esc(p.title)}${p.version ? ' (v' + esc(p.version) + ')' : ''}</option>`).join('')}
@@ -357,7 +357,7 @@ function openProcessDraftPicker() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="createProcessDraft()">Entwurf erstellen →</button>
+      <button class="btn btn-primary" onclick="createProcessDraft()">Text auslesen →</button>
     </div>`);
 }
 
@@ -365,9 +365,43 @@ async function createProcessDraft() {
   const id = document.getElementById('proc-draft-policy')?.value;
   const p = (State.policies || []).find(x => String(x.id) === String(id));
   if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
+  const body = document.querySelector('.modal-body');
+  if (body) body.innerHTML = '<div class="doc-loading">Richtlinien-Dokument wird ausgelesen …</div>';
+  let text = '', err = '';
+  if (p.dokumentDriveId && p.dokumentItemId && typeof spGetPolicyDocText === 'function') {
+    try { text = await spGetPolicyDocText(p.dokumentDriveId, p.dokumentItemId); }
+    catch (e) { err = e.message; }
+  } else {
+    err = 'Mit dieser Richtlinie ist kein Word-Dokument verknüpft – Prozesstext bitte manuell einfügen.';
+  }
+  _procDraftShowText(p, text, err);
+}
+
+/** Schritt 2: extrahierten Text zeigen/bearbeiten, dann BPMN erzeugen. */
+function _procDraftShowText(p, text, err) {
+  const body = document.querySelector('.modal-body');
+  const footer = document.querySelector('.modal-footer');
+  if (body) body.innerHTML = `
+    <div class="field-hint" style="margin-bottom:8px">
+      ${err ? `<span style="color:#b45309">${esc(err)}</span><br>` : 'Text aus dem Richtlinien-Dokument ausgelesen. '}
+      Prüfen/kürzen: Am besten <b>nummerierte oder aufgezählte Schritte</b> (eine Aktion je Zeile); Entscheidungen mit „?" oder z. B. „konform?".</div>
+    <textarea id="proc-draft-text" style="width:100%;height:300px;border:1px solid var(--c-border);border-radius:8px;padding:10px;font-family:inherit;font-size:.85rem;line-height:1.5"
+      placeholder="1. Antrag prüfen&#10;2. Freigegeben?&#10;3. Umsetzen und dokumentieren">${esc(text || '')}</textarea>`;
+  if (footer) footer.innerHTML = `
+    <button class="btn btn-outline" onclick="openProcessDraftPicker()">← Zurück</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary" onclick="procGenerateFromText('${esc(String(p.id))}')">BPMN-Entwurf erzeugen →</button>`;
+}
+
+function procGenerateFromText(pid) {
+  const p = (State.policies || []).find(x => String(x.id) === String(pid));
+  if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
+  const text = document.getElementById('proc-draft-text')?.value || '';
+  const title = String(p.title || 'Richtlinie').replace(/\.docx?$/i, '');
+  const seed = _bpmnFromText(text, title + ' – Prozess', [String(p.id)]);
   closeModal();
-  await openProcessEditor(null, _bpmnDraftFromPolicy(p));
-  toast('Entwurf erstellt – anpassen und speichern.', 'success');
+  openProcessEditor(null, seed);
+  toast('Prozessentwurf aus dem Richtlinientext erzeugt – anpassen und speichern.', 'success');
 }
 
 /** XML-Attribut-/Text-Escaping (für generiertes BPMN). */
@@ -377,49 +411,158 @@ function _xmlEsc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** Starter-BPMN aus einer Richtlinie erzeugen: { name, xml, policyIds }. */
-function _bpmnDraftFromPolicy(p) {
-  const title = String(p.title || 'Richtlinie').replace(/\.docx?$/i, '');
-  const short = title.length > 34 ? title.slice(0, 32) + '…' : title;
-  const name  = title + ' – Prozess';
-  const t1    = _xmlEsc(short + ' anwenden/prüfen');
-  const doc   = _xmlEsc(`Prozess zur Umsetzung der Richtlinie „${title}". Im Einklang mit den Richtlinien: ${title}\n[[rms:policies=${p.id}]]`);
-  const xml =
-`<?xml version="1.0" encoding="UTF-8"?>
+/* ── Prozess-Entwurf aus Freitext (Texterkennung) ── */
+
+/** Label säubern/kürzen. */
+function _clipLabel(s, fallback) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!s) return fallback || '';
+  return s.length > 58 ? s.slice(0, 56) + '…' : s;
+}
+
+/**
+ * Freitext → Prozessschritte. Bevorzugt nummerierte/aufgezählte Zeilen; sonst
+ * Absätze. Pfeile (→, ->, ⇒) trennen mehrere Schritte einer Zeile. Erkennt
+ * Entscheidungen (Frage/„konform?"/„genehmigt?" …) und Rollen-Präfixe („IT: …").
+ * @returns [{ kind:'task'|'decision', label, role }]
+ */
+function _parseSteps(text) {
+  const raw = String(text || '').replace(/\r/g, '');
+  const lines = [];
+  raw.split(/\n+/).forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    line.split(/\s*(?:→|->|⇒|=>|➔|▶)\s*/).forEach(part => { part = part.trim(); if (part) lines.push(part); });
+  });
+  const bulletRe = /^(\d+[.)]|[-–•*‣◦])\s+/;
+  const hasBullets = lines.some(l => bulletRe.test(l));
+  let cand = hasBullets ? lines.filter(l => bulletRe.test(l)) : lines;
+  cand = cand.map(l => l.replace(bulletRe, '').trim()).filter(l => l.length >= 3);
+
+  const decWord = /\b(konform|genehmigt|freigegeben|geprüft|zulässig|erforderlich|notwendig|möglich|vorhanden|erfüllt|bestanden|ok)\b/i;
+  const steps = [];
+  for (let l of cand) {
+    if (steps.length >= 16) break;
+    let role = '';
+    const m = l.match(/^([A-Za-zÄÖÜäöüß./&-]{2,28}?):\s+(.+)$/);
+    if (m && m[2] && m[2].length >= 2 && !/\d/.test(m[1])) { role = m[1].trim(); l = m[2].trim(); }
+    const isDecision = (/\?\s*$/.test(l) || (decWord.test(l) && l.length < 70));
+    steps.push({ kind: isDecision ? 'decision' : 'task', label: l, role });
+  }
+  return steps;
+}
+
+/**
+ * Standards-konformes BPMN 2.0 aus Freitext bauen (Aufgaben + Entscheidungs-
+ * Gateways mit ja/nein-Zweig, inkl. DI-Layout). @returns { name, xml, policyIds }
+ */
+function _bpmnFromText(text, name, policyIds) {
+  let steps = _parseSteps(text);
+  if (!steps.length) steps = [
+    { kind: 'task', label: 'Richtlinie anwenden/prüfen', role: '' },
+    { kind: 'decision', label: 'Konform?', role: '' },
+  ];
+  policyIds = (policyIds || []).map(String);
+
+  const shapes = [];          // { id, type, name, x, y, w, h }
+  const flows = [];           // { id, src, tgt, name }
+  const inc = {}, out = {};
+  let fc = 0;
+  const addFlow = (src, tgt, nm) => {
+    const id = 'F_' + (++fc);
+    flows.push({ id, src, tgt, name: nm || '' });
+    (out[src] = out[src] || []).push(id);
+    (inc[tgt] = inc[tgt] || []).push(id);
+  };
+
+  const MY = 200;             // Haupt-Mittellinie (y)
+  let x = 150;
+  shapes.push({ id: 'Start', type: 'startEvent', name: 'Auslöser', x: x, y: MY - 18, w: 36, h: 36 });
+  let prev = 'Start', prevGw = false;
+  x += 36 + 60;
+
+  steps.forEach((s, i) => {
+    if (s.kind === 'decision') {
+      const gid = 'Gw' + i;
+      shapes.push({ id: gid, type: 'exclusiveGateway', name: _clipLabel(s.label, 'Entscheidung?'), x: x, y: MY - 25, w: 50, h: 50 });
+      addFlow(prev, gid, prevGw ? 'ja' : '');
+      // Nein-Zweig nach unten
+      const cxGw = x + 25;
+      const rid = 'Rej' + i, reid = 'RejEnd' + i, by = MY + 130;
+      shapes.push({ id: rid, type: 'task', name: 'Abweichung behandeln', x: cxGw - 60, y: by, w: 120, h: 80 });
+      shapes.push({ id: reid, type: 'endEvent', name: 'Nachbessern', x: cxGw - 60 + 120 + 40, y: by + 22, w: 36, h: 36 });
+      addFlow(gid, rid, 'nein');
+      addFlow(rid, reid, '');
+      prev = gid; prevGw = true;
+      x += 50 + 120;
+    } else {
+      const tid = 'T' + i;
+      const label = _clipLabel(s.role ? (s.role + ': ' + s.label) : s.label, 'Schritt');
+      shapes.push({ id: tid, type: 'task', name: label, x: x, y: MY - 40, w: 150, h: 80 });
+      addFlow(prev, tid, prevGw ? 'ja' : '');
+      prev = tid; prevGw = false;
+      x += 150 + 60;
+    }
+  });
+  shapes.push({ id: 'End', type: 'endEvent', name: 'Abgeschlossen', x: x, y: MY - 18, w: 36, h: 36 });
+  addFlow(prev, 'End', prevGw ? 'ja' : '');
+
+  // Prozess-Dokumentation mit Richtlinien-Marker
+  const names = policyIds.map(id => {
+    const p = (State.policies || []).find(x2 => String(x2.id) === id);
+    return p ? p.title : ('Richtlinie ' + id);
+  });
+  const docText = (names.length ? ('Im Einklang mit den Richtlinien: ' + names.join('; ') + '\n') : '')
+    + (policyIds.length ? `[[rms:policies=${policyIds.join(',')}]]` : '');
+
+  // Prozess-Kinder serialisieren (mit incoming/outgoing – für bpmn-js nötig)
+  const byId = {}; shapes.forEach(sh => byId[sh.id] = sh);
+  const children = [];
+  if (docText) children.push(`    <bpmn:documentation>${_xmlEsc(docText)}</bpmn:documentation>`);
+  shapes.forEach(sh => {
+    const incs = (inc[sh.id] || []).map(f => `<bpmn:incoming>${f}</bpmn:incoming>`).join('');
+    const outs = (out[sh.id] || []).map(f => `<bpmn:outgoing>${f}</bpmn:outgoing>`).join('');
+    children.push(`    <bpmn:${sh.type} id="${sh.id}" name="${_xmlEsc(sh.name)}">${incs}${outs}</bpmn:${sh.type}>`);
+  });
+  flows.forEach(f => children.push(
+    `    <bpmn:sequenceFlow id="${f.id}"${f.name ? ` name="${_xmlEsc(f.name)}"` : ''} sourceRef="${f.src}" targetRef="${f.tgt}" />`));
+
+  // DI (Shapes + Edges)
+  const cy = sh => sh.y + sh.h / 2, cx = sh => sh.x + sh.w / 2;
+  const di = [];
+  shapes.forEach(sh => {
+    const marker = sh.type === 'exclusiveGateway' ? ' isMarkerVisible="true"' : '';
+    const label = sh.type !== 'task'
+      ? `<bpmndi:BPMNLabel><dc:Bounds x="${sh.x - 12}" y="${sh.y + sh.h + 3}" width="${sh.w + 60}" height="14" /></bpmndi:BPMNLabel>` : '';
+    di.push(`      <bpmndi:BPMNShape id="${sh.id}_di" bpmnElement="${sh.id}"${marker}><dc:Bounds x="${sh.x}" y="${sh.y}" width="${sh.w}" height="${sh.h}" />${label}</bpmndi:BPMNShape>`);
+  });
+  flows.forEach(f => {
+    const s = byId[f.src], t = byId[f.tgt];
+    let wps;
+    if (s.type === 'exclusiveGateway' && t.y > s.y + 60) {
+      // Nein-Zweig: Gateway-Unterkante senkrecht in die Aufgaben-Oberkante (mittig)
+      wps = [[cx(s), s.y + s.h], [cx(s), t.y]];
+    } else {
+      wps = [[s.x + s.w, cy(s)], [t.x, cy(t)]];
+    }
+    di.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${wps.map(w => `<di:waypoint x="${Math.round(w[0])}" y="${Math.round(w[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
+  });
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="Process_1" isExecutable="false">
-    <bpmn:documentation>${doc}</bpmn:documentation>
-    <bpmn:startEvent id="Start_1" name="Auslöser"><bpmn:outgoing>F_1</bpmn:outgoing></bpmn:startEvent>
-    <bpmn:task id="Task_1" name="${t1}"><bpmn:incoming>F_1</bpmn:incoming><bpmn:outgoing>F_2</bpmn:outgoing></bpmn:task>
-    <bpmn:exclusiveGateway id="Gw_1" name="Konform?"><bpmn:incoming>F_2</bpmn:incoming><bpmn:outgoing>F_3</bpmn:outgoing><bpmn:outgoing>F_5</bpmn:outgoing></bpmn:exclusiveGateway>
-    <bpmn:task id="Task_2" name="Umsetzen &amp; dokumentieren"><bpmn:incoming>F_3</bpmn:incoming><bpmn:outgoing>F_4</bpmn:outgoing></bpmn:task>
-    <bpmn:endEvent id="End_1" name="Abgeschlossen"><bpmn:incoming>F_4</bpmn:incoming></bpmn:endEvent>
-    <bpmn:task id="Task_3" name="Abweichung behandeln"><bpmn:incoming>F_5</bpmn:incoming><bpmn:outgoing>F_6</bpmn:outgoing></bpmn:task>
-    <bpmn:endEvent id="End_2" name="Nachbessern"><bpmn:incoming>F_6</bpmn:incoming></bpmn:endEvent>
-    <bpmn:sequenceFlow id="F_1" sourceRef="Start_1" targetRef="Task_1" />
-    <bpmn:sequenceFlow id="F_2" sourceRef="Task_1" targetRef="Gw_1" />
-    <bpmn:sequenceFlow id="F_3" name="ja" sourceRef="Gw_1" targetRef="Task_2" />
-    <bpmn:sequenceFlow id="F_4" sourceRef="Task_2" targetRef="End_1" />
-    <bpmn:sequenceFlow id="F_5" name="nein" sourceRef="Gw_1" targetRef="Task_3" />
-    <bpmn:sequenceFlow id="F_6" sourceRef="Task_3" targetRef="End_2" />
+${children.join('\n')}
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Dia_1">
     <bpmndi:BPMNPlane id="Plane_1" bpmnElement="Process_1">
-      <bpmndi:BPMNShape id="Start_1_di" bpmnElement="Start_1"><dc:Bounds x="152" y="192" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="150" y="235" width="44" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_1_di" bpmnElement="Task_1"><dc:Bounds x="240" y="170" width="120" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gw_1_di" bpmnElement="Gw_1" isMarkerVisible="true"><dc:Bounds x="415" y="185" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="408" y="158" width="64" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_2_di" bpmnElement="Task_2"><dc:Bounds x="520" y="90" width="120" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_1_di" bpmnElement="End_1"><dc:Bounds x="700" y="112" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="686" y="155" width="66" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_3_di" bpmnElement="Task_3"><dc:Bounds x="520" y="270" width="120" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_2_di" bpmnElement="End_2"><dc:Bounds x="700" y="292" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="688" y="335" width="62" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="F_1_di" bpmnElement="F_1"><di:waypoint x="188" y="210" /><di:waypoint x="240" y="210" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="F_2_di" bpmnElement="F_2"><di:waypoint x="360" y="210" /><di:waypoint x="415" y="210" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="F_3_di" bpmnElement="F_3"><di:waypoint x="440" y="185" /><di:waypoint x="440" y="130" /><di:waypoint x="520" y="130" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="F_4_di" bpmnElement="F_4"><di:waypoint x="640" y="130" /><di:waypoint x="700" y="130" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="F_5_di" bpmnElement="F_5"><di:waypoint x="440" y="235" /><di:waypoint x="440" y="310" /><di:waypoint x="520" y="310" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="F_6_di" bpmnElement="F_6"><di:waypoint x="640" y="310" /><di:waypoint x="700" y="310" /></bpmndi:BPMNEdge>
+${di.join('\n')}
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-  return { name, xml, policyIds: [String(p.id)] };
+  return { name: name || 'Prozess', xml, policyIds };
+}
+
+/* Node-Export nur für Tests. */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel };
 }

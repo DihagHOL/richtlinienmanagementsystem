@@ -25,6 +25,8 @@ const ACCESS_CONFIG_DEFAULT = {
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
   brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
+  // ── C-Level-Audit-Bericht ──
+  clevelMail:       '',        // Empfänger des C-Level-/Management-Berichts (Komma-/Semikolon-Liste möglich)
   // ── Genehmigungsverfahren ──
   pruefer:          [],        // Konformitätsprüfer (UPNs)
   geschaeftsleitung: [],       // Freigeber / Geschäftsleitung (UPNs)
@@ -73,6 +75,7 @@ async function loadRuntimeAccessConfig() {
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
+        clevelMail:        typeof cfg.clevelMail === 'string' ? cfg.clevelMail : '',
         pruefer:           Array.isArray(cfg.pruefer) ? cfg.pruefer : [],
         geschaeftsleitung: Array.isArray(cfg.geschaeftsleitung) ? cfg.geschaeftsleitung : [],
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
@@ -102,6 +105,7 @@ function getAccessConfig() {
     reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
     kbrMail:           c.kbrMail || '',
     brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
+    clevelMail:        c.clevelMail || '',
     pruefer:           [...(c.pruefer || [])],
     geschaeftsleitung: [...(c.geschaeftsleitung || [])],
     konformSchwelle:   c.konformSchwelle || 'alle',
@@ -134,6 +138,8 @@ function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getKbrMail()           { return _cfg().kbrMail || ''; }
 function getBrMails()           { const m = _cfg().brMails; return (m && typeof m === 'object') ? { ...m } : {}; }
 function getBrMail(werk)        { return getBrMails()[werk] || ''; }
+/* ── C-Level-Audit-Bericht: Empfänger ── */
+function getClevelMail()        { return _cfg().clevelMail || ''; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
 function getGenehmigungPA()     { return _cfg().genehmigungPA === true; }
 function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }

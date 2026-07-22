@@ -1283,6 +1283,96 @@ async function spGetDocAttachment(driveId, itemId, fallbackName) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Dokument-Texterkennung (.docx) – für BPMN-Entwürfe aus Richtlinien
+   Liest word/document.xml direkt im Browser aus (ZIP + deflate-raw),
+   ohne Server/Fremdbibliothek. Rein clientseitig.
+═══════════════════════════════════════════════════ */
+
+/** DEFLATE-raw entpacken via DecompressionStream (modernes Edge/Chrome). */
+async function _inflateRaw(bytes) {
+  if (typeof DecompressionStream === 'undefined')
+    throw new Error('Dieser Browser kann .docx nicht automatisch entpacken. Bitte den Prozesstext manuell einfügen.');
+  const stream = new Response(bytes).body.pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Rohbytes einer Datei aus einem ZIP (Uint8Array) holen. @returns Uint8Array | null */
+async function _zipEntryBytes(buf, entryName) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const LE = true;
+  // End Of Central Directory (Signatur 0x06054b50) von hinten suchen
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i >= buf.length - 22 - 65557; i--) {
+    if (dv.getUint32(i, LE) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Ungültige .docx (kein ZIP-Verzeichnis).');
+  let cd = dv.getUint32(eocd + 16, LE);          // Offset Central Directory
+  const total = dv.getUint16(eocd + 10, LE);     // Anzahl Einträge
+  for (let n = 0; n < total; n++) {
+    if (dv.getUint32(cd, LE) !== 0x02014b50) break;
+    const method = dv.getUint16(cd + 10, LE);
+    const compSize = dv.getUint32(cd + 20, LE);
+    const nameLen = dv.getUint16(cd + 28, LE);
+    const extraLen = dv.getUint16(cd + 32, LE);
+    const commentLen = dv.getUint16(cd + 34, LE);
+    const lho = dv.getUint32(cd + 42, LE);         // Local Header Offset
+    const name = new TextDecoder('utf-8').decode(buf.subarray(cd + 46, cd + 46 + nameLen));
+    if (name === entryName) {
+      if (dv.getUint32(lho, LE) !== 0x04034b50) throw new Error('ZIP-Eintrag beschädigt.');
+      const lNameLen = dv.getUint16(lho + 26, LE);
+      const lExtraLen = dv.getUint16(lho + 28, LE);
+      const dataStart = lho + 30 + lNameLen + lExtraLen;
+      const data = buf.subarray(dataStart, dataStart + compSize);
+      if (method === 0) return data;               // gespeichert
+      if (method === 8) return await _inflateRaw(data);  // deflate
+      throw new Error('Nicht unterstützte ZIP-Kompression (' + method + ').');
+    }
+    cd += 46 + nameLen + extraLen + commentLen;
+  }
+  return null;
+}
+
+/** Häufige XML-Entities dekodieren. */
+function _decodeXmlEntities(s) {
+  return String(s)
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+}
+
+/** word/document.xml → Klartext (Absätze zeilenweise). */
+function _docxXmlToText(xml) {
+  let t = String(xml || '')
+    .replace(/<w:tab\b[^>]*\/?>/g, '\t')
+    .replace(/<w:br\b[^>]*\/?>/g, '\n')
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<[^>]+>/g, '');
+  t = _decodeXmlEntities(t);
+  return t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Klartext eines verknüpften .docx-Richtliniendokuments (Texterkennung für BPMN). */
+async function spGetPolicyDocText(driveId, itemId) {
+  if (!driveId || !itemId) return '';
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size,@microsoft.graph.downloadUrl`, token);
+  const name = (meta.name || '').toLowerCase();
+  if (!/\.docx$/.test(name))
+    throw new Error('Automatische Texterkennung nur für .docx möglich (Dokument: ' + (meta.name || '?') + '). Text bitte manuell einfügen.');
+  if ((meta.size || 0) > 8 * 1024 * 1024) throw new Error('Dokument zu groß für die Texterkennung (> 8 MB).');
+  const url = meta['@microsoft.graph.downloadUrl'];
+  if (!url) throw new Error('Kein Download-Link für das Dokument.');
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Dokument-Download fehlgeschlagen (' + resp.status + ').');
+  const buf = new Uint8Array(await resp.arrayBuffer());
+  const xmlBytes = await _zipEntryBytes(buf, 'word/document.xml');
+  if (!xmlBytes) throw new Error('word/document.xml nicht gefunden – ist das eine gültige .docx?');
+  return _docxXmlToText(new TextDecoder('utf-8').decode(xmlBytes));
+}
+
+/* ═══════════════════════════════════════════════════
    Prozesse (BPMN 2.0) – .bpmn-Dateien im Ordner „Prozesse"
    der ISMS-Dokumentbibliothek (sites/ISMS). Verknüpfung zu Richtlinien
    liegt im BPMN-XML selbst (Prozess-Dokumentation), keine Extra-Liste nötig.

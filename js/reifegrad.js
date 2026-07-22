@@ -35,6 +35,10 @@ async function initReifegrad() {
     ratings:    (cfg && cfg.ratings && typeof cfg.ratings === 'object') ? cfg.ratings : {},
     kommentare: (cfg && cfg.kommentare && typeof cfg.kommentare === 'object') ? cfg.kommentare : {},
     meta:       (cfg && cfg.meta && typeof cfg.meta === 'object') ? cfg.meta : {},
+    // Eigene Maßnahmen/Themen + ausgeblendete Katalog-Maßnahmen
+    customPunkte: (cfg && cfg.customPunkte && typeof cfg.customPunkte === 'object') ? cfg.customPunkte : {},
+    customTopics: (cfg && Array.isArray(cfg.customTopics)) ? cfg.customTopics : [],
+    removed:      (cfg && Array.isArray(cfg.removed)) ? cfg.removed : [],
   };
   _reifegradLoading = false;
   _reifegradDirty = false;
@@ -58,6 +62,28 @@ function _rgApplySeed() {
   _reifegradDirty = true;
 }
 
+/* ── Effektiver Katalog (Basis + eigene Themen/Maßnahmen − ausgeblendete) ── */
+
+/** Katalog inkl. eigener Maßnahmen/Themen, ohne ausgeblendete Katalog-Maßnahmen.
+ *  Maßnahmen tragen `custom:true`, wenn sie selbst hinzugefügt wurden. */
+function _rgKatalog() {
+  const removed = new Set(_reifegrad.removed || []);
+  const cp = _reifegrad.customPunkte || {};
+  const base = REIFEGRAD_KATALOG.map(t => ({
+    id: t.id, titel: t.titel, custom: false,
+    punkte: t.punkte.filter(p => !removed.has(p.id)).map(p => ({ id: p.id, text: p.text, custom: false }))
+      .concat((cp[t.id] || []).filter(p => !removed.has(p.id)).map(p => ({ id: p.id, text: p.text, custom: true }))),
+  }));
+  const custom = (_reifegrad.customTopics || []).map(t => ({
+    id: t.id, titel: t.titel, custom: true,
+    punkte: (t.punkte || []).filter(p => !removed.has(p.id)).map(p => ({ id: p.id, text: p.text, custom: true })),
+  }));
+  return base.concat(custom);
+}
+
+/** Anzahl ausgeblendeter (entfernter) Katalog-Maßnahmen. */
+function _rgHiddenCount() { return (_reifegrad.removed || []).length; }
+
 /* ── Aggregation ── */
 
 function _rgStats() {
@@ -65,7 +91,7 @@ function _rgStats() {
   const empty = () => ({ rot: 0, gelb: 0, gruen: 0, weiss: 0, bewertet: 0, total: 0 });
   const overall = empty(), byWerk = {}, perTopic = {};
   werke.forEach(w => byWerk[w] = empty());
-  for (const t of REIFEGRAD_KATALOG) {
+  for (const t of _rgKatalog()) {
     const pt = perTopic[t.id] = empty();
     for (const p of t.punkte) {
       for (const w of werke) {
@@ -128,7 +154,8 @@ function renderReifegrad() {
   mount.innerHTML = (typeof _abModeSwitcher === 'function' ? _abModeSwitcher('reifegrad') : '') + `
     <div class="view-desc" style="margin:0 0 12px">
       Reifegrad-/Gap-Bewertung des Katalogs <b>„IT und OT Betrieb"</b> je Maßnahme und Werk (DIHAG/EIS/DSO).
-      Ampel: 🟢 funktioniert · 🟡 teilweise · 🔴 nicht gelebt · ⚪ keine Einschätzung. Zelle anklicken zum Ändern.
+      Ampel: 🟢 funktioniert · 🟡 teilweise · 🔴 nicht gelebt · ⚪ keine Einschätzung. Zelle anklicken zum Ändern;
+      eigene Maßnahmen/Themen ergänzen (+) oder entfernen (✕).
       ${meta.aktualisiertAm ? `<span style="color:var(--c-faint)"> · zuletzt: ${esc(fmtDate(meta.aktualisiertAm))}${meta.aktualisiertVon ? ' von ' + esc(meta.aktualisiertVon) : ''}</span>` : ''}
     </div>
     ${_reifegradSeeded ? `<div class="banner banner-info" style="display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:9px 13px;border:1px solid #99b7cd;background:#eef4f9;border-radius:9px;font-size:.83rem">
@@ -153,6 +180,7 @@ function renderReifegrad() {
       </select>
       <button class="btn btn-ghost btn-sm" onclick="reifegradToggleAll()">Alle ein-/ausklappen</button>
       <div style="flex:1"></div>
+      ${(canWrite && _rgHiddenCount()) ? `<button class="btn btn-ghost btn-sm" onclick="reifegradRestoreHidden()" title="Ausgeblendete Katalog-Maßnahmen wieder einblenden">↩ ${_rgHiddenCount()} ausgeblendet</button>` : ''}
       <button class="btn btn-outline btn-sm" onclick="reifegradExportCsv()" title="Bewertung als CSV (Excel)">⬇ CSV</button>
       ${canWrite ? `<button class="btn btn-primary btn-sm" id="rg-save-btn" onclick="saveReifegrad()">💾 Bewertung speichern</button>` : '<span class="field-hint">👁 Nur-Lese-Zugriff</span>'}
     </div>
@@ -179,26 +207,46 @@ function _rgRenderBody() {
   if (!host) return;
   const werke = _rgFilter.werk ? [_rgFilter.werk] : REIFEGRAD_WERKE;
   const canWrite = _rgCanWrite();
+  const filterActive = !!(_rgFilter.q || _rgFilter.stufe);
+  const cols = 2 + werke.length;   // Maßnahme + Werke + Kommentar
   let html = '', shown = 0;
-  for (const t of REIFEGRAD_KATALOG) {
+  for (const t of _rgKatalog()) {
     const pts = t.punkte.filter(p => _rgMatch(t, p));
-    if (!pts.length) continue;
-    shown += pts.length;
+    // Leere Themen weiter zeigen, wenn kein Filter aktiv ist (z. B. neu angelegtes eigenes Thema)
+    if (!pts.length && filterActive) continue;
+    shown += pts.length || (!filterActive ? 1 : 0);
     const open = _rgOpen[t.id] !== false;
     const rows = pts.map(p => `
       <tr>
-        <td style="padding:6px 8px;font-size:.83rem;line-height:1.4;border-top:1px solid var(--c-border)">${esc(p.text)}</td>
+        <td style="padding:6px 8px;font-size:.83rem;line-height:1.4;border-top:1px solid var(--c-border)">
+          <div style="display:flex;align-items:center;gap:6px">
+            ${p.custom
+              ? `<input type="text" value="${esc(p.text)}" ${canWrite ? '' : 'disabled'} onchange="reifegradSetMeasureText('${t.id}','${p.id}',this.value)"
+                   placeholder="Eigene Maßnahme …" style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:4px 7px;font-size:.82rem;font-family:inherit">`
+              : `<span style="flex:1">${esc(p.text)}</span>`}
+            ${canWrite ? `<button class="btn btn-ghost btn-sm" title="${p.custom ? 'Eigene Maßnahme löschen' : 'Katalog-Maßnahme ausblenden'}"
+                onclick="reifegradRemoveMeasure('${t.id}','${p.id}',${p.custom})" style="padding:0 6px;color:#b91c1c">✕</button>` : ''}
+          </div>
+        </td>
         ${werke.map(w => `<td style="padding:4px;text-align:center;border-top:1px solid var(--c-border)">${_rgCell(t.id, p.id, w, canWrite)}</td>`).join('')}
         <td style="padding:4px 6px;border-top:1px solid var(--c-border)">
           <input type="text" value="${esc((_reifegrad.kommentare || {})[p.id] || '')}" ${canWrite ? '' : 'disabled'}
             onchange="reifegradSetComment('${p.id}', this.value)" placeholder="Notiz …"
             style="width:100%;min-width:130px;border:1px solid #d1d5db;border-radius:6px;padding:4px 7px;font-size:.78rem;font-family:inherit"></td>
       </tr>`).join('');
+    const addRow = canWrite ? `<tr><td colspan="${cols}" style="padding:6px 8px;border-top:1px solid var(--c-border)">
+      <button class="btn btn-ghost btn-sm" onclick="reifegradAddMeasure('${t.id}')">+ Maßnahme</button></td></tr>` : '';
+    const titleHtml = t.custom
+      ? `<input type="text" value="${esc(t.titel)}" ${canWrite ? '' : 'disabled'} onclick="event.stopPropagation()"
+           onchange="reifegradSetTopicTitle('${t.id}',this.value)" placeholder="Eigenes Thema …"
+           style="font-weight:700;font-size:.88rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;font-family:inherit;min-width:220px">
+         ${canWrite ? `<button class="btn btn-ghost btn-sm" title="Eigenes Thema löschen" onclick="event.stopPropagation();reifegradRemoveTopic('${t.id}')" style="color:#b91c1c">🗑</button>` : ''}`
+      : `<b style="font-size:.88rem">${esc(t.titel)}</b>`;
     html += `
       <div class="card" style="margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer" onclick="reifegradToggleTopic('${t.id}')">
           <span style="width:1em;color:var(--c-muted)">${open ? '▾' : '▸'}</span>
-          <b style="font-size:.88rem">${esc(t.titel)}</b>
+          ${titleHtml}${t.custom ? '<span class="ic-tag" style="background:#eef2ff;color:#3730a3">eigenes</span>' : ''}
           <div style="flex:1"></div>
           <span id="rg-thdr-${t.id}">${_rgTopicSummaryHtml(t.id)}</span>
         </div>
@@ -209,13 +257,15 @@ function _rgRenderBody() {
               ${werke.map(w => `<th style="padding:4px;width:64px">${esc(w)}</th>`).join('')}
               <th style="text-align:left;padding:4px 6px">Kommentar</th>
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>${rows || `<tr><td colspan="${cols}" style="padding:8px;color:var(--c-faint);font-size:.8rem;border-top:1px solid var(--c-border)">Noch keine Maßnahmen.</td></tr>`}${addRow}</tbody>
           </table>
         </div>
       </div>`;
   }
-  host.innerHTML = shown ? html
-    : (typeof emptyState === 'function' ? emptyState('Keine Maßnahme für den aktuellen Filter.', '🔍') : '<div class="field-hint">Keine Treffer.</div>');
+  const addTopic = (canWrite && !filterActive) ? `<button class="btn btn-outline btn-sm" onclick="reifegradAddTopic()">+ Eigenes Thema</button>` : '';
+  host.innerHTML = (shown ? html
+    : (typeof emptyState === 'function' ? emptyState('Keine Maßnahme für den aktuellen Filter.', '🔍') : '<div class="field-hint">Keine Treffer.</div>'))
+    + (addTopic ? `<div style="margin:4px 0 8px">${addTopic}</div>` : '');
 }
 
 function _rgCell(tid, mid, werk, canWrite) {
@@ -264,9 +314,104 @@ function reifegradToggleTopic(tid) {
 }
 
 function reifegradToggleAll() {
-  const anyOpen = REIFEGRAD_KATALOG.some(t => _rgOpen[t.id] !== false);
-  REIFEGRAD_KATALOG.forEach(t => _rgOpen[t.id] = !anyOpen);
+  const kat = _rgKatalog();
+  const anyOpen = kat.some(t => _rgOpen[t.id] !== false);
+  kat.forEach(t => _rgOpen[t.id] = !anyOpen);
   _rgRenderBody();
+}
+
+/* ── Bearbeiten: eigene Maßnahmen/Themen hinzufügen/entfernen ── */
+
+function _rgNextId(prefix) {
+  let id;
+  do { id = prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  while (_reifegrad.ratings[id] || (_reifegrad.customPunkte && Object.values(_reifegrad.customPunkte).flat().some(p => p.id === id)));
+  return id;
+}
+
+/** Liefert (und legt bei Bedarf an) das Array, das die eigenen Maßnahmen von tid hält. */
+function _rgCustomMeasureArr(tid) {
+  if (REIFEGRAD_KATALOG.some(t => t.id === tid)) {
+    if (!_reifegrad.customPunkte) _reifegrad.customPunkte = {};
+    if (!_reifegrad.customPunkte[tid]) _reifegrad.customPunkte[tid] = [];
+    return _reifegrad.customPunkte[tid];
+  }
+  const t = (_reifegrad.customTopics || []).find(x => x.id === tid);
+  if (t) { if (!t.punkte) t.punkte = []; return t.punkte; }
+  return null;
+}
+
+/** Body neu rendern + Kennzahlen aktualisieren (nach struktureller Änderung). */
+function _rgAfterStructEdit() {
+  _reifegradDirty = true;
+  _rgRenderBody();
+  const kp = document.getElementById('rg-kpis'); if (kp) kp.innerHTML = _rgKpisHtml();
+}
+
+function reifegradAddMeasure(tid) {
+  if (!_rgCanWrite()) return;
+  const arr = _rgCustomMeasureArr(tid);
+  if (!arr) { toast('Thema nicht gefunden.', 'error'); return; }
+  arr.push({ id: _rgNextId('M'), text: '' });
+  _rgOpen[tid] = true;
+  _rgAfterStructEdit();
+}
+
+function reifegradSetMeasureText(tid, mid, val) {
+  if (!_rgCanWrite()) return;
+  const arr = _rgCustomMeasureArr(tid);
+  const p = arr && arr.find(x => x.id === mid);
+  if (p) { p.text = (val || '').trim(); _reifegradDirty = true; }
+}
+
+function reifegradRemoveMeasure(tid, mid, isCustom) {
+  if (!_rgCanWrite()) return;
+  if (isCustom === true || isCustom === 'true') {
+    const arr = _rgCustomMeasureArr(tid);
+    const i = arr ? arr.findIndex(x => x.id === mid) : -1;
+    if (i >= 0) arr.splice(i, 1);
+  } else {
+    if (!confirm('Diese Katalog-Maßnahme ausblenden? Sie zählt dann nicht mehr in die Bewertung (über „ausgeblendete wiederherstellen" reversibel).')) return;
+    if (!_reifegrad.removed) _reifegrad.removed = [];
+    if (!_reifegrad.removed.includes(mid)) _reifegrad.removed.push(mid);
+  }
+  if (_reifegrad.ratings[mid]) delete _reifegrad.ratings[mid];
+  if (_reifegrad.kommentare && _reifegrad.kommentare[mid]) delete _reifegrad.kommentare[mid];
+  _rgAfterStructEdit();
+  renderReifegrad();   // Toolbar (ausgeblendet-Zähler) aktualisieren
+}
+
+function reifegradAddTopic() {
+  if (!_rgCanWrite()) return;
+  if (!_reifegrad.customTopics) _reifegrad.customTopics = [];
+  const id = _rgNextId('T');
+  _reifegrad.customTopics.push({ id, titel: '', punkte: [] });
+  _rgOpen[id] = true;
+  _rgAfterStructEdit();
+}
+
+function reifegradSetTopicTitle(tid, val) {
+  if (!_rgCanWrite()) return;
+  const t = (_reifegrad.customTopics || []).find(x => x.id === tid);
+  if (t) { t.titel = (val || '').trim(); _reifegradDirty = true; }
+}
+
+function reifegradRemoveTopic(tid) {
+  if (!_rgCanWrite()) return;
+  const t = (_reifegrad.customTopics || []).find(x => x.id === tid);
+  if (!t) return;
+  if (!confirm(`Eigenes Thema „${t.titel || '(ohne Titel)'}" mit ${((t.punkte || []).length)} Maßnahme(n) löschen?`)) return;
+  (t.punkte || []).forEach(p => { delete _reifegrad.ratings[p.id]; if (_reifegrad.kommentare) delete _reifegrad.kommentare[p.id]; });
+  _reifegrad.customTopics = _reifegrad.customTopics.filter(x => x.id !== tid);
+  _rgAfterStructEdit();
+}
+
+/** Alle ausgeblendeten Katalog-Maßnahmen wiederherstellen. */
+function reifegradRestoreHidden() {
+  if (!_rgCanWrite()) return;
+  _reifegrad.removed = [];
+  _reifegradDirty = true;
+  renderReifegrad();
 }
 
 async function saveReifegrad() {
@@ -295,7 +440,7 @@ function reifegradExportCsv() {
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const head = ['Thema', 'Maßnahme', ...REIFEGRAD_WERKE, 'Kommentar'];
   const lines = [head.map(q).join(sep)];
-  for (const t of REIFEGRAD_KATALOG) {
+  for (const t of _rgKatalog()) {
     for (const p of t.punkte) {
       const row = [t.titel, p.text,
         ...REIFEGRAD_WERKE.map(w => REIFEGRAD_STUFEN[_rgRating(p.id, w)].label),
