@@ -1,16 +1,20 @@
 'use strict';
 
 /**
- * Reiter „Risiko-Register" (ISO 27001 Klausel 6.1.2/6.1.3, 8.2/8.3)
+ * Reiter „Risiko-Register" (ISO 27001 6.1.2/6.1.3, 8.2/8.3 · NIS2 Art. 21(2a))
  * ==================================================================
  * Vollständiges Risikomanagement: Brutto-/Netto-Bewertung (5×5-Matrix
  * Eintrittswahrscheinlichkeit × Auswirkung), Behandlungsstrategie mit
- * Maßnahmenplan (Verantwortliche + Fristen), Verknüpfung zu ISO-/NIS2-Controls
- * und Richtlinien, Schutzziele (V/I/V), Wiedervorlage-Termin und lückenlose
- * Historie. Gespeichert in der SharePoint-Liste „Risiken" (wird bei Bedarf
- * automatisch angelegt). Rein deterministisch, ohne KI.
+ * Maßnahmenplan (Verantwortliche + Fristen), Verknüpfung zu ISO- und NIS2-
+ * Controls, Richtlinien und betroffenen Assets (ISMS-Liste „Assets"),
+ * Schutzziele C/I/A (Confidentiality/Integrity/Availability), Wiedervorlage-
+ * Termin und lückenlose Historie. Gespeichert in der SharePoint-Liste
+ * „Risiken" (wird bei Bedarf automatisch angelegt). Deterministisch, ohne KI.
  * Der Erinnerungs-Cron mailt überfällige Maßnahmen/Reviews an die Admins.
  */
+
+/** Schutzziele nach CIA-Triade (englisch). */
+const RISK_SCHUTZZIELE = [['C', 'Confidentiality'], ['I', 'Integrity'], ['A', 'Availability']];
 
 const RISK_BEHANDLUNG = ['mitigieren', 'vermeiden', 'übertragen', 'akzeptieren'];
 const RISK_STATUS = ['offen', 'in Behandlung', 'geschlossen'];
@@ -24,6 +28,8 @@ let _risksLoading = false;
 let _riskEditing = null;      // aktuell bearbeitetes Risiko (Kopie)
 let _riskFilter = { q: '', status: '', behandlung: '', cell: null, basis: 'netto' };
 let _riskMembers = null;      // Mitarbeiter für die Eigner-Auswahl
+let _riskAssets = null;       // Assets aus der ISMS-Liste „Assets" (Cache); null = noch nicht geladen
+let _riskAssetsError = null;  // Fehlermeldung, falls Assets-Liste nicht ladbar
 
 /* ── Scoring ── */
 
@@ -107,7 +113,8 @@ function _riskFiltered() {
   const f = _riskFilter;
   if (f.q) {
     const q = f.q.toLowerCase();
-    rows = rows.filter(r => (r.titel + ' ' + r.kategorie + ' ' + r.eigner + ' ' + r.beschreibung).toLowerCase().includes(q));
+    rows = rows.filter(r => (r.titel + ' ' + r.kategorie + ' ' + r.eigner + ' ' + r.beschreibung
+      + ' ' + (r.assets || []).map(a => a.title).join(' ')).toLowerCase().includes(q));
   }
   if (f.status) rows = rows.filter(r => r.status === f.status);
   if (f.behandlung) rows = rows.filter(r => r.behandlung === f.behandlung);
@@ -192,8 +199,9 @@ function renderRisiken() {
       const mOver = _riskOverdueMassnahmen(r).length;
       const revOver = _riskReviewOverdue(r);
       return `<tr onclick="openRiskEditor('${esc(r.id)}')" style="cursor:pointer${r.status === 'geschlossen' ? ';opacity:.55' : ''}">
-        <td><b>${esc(r.titel)}</b>${r.schutzziele && r.schutzziele.length ? `<span style="margin-left:6px;font-size:.66rem;color:var(--c-muted)">${esc(r.schutzziele.join('·'))}</span>` : ''}
-          ${r.controls && r.controls.length ? `<div style="font-size:.68rem;color:var(--c-faint)">🔖 ${esc(r.controls.slice(0, 6).join(', '))}${r.controls.length > 6 ? ' …' : ''}</div>` : ''}</td>
+        <td><b>${esc(r.titel)}</b>${r.schutzziele && r.schutzziele.length ? `<span style="margin-left:6px;font-size:.66rem;color:var(--c-muted)" title="Schutzziele (CIA)">${esc(r.schutzziele.join('·'))}</span>` : ''}
+          ${r.controls && r.controls.length ? `<div style="font-size:.68rem;color:var(--c-faint)">🔖 ${esc(r.controls.slice(0, 6).join(', '))}${r.controls.length > 6 ? ' …' : ''}</div>` : ''}
+          ${r.assets && r.assets.length ? `<div style="font-size:.68rem;color:var(--c-faint)">🖥 ${esc(r.assets.slice(0, 5).map(a => a.title).join(', '))}${r.assets.length > 5 ? ' …' : ''}</div>` : ''}</td>
         <td style="color:var(--c-muted)">${esc(r.kategorie || '–')}</td>
         <td style="color:var(--c-muted)">${esc(r.eigner || '–')}</td>
         <td>${_riskScoreBadge(r.brutto.e, r.brutto.a)}</td>
@@ -208,9 +216,9 @@ function renderRisiken() {
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      Risikoregister nach <b>ISO 27001 Klausel 6.1.2/6.1.3 und 8.2/8.3</b>: Bewertung
+      Risikoregister nach <b>ISO 27001 6.1.2/6.1.3 und 8.2/8.3</b> sowie <b>NIS2 Art. 21(2a)</b>: Bewertung
       (Eintritt × Auswirkung, 1–5), Behandlung mit Maßnahmenplan, Restrisiko und Wiedervorlage.
-      Verknüpfbar mit Controls (Normbezug) und Richtlinien.
+      Verknüpfbar mit ISO-/NIS2-Controls, Richtlinien und betroffenen Assets.
     </div>
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der Liste „Risiken" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')} – Werte dieser Felder gehen beim Speichern verloren. Typ: Zahl bzw. „Mehrere Zeilen Text"/Text/Datum.</div>` : ''}
@@ -249,7 +257,7 @@ function _riskNew() {
     id: null, titel: '', beschreibung: '', kategorie: '', eigner: '',
     schutzziele: [], brutto: { e: 0, a: 0 }, netto: { e: 0, a: 0 },
     behandlung: '', behandlungBegruendung: '', massnahmen: [],
-    controls: [], richtlinien: [], status: 'offen', naechsteReview: '', historie: [],
+    controls: [], richtlinien: [], assets: [], status: 'offen', naechsteReview: '', historie: [],
   };
 }
 
@@ -258,6 +266,10 @@ async function openRiskEditor(id) {
   _riskEditing = src ? JSON.parse(JSON.stringify(src)) : _riskNew();
   if (!_riskMembers && typeof spGetMembers === 'function') {
     spGetMembers().then(m => { _riskMembers = m; const dl = document.getElementById('rk-people'); if (dl) dl.innerHTML = m.map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join(''); }).catch(() => { _riskMembers = []; });
+  }
+  if (_riskAssets === null && typeof spGetAssets === 'function') {
+    spGetAssets().then(a => { _riskAssets = a; _riskAssetsError = null; rkRenderAssets(); })
+      .catch(e => { _riskAssets = []; _riskAssetsError = e.message || 'Assets nicht ladbar.'; rkRenderAssets(); });
   }
   renderRiskEditor();
 }
@@ -306,11 +318,11 @@ function renderRiskEditor() {
         <div class="form-group"><label>Risiko-Eigner (E-Mail)</label>
           <input type="text" list="rk-people" value="${esc(r.eigner)}" oninput="_riskEditing.eigner=this.value" placeholder="name@dihag.com">
           <datalist id="rk-people">${(_riskMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('')}</datalist></div>
-        <div class="form-group"><label>Schutzziele</label>
-          <div style="display:flex;gap:12px;padding-top:6px">
-            ${[['V', 'Vertraulichkeit'], ['I', 'Integrität'], ['A', 'Verfügbarkeit']].map(([k, l]) =>
-              `<label class="ack-check" style="font-weight:500" title="${l}"><input type="checkbox" ${r.schutzziele.includes(k) ? 'checked' : ''}
-                onchange="rkToggleZiel('${k}',this.checked)"> ${k}</label>`).join('')}
+        <div class="form-group"><label>Schutzziele (CIA)</label>
+          <div style="display:flex;gap:14px;padding-top:6px">
+            ${RISK_SCHUTZZIELE.map(([k, l]) =>
+              `<label class="ack-check" style="font-weight:500" title="${esc(l)}"><input type="checkbox" ${r.schutzziele.includes(k) ? 'checked' : ''}
+                onchange="rkToggleZiel('${k}',this.checked)"> ${k} <span style="color:var(--c-faint);font-weight:400">${esc(l)}</span></label>`).join('')}
           </div></div>
         <div class="form-group"><label>Status</label>
           ${_rkSel('status', r.status, RISK_STATUS, "_riskEditing.status=this.value", false)}</div>
@@ -346,7 +358,7 @@ function renderRiskEditor() {
 
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verknüpfungen
-          <span style="font-weight:500;color:var(--c-muted)">(Controls: ${r.controls.length} · Richtlinien: ${r.richtlinien.length})</span></div>
+          <span style="font-weight:500;color:var(--c-muted)">(Controls: ${r.controls.length} · Richtlinien: ${r.richtlinien.length} · Assets: ${(r.assets || []).length})</span></div>
         <input type="text" id="rk-ctl-filter" placeholder="Controls filtern (z. B. „A.8", „NIS2") …" oninput="rkRenderControls()"
           style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:7px 10px;font-size:.85rem;font-family:inherit;margin-bottom:6px">
         <div id="rk-controls" style="max-height:180px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${_rkControlsHtml('')}</div>
@@ -357,6 +369,12 @@ function renderRiskEditor() {
             <span>${esc(p.title)} <span style="color:var(--c-faint)">(${esc(p.status)})</span></span></label>`).join('')
           : '<div class="field-hint">Keine Richtlinien geladen.</div>'}
         </div>
+        <div style="font-weight:600;font-size:.85rem;margin:10px 0 4px">Betroffene Assets / Werte
+          <a href="${esc(typeof spAssetsListUrl === 'function' ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener"
+             style="font-weight:400;font-size:.75rem;margin-left:6px">Assets-Liste ↗</a></div>
+        <input type="text" id="rk-asset-filter" placeholder="Assets filtern …" oninput="rkRenderAssets()"
+          style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:7px 10px;font-size:.85rem;font-family:inherit;margin-bottom:6px">
+        <div id="rk-assets" style="max-height:150px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${_rkAssetsHtml()}</div>
       </div>
 
       ${histRows ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
@@ -381,6 +399,45 @@ function rkToggleZiel(z, on) {
 function rkTogglePolicy(pid, on) {
   _riskEditing.richtlinien = (_riskEditing.richtlinien || []).filter(x => x !== pid);
   if (on) _riskEditing.richtlinien.push(pid);
+}
+
+/* Assets-Auswahl (aus der ISMS-Liste „Assets") */
+function _rkAssetsHtml() {
+  const sel = _riskEditing.assets || [];
+  const selIds = new Set(sel.map(a => String(a.id)));
+  if (_riskAssets === null) return '<div class="field-hint">Lade Assets aus der ISMS-Liste „Assets" …</div>';
+  const loaded = _riskAssets || [];
+  const loadedIds = new Set(loaded.map(a => String(a.id)));
+  const filter = String(document.getElementById('rk-asset-filter')?.value || '').toLowerCase().trim();
+  const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:flex-start">
+    <input type="checkbox" ${checked ? 'checked' : ''} onchange="rkToggleAsset('${esc(String(a.id))}',this.checked)">
+    <span><b>${esc(a.title)}</b>${a.sub ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}</span></label>`;
+  let html = '';
+  if (!loaded.length) {
+    html += `<div class="field-hint" style="margin-bottom:4px">${esc(_riskAssetsError || 'Keine Assets in der ISMS-Liste „Assets".')}</div>`;
+  }
+  const items = loaded.filter(a => !filter || (a.title + ' ' + (a.sub || '')).toLowerCase().includes(filter));
+  html += items.map(a => row(a, selIds.has(String(a.id)))).join('');
+  // Bereits verknüpfte Assets, die nicht (mehr) in der Liste sind, trotzdem anzeigen
+  if (!filter) {
+    const orphans = sel.filter(a => !loadedIds.has(String(a.id)));
+    html += orphans.map(a => row(a, true)).join('');
+  }
+  return html || '<div class="field-hint">Keine Treffer.</div>';
+}
+function rkRenderAssets() {
+  const el = document.getElementById('rk-assets');
+  if (el) el.innerHTML = _rkAssetsHtml();
+}
+function rkToggleAsset(id, on) {
+  const key = String(id);
+  const arr = (_riskEditing.assets || []).filter(a => String(a.id) !== key);
+  if (on) {
+    const found = (_riskAssets || []).find(a => String(a.id) === key);
+    const prev = (_riskEditing.assets || []).find(a => String(a.id) === key);
+    arr.push({ id: key, title: (found && found.title) || (prev && prev.title) || ('#' + key), sub: (found && found.sub) || (prev && prev.sub) || '' });
+  }
+  _riskEditing.assets = arr;
 }
 
 /* Controls-Auswahl (aus dem Normen-Katalog, gefiltert) */
@@ -516,6 +573,7 @@ function risikenExportReport() {
       <td>${esc(r.status)}</td>
       <td style="white-space:nowrap">${r.naechsteReview ? r.naechsteReview.slice(0, 10) : '–'}</td>
       <td style="font-size:10px">${esc((r.controls || []).join(', ') || '–')}</td>
+      <td style="font-size:10px">${esc((r.assets || []).map(a => a.title).join(', ') || '–')}</td>
     </tr>`;
   }).join('');
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
@@ -531,14 +589,14 @@ function risikenExportReport() {
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     <h1>Risikobericht (Risiko-Register)</h1>
-    <div class="muted">DIHAG · ISO/IEC 27001:2022 Klausel 6.1.2/6.1.3, 8.2/8.3 · Stand ${esc(stamp)} · Schwellen: Score ≥15 hoch, ≥8 mittel</div>
+    <div class="muted">DIHAG · ISO/IEC 27001:2022 Klausel 6.1.2/6.1.3, 8.2/8.3 · NIS2 (EU) 2022/2555 Art. 21(2a) · Stand ${esc(stamp)} · Schwellen: Score ≥15 hoch, ≥8 mittel</div>
     <div class="kpi">
       <div><b>${all.length}</b><span class="muted">Risiken gesamt</span></div>
       <div><b>${open.length}</b><span class="muted">offen</span></div>
       <div><b>${hoch}</b><span class="muted">hoch (effektiv)</span></div>
       <div><b>${all.reduce((s, r) => s + _riskOverdueMassnahmen(r).length, 0)}</b><span class="muted">Maßnahmen überfällig</span></div>
     </div>
-    <table><thead><tr><th>Risiko</th><th>Kategorie</th><th>Eigner</th><th>Brutto</th><th>Netto</th><th>Behandlung</th><th>Maßnahmen</th><th>Status</th><th>Review</th><th>Controls</th></tr></thead>
+    <table><thead><tr><th>Risiko</th><th>Kategorie</th><th>Eigner</th><th>Brutto</th><th>Netto</th><th>Behandlung</th><th>Maßnahmen</th><th>Status</th><th>Review</th><th>Controls</th><th>Assets</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement – deterministisch, ohne KI.</p>
     </body></html>`;
@@ -551,7 +609,7 @@ function risikenExportCsv() {
   const all = _risks || [];
   if (!all.length) { if (typeof toast === 'function') toast('Keine Risiken zu exportieren.', 'error'); return; }
   const q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
-  const rows = [['Risiko', 'Beschreibung', 'Kategorie', 'Eigner', 'Schutzziele', 'Brutto E', 'Brutto A', 'Brutto Score', 'Netto E', 'Netto A', 'Netto Score', 'Stufe (effektiv)', 'Behandlung', 'Begründung', 'Maßnahmen (offen/gesamt)', 'Status', 'Nächste Überprüfung', 'Controls', 'Richtlinien']];
+  const rows = [['Risiko', 'Beschreibung', 'Kategorie', 'Eigner', 'Schutzziele (CIA)', 'Brutto E', 'Brutto A', 'Brutto Score', 'Netto E', 'Netto A', 'Netto Score', 'Stufe (effektiv)', 'Behandlung', 'Begründung', 'Maßnahmen (offen/gesamt)', 'Status', 'Nächste Überprüfung', 'Controls', 'Richtlinien', 'Assets']];
   const polTitle = id => { const p = (State.policies || []).find(x => x.id === id); return p ? p.title : id; };
   for (const r of all) {
     const eff = _riskEff(r);
@@ -562,7 +620,8 @@ function risikenExportCsv() {
       r.behandlung, r.behandlungBegruendung,
       `${(r.massnahmen || []).filter(m => m.status !== 'erledigt').length}/${(r.massnahmen || []).length}`,
       r.status, r.naechsteReview ? r.naechsteReview.slice(0, 10) : '',
-      (r.controls || []).join(', '), (r.richtlinien || []).map(polTitle).join(', ')]);
+      (r.controls || []).join(', '), (r.richtlinien || []).map(polTitle).join(', '),
+      (r.assets || []).map(a => a.title).join(', ')]);
   }
   const csv = '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

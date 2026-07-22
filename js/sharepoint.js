@@ -22,6 +22,7 @@ const SP = {
 
   // ── ISMS-Quelle: Richtliniendokumente (nur Lesezugriff) ──
   ismsSiteHost: 'dihag.sharepoint.com:/sites/ISMS',
+  assetsList:   'Assets',                  // Asset-/Werte-Inventar auf der ISMS-Site (nur lesen)
 
   scopes: [
     'https://graph.microsoft.com/Sites.ReadWrite.All',
@@ -36,6 +37,8 @@ function spAppSiteUrl() { return 'https://' + SP.appSiteHost.replace(':/', '/');
 /** Browser-URL der ISMS-Site (dort liegt bewusst die Risiken-Liste), z. B.
  *  https://dihag.sharepoint.com/sites/ISMS. */
 function spIsmsSiteUrl() { return 'https://' + SP.ismsSiteHost.replace(':/', '/'); }
+/** Browser-URL der ISMS-Liste „Assets" (Asset-Inventar). */
+function spAssetsListUrl() { return spIsmsSiteUrl() + '/Lists/' + encodeURIComponent(SP.assetsList) + '/AllItems.aspx'; }
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
@@ -1450,6 +1453,7 @@ const RISK_COLUMNS = [
   { name: 'MassnahmenJson',        typ: 'Mehrere Zeilen Text' },
   { name: 'ControlsJson',          typ: 'Mehrere Zeilen Text' },
   { name: 'RichtlinienJson',       typ: 'Mehrere Zeilen Text' },
+  { name: 'AssetsJson',            typ: 'Mehrere Zeilen Text' },
   { name: 'RiskStatus',            typ: 'Einzelne Textzeile' },
   { name: 'NaechsteReview',        typ: 'Datum und Uhrzeit' },
   { name: 'HistorieJson',          typ: 'Mehrere Zeilen Text' },
@@ -1514,7 +1518,8 @@ function _mapRisk(it) {
     beschreibung: f.Beschreibung || '',
     kategorie:    f.Kategorie || '',
     eigner:       f.Eigner || '',
-    schutzziele:  String(f.Schutzziele || '').split(',').map(s => s.trim()).filter(Boolean),
+    // CIA-Schutzziele (englisch). Altbestand „V" (Vertraulichkeit) → „C" (Confidentiality).
+    schutzziele:  String(f.Schutzziele || '').split(',').map(s => s.trim()).filter(Boolean).map(z => z === 'V' ? 'C' : z),
     brutto:       { e: Number(f.BruttoEintritt) || 0, a: Number(f.BruttoAuswirkung) || 0 },
     netto:        { e: Number(f.NettoEintritt) || 0, a: Number(f.NettoAuswirkung) || 0 },
     behandlung:   f.Behandlung || '',
@@ -1522,6 +1527,7 @@ function _mapRisk(it) {
     massnahmen:   _riskParseJson(f.MassnahmenJson, []),
     controls:     _riskParseJson(f.ControlsJson, []),
     richtlinien:  _riskParseJson(f.RichtlinienJson, []),
+    assets:       _riskParseJson(f.AssetsJson, []),
     status:       f.RiskStatus || 'offen',
     naechsteReview: f.NaechsteReview || '',
     historie:     _riskParseJson(f.HistorieJson, []),
@@ -1547,6 +1553,7 @@ function _riskFields(r) {
     MassnahmenJson:        JSON.stringify(r.massnahmen || []),
     ControlsJson:          JSON.stringify(r.controls || []),
     RichtlinienJson:       JSON.stringify(r.richtlinien || []),
+    AssetsJson:            JSON.stringify(r.assets || []),
     RiskStatus:            String(r.status || 'offen').slice(0, 60),
     HistorieJson:          JSON.stringify(r.historie || []),
   };
@@ -1607,6 +1614,53 @@ async function spDeleteRisk(id) {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+/* ═══════════════════════════════════════════════════
+   Assets / Werte (ISMS-Liste „Assets", nur lesen) – zum Verknüpfen mit Risiken
+═══════════════════════════════════════════════════ */
+
+/** Kurz-Beschreibung eines Assets aus gängigen Zusatzspalten (best effort). */
+function _assetSub(f) {
+  const keys = ['Kategorie', 'Category', 'Typ', 'Type', 'AssetTyp', 'AssetType', 'Klassifizierung',
+    'Schutzbedarf', 'Standort', 'Location', 'Verantwortlich', 'Owner', 'Eigentuemer', 'Eigner'];
+  const parts = [];
+  for (const k of keys) {
+    const v = f[k];
+    if (v && typeof v === 'string' && !parts.includes(v)) parts.push(v);
+    if (parts.length >= 2) break;
+  }
+  return parts.join(' · ');
+}
+
+/** Assets aus der ISMS-Liste „Assets" laden (nur lesen). Wirft, wenn die Liste
+ *  fehlt/kein Zugriff – die UI fängt das ab und zeigt einen Hinweis. */
+async function spGetAssets() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.assetsList);
+  let listId = null;
+  let lurl = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  while (lurl && !listId) {
+    const r = await _get(lurl, token);
+    const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+    if (hit) listId = hit.id;
+    lurl = r['@odata.nextLink'] || null;
+  }
+  if (!listId) throw new Error(`ISMS-Liste „${SP.assetsList}" nicht gefunden (Site ${SP.ismsSiteHost}).`);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=500`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      out.push({ id: String(it.id), title: f.Title || f.LinkTitle || ('#' + it.id), sub: _assetSub(f), url: it.webUrl || '' });
+    }
+    url = resp['@odata.nextLink'] || null;
+  }
+  out.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  return out;
 }
 
 /* ═══════════════════════════════════════════════════
