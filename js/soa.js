@@ -124,7 +124,7 @@ function renderSoa() {
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi(`${k.gepflegt}/${k.total}`, 'Anwendbarkeit entschieden', k.gepflegt === k.total ? '#15803d' : '#b45309')}
-      ${kpi(k.anwendbar, 'anwendbar', '#1a56db')}
+      ${kpi(k.anwendbar, 'anwendbar', '#17509e')}
       ${kpi(k.ausgeschlossen, 'ausgeschlossen', '#6b7280')}
       ${kpi(`${k.umgesetzt}/${k.anwendbar}`, 'davon umgesetzt', k.anwendbar && k.umgesetzt === k.anwendbar ? '#15803d' : '#b45309')}
       ${kpi(k.begrFehlt, 'Begründung fehlt', k.begrFehlt ? '#b91c1c' : '#15803d')}

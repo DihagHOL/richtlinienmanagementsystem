@@ -79,7 +79,7 @@ function _ckRenderPolicies() {
   const by = s => pols.filter(p => p.status === s).length;
   const pruef = pols.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview').length;
   _ckSet('policies',
-    _ckBig(pols.filter(p => p.status !== 'Archiviert').length, 'aktiv', '#1a56db') +
+    _ckBig(pols.filter(p => p.status !== 'Archiviert').length, 'aktiv', '#17509e') +
     _ckBig(by('Veröffentlicht'), 'veröffentlicht', '#15803d') +
     _ckBig(by('Entwurf'), 'Entwürfe', '#6b7280') +
     _ckBig(pruef + by('Mitbestimmung') + by('Freigabe'), 'im Workflow', (pruef + by('Mitbestimmung') + by('Freigabe')) ? '#b45309' : '#15803d'));
@@ -151,7 +151,7 @@ async function _ckLoadRisiken(seq) {
     const hoch = open.filter(r => riskStufe(riskScore(_riskEff(r).e, _riskEff(r).a)) === 'hoch').length;
     const over = all.reduce((s, r) => s + _riskOverdueMassnahmen(r).length, 0);
     _ckSet('risiken',
-      _ckBig(open.length, 'offen', open.length ? '#1a56db' : '#15803d') +
+      _ckBig(open.length, 'offen', open.length ? '#17509e' : '#15803d') +
       _ckBig(hoch, 'hoch', hoch ? '#b91c1c' : '#15803d') +
       _ckBig(over, 'Maßnahmen überfällig', over ? '#b91c1c' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('risiken', 'Risiken nicht ladbar (Liste fehlt noch?).'); }
@@ -172,7 +172,7 @@ async function _ckLoadCompliance(seq) {
     const q = soll ? Math.round(done / soll * 100) : 100;
     _ckSet('compliance',
       _ckBig(q + '%', 'Erfüllungsquote', q >= 90 ? '#15803d' : q >= 60 ? '#b45309' : '#b91c1c') +
-      _ckBig(pubs.length, 'Pflicht-Richtlinien', '#1a56db') +
+      _ckBig(pubs.length, 'Pflicht-Richtlinien', '#17509e') +
       _ckBig(soll - done, 'offene Kenntnisnahmen', (soll - done) ? '#b45309' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('compliance', 'Quote nicht ladbar: ' + e.message); }
 }
@@ -186,7 +186,7 @@ async function _ckLoadVorschlaege(seq) {
     const inArbeit = props.filter(p => p.status === 'In Bearbeitung').length;
     _ckSet('vorschlaege',
       _ckBig(offen, 'offen', offen ? '#b45309' : '#15803d') +
-      _ckBig(inArbeit, 'in Bearbeitung', '#1a56db') +
+      _ckBig(inArbeit, 'in Bearbeitung', '#17509e') +
       _ckBig(props.length, 'gesamt', '#6b7280'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('vorschlaege', 'Vorschläge nicht ladbar.'); }
 }

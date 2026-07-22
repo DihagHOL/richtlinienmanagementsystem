@@ -53,7 +53,7 @@ function dbg(msg) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#1a56db;font-weight:700');
+  console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#17509e;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
   // Deep-Link aus Mail (?richtlinie=… oder ?ansicht=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
   if (/[?&](richtlinie|ansicht)=/.test(location.search)) {
@@ -520,7 +520,7 @@ async function sendCertificate(policyId) {
 
 function certificateHtml(p, a, when) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e9ef;border-radius:12px;overflow:hidden">
-    <div style="background:#1a56db;color:#fff;padding:24px 28px">
+    <div style="background:#17509e;color:#fff;padding:24px 28px">
       <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.85">DIHAG Richtlinienmanagement</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Teilnahmenachweis</div>
     </div>

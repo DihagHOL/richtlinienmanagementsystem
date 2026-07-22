@@ -1259,7 +1259,7 @@ function _mitMailHtml(p, label, attachmentName) {
     <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
     <p>Empfänger: <b>${esc(label)}</b></p>
     <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
-    <p style="font-size:16px"><a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p style="font-size:16px"><a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     ${p.beschreibung ? `<p style="color:#374151">${esc(p.beschreibung)}</p>` : ''}
     ${attachmentName
       ? `<p>📎 Das Richtliniendokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
@@ -1279,10 +1279,10 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
       : '';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>${esc(headline)}</b></p>
-    <p>Richtlinie: <a href="${esc(url)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
     ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
-    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
+    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }
@@ -1635,7 +1635,7 @@ function reminderHtml(p) {
     <p>Hallo,</p>
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>
     <p>Bitte holen Sie das zeitnah nach:</p>
-    <p><a href="${url}" style="display:inline-block;background:#1a56db;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
+    <p><a href="${url}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Erinnerung vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }

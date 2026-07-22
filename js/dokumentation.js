@@ -19,7 +19,7 @@ function initDokumentation() {
 /* Zielgruppen-Badge je Abschnitt. */
 function _dBadge(role) {
   const map = {
-    all:    ['Für alle',            '#eff3ff', '#1a56db'],
+    all:    ['Für alle',            '#eff3ff', '#17509e'],
     review: ['Prüfer & Geschäftsleitung', '#dcfce7', '#166534'],
     admin:  ['Administration',      '#f3e8ff', '#7e22ce'],
   };
@@ -57,7 +57,7 @@ function _dokuSections() {
   const li = 'margin:0 0 7px;line-height:1.55';
   const ol = 'padding-left:20px;margin:10px 0 0';
   const h3 = 'margin:16px 0 6px;font-size:.98rem;font-weight:700';
-  const hint = 'margin-top:12px;font-size:.85rem;color:var(--c-muted);background:var(--c-bg,#f8fafc);border-left:3px solid var(--c-primary,#1a56db);padding:8px 12px;border-radius:0 8px 8px 0';
+  const hint = 'margin-top:12px;font-size:.85rem;color:var(--c-muted);background:var(--c-bg,#f8fafc);border-left:3px solid var(--c-primary,#17509e);padding:8px 12px;border-radius:0 8px 8px 0';
   const norm = t => `<div class="doku-norm">📐 <b>Normbezug:</b> ${t}</div>`;
   const sec = (id, title, badge, body, n) => `
     <section id="doku-${id}" class="doku-sec">
@@ -367,7 +367,7 @@ function dokuPrint() {
       .doku-tbl{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
       .doku-tbl td{border:1px solid #d1d5db;padding:5px 9px;vertical-align:top}
       .doku-tbl tr td:first-child{width:210px;font-weight:600}
-      a{color:#1a56db} ul,ol{margin:8px 0 0} :root{--c-muted:#6b7280;--c-primary:#1a56db;--c-text:#111827;--c-bg:#f8fafc;--c-surface:#fff;--c-border:#e5e7eb;--c-faint:#9ca3af}
+      a{color:#17509e} ul,ol{margin:8px 0 0} :root{--c-muted:#6b7280;--c-primary:#17509e;--c-text:#111827;--c-bg:#f8fafc;--c-surface:#fff;--c-border:#e5e7eb;--c-faint:#9ca3af}
       .noprint{margin-bottom:14px}@media print{.noprint{display:none}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>

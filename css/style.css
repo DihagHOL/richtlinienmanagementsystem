@@ -1,31 +1,38 @@
 /* ════════════════════════════════════════════════════════════════
    DIHAG Richtlinienmanagementsystem – Design-System
-   Tokens & Komponenten übernommen aus dem Vorbild (bedarfsanfrage).
-   Inter · Primärblau #1a56db · helle Sidebar + Topbar
+   Corporate Design DIHAG Foundry Group:
+   Exo · Azurblau #17509E · Navy #1A2644 · Anthrazit #424241 ·
+   Lichtblau #99B7CD · Orange #F08300
 ════════════════════════════════════════════════════════════════ */
 
 :root {
   --c-bg:        #f0f2f5;
   --c-surface:   #ffffff;
-  --c-text:      #1e2939;
+  --c-text:      #1a2644;   /* Navy Blau – Schrift/Überschriften */
   --c-muted:     #6b7280;
   --c-faint:     #9ca3af;
   --c-border:    #e5e9ef;
   --c-border-2:  #f0f2f5;
-  --c-primary:   #1a56db;
-  --c-primary-d: #1648c5;
-  --c-primary-l: #eff3ff;
+  --c-primary:   #17509e;   /* Azurblau – Primärfarbe */
+  --c-primary-d: #103b73;   /* Azurblau dunkler (Hover) */
+  --c-primary-l: #e9f0f8;   /* Azurblau sehr hell (Flächen) */
   --c-success:   #16a34a;
   --c-success-d: #15803d;
-  --c-warn:      #ea580c;
+  --c-warn:      #f08300;   /* Orange – Akzent/Warnhinweis */
   --c-danger:    #ef4444;
+  /* DIHAG-Markenfarben zur direkten Verwendung */
+  --c-navy:      #1a2644;
+  --c-azur:      #17509e;
+  --c-lichtblau: #99b7cd;
+  --c-orange:    #f08300;
+  --c-anthrazit: #424241;
 }
 
 /* ── Reset & Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Exo', system-ui, sans-serif;
   background: var(--c-bg);
   color: var(--c-text);
   min-height: 100vh;
@@ -140,7 +147,7 @@ a { color: inherit; }
 .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
 .stat-card { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; padding: 16px 18px; display: flex; align-items: center; gap: 12px; }
 .stat-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.2rem; }
-.stat-icon.blue   { background: #eff3ff; color: #1a56db; }
+.stat-icon.blue   { background: #eff3ff; color: #17509e; }
 .stat-icon.orange { background: #fff7ed; color: #ea580c; }
 .stat-icon.green  { background: #f0fdf4; color: #16a34a; }
 .stat-icon.purple { background: #faf5ff; color: #9333ea; }
@@ -219,7 +226,7 @@ a { color: inherit; }
   transition: border-color .15s, box-shadow .15s; outline: none; width: 100%;
 }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(26,86,219,.1);
+  border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(23,80,158,.1);
 }
 .form-group textarea { resize: vertical; min-height: 64px; }
 .req { color: var(--c-danger); }
@@ -367,11 +374,11 @@ a { color: inherit; }
 /* Deeplink aus Erinnerungs-Mail: Karte kurz hervorheben */
 .item-card.fg-highlight {
   animation: fgPulse 1.5s ease-in-out 3;
-  border-color: #1a56db;
+  border-color: #17509e;
 }
 @keyframes fgPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(26,86,219,0); }
-  50% { box-shadow: 0 0 0 4px rgba(26,86,219,.28); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(23,80,158,0); }
+  50% { box-shadow: 0 0 0 4px rgba(23,80,158,.28); }
 }
 
 /* ── Dokument-Zuordnung im Richtlinien-Editor ── */

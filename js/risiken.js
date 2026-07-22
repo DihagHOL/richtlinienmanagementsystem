@@ -142,7 +142,7 @@ function _riskMatrixHtml() {
       const st = riskStufe(riskScore(e, a));
       const sel = _riskFilter.cell && _riskFilter.cell.e === e && _riskFilter.cell.a === a;
       cells += `<td onclick="riskCellFilter(${e},${a})" title="Eintritt ${e} (${esc(RISK_E_LABELS[e])}) × Auswirkung ${a} (${esc(RISK_A_LABELS[a])}) = ${riskScore(e, a)} · ${n} offene(s) Risiko(en)"
-        style="${_riskStufeStyle(st)};border:2px solid ${sel ? '#1a56db' : 'transparent'};outline:1px solid rgba(0,0,0,.06);border-radius:6px;width:52px;height:38px;text-align:center;cursor:pointer;font-weight:800;font-size:.9rem">${n || ''}</td>`;
+        style="${_riskStufeStyle(st)};border:2px solid ${sel ? '#17509e' : 'transparent'};outline:1px solid rgba(0,0,0,.06);border-radius:6px;width:52px;height:38px;text-align:center;cursor:pointer;font-weight:800;font-size:.9rem">${n || ''}</td>`;
     }
     rows += `<tr>${cells}</tr>`;
   }
@@ -215,7 +215,7 @@ function renderRisiken() {
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der Liste „Risiken" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')} – Werte dieser Felder gehen beim Speichern verloren. Typ: Zahl bzw. „Mehrere Zeilen Text"/Text/Datum.</div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      ${kpi(all.length, 'Risiken gesamt', '#1a56db')}
+      ${kpi(all.length, 'Risiken gesamt', '#17509e')}
       ${kpi(hoch, 'hoch (offen, effektiv)', hoch ? '#b91c1c' : '#15803d')}
       ${kpi(massnahmenOffen, 'Maßnahmen offen', massnahmenOffen ? '#b45309' : '#15803d')}
       ${kpi(massnahmenUeberf, 'Maßnahmen überfällig', massnahmenUeberf ? '#b91c1c' : '#15803d')}

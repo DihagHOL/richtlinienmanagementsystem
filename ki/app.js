@@ -2820,7 +2820,7 @@ function mailTemplate(title, lines, ctaLabel, ctaUrl) {
   const href = (ctaUrl && ctaUrl.startsWith(safeOrigin)) ? ctaUrl : safeOrigin;
   const cta = ctaLabel
     ? `<p style="margin:24px 0 0"><a href="${href}"
-        style="background:#1a56db;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600"
+        style="background:#17509e;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600"
         >${esc(ctaLabel)}</a></p>`
     : '';
   const rows = lines.map(([k, v]) =>
@@ -2829,7 +2829,7 @@ function mailTemplate(title, lines, ctaLabel, ctaUrl) {
   ).join('');
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e9ef">
-    <div style="background:linear-gradient(135deg,#1648c5,#1a56db);padding:20px 28px">
+    <div style="background:linear-gradient(135deg,#103b73,#17509e);padding:20px 28px">
       <div style="color:#fff;font-size:18px;font-weight:700">🤖 KI-Dashboard · DIHAG Gruppe</div>
     </div>
     <div style="padding:24px 28px">

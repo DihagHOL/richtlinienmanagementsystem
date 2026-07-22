@@ -17,7 +17,7 @@ function initAnleitung() {
 /* Badge „für wen ist dieser Abschnitt" */
 function _aBadge(text, color) {
   const map = {
-    all:   ['#eff3ff', '#1a56db'],
+    all:   ['#eff3ff', '#17509e'],
     gov:   ['#fef9c3', '#a16207'],
     admin: ['#f3e8ff', '#7e22ce'],
   };

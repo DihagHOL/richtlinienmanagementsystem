@@ -979,7 +979,7 @@ async function sendProposal(keepOpen) {
     const ver = ctx.doc && ctx.doc.fields ? ctx.doc.fields._UIVersionString : '';
     const linkHtml = links.length
       ? `<p><b>Dokument:</b><br>${links.map(l =>
-          `<a href="${esc(l.url)}" style="color:#1a56db">📄 ${esc(l.label)}</a>`).join('<br>')}
+          `<a href="${esc(l.url)}" style="color:#17509e">📄 ${esc(l.label)}</a>`).join('<br>')}
           ${ver ? `<br><span style="color:#6b7280;font-size:12px">aktuelle Version: ${esc(ver)}</span>` : ''}</p>`
       : '';
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
