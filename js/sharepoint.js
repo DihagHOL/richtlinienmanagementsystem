@@ -1280,6 +1280,82 @@ async function spGetDocAttachment(driveId, itemId, fallbackName) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Prozesse (BPMN 2.0) – .bpmn-Dateien im Ordner „Prozesse"
+   der ISMS-Dokumentbibliothek (sites/ISMS). Verknüpfung zu Richtlinien
+   liegt im BPMN-XML selbst (Prozess-Dokumentation), keine Extra-Liste nötig.
+═══════════════════════════════════════════════════ */
+const PROCESS_FOLDER = 'Prozesse';
+
+/** Alle .bpmn-Dateien im Prozesse-Ordner auflisten (leer, wenn Ordner fehlt). */
+async function spListProcesses() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  try {
+    const data = await _get(
+      `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${encodeURIComponent(PROCESS_FOLDER)}:/children` +
+      `?$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy&$top=200`, token);
+    return (data.value || [])
+      .filter(f => /\.bpmn$/i.test(f.name || ''))
+      .map(f => ({
+        itemId:     f.id,
+        name:       f.name,
+        title:      f.name.replace(/\.bpmn$/i, ''),
+        webUrl:     f.webUrl || '',
+        size:       f.size || 0,
+        modified:   f.lastModifiedDateTime || '',
+        modifiedBy: (f.lastModifiedBy && f.lastModifiedBy.user && f.lastModifiedBy.user.displayName) || '',
+      }))
+      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  } catch (e) {
+    if (e.status === 404 || /itemNotFound|404/i.test(e.message || '')) return [];   // Ordner existiert noch nicht
+    throw e;
+  }
+}
+
+/** BPMN-XML einer Prozessdatei laden. */
+async function spGetProcessXml(itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}/content`,
+    { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Prozess laden fehlgeschlagen (${res.status})`);
+  return res.text();
+}
+
+/** Prozess speichern (Upload .bpmn; legt den Ordner „Prozesse" bei Bedarf automatisch an).
+ *  Gleicher Dateiname → neue Version derselben Datei. @returns das DriveItem. */
+async function spSaveProcess(name, xml) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const safe = String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
+  const fname = /\.bpmn$/i.test(safe) ? safe : safe + '.bpmn';
+  const path = `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(fname)}`;
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${path}:/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/xml' },
+    body: xml,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(`Speichern fehlgeschlagen (${res.status}): ${String(t).slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+/** Prozessdatei löschen. */
+async function spDeleteProcess(itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const res = await fetch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok && res.status !== 404) throw new Error(`Löschen fehlgeschlagen (${res.status})`);
+}
+
+/* ═══════════════════════════════════════════════════
    access-config.json (Rollen)
 ═══════════════════════════════════════════════════ */
 

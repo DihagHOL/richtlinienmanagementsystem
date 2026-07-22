@@ -257,6 +257,7 @@ const GOVERNABLE_TABS = [
   { view: 'verwaltung',  label: 'Richtlinien Dashboard' },
   { view: 'ismsdocs',    label: 'ISMS-Dokumente' },
   { view: 'governance',  label: 'Governance-Board' },
+  { view: 'prozesse',    label: 'Prozesse (BPMN)' },
   { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' },
   { view: 'faelligkeit', label: 'Fälligkeiten' },
   { view: 'risiken',     label: 'Risiko-Register' },
@@ -327,6 +328,7 @@ function initRoleNav() {
   show('nav-verwaltung',    canReadTab('verwaltung'));
   show('nav-ismsdocs',      canReadTab('ismsdocs'));
   show('nav-governance',    canReadTab('governance'));
+  show('nav-prozesse',      canReadTab('prozesse'));
   show('nav-abdeckung',     canReadTab('abdeckung'));
   show('nav-faelligkeit',   canReadTab('faelligkeit'));
   show('nav-risiken',       canReadTab('risiken'));

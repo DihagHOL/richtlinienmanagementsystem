@@ -73,6 +73,10 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a1 1 0 01.5.134l6 3.5A1 1 0 0117 5.5v.5a1 1 0 01-1 1h-.5l-1.02 5.61A3 3 0 0016.9 15H17a1 1 0 110 2h-4a1 1 0 110-2h.1a3 3 0 001.42-.29L13.5 9.1 11 8.2V15h1a1 1 0 110 2H8a1 1 0 110-2h1V8.2l-2.5.9-1.02 5.61A3 3 0 006.9 15H7a1 1 0 110 2H3a1 1 0 110-2h.1a3 3 0 001.42-.29L3.5 9.1 3 7H2.5a1 1 0 01-1-1v-.5a1 1 0 01.5-.866l6-3.5A1 1 0 019 1h1z" clip-rule="evenodd"/></svg>
         Governance-Board
       </a>
+      <a class="nav-item" data-view="prozesse" id="nav-prozesse" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="8" width="5" height="4" rx="1"/><rect x="13" y="3" width="5" height="4" rx="1"/><rect x="13" y="13" width="5" height="4" rx="1"/><path d="M7 10h3.5M10.5 10V5H13M10.5 10v5H13" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+        Prozesse
+      </a>
       <a class="nav-item" data-view="abdeckung" id="nav-abdeckung" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2h1v10H3a1 1 0 100 2h14a1 1 0 100-2h-1V5h1a1 1 0 100-2H3zm3 4a1 1 0 012 0v6a1 1 0 11-2 0V7zm4 2a1 1 0 012 0v4a1 1 0 11-2 0V9zm4-1a1 1 0 10-2 0v5a1 1 0 102 0V8z" clip-rule="evenodd"/></svg>
         ISMS-Abdeckung
@@ -286,6 +290,11 @@
         <div id="list-freigaben" class="item-cards"></div>
       </section>
 
+      <!-- ── VIEW: Prozesse (BPMN 2.0) ── -->
+      <section id="view-prozesse" class="view">
+        <div id="prozesse-mount"></div>
+      </section>
+
       <!-- ── VIEW: Compliance (Admin) ── -->
       <section id="view-compliance" class="view">
         <div id="compliance-mount"></div>
@@ -331,6 +340,7 @@
 <script src="js/ismsdocs.js?v=8aae4508"></script>
 <script src="js/governance.js?v=8aae4508"></script>
 <script src="js/proposals.js?v=8aae4508"></script>
+<script src="js/prozesse.js?v=8aae4508"></script>
 <script src="js/anleitung.js?v=8aae4508"></script>
 <script src="js/dokumentation.js?v=8aae4508"></script>
 </body>

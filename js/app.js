@@ -21,7 +21,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  cockpit: 'Cockpit', verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
+  cockpit: 'Cockpit', verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
@@ -182,7 +182,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken', 'prozesse'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -209,6 +209,7 @@ async function switchView(view) {
   if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
   if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
+  if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();
