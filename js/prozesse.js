@@ -100,7 +100,10 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
+      <input type="file" id="proc-import-input" accept=".bpmn,.xml" style="display:none" onchange="importBpmnFile(this)">
     </div>
     <div id="proc-cards"></div>`;
   _renderProcCards();
@@ -162,11 +165,12 @@ function _parsePolicyIds(xml) {
 
 /* ── Editor (bpmn-js Modeler) ── */
 
-async function openProcessEditor(itemId) {
+async function openProcessEditor(itemId, seed) {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   const proc = itemId ? (_processes || []).find(p => String(p.itemId) === String(itemId)) : null;
   _procEditing = { itemId: itemId || null, origName: proc ? proc.name : '' };
+  const startName = proc ? proc.title : (seed && seed.name ? seed.name : '');
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
 
   mount.innerHTML = `
@@ -184,7 +188,7 @@ async function openProcessEditor(itemId) {
       </div>
       <div style="width:280px;max-width:100%">
         <div class="form-group full"><label>Prozessname <span class="req">*</span></label>
-          <input type="text" id="proc-name" value="${esc(proc ? proc.title : '')}" placeholder="z. B. Freigabe von Lieferanten" ${canWrite ? '' : 'disabled'}></div>
+          <input type="text" id="proc-name" value="${esc(startName)}" placeholder="z. B. Freigabe von Lieferanten" ${canWrite ? '' : 'disabled'}></div>
         <div class="form-group full"><label>Verknüpfte Richtlinien</label>
           <div id="proc-policy-list" style="max-height:230px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
           <span class="field-hint">Welche Richtlinien dieser Prozess umsetzt. Wird in der BPMN-Datei gespeichert und im Prozess dokumentiert.</span></div>
@@ -207,12 +211,15 @@ async function openProcessEditor(itemId) {
   if (itemId) {
     try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); }
     catch (e) { toast('Prozess laden fehlgeschlagen: ' + e.message, 'error'); }
+  } else if (seed && seed.xml) {
+    xml = seed.xml;
+    ids = (seed.policyIds && seed.policyIds.length) ? seed.policyIds : _parsePolicyIds(xml);
   }
   try {
     await _bpmnModeler.importXML(xml);
     _bpmnModeler.get('canvas').zoom('fit-viewport');
     const st = document.getElementById('proc-status');
-    if (st) st.innerHTML = proc ? '' : 'Neues Diagramm – ziehe Elemente aus der Palette links.';
+    if (st) st.innerHTML = (proc || (seed && seed.xml)) ? '' : 'Neues Diagramm – ziehe Elemente aus der Palette links.';
   } catch (e) {
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = `<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`;
@@ -311,4 +318,108 @@ async function deleteProcess() {
     toast('Prozess gelöscht.', 'success');
     initProzesse();
   } catch (e) { toast('Löschen fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/* ── BPMN importieren ── */
+
+/** Eine .bpmn/.xml-Datei einlesen und als neuen (ungespeicherten) Prozess öffnen. */
+async function importBpmnFile(input) {
+  const file = input && input.files && input.files[0];
+  if (input) input.value = '';
+  if (!file) return;
+  if (!/\.(bpmn|xml)$/i.test(file.name)) { toast('Bitte eine .bpmn- oder .xml-Datei wählen.', 'error'); return; }
+  try {
+    const xml = await file.text();
+    if (!/<(bpmn:)?definitions[\s>]/i.test(xml)) { toast('Die Datei enthält kein BPMN 2.0 (kein <definitions>).', 'error'); return; }
+    const name = file.name.replace(/\.(bpmn|xml)$/i, '');
+    await openProcessEditor(null, { name, xml });
+    toast('BPMN importiert – prüfen, ggf. Richtlinien verknüpfen und speichern.', 'success');
+  } catch (e) { toast('Import fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/* ── Prozess-Entwurf aus einer Richtlinie ── */
+
+function openProcessDraftPicker() {
+  const pols = (State.policies || []).filter(p => p.status !== 'Archiviert')
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  if (!pols.length) { toast('Keine Richtlinien vorhanden, aus denen ein Entwurf erzeugt werden kann.', 'error'); return; }
+  openModal(`
+    <div class="modal-header"><h3>✨ Prozess-Entwurf aus Richtlinie</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px">Erzeugt einen BPMN-Starter-Prozess passend zur gewählten Richtlinie
+        (Auslöser → <b>Richtlinie anwenden</b> → Gateway <b>„Konform?"</b> → Umsetzen/Dokumentieren bzw. Abweichung behandeln).
+        Der Prozess ist automatisch benannt und mit der Richtlinie verknüpft – danach frei anpassbar.</div>
+      <div class="form-group full"><label>Richtlinie</label>
+        <select id="proc-draft-policy" class="form-control">
+          ${pols.map(p => `<option value="${esc(p.id)}">${esc(p.title)}${p.version ? ' (v' + esc(p.version) + ')' : ''}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="createProcessDraft()">Entwurf erstellen →</button>
+    </div>`);
+}
+
+async function createProcessDraft() {
+  const id = document.getElementById('proc-draft-policy')?.value;
+  const p = (State.policies || []).find(x => String(x.id) === String(id));
+  if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
+  closeModal();
+  await openProcessEditor(null, _bpmnDraftFromPolicy(p));
+  toast('Entwurf erstellt – anpassen und speichern.', 'success');
+}
+
+/** XML-Attribut-/Text-Escaping (für generiertes BPMN). */
+function _xmlEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Starter-BPMN aus einer Richtlinie erzeugen: { name, xml, policyIds }. */
+function _bpmnDraftFromPolicy(p) {
+  const title = String(p.title || 'Richtlinie').replace(/\.docx?$/i, '');
+  const short = title.length > 34 ? title.slice(0, 32) + '…' : title;
+  const name  = title + ' – Prozess';
+  const t1    = _xmlEsc(short + ' anwenden/prüfen');
+  const doc   = _xmlEsc(`Prozess zur Umsetzung der Richtlinie „${title}". Im Einklang mit den Richtlinien: ${title}\n[[rms:policies=${p.id}]]`);
+  const xml =
+`<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:documentation>${doc}</bpmn:documentation>
+    <bpmn:startEvent id="Start_1" name="Auslöser"><bpmn:outgoing>F_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Task_1" name="${t1}"><bpmn:incoming>F_1</bpmn:incoming><bpmn:outgoing>F_2</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Gw_1" name="Konform?"><bpmn:incoming>F_2</bpmn:incoming><bpmn:outgoing>F_3</bpmn:outgoing><bpmn:outgoing>F_5</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Task_2" name="Umsetzen &amp; dokumentieren"><bpmn:incoming>F_3</bpmn:incoming><bpmn:outgoing>F_4</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End_1" name="Abgeschlossen"><bpmn:incoming>F_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:task id="Task_3" name="Abweichung behandeln"><bpmn:incoming>F_5</bpmn:incoming><bpmn:outgoing>F_6</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End_2" name="Nachbessern"><bpmn:incoming>F_6</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="F_2" sourceRef="Task_1" targetRef="Gw_1" />
+    <bpmn:sequenceFlow id="F_3" name="ja" sourceRef="Gw_1" targetRef="Task_2" />
+    <bpmn:sequenceFlow id="F_4" sourceRef="Task_2" targetRef="End_1" />
+    <bpmn:sequenceFlow id="F_5" name="nein" sourceRef="Gw_1" targetRef="Task_3" />
+    <bpmn:sequenceFlow id="F_6" sourceRef="Task_3" targetRef="End_2" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Dia_1">
+    <bpmndi:BPMNPlane id="Plane_1" bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="Start_1_di" bpmnElement="Start_1"><dc:Bounds x="152" y="192" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="150" y="235" width="44" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_1_di" bpmnElement="Task_1"><dc:Bounds x="240" y="170" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gw_1_di" bpmnElement="Gw_1" isMarkerVisible="true"><dc:Bounds x="415" y="185" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="408" y="158" width="64" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_2_di" bpmnElement="Task_2"><dc:Bounds x="520" y="90" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_1_di" bpmnElement="End_1"><dc:Bounds x="700" y="112" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="686" y="155" width="66" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_3_di" bpmnElement="Task_3"><dc:Bounds x="520" y="270" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_2_di" bpmnElement="End_2"><dc:Bounds x="700" y="292" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="688" y="335" width="62" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F_1_di" bpmnElement="F_1"><di:waypoint x="188" y="210" /><di:waypoint x="240" y="210" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_2_di" bpmnElement="F_2"><di:waypoint x="360" y="210" /><di:waypoint x="415" y="210" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_3_di" bpmnElement="F_3"><di:waypoint x="440" y="185" /><di:waypoint x="440" y="130" /><di:waypoint x="520" y="130" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_4_di" bpmnElement="F_4"><di:waypoint x="640" y="130" /><di:waypoint x="700" y="130" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_5_di" bpmnElement="F_5"><di:waypoint x="440" y="235" /><di:waypoint x="440" y="310" /><di:waypoint x="520" y="310" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F_6_di" bpmnElement="F_6"><di:waypoint x="640" y="310" /><di:waypoint x="700" y="310" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  return { name, xml, policyIds: [String(p.id)] };
 }
