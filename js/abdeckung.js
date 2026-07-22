@@ -19,12 +19,13 @@ let _abdeckungMode = 'heatmap';   // 'heatmap' | 'soa' (Erklärung zur Anwendbar
 function _abModeSwitcher(active) {
   const b = (mode, label) => `<button class="btn btn-sm ${active === mode ? 'btn-primary' : 'btn-outline'}"
     onclick="abdeckungSetMode('${mode}')">${label}</button>`;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA – Erklärung zur Anwendbarkeit')}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA – Erklärung zur Anwendbarkeit')}${b('reifegrad', 'Reifegrad IT/OT-Betrieb')}</div>`;
 }
 
 function abdeckungSetMode(mode) {
-  _abdeckungMode = mode === 'soa' ? 'soa' : 'heatmap';
+  _abdeckungMode = (mode === 'soa' || mode === 'reifegrad') ? mode : 'heatmap';
   if (_abdeckungMode === 'soa' && typeof initSoa === 'function') initSoa();
+  else if (_abdeckungMode === 'reifegrad' && typeof initReifegrad === 'function') initReifegrad();
   else renderAbdeckung();
 }
 
@@ -78,6 +79,7 @@ function renderAbdeckung() {
   if (!mount) return;
   if (typeof NORMEN === 'undefined') { mount.innerHTML = '<div class="col-warning" style="display:block">Normen-Katalog nicht geladen.</div>'; return; }
   if (_abdeckungMode === 'soa' && typeof renderSoa === 'function') { renderSoa(); return; }
+  if (_abdeckungMode === 'reifegrad' && typeof renderReifegrad === 'function') { renderReifegrad(); return; }
   const data = _abdeckungData();
   const savedN = id => (data[id] ? data[id].saved.length : 0);
   const provN  = id => (data[id] ? data[id].prov.length  : 0);

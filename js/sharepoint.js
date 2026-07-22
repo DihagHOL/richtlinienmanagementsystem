@@ -1406,6 +1406,30 @@ async function spSaveSoa(data) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Reifegrad-Assessment „IT und OT Betrieb" (reifegrad-config.json)
+═══════════════════════════════════════════════════ */
+
+async function spLoadReifegrad() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/reifegrad-config.json:/content`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return null; // 404 = noch nicht angelegt
+  return resp.json();
+}
+
+async function spSaveReifegrad(data) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  await _uploadFile(token, `${SP.configFolder}/reifegrad-config.json`,
+    new TextEncoder().encode(JSON.stringify(data, null, 2)), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
    Risiko-Register (SharePoint-Liste „Risiken", wird bei Bedarf angelegt)
 ═══════════════════════════════════════════════════ */
 
