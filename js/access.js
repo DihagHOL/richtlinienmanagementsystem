@@ -322,18 +322,28 @@ function isReadOnlyTab(view) { return canReadTab(view) && !canWriteTab(view); }
 function initRoleNav() {
   const admin = isCurrentUserAdmin();
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-  const anyAdminTab = GOVERNABLE_TABS.some(t => canReadTab(t.view));
-  show('nav-sep-admin',     admin || anyAdminTab);
-  show('nav-cockpit',       canReadTab('cockpit'));
-  show('nav-verwaltung',    canReadTab('verwaltung'));
-  show('nav-ismsdocs',      canReadTab('ismsdocs'));
-  show('nav-governance',    canReadTab('governance'));
-  show('nav-prozesse',      canReadTab('prozesse'));
-  show('nav-abdeckung',     canReadTab('abdeckung'));
-  show('nav-faelligkeit',   canReadTab('faelligkeit'));
-  show('nav-risiken',       canReadTab('risiken'));
-  show('nav-vorschlaege',   canReadTab('vorschlaege'));
-  show('nav-freigaben',     canReadTab('freigaben'));
-  show('nav-compliance',    canReadTab('compliance'));
+  // Sichtbarkeit je Reiter einmal berechnen (auch für die Gruppen-Überschriften)
+  const v = {};
+  ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'prozesse', 'abdeckung',
+   'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance'].forEach(t => { v[t] = canReadTab(t); });
+
+  // Einzelne Reiter
+  show('nav-cockpit',       v.cockpit);
+  show('nav-verwaltung',    v.verwaltung);
+  show('nav-ismsdocs',      v.ismsdocs);
+  show('nav-governance',    v.governance);
+  show('nav-prozesse',      v.prozesse);
+  show('nav-abdeckung',     v.abdeckung);
+  show('nav-faelligkeit',   v.faelligkeit);
+  show('nav-risiken',       v.risiken);
+  show('nav-vorschlaege',   v.vorschlaege);
+  show('nav-freigaben',     v.freigaben);
+  show('nav-compliance',    v.compliance);
   show('nav-einstellungen', admin);
+
+  // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist
+  show('nav-grp-uebersicht',  v.cockpit);
+  show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege);
+  show('nav-grp-isms',        v.ismsdocs || v.abdeckung || v.risiken || v.governance || v.prozesse);
+  show('nav-grp-verwaltung',  v.compliance || admin);
 }
