@@ -33,7 +33,10 @@ const ACCESS_CONFIG_DEFAULT = {
   konformSchwelle:  'alle',    // 'alle' | 'einer'  – wann gilt eine Richtlinie als konform
   freigabeSchwelle: 'einer',   // 'alle' | 'einer'  – wie viele GL müssen freigeben
   eskalationMail:   '',        // Ersatz-Empfänger bei keiner Antwort
-  genehmigungPA:    false,     // true → Genehmigung läuft über Power Automate, App schickt KEINE Prüf-/Freigabe-Mails
+  // Power-Automate-Genehmigung: welche Etappen laufen über PA (App schickt dort KEINE Mail)
+  //   'aus'  → alles aus der App · 'gl' → nur Freigabe (GL) über PA · 'alle' → Prüfung + Freigabe über PA
+  genehmigungPAScope: 'aus',
+  genehmigungPA:    false,     // Legacy-Spiegel (true == PA aktiv); aus genehmigungPAScope abgeleitet
   // ── Erinnerungen (vom GitHub-Actions-Cron gelesen) ──
   erinnerungenAktiv:        true,  // Erinnerungen senden ja/nein
   mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
@@ -81,7 +84,10 @@ async function loadRuntimeAccessConfig() {
         konformSchwelle:   cfg.konformSchwelle === 'einer' ? 'einer' : 'alle',
         freigabeSchwelle:  cfg.freigabeSchwelle === 'alle' ? 'alle' : 'einer',
         eskalationMail:    typeof cfg.eskalationMail === 'string' ? cfg.eskalationMail : '',
-        genehmigungPA:     cfg.genehmigungPA === true,
+        // Neuer 3-stufiger Schalter; Migration vom alten Boolean (true == beide Etappen)
+        genehmigungPAScope: (cfg.genehmigungPAScope === 'gl' || cfg.genehmigungPAScope === 'alle')
+          ? cfg.genehmigungPAScope : (cfg.genehmigungPA === true ? 'alle' : 'aus'),
+        genehmigungPA:     cfg.genehmigungPA === true || cfg.genehmigungPAScope === 'gl' || cfg.genehmigungPAScope === 'alle',
         erinnerungenAktiv:        cfg.erinnerungenAktiv !== false,
         mailSender:               typeof cfg.mailSender === 'string' ? cfg.mailSender : '',
         erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
@@ -111,7 +117,8 @@ function getAccessConfig() {
     konformSchwelle:   c.konformSchwelle || 'alle',
     freigabeSchwelle:  c.freigabeSchwelle || 'einer',
     eskalationMail:    c.eskalationMail || '',
-    genehmigungPA:     c.genehmigungPA === true,
+    genehmigungPAScope: c.genehmigungPAScope || (c.genehmigungPA ? 'alle' : 'aus'),
+    genehmigungPA:     c.genehmigungPA === true || c.genehmigungPAScope === 'gl' || c.genehmigungPAScope === 'alle',
     erinnerungenAktiv:        c.erinnerungenAktiv !== false,
     mailSender:               c.mailSender || '',
     erinnerungErsteNachTagen: _posInt(c.erinnerungErsteNachTagen, 7),
@@ -141,7 +148,17 @@ function getBrMail(werk)        { return getBrMails()[werk] || ''; }
 /* ── C-Level-Audit-Bericht: Empfänger ── */
 function getClevelMail()        { return _cfg().clevelMail || ''; }
 function getEskalationMail()    { return _cfg().eskalationMail || ''; }
-function getGenehmigungPA()     { return _cfg().genehmigungPA === true; }
+/* ── Power-Automate-Genehmigung: Umfang je Etappe ── */
+function getGenehmigungPAScope() {
+  const s = _cfg().genehmigungPAScope;
+  if (s === 'gl' || s === 'alle') return s;
+  return _cfg().genehmigungPA === true ? 'alle' : 'aus';
+}
+/** Freigabe (Geschäftsleitung) läuft über Power Automate? (gl oder alle) */
+function isPAFreigabe()  { const s = getGenehmigungPAScope(); return s === 'gl' || s === 'alle'; }
+/** Konformitätsprüfung läuft über Power Automate? (nur bei „alle") */
+function isPAPruefung()  { return getGenehmigungPAScope() === 'alle'; }
+function getGenehmigungPA()     { return getGenehmigungPAScope() !== 'aus'; }
 function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }
 function getMailSender()               { return _cfg().mailSender || ''; }
 function getErinnerungErsteNachTagen() { return _posInt(_cfg().erinnerungErsteNachTagen, 7); }

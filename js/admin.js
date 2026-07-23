@@ -1177,8 +1177,8 @@ async function markFreigabe(policyId) {
 }
 
 async function notifyPruefer(p) {
-  if (typeof getGenehmigungPA === 'function' && getGenehmigungPA()) {
-    console.info('[wf] Genehmigung über Power Automate – App-Prüfer-Mail übersprungen.');
+  if (typeof isPAPruefung === 'function' && isPAPruefung()) {
+    console.info('[wf] Konformitätsprüfung über Power Automate – App-Prüfer-Mail übersprungen.');
     return;   // Power Automate verschickt die Genehmigungs-Mail
   }
   const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
@@ -1194,8 +1194,8 @@ async function notifyPruefer(p) {
   } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
 }
 async function notifyGL(p) {
-  if (typeof getGenehmigungPA === 'function' && getGenehmigungPA()) {
-    console.info('[wf] Genehmigung über Power Automate – App-GL-Mail übersprungen.');
+  if (typeof isPAFreigabe === 'function' && isPAFreigabe()) {
+    console.info('[wf] Freigabe über Power Automate – App-GL-Mail übersprungen.');
     return;   // Power Automate verschickt die Freigabe-Mail
   }
   const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
@@ -1398,6 +1398,13 @@ function _freigabeAuditRows() {
       out.push({
         datum: v.datum || '', policy: p.title, version: p.version,
         aktion: 'Freigabe erteilt', wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+      });
+    }
+    // In Outlook (Power Automate) erteilte Freigabe: kein App-JSON, aber FreigegebenVon gesetzt
+    if (!(p.freigaben || []).length && p.freigegebenVon) {
+      out.push({
+        datum: p.veroeffentlichtAm || '', policy: p.title, version: p.version,
+        aktion: 'Freigabe erteilt (Outlook / Power Automate)', wer: p.freigegebenVon, anmerkung: '',
       });
     }
     if (p.veroeffentlichtAm) {
@@ -1718,13 +1725,14 @@ function renderEinstellungen() {
                 <option value="einer" ${_cfgEdit.freigabeSchwelle === 'einer' ? 'selected' : ''}>eine GL-Person reicht</option>
                 <option value="alle" ${_cfgEdit.freigabeSchwelle === 'alle' ? 'selected' : ''}>alle GL-Personen</option>
               </select></div>
-            <div class="form-group full"><label>Genehmigungs-Mails</label>
-              <select onchange="_cfgEdit.genehmigungPA=(this.value==='pa')">
-                <option value="app" ${!_cfgEdit.genehmigungPA ? 'selected' : ''}>Aus der App versenden (Standard)</option>
-                <option value="pa" ${_cfgEdit.genehmigungPA ? 'selected' : ''}>Über Power Automate (App-Mails aus)</option>
+            <div class="form-group full"><label>Genehmigung über Power Automate</label>
+              <select onchange="cfgSetPAScope(this.value)">
+                <option value="aus"  ${_cfgEdit.genehmigungPAScope === 'aus' || (!_cfgEdit.genehmigungPAScope && !_cfgEdit.genehmigungPA) ? 'selected' : ''}>Aus – App versendet die Mails (Standard)</option>
+                <option value="gl"   ${_cfgEdit.genehmigungPAScope === 'gl' ? 'selected' : ''}>Nur Freigabe (Geschäftsleitung) über Power Automate</option>
+                <option value="alle" ${_cfgEdit.genehmigungPAScope === 'alle' || (!_cfgEdit.genehmigungPAScope && _cfgEdit.genehmigungPA) ? 'selected' : ''}>Prüfung + Freigabe über Power Automate</option>
               </select></div>
           </div>
-          <div class="field-hint" style="margin-top:10px">„Über Power Automate" schaltet die <b>App-Hinweis-Mails</b> an Prüfer/Geschäftsleitung ab – die Genehmigung läuft dann über den Power-Automate-Flow (direkt in Outlook bestätigen). Siehe <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>.</div>
+          <div class="field-hint" style="margin-top:10px">Legt fest, welche Etappen per <b>actionable Outlook-Mail</b> (Genehmigen/Ablehnen ohne Portal) über Power Automate laufen. Für die betroffene Etappe schaltet die App ihre eigene Hinweis-Mail ab. <b>Nur Freigabe (GL)</b>: Prüfer/Mitbestimmung bleiben in der App, nur der letzte Schritt läuft über Power Automate. Siehe <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>.</div>
         </div>
       </div>
 
@@ -2143,6 +2151,13 @@ function mitSetBrMail(code, val) {
   if (!_cfgEdit.brMails || typeof _cfgEdit.brMails !== 'object' || Array.isArray(_cfgEdit.brMails)) _cfgEdit.brMails = {};
   const v = String(val || '').trim();
   if (v) _cfgEdit.brMails[code] = v; else delete _cfgEdit.brMails[code];
+}
+
+/** Umfang der Power-Automate-Genehmigung setzen (+ Legacy-Boolean spiegeln). */
+function cfgSetPAScope(v) {
+  const scope = (v === 'gl' || v === 'alle') ? v : 'aus';
+  _cfgEdit.genehmigungPAScope = scope;
+  _cfgEdit.genehmigungPA = scope !== 'aus';
 }
 
 async function saveCfg() {
