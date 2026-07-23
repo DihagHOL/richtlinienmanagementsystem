@@ -134,7 +134,10 @@ function openProposalDrawer(id) {
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div style="padding:18px 20px">
-      ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin-bottom:14px">📄 Dokument öffnen ↗</a>` : ''}
+      ${p.link ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenOffice('${esc(p.id)}')" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
+        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenWeb('${esc(p.id)}')" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>
+      </div>` : ''}
       ${p.empfaenger ? `<div style="margin-bottom:12px"><div class="field-hint">Benachrichtigt (E-Mail)</div><div style="font-weight:600;font-size:.85rem">${esc(p.empfaenger)}</div></div>` : ''}
       ${p.betreff ? `<div style="margin-bottom:12px"><div class="field-hint">Abschnitt / Betreff</div><div style="font-weight:600">${esc(p.betreff)}</div></div>` : ''}
       <div style="margin-bottom:12px"><div class="field-hint">Vorgeschlagene Änderung</div>
@@ -156,6 +159,30 @@ function openProposalDrawer(id) {
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
       ${canEdit ? `<button class="btn btn-primary" id="prop-edit-btn" onclick="saveProposalEdit('${esc(p.id)}')">Speichern</button>` : ''}
     </div>`);
+}
+
+/* Dokument-Link eines Vorschlags. */
+function _propLink(id) { const p = (_proposals || []).find(x => String(x.id) === String(id)); return p ? (p.link || '') : ''; }
+
+/** Betroffenes Dokument im Desktop-Office öffnen (Vorschlags-Drawer). */
+function proposalDrawerOpenOffice(id) {
+  const u = _propLink(id);
+  if (!u) { toast('Kein Dokument-Link hinterlegt.', 'error'); return; }
+  const clean = u.split('?')[0];
+  const scheme = (typeof _policyOfficeScheme === 'function' && _policyOfficeScheme(clean)) || 'ms-word';
+  window.location.href = `${scheme}:ofe|u|${u}`;
+  toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser öffnen" nutzen.');
+}
+
+/** Betroffenes Dokument in SharePoint/Office-Web öffnen (Vorschlags-Drawer). */
+function proposalDrawerOpenWeb(id) {
+  let u = _propLink(id);
+  if (!u) { toast('Kein Dokument-Link hinterlegt.', 'error'); return; }
+  if (/Doc\.aspx/i.test(u)) {
+    u = u.replace(/([?&])action=[^&]*/i, '$1action=edit');
+    if (!/[?&]action=/i.test(u)) u += (u.includes('?') ? '&' : '?') + 'action=edit';
+  }
+  window.open(u, '_blank', 'noopener');
 }
 
 async function saveProposalEdit(id) {

@@ -609,3 +609,26 @@ function openModal(html, wide = false) {
 function closeModal() {
   document.getElementById('modal-mount').innerHTML = '';
 }
+
+/* App-eigener Bestätigungsdialog (statt Browser-„Ja/Nein"). @returns Promise<boolean> */
+let _uiConfirmResolve = null;
+function uiConfirm(message, opts = {}) {
+  return new Promise(resolve => {
+    _uiConfirmResolve = resolve;
+    const ok = opts.okLabel || 'Ja';
+    const cancel = opts.cancelLabel || 'Abbrechen';
+    openModal(`
+      <div class="modal-header"><h3>${esc(opts.title || 'Bestätigen')}</h3>
+        <button class="modal-close" onclick="uiConfirmResolve(false)">×</button></div>
+      <div class="modal-body"><p style="line-height:1.55;margin:0">${esc(message)}</p></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="uiConfirmResolve(false)">${esc(cancel)}</button>
+        <button class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" onclick="uiConfirmResolve(true)">${esc(ok)}</button>
+      </div>`);
+  });
+}
+function uiConfirmResolve(v) {
+  const r = _uiConfirmResolve; _uiConfirmResolve = null;
+  closeModal();
+  if (r) r(v);
+}

@@ -309,6 +309,43 @@ function policyEditWeb() {
   toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
 }
 
+/* ── Richtliniendokument aus einer Karte öffnen (Prüfung/Freigabe) – per Policy-ID ── */
+function _policyById(id) { return (State.policies || []).find(p => String(p.id) === String(id)); }
+
+/** Dokument der Richtlinie im Desktop-Office öffnen (Karte). */
+async function policyCardOpenOffice(id) {
+  const p = _policyById(id);
+  if (!p) return;
+  const scheme = _policyOfficeScheme(p.dokumentName || p.dokumentUrl);
+  if (!scheme || !p.dokumentDriveId || !p.dokumentItemId) { policyCardOpenWeb(id); return; }
+  toast('Datei-URL wird ermittelt …');
+  let fileUrl = '';
+  try { fileUrl = await spGetDirectFileUrl(p.dokumentDriveId, p.dokumentItemId); } catch (e) { fileUrl = ''; }
+  if (fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;
+    toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser öffnen" nutzen.');
+  } else { policyCardOpenWeb(id); }
+}
+
+/** Dokument der Richtlinie in SharePoint/Office-Web öffnen (Karte). */
+function policyCardOpenWeb(id) {
+  const p = _policyById(id);
+  if (!p || !p.dokumentUrl) { toast('Diesem Eintrag ist kein Dokument zugeordnet.', 'error'); return; }
+  let u = p.dokumentUrl;
+  if (/Doc\.aspx/i.test(u)) {
+    u = u.replace(/([?&])action=[^&]*/i, '$1action=edit');
+    if (!/[?&]action=/i.test(u)) u += (u.includes('?') ? '&' : '?') + 'action=edit';
+  }
+  window.open(u, '_blank', 'noopener');
+}
+
+/** Buttons „In Office / Im Browser öffnen" für eine Richtlinie (nur wenn ein Dokument hinterlegt ist). */
+function _policyOpenButtons(p) {
+  if (!p || !p.dokumentUrl) return '';
+  return `<button class="btn btn-outline btn-sm" onclick="policyCardOpenOffice('${esc(p.id)}')" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
+    <button class="btn btn-outline btn-sm" onclick="policyCardOpenWeb('${esc(p.id)}')" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>`;
+}
+
 function newPolicy() {
   return {
     id: null, title: '', beschreibung: '', kategorie: 'ISO 27001',
@@ -953,16 +990,16 @@ function focusPolicyCard(id) {
 function handleMailAction(id, aktion) {
   const p = State.policies.find(x => x.id === id);
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
-  setTimeout(() => {
+  setTimeout(async () => {
     if (aktion === 'konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
-      if (confirm(`„${p.title}" als KONFORM markieren?`)) markKonform(id, true);
+      if (await uiConfirm(`„${p.title}" als konform markieren?`, { title: 'Konformitätsprüfung', okLabel: 'Als konform markieren' })) markKonform(id, true);
     } else if (aktion === 'nicht_konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       markKonform(id, false);   // fragt anschließend nach der Anmerkung
     } else if (aktion === 'freigeben') {
       if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && !isCurrentUserGeschaeftsleitungForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegte Geschäftsleitung darf freigeben.'); return; }
-      if (confirm(`„${p.title}" freigeben und veröffentlichen?`)) markFreigabe(id);
+      if (await uiConfirm(`„${p.title}" freigeben und veröffentlichen?`, { title: 'Freigabe', okLabel: 'Freigeben & veröffentlichen' })) markFreigabe(id);
     } else if (aktion === 'zurueck') {
       markKonform(id, false);
     }
@@ -1000,6 +1037,7 @@ function pruefCardHtml(p) {
     ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannPruefen ? `
         <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Nicht konform</button>
@@ -1023,6 +1061,7 @@ function mitbestimmungCardHtml(p, kannHandeln) {
     ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung zur Mitbestimmung (z. B. „BR SHB zugestimmt am …") – optional') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannHandeln ? `
         <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)" title="Zurück in die Konformitätsprüfung">Zurück</button>
@@ -1043,6 +1082,7 @@ function freigabeCardHtml(p) {
     ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
+      ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
       ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (du)' : '✓ Freigeben'}</button>` : ''}
