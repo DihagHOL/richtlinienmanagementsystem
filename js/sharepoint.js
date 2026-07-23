@@ -1357,14 +1357,14 @@ async function spGetPolicyDocText(driveId, itemId) {
   if (!driveId || !itemId) return '';
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
-  const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size,@microsoft.graph.downloadUrl`, token);
+  const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size`, token);
   const name = (meta.name || '').toLowerCase();
   if (!/\.docx$/.test(name))
     throw new Error('Automatische Texterkennung nur für .docx möglich (Dokument: ' + (meta.name || '?') + '). Text bitte manuell einfügen.');
   if ((meta.size || 0) > 8 * 1024 * 1024) throw new Error('Dokument zu groß für die Texterkennung (> 8 MB).');
-  const url = meta['@microsoft.graph.downloadUrl'];
-  if (!url) throw new Error('Kein Download-Link für das Dokument.');
-  const resp = await fetch(url);
+  // Inhalt direkt über /content laden (robust, unabhängig von der downloadUrl-Annotation).
+  const resp = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`,
+    { headers: { Authorization: `Bearer ${token}` } });
   if (!resp.ok) throw new Error('Dokument-Download fehlgeschlagen (' + resp.status + ').');
   const buf = new Uint8Array(await resp.arrayBuffer());
   const xmlBytes = await _zipEntryBytes(buf, 'word/document.xml');

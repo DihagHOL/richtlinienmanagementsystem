@@ -257,7 +257,7 @@ async function runHealthCheck() {
       try {
         const metaResp = await fetch(
           `${SP.graphBase}/drives/${p.dokumentDriveId}/items/${p.dokumentItemId}` +
-          `?$select=name,size,file,@microsoft.graph.downloadUrl`,
+          `?$select=name,size,file`,
           { headers: { Authorization: `Bearer ${token}` } });
         if (!metaResp.ok) throw new Error('Graph ' + metaResp.status);
         const meta = await metaResp.json();
@@ -272,9 +272,13 @@ async function runHealthCheck() {
           res.findings.push({ sev: 'info', text: 'Dokument > 25 MB – Inhaltsprüfung übersprungen' });
           continue;
         }
-        const dl = meta['@microsoft.graph.downloadUrl'];
-        if (!dl) throw new Error('kein Download-Link');
-        const bytes = new Uint8Array(await (await fetch(dl)).arrayBuffer());
+        // Inhalt direkt über den /content-Endpunkt laden (robust, wie bei den ISMS-Dateien) –
+        // unabhängig von der @microsoft.graph.downloadUrl-Annotation, die manche Bibliotheken nicht liefern.
+        const contentResp = await fetch(
+          `${SP.graphBase}/drives/${p.dokumentDriveId}/items/${p.dokumentItemId}/content`,
+          { headers: { Authorization: `Bearer ${token}` } });
+        if (!contentResp.ok) throw new Error('Inhalt nicht ladbar (Graph ' + contentResp.status + ')');
+        const bytes = new Uint8Array(await contentResp.arrayBuffer());
         const xmlBytes = await hcExtractZipEntry(bytes, 'word/document.xml');
         if (!xmlBytes) {
           res.status = 'warn';
