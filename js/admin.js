@@ -937,6 +937,7 @@ function dpSelect(idx) {
 ═══════════════════════════════════════════════════ */
 
 let _freigabenScope = null;   // 'meine' | 'alle' (null → automatisch je nach Zuständigkeit)
+let _fgSecOpen = { pruef: true, mb: true, frei: true };   // ausklappbare Abschnitte im Freigaben-Reiter
 
 function renderFreigaben() {
   const list = document.getElementById('list-freigaben');
@@ -959,7 +960,16 @@ function renderFreigaben() {
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
     Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben – dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
   </div></div>`;
-  const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
+  // Ausklappbarer Abschnitt (Kopf klickbar).
+  const secBlock = (key, title, count, body) => {
+    const open = _fgSecOpen[key] !== false;
+    return `<div style="margin:14px 0 4px">
+      <div onclick="fgToggleSection('${key}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 2px">
+        <span style="width:1em">${open ? '▾' : '▸'}</span><span>${title} (${count})</span>
+      </div>
+      <div id="fg-sec-${key}" style="${open ? '' : 'display:none'}">${body}</div>
+    </div>`;
+  };
 
   const kannBR = istPruefer || istGL;   // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten
 
@@ -988,19 +998,28 @@ function renderFreigaben() {
 
   let html = prozess + toggle;
   if (istPruefer) {
-    html += sub('1 · Konformitätsprüfung', pruefList.length);
-    html += pruefList.length ? pruefList.map(p => pruefCardHtml(p)).join('') : leer('zur Prüfung');
+    html += secBlock('pruef', '1 · Konformitätsprüfung', pruefList.length,
+      pruefList.length ? pruefList.map(p => pruefCardHtml(p)).join('') : leer('zur Prüfung'));
   }
   if (kannBR) {
-    html += sub('1.5 · Mitbestimmung (Betriebsrat)', mbList.length);
-    html += mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : leer('in der Mitbestimmung');
+    html += secBlock('mb', '1.5 · Mitbestimmung (Betriebsverfassung)', mbList.length,
+      mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : leer('in der Mitbestimmung'));
   }
   if (istGL) {
-    html += sub('2 · Freigabe zur Veröffentlichung', freiList.length);
-    html += freiList.length ? freiList.map(p => freigabeCardHtml(p)).join('') : leer('zur Freigabe');
+    html += secBlock('frei', '2 · Freigabe (Geschäftsleitung)', freiList.length,
+      freiList.length ? freiList.map(p => freigabeCardHtml(p)).join('') : leer('zur Freigabe'));
   }
   if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Du bist weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
   list.innerHTML = html;
+}
+
+/** Abschnitt im Freigaben-Reiter ein-/ausklappen. */
+function fgToggleSection(key) {
+  _fgSecOpen[key] = _fgSecOpen[key] === false ? true : false;
+  const body = document.getElementById('fg-sec-' + key);
+  if (body) body.style.display = _fgSecOpen[key] ? '' : 'none';
+  const caret = body && body.previousElementSibling && body.previousElementSibling.querySelector('span');
+  if (caret) caret.textContent = _fgSecOpen[key] ? '▾' : '▸';
 }
 
 /** Umschalten zwischen „mir zugewiesen" und „alle Vorgänge" im Freigaben-Reiter. */
@@ -1068,7 +1087,6 @@ function pruefCardHtml(p) {
     ${_votesHtml(p)}
     ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannPruefen ? `
@@ -1089,16 +1107,15 @@ function mitbestimmungCardHtml(p, kannHandeln) {
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span>
       <span class="ic-tag" style="background:#eef2ff;color:#3730a3">🏛️ Betroffen: ${esc(betroffen || '–')}</span></div>
     ${_votesHtml(p)}
-    <div class="field-hint" style="margin-top:8px">Die Richtlinie ist konform und wurde zur Mitbestimmungsprüfung an ${ziel || 'die Mitbestimmung'} gesendet. Nach Beteiligung des Betriebsrats hier dokumentieren – dann geht sie zur GL-Freigabe.</div>
-    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung zur Mitbestimmung (z. B. „BR SHB zugestimmt am …") – optional') : ''}
+    <div class="field-hint" style="margin-top:8px">Das Regelwerk ist konform und wurde zur Mitbestimmungsprüfung an ${ziel || 'die Mitbestimmung'} gesendet. Nach Beteiligung des Betriebsrats hier entscheiden: <b>Konform</b> (weiter) oder <b>Nicht konform</b> (mit Begründung, zurück in die Prüfung).</div>
+    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional (z. B. „BR SHB zugestimmt am …") …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannHandeln ? `
-        <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)" title="Zurück in die Konformitätsprüfung">Zurück</button>
         <button class="btn btn-outline btn-sm" onclick="resendMitbestimmung('${p.id}')" title="Mitbestimmungs-Mail an KBR/BR erneut senden">✉ Erneut an BR senden</button>
-        <button class="btn btn-success btn-sm" onclick="markMitbestimmung('${p.id}')">✓ Mitbestimmung dokumentiert → Freigabe</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="markMitbestimmung('${p.id}',false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markMitbestimmung('${p.id}',true)">Konform</button>` : ''}
     </div>
   </div>`;
 }
@@ -1113,7 +1130,6 @@ function freigabeCardHtml(p) {
     ${_votesHtml(p)}
     ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-outline btn-sm" onclick="previewPolicyDoc('${p.id}')">📄 Dokument ansehen</button>
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
@@ -1198,24 +1214,34 @@ async function _ismsWriteback(p, kind) {
   } catch (e) { console.warn('[wf] ISMS-Rückschreiben (' + kind + ') fehlgeschlagen:', e.message); }
 }
 
-/** Mitbestimmung (Betriebsrat) dokumentieren → Richtlinie geht weiter zur GL-Freigabe. */
-async function markMitbestimmung(policyId) {
+/** Mitbestimmung (Betriebsverfassung) entscheiden – wie die Konformitätsprüfung:
+ *  konform → weiter zur GL-Freigabe; nicht konform (mit Pflicht-Begründung) → zurück in die Prüfung. */
+async function markMitbestimmung(policyId, konform) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
   if (!p) return;
   const field = document.getElementById('fg-kom-' + policyId);
-  const anmerkung = (field ? field.value : '').trim();
+  let anmerkung = (field ? field.value : '').trim();
+  if (!konform && !anmerkung) {
+    if (field) {
+      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      field.style.borderColor = '#ef4444'; field.focus();
+      return;
+    }
+    anmerkung = (prompt('Anmerkung (warum lehnt die Mitbestimmung ab)? – Pflicht:') || '').trim();
+    if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
+  }
   p.mitbestimmung = {
-    bestaetigt: true,
+    bestaetigt: !!konform, konform: !!konform,
     upn: State.user.upn, name: State.user.name,
     datum: new Date().toISOString(), anmerkung,
   };
-  p.status = 'Freigabe';   // Betriebsrat beteiligt/dokumentiert → weiter zur Geschäftsleitung
+  p.status = konform ? 'Freigabe' : 'Konformitätsprüfung';   // konform → GL-Freigabe; sonst zurück
   try {
     await spSavePolicy(p);
     await reloadData();
     renderFreigaben();
-    toast('Mitbestimmung dokumentiert – geht jetzt zur Freigabe ✓', 'success');
-    notifyGL(p);
+    toast(konform ? 'Mitbestimmung konform – geht jetzt zur Freigabe ✓' : 'Mitbestimmung: nicht konform – zurück in die Prüfung.', konform ? 'success' : 'error');
+    if (konform) notifyGL(p);
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 

@@ -422,7 +422,7 @@ async function openIsmsDoc(itemId) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="proposeIsmsChange('${esc(d.driveItemId)}')">✏️ Änderung vorschlagen</button>
-      <button class="btn btn-ghost" onclick="ismsToRichtlinie('${esc(d.driveItemId)}')">＋ Als Richtlinie übernehmen</button>
+      <button class="btn btn-ghost" onclick="ismsToRichtlinie('${esc(d.driveItemId)}')">＋ Als Regelwerk übernehmen</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
       ${editCols.length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta('${esc(d.itemId)}')">Metadaten speichern</button>` : ''}

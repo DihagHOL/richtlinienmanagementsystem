@@ -20,8 +20,8 @@ const State = {
 const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
-  meine: 'Meine Richtlinien', detail: 'Richtlinie', quiz: 'Wissenstest', kurse: 'Kurse',
-  cockpit: 'Cockpit', verwaltung: 'Richtlinien Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
+  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', kurse: 'Kurse',
+  cockpit: 'Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 

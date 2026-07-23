@@ -154,7 +154,7 @@ function openGovernanceDoc(driveItemId) {
       ${!canWrite ? `<div class="field-hint" style="margin-top:6px">👁 Nur Lesezugriff auf „Governance-Board" – Übernahme als Richtlinie ist gesperrt.</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${canWrite ? `<button class="btn btn-ghost" onclick="govToRichtlinie('${esc(d.driveItemId)}')">＋ Als Richtlinie übernehmen</button>` : ''}
+      ${canWrite ? `<button class="btn btn-ghost" onclick="govToRichtlinie('${esc(d.driveItemId)}')">＋ Als Regelwerk übernehmen</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
     </div>`, true);
