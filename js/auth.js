@@ -18,6 +18,17 @@ const _AUTH = {
   redirectUri: _redirectBase(),
 };
 
+// Alle benötigten Scopes bereits beim Login anfordern (wie ZAPP) → Consent einmalig,
+// danach liefert acquireTokenSilent alles ohne weitere Rückfrage. Kein select_account
+// erzwingen → angemeldete DIHAG-Nutzer melden sich per SSO stumm an (keine „Ja/Nein"-Fenster).
+const _LOGIN_SCOPES = [
+  'User.Read',
+  'Sites.ReadWrite.All',
+  'Files.ReadWrite.All',
+  'User.Read.All',
+  'Mail.Send',
+];
+
 let _msal = null;
 let _account = null;
 let _postAuthCb = null;
@@ -62,10 +73,11 @@ async function authInit() {
   const accounts = _msal.getAllAccounts();
 
   if (!_account && accounts.length === 0) {
-    // Nicht angemeldet → Microsoft-Login starten (state = Rückkehrpfad)
+    // Nicht angemeldet → Microsoft-Login starten. Alle Scopes gleich mitanfordern
+    // (Consent einmalig) und KEIN prompt:'select_account' → stiller SSO-Login,
+    // wenn bereits eine Microsoft-365-Sitzung besteht (keine „Ja/Nein"-Rückfrage).
     await _msal.loginRedirect({
-      scopes: ['User.Read'],
-      prompt: 'select_account',
+      scopes: _LOGIN_SCOPES,
       state:  location.pathname + location.search,
     });
     return;
