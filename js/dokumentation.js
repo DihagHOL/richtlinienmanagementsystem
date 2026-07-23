@@ -45,6 +45,7 @@ const _DOKU_TOC = [
   ['risiken',       'Risiko-Register'],
   ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
+  ['prozesse',      'Prozesse (BPMN 2.0)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
@@ -173,7 +174,21 @@ function _dokuSections() {
         <li style="${li}">Kommentare/Voten erscheinen im Verlauf der Karte.</li>
       </ul>
       <div style="${h3}">Direkt aus der E-Mail entscheiden</div>
-      <p style="margin:0;line-height:1.55">Prüf- und Freigabe-Mails enthalten Buttons <b>„✓ Konform / ✗ Nicht konform"</b> bzw. <b>„✓ Freigeben / ✗ Zurück"</b>. Ein Klick öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>App-Mails (Standard):</b> Prüf- und Freigabe-Mails enthalten Buttons <b>„✓ Konform / ✗ Nicht konform"</b> bzw. <b>„✓ Freigeben / ✗ Zurück"</b>. Ein Klick öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus.</li>
+        <li style="${li}"><b>Power Automate (ohne Portal):</b> Alternativ läuft die Genehmigung als <b>actionable Outlook-Mail</b> – Genehmigen/Ablehnen wird <b>direkt in der Mail</b> geklickt, ganz ohne die App zu öffnen. In den Einstellungen je Etappe wählbar: <b>aus</b> · <b>nur Freigabe (Geschäftsleitung)</b> · <b>Prüfung + Freigabe</b>. Für die per Power Automate gesteuerte Etappe verschickt die App keine eigene Mail. In Outlook getroffene Freigaben erscheinen im <b>Audit Report</b> als eigenes Ereignis.</li>
+      </ul>
+      <div style="${h3}">Beispiel – eine neue Richtlinie von A bis Z</div>
+      <div style="background:var(--c-bg,#f8fafc);border:1px solid var(--c-border,#e5e7eb);border-radius:10px;padding:12px 14px;line-height:1.6">
+        <b>„Passwortrichtlinie v2.0"</b>, betrifft alle Werke, Mitbestimmung durch KBR + Werk SHB.
+        <ol style="${ol}">
+          <li style="${li}"><b>Anlegen:</b> Admin importiert die Word-Datei, setzt Zielgruppe „alle", Pflichtlektüre + Wissenstest, markiert im Editor <b>Konzernbetriebsrat</b> und Werk <b>SHB</b> als betroffen und klickt „Zur Konformitätsprüfung". → Status <b>Konformitätsprüfung</b>, der Prüfer (z. B. ISB) bekommt eine Mail.</li>
+          <li style="${li}"><b>Prüfung:</b> Der ISB klickt in der Mail „✓ Konform". Schwelle erreicht → weil Mitbestimmung betroffen ist, geht es <b>nicht</b> direkt zur Freigabe, sondern zu Status <b>Mitbestimmung (BR)</b>; KBR und BR-SHB erhalten automatisch das Dokument zur Mitbestimmung.</li>
+          <li style="${li}"><b>Mitbestimmung:</b> Nach Rückmeldung dokumentiert der Admin/ISB „✓ Mitbestimmung dokumentiert → Freigabe". → Status <b>Freigabe</b>, die Geschäftsleitung wird informiert.</li>
+          <li style="${li}"><b>Freigabe:</b> Ist Power Automate „nur Freigabe (GL)" aktiv, bekommt die GL eine <b>Outlook-Mail mit Genehmigen/Ablehnen</b> und klickt „Genehmigen" – <b>ohne Portalbesuch</b>. → Status <b>Veröffentlicht</b>, Zeitpunkt + Freigebende:r werden vermerkt.</li>
+          <li style="${li}"><b>Wirkung:</b> Alle Mitarbeitenden sehen die Richtlinie ab jetzt unter „Meine Richtlinien" als „offen" und müssen Kenntnisnahme + Wissenstest erledigen; die Erfüllungsquote läuft im <b>Audit Report</b> mit.</li>
+        </ol>
+      </div>
       <div style="${hint}">⏰ <b>Erinnerungen & Eskalation</b> laufen automatisch (GitHub-Cron): erst nach X Tagen, dann alle Y Tage, ab Z Tagen zusätzlich an den Ersatz-Empfänger. Die richtige Person je Richtlinie wird erinnert (pro-Richtlinie-Prüfer/-Freigeber bevorzugt).</div>`,
       'ISO 27001 A.5.1 (Genehmigung &amp; Überprüfung der Richtlinien), Klausel 7.5.2 (Erstellen/Freigeben), 5.3 (Rollen); NIS2 Art. 20 (Verantwortung der Leitung).'),
 
@@ -212,8 +227,15 @@ function _dokuSections() {
         <li style="${li}">Je Control: <b>anwendbar / ausgeschlossen</b>, <b>Umsetzungsstatus</b> (umgesetzt / teilweise / geplant / nicht umgesetzt) und <b>Begründung</b> – für <b>ausgeschlossene Controls ist die Begründung Pflicht</b>.</li>
         <li style="${li}">Die Richtlinien-Abdeckung wird je Control automatisch eingeblendet; <b>„⚡ Aus Abdeckung vorbelegen"</b> setzt alle noch offenen Controls auf anwendbar und leitet den Status aus der Abdeckung ab (gespeichert → umgesetzt, Review → geplant) – bereits Gepflegtes bleibt unangetastet.</li>
         <li style="${li}">Gespeichert wird versioniert (SoA-Version, wer, wann) in <code>soa-config.json</code>; Exporte: <b>🖨 SoA-Report</b> (das klassische Audit-Dokument) und <b>⬇ CSV</b>.</li>
+      </ul>
+      <div style="${h3}">Reifegrad IT/OT-Betrieb (dritter Modus im Reiter)</div>
+      <ul style="${ol}">
+        <li style="${li}">Gap-/Reifegrad-Bewertung des Betriebs-Katalogs <b>„IT und OT Betrieb"</b> je Maßnahme und Werk (DIHAG/EIS/DSO). Ampel: <b>🟢 funktioniert · 🟡 teilweise · 🔴 nicht gelebt · ⚪ keine Einschätzung</b> – Zelle anklicken zum Ändern.</li>
+        <li style="${li}">Beim ersten Öffnen sind die Ampeln aus dem Dokument <b>vorbelegt</b> (gilt zunächst gleich für alle Werke); prüfen, je Werk verfeinern und <b>💾 speichern</b>.</li>
+        <li style="${li}"><b>Selbst pflegbar:</b> eigene Maßnahmen je Thema <b>hinzufügen (+)</b> / <b>entfernen (✕)</b>, eigene <b>Themen</b> anlegen, Katalog-Maßnahmen ausblenden (reversibel über „↩ ausgeblendet").</li>
+        <li style="${li}">Kennzahlen (Handlungsbedarf 🔴/🟡, bewertet-Quote, Ampel je Werk/Thema), Filter nach Werk/Ampel/Suche und <b>⬇ CSV</b>-Export. Speicherung in <code>reifegrad-config.json</code>.</li>
       </ul>`,
-      'ISO 27001 Klausel 6.1.3 d) (Erklärung zur Anwendbarkeit – Pflichtdokument), 4.3 (Anwendungsbereich), Annex A (Controls); NIS2 Art. 21(2) (Maßnahmenkatalog).'),
+      'ISO 27001 Klausel 6.1.3 d) (Erklärung zur Anwendbarkeit – Pflichtdokument), 4.3 (Anwendungsbereich), Annex A (Controls); Reifegrad zusätzlich Klausel 8.1 (betriebliche Planung &amp; Steuerung), 9.1 (Bewertung); NIS2 Art. 21(2) (Maßnahmenkatalog).'),
 
     sec('faelligkeit', 'Fälligkeiten / Wiedervorlage', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Fälligkeiten"</b> bündelt die interne Überprüfung der Richtlinien anhand des Termins <b>„Nächste Überprüfung"</b> – <b>ISO 27001 A.5.1</b> verlangt die regelmäßige Überprüfung.</p>
@@ -226,18 +248,18 @@ function _dokuSections() {
       'ISO 27001 A.5.1 (regelmäßige Überprüfung der Richtlinien), Klausel 9.3/10.1 (Bewertung &amp; fortlaufende Verbesserung).'),
 
     sec('risiken', 'Risiko-Register', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Risiko-Register"</b>: vollständiges Informationssicherheits-Risikomanagement. Die SharePoint-Liste „Risiken" wird beim ersten Öffnen automatisch angelegt.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Risiko-Register"</b>: vollständiges Informationssicherheits-Risikomanagement nach <b>ISO 27001</b> und <b>NIS2</b> (Art. 21(2a)). Die SharePoint-Liste „Risiken" liegt auf der ISMS-Site und wird beim ersten Öffnen automatisch angelegt.</p>
       <div style="${h3}">Bewertung</div>
       <ul style="${ol}">
         <li style="${li}"><b>Brutto</b> (vor Maßnahmen) und <b>Netto/Restrisiko</b> (nach Maßnahmen), je <b>Eintrittswahrscheinlichkeit × Auswirkung (1–5)</b>. Stufen: Score <b>≥ 15 hoch</b>, <b>≥ 8 mittel</b>, sonst niedrig.</li>
         <li style="${li}"><b>5×5-Risikomatrix</b> (umschaltbar Brutto/Netto) zeigt die offenen Risiken je Zelle; Zellen-Klick filtert die Liste.</li>
-        <li style="${li}"><b>Schutzziele</b> (Vertraulichkeit/Integrität/Verfügbarkeit) je Risiko markierbar.</li>
+        <li style="${li}"><b>Schutzziele (CIA)</b> je Risiko markierbar – <b>C</b>onfidentiality / <b>I</b>ntegrity / <b>A</b>vailability (englisch).</li>
       </ul>
       <div style="${h3}">Behandlung &amp; Maßnahmen</div>
       <ul style="${ol}">
         <li style="${li}">Strategie <b>mitigieren / vermeiden / übertragen / akzeptieren</b> – bei <b>„akzeptieren" ist die Begründung Pflicht</b> (Risikoakzeptanz, 6.1.3 f).</li>
         <li style="${li}"><b>Maßnahmenplan</b> je Risiko: Maßnahme, Verantwortlicher, Frist, Status (offen / in Umsetzung / erledigt). Überfällige Fristen werden rot markiert.</li>
-        <li style="${li}"><b>Verknüpfungen</b> zu ISO-/NIS2-Controls (Normbezug-Katalog) und zu Richtlinien.</li>
+        <li style="${li}"><b>Verknüpfungen</b> zu ISO-/NIS2-Controls (Normbezug-Katalog), zu Richtlinien und zu betroffenen <b>Assets</b> aus der ISMS-Liste „Assets" (Auswahl mit Suche im Editor).</li>
         <li style="${li}"><b>Wiedervorlage-Termin</b> je Risiko + automatische <b>Historie</b> (wer hat wann angelegt/geändert).</li>
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron mailt <b>überfällige Maßnahmen und Risiko-Reviews</b> automatisch an die Admins (mit Direktlink). Exporte: <b>🖨 Risikobericht</b> (Druck/PDF) und <b>⬇ CSV</b>. Tipp: Statt Löschen besser „Status: geschlossen" – so bleibt der Audit-Trail erhalten.</div>`,
@@ -262,6 +284,28 @@ function _dokuSections() {
       </ul>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik) – gemeinsam mit der Konformitätsprüfung/Freigabe im RMS.'),
 
+    sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Richtlinien verknüpfen</b> („im Einklang mit den Richtlinien"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>+ Neuer Prozess</b> – leeres Diagramm im Modeler (Elemente aus der Palette ziehen).</li>
+        <li style="${li}"><b>⬆ Importieren</b> – eine vorhandene <b>.bpmn/.xml</b>-Datei einlesen und weiterbearbeiten.</li>
+        <li style="${li}"><b>✨ Aus Richtlinie</b> – erzeugt einen echten Prozessentwurf per <b>Texterkennung</b> aus dem verknüpften Word-Dokument der Richtlinie.</li>
+        <li style="${li}">Je Prozess wählbar, welche <b>Richtlinien</b> er umsetzt; die Verknüpfung wird in der BPMN-Datei mitgespeichert und auf den Karten angezeigt.</li>
+      </ul>
+      <div style="${h3}">„Aus Richtlinie" – so entsteht der Entwurf</div>
+      <ul style="${ol}">
+        <li style="${li}">Richtlinie wählen → die App liest den <b>Text des Word-Dokuments</b> aus (direkt im Browser, ohne Server/KI) und zeigt ihn <b>editierbar</b> an.</li>
+        <li style="${li}"><b>Nummerierte/aufgezählte Schritte</b> werden zu <b>Aufgaben</b>, Pfeile (→) trennen Schritte, <b>Entscheidungen</b> („…konform?", „…genehmigt?", Fragen) werden zu <b>Gateways</b> mit ja/nein-Zweig – inklusive fertigem Layout. Danach im Modeler frei anpassen und speichern.</li>
+      </ul>
+      <div style="${h3}">Beispiel</div>
+      <div style="background:var(--c-bg,#f8fafc);border:1px solid var(--c-border,#e5e7eb);border-radius:10px;padding:12px 14px;line-height:1.6">
+        Eine Beschaffungsrichtlinie enthält im Word-Dokument:
+        <div style="font-family:monospace;font-size:.82rem;margin:6px 0;color:var(--c-muted)">1. Antrag im System erfassen<br>2. Vorgesetzter: Antrag prüfen<br>3. Freigegeben?<br>4. Bestellung auslösen<br>5. Wareneingang dokumentieren</div>
+        „✨ Aus Richtlinie" erzeugt daraus: <b>Start → Aufgabe „Antrag erfassen" → Aufgabe „Vorgesetzter: Antrag prüfen" → Gateway „Freigegeben?"</b> (ja → „Bestellung auslösen" → „Wareneingang dokumentieren" → Ende; nein → „Abweichung behandeln" → Ende „Nachbessern"). Der Prozess ist automatisch mit der Richtlinie verknüpft.
+      </div>
+      <div style="${hint}">💡 Kein Word-Dokument verknüpft? Dann einfach den Prozesstext in das Feld einfügen – der Entwurf wird genauso erzeugt.</div>`,
+      'ISO 27001 A.5.37 (Dokumentierte Betriebsabläufe), Klausel 8.1 (Betriebliche Planung &amp; Steuerung); NIS2 Art. 21(2) (Verfahren &amp; Maßnahmen).'),
+
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),
 
@@ -270,9 +314,14 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>Gesamtübersicht</b> – wer welche Pflicht-Richtlinie erledigt hat (Soll/Ist je Richtlinie und Abteilung).</li>
         <li style="${li}"><b>Einzelne Richtlinie</b> – Detailliste je Mitarbeiter (Status, Datum, Quiz-Score).</li>
-        <li style="${li}"><b>Freigabe-Audit</b> – lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat: jede Konformitätsprüfung (konform/nicht konform, mit Anmerkung), jede Freigabe und jede Veröffentlichung, über alle Richtlinien hinweg (auch archivierte), neueste zuerst.</li>
+        <li style="${li}"><b>Freigabe-Audit</b> – lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat: jede Konformitätsprüfung (konform/nicht konform, mit Anmerkung), jede Freigabe und jede Veröffentlichung, über alle Richtlinien hinweg (auch archivierte), neueste zuerst. In Outlook (Power Automate) erteilte Freigaben erscheinen als eigenes Ereignis.</li>
       </ul>
-      <div class="field-hint">Alle drei Ansichten mit <b>CSV-Export</b>.</div>`,
+      <div class="field-hint">Alle drei Ansichten mit <b>CSV-Export</b>.</div>
+      <div style="${h3}">C-Level-Bericht (Management)</div>
+      <ul style="${ol}">
+        <li style="${li}">Button <b>„📧 C-Level-Bericht"</b> erstellt einen kompakten Management-Bericht: Gesamteinschätzung (🟢/🟡/🔴), die wesentlichen Kennzahlen (Richtlinien, Kenntnisnahme-Quote, Annex-A-/NIS2-Abdeckung, hohe Risiken, IT/OT-Reifegrad) und eine <b>Normkonformitäts-Prüfung nach ISO 27001 / NIS2</b> je Kapitel.</li>
+        <li style="${li}"><b>Vorschau</b> mit editierbarer Empfängerzeile, <b>🖨 Drucken/PDF</b> und <b>Senden</b>. Der Standard-Empfänger wird in den <b>Einstellungen → C-Level-Bericht</b> hinterlegt.</li>
+      </ul>`,
       'ISO 27001 Klausel 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung), A.6.3 (Schulung), A.5.36 (Einhaltung von Richtlinien); Freigabe-Audit zusätzlich A.5.1 (Genehmigung &amp; Überprüfung), Klausel 9.2 (internes Audit).'),
 
     sec('einstellungen', 'Einstellungen', 'admin', `
@@ -281,7 +330,9 @@ function _dokuSections() {
         <li style="${li}"><b>Rollen:</b> Admins, Genehmiger, Prüfer, Geschäftsleitung, KI-Gremium, ISMS-Verantwortliche und Vorschlags-Empfänger.</li>
         <li style="${li}"><b>Genehmigungs-Schwellen:</b> „konform/freigegeben, wenn alle zustimmen" oder „einer reicht" (global; je Richtlinie überschreibbar).</li>
         <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger.</li>
-        <li style="${li}"><b>Power Automate:</b> Ist der Modus aktiv, verschickt die App keine Prüf-/Freigabe-Mails – die Genehmigung läuft über den Power-Automate-Flow.</li>
+        <li style="${li}"><b>Mitbestimmung (KBR/BR):</b> Mailadresse des Konzernbetriebsrats und je Werk (SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA) für die Mitbestimmungsprüfung.</li>
+        <li style="${li}"><b>Power Automate (Genehmigung ohne Portal):</b> je Etappe wählbar – <b>aus</b> (App verschickt die Mails) · <b>nur Freigabe (Geschäftsleitung)</b> · <b>Prüfung + Freigabe</b>. Für die per Power Automate gesteuerte Etappe verschickt die App keine eigene Mail (Details in <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>).</li>
+        <li style="${li}"><b>C-Level-Bericht:</b> Empfängeradresse(n) für den Management-Bericht aus dem Audit Report.</li>
         <li style="${li}"><b>Reiter-Berechtigungen (Lesen/Schreiben):</b> Benutzer per E-Mail hinzufügen, dann je Reiter (z. B. Richtlinien Dashboard, Audit Report, Fälligkeiten) <b>Lesen/Schreiben per Häkchen</b> vergeben – <b>additiv</b> zu den Standardrechten, Admins haben immer Zugriff. „Nur Lesen" = Reiter sichtbar, aber Anlegen/Bearbeiten gesperrt; „Schreiben" schließt Lesen ein. „Einstellungen" bleibt Admins vorbehalten.</li>
       </ul>`,
       'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
