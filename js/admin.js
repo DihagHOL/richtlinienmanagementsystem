@@ -936,6 +936,8 @@ function dpSelect(idx) {
    Freigaben (Genehmiger)
 ═══════════════════════════════════════════════════ */
 
+let _freigabenScope = null;   // 'meine' | 'alle' (null → automatisch je nach Zuständigkeit)
+
 function renderFreigaben() {
   const list = document.getElementById('list-freigaben');
   if (!list) return;
@@ -960,21 +962,51 @@ function renderFreigaben() {
   const sub = (t, n) => `<div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 2px 8px">${t} (${n})</div>`;
 
   const kannBR = istPruefer || istGL;   // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten
-  let html = prozess;
+
+  // „Eigene" = für die jeweilige Richtlinie bin ich der zuständige Prüfer bzw. Freigeber.
+  const isMinePruef = p => typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p);
+  const isMineFrei  = p => typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p);
+  const meinePruef = inPruefung.filter(isMinePruef);
+  const meineFrei  = inFreigabe.filter(isMineFrei);
+  const meineMb    = inMitbestimmung.filter(p => isMinePruef(p) || isMineFrei(p));
+  const meineCount = meinePruef.length + meineMb.length + meineFrei.length;
+  const alleCount  = inPruefung.length + inMitbestimmung.length + inFreigabe.length;
+  // Standard: „mir zugewiesen", sobald es etwas für mich gibt – sonst „alle".
+  if (_freigabenScope !== 'meine' && _freigabenScope !== 'alle') _freigabenScope = meineCount ? 'meine' : 'alle';
+  const scope = _freigabenScope;
+  const eigen = scope === 'meine';
+  const pruefList = eigen ? meinePruef : inPruefung;
+  const mbList    = eigen ? meineMb    : inMitbestimmung;
+  const freiList  = eigen ? meineFrei  : inFreigabe;
+
+  const toggle = (istPruefer || istGL) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn btn-sm ${eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('meine')" title="Nur Vorgänge, für die du zuständig bist">👤 Mir zugewiesen (${meineCount})</button>
+    <button class="btn btn-sm ${!eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('alle')" title="Alle laufenden Vorgänge (Gesamtübersicht)">🗂 Alle Vorgänge (${alleCount})</button>
+  </div>` : '';
+
+  const leer = (was) => emptyState(eigen ? `Aktuell ist dir nichts ${was} zugewiesen.` : `Aktuell nichts ${was}.`, '✓');
+
+  let html = prozess + toggle;
   if (istPruefer) {
-    html += sub('1 · Konformitätsprüfung', inPruefung.length);
-    html += inPruefung.length ? inPruefung.map(p => pruefCardHtml(p)).join('') : emptyState('Aktuell nichts zu prüfen.', '✓');
+    html += sub('1 · Konformitätsprüfung', pruefList.length);
+    html += pruefList.length ? pruefList.map(p => pruefCardHtml(p)).join('') : leer('zur Prüfung');
   }
   if (kannBR) {
-    html += sub('1.5 · Mitbestimmung (Betriebsrat)', inMitbestimmung.length);
-    html += inMitbestimmung.length ? inMitbestimmung.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : emptyState('Aktuell nichts in der Mitbestimmung.', '✓');
+    html += sub('1.5 · Mitbestimmung (Betriebsrat)', mbList.length);
+    html += mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : leer('in der Mitbestimmung');
   }
   if (istGL) {
-    html += sub('2 · Freigabe zur Veröffentlichung', inFreigabe.length);
-    html += inFreigabe.length ? inFreigabe.map(p => freigabeCardHtml(p)).join('') : emptyState('Aktuell nichts freizugeben.', '✓');
+    html += sub('2 · Freigabe zur Veröffentlichung', freiList.length);
+    html += freiList.length ? freiList.map(p => freigabeCardHtml(p)).join('') : leer('zur Freigabe');
   }
   if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Du bist weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
   list.innerHTML = html;
+}
+
+/** Umschalten zwischen „mir zugewiesen" und „alle Vorgänge" im Freigaben-Reiter. */
+function setFreigabenScope(s) {
+  _freigabenScope = (s === 'alle') ? 'alle' : 'meine';
+  renderFreigaben();
 }
 
 /** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */

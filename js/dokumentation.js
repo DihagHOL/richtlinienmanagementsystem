@@ -153,6 +153,7 @@ function _dokuSections() {
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
       <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.5">Oben umschaltbar: <b>👤 Mir zugewiesen</b> (nur Vorgänge, für die du zuständiger Prüfer/Freigeber bist – deine To-dos) oder <b>🗂 Alle Vorgänge</b> (Gesamtübersicht aller laufenden Freigaben). Standard ist „Mir zugewiesen", sobald es etwas für dich gibt.</p>
       <div style="${h3}">Die Status einer Richtlinie</div>
       ${tbl([
         ['Entwurf', 'In Bearbeitung durch die Administration; noch nicht im Prüf-/Freigabeprozess.'],
