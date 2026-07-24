@@ -23,9 +23,10 @@ async function initGovernance() {
   try {
     _govDocs = [];
     _govLoading = true;
-    const final = await spGetGovDocs((partial) => { _govDocs = partial.slice(); renderGovernanceDocs(); });
+    const final = await spGetGovDocs((partial) => { _govDocs = partial.slice(); fillGovFolderFilter(); renderGovernanceDocs(); });
     _govDocs = final;
     _govLoading = false;
+    fillGovFolderFilter();
     renderGovernanceDocs();
   } catch (e) {
     _govLoading = false;
@@ -58,6 +59,19 @@ function _govIcon(name) {
   return '📄';
 }
 
+/** Ordner-Filter (neben der Suche) aus den geladenen Entwürfen befüllen – wie bei ISMS-Dokumenten.
+ *  Zeigt die Unterordner des Governance-Ordners; die aktuelle Auswahl bleibt beim Nachladen erhalten. */
+function fillGovFolderFilter() {
+  const sel = document.getElementById('filter-governance-folder');
+  if (!sel) return;
+  const prev = sel.value;
+  const folders = [...new Set((_govDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  sel.style.display = folders.length >= 1 ? '' : 'none';   // nur zeigen, wenn es Unterordner gibt
+  sel.innerHTML = '<option value="">Alle Ordner</option>' +
+    folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  if (prev && folders.includes(prev)) sel.value = prev;    // Auswahl über Re-Fill hinweg erhalten
+}
+
 let _govSort = { key: 'modified', dir: -1 };
 function sortGovDocs(key) {
   if (_govSort.key === key) _govSort.dir *= -1;
@@ -80,7 +94,10 @@ function renderGovernanceDocs() {
     return;
   }
 
+  const folder = document.getElementById('filter-governance-folder')?.value || '';
   let rows = all.slice();
+  // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z. B. „Anhänge/2024")
+  if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder).toLowerCase().includes(q));
 
   const sk = _govSort.key, dir = _govSort.dir;
