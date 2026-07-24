@@ -12,6 +12,9 @@ let _editing = null;          // aktuell bearbeitetes Regelwerk
 // Auf-/Zugeklappt-Zustand der Workflow-Abschnitte im Editor (bleibt über Re-Render erhalten)
 let _edSecOpen = { pruef: false, frei: false, mit: false };
 let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Regelwerk-Dashboard
+
+// Dokumentart eines Regelwerks (zentral – auch von den Konzepten genutzt)
+const REGELWERK_TYPEN = ['Handbuch', 'Richtlinie', 'Konzernrichtlinie', 'Konzernfachregelung', 'Arbeits-/Prozessanweisung', 'Leitfaden'];
 let _dpDrives = null;         // ISMS-Bibliotheken (Cache)
 let _dpState = null;          // Dokumentwähler-Navigation
 let _cfgEdit = null;          // Einstellungen-Entwurf
@@ -84,6 +87,7 @@ function renderAdminList() {
         <div class="ic-topright">${typeof healthBadge === 'function' ? healthBadge(p) : ''}${workflowBadge(p.status)}</div>
       </div>
       <div class="ic-tags">
+        ${p.regelwerkTyp ? `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(p.regelwerkTyp)}</span>` : ''}
         ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}
         <span class="ic-tag">v${esc(p.version)}</span>
         ${p.pflicht ? '<span class="ic-tag">Pflicht</span>' : '<span class="ic-tag">optional</span>'}
@@ -386,6 +390,7 @@ function newPolicy() {
   return {
     id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
+    regelwerkTyp: '',
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
@@ -424,6 +429,13 @@ function renderPolicyEditor() {
         <div class="form-group full">
           <label>Beschreibung</label>
           <textarea oninput="_editing.beschreibung=this.value" placeholder="Kurzbeschreibung / Geltungsbereich">${esc(p.beschreibung)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Typ (Dokumentart)</label>
+          <select onchange="_editing.regelwerkTyp=this.value">
+            <option value="">– bitte wählen –</option>
+            ${REGELWERK_TYPEN.map(t => `<option ${t === p.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+          </select>
         </div>
         <div class="form-group">
           <label>Kategorie</label>

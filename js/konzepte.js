@@ -26,6 +26,7 @@ function newKonzept() {
     title: '',
     beschreibung: '',
     kategorie: 'ISO 27001',
+    regelwerkTyp: '',             // Dokumentart (Handbuch, Richtlinie, …) – wird bei Annahme übernommen
     status: 'Entwurf',            // SP-Status-Spalte neutral halten (nicht für Konzepte genutzt)
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',   // optionaler Anhang (Entwurf/Skizze als Datei)
     konzept: {
@@ -113,6 +114,7 @@ function _konzeptCard(k, isGF, canWrite) {
         <div class="ic-topright">${konzeptStatusBadge(k)}</div>
       </div>
       <div class="ic-tags">
+        ${k.regelwerkTyp ? `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(k.regelwerkTyp)}</span>` : ''}
         ${k.kategorie ? `<span class="ic-tag cat">${esc(k.kategorie)}</span>` : ''}
         <span class="ic-tag">Prio: ${esc(konzeptPrioLabel(ko.prioritaet))}</span>
         ${k.dokumentName ? `<span class="ic-tag" title="${esc(k.dokumentName)}">📎 Anhang</span>` : ''}
@@ -160,6 +162,13 @@ function renderKonzeptEditor() {
         <div class="form-group full">
           <label>Arbeitstitel <span class="req">*</span></label>
           <input type="text" value="${esc(k.title)}" oninput="_kEditing.title=this.value" placeholder="z. B. Regelwerk zur Nutzung von KI">
+        </div>
+        <div class="form-group">
+          <label>Typ (Dokumentart)</label>
+          <select onchange="_kEditing.regelwerkTyp=this.value">
+            <option value="">– bitte wählen –</option>
+            ${(typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : []).map(t => `<option ${t === k.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+          </select>
         </div>
         <div class="form-group">
           <label>Kategorie</label>
@@ -376,6 +385,7 @@ async function konzeptDecide(id, decision) {
     const rw = newPolicy();
     rw.title = k.title;
     rw.kategorie = k.kategorie;
+    rw.regelwerkTyp = k.regelwerkTyp || '';   // Dokumentart aus dem Konzept übernehmen
     rw.beschreibung = _konzeptToBeschreibung(k);
     rw.status = 'Entwurf';
     // Anhang des Konzepts als Startdokument des Regelwerks übernehmen (falls vorhanden)

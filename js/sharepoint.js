@@ -80,6 +80,7 @@ const POLICY_COLUMNS = [
   { name: 'MitbestimmungJson',   typ: 'Mehrere Zeilen Text' },
   { name: 'Typ2',                typ: 'Auswahl (Regelwerk/Konzept)' },
   { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
+  { name: 'RegelwerkTyp',        typ: 'Einzelne Textzeile (oder Auswahl)' },
 ];
 
 /** Eine Spalte gilt als vorhanden, wenn ihr interner Name ODER ihr Anzeigename passt
@@ -364,6 +365,7 @@ function _mapPolicy(item) {
   return {
     typ,
     konzept: (konzept && typeof konzept === 'object') ? konzept : null,
+    regelwerkTyp: f[_policyFieldName('RegelwerkTyp')] || '',
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
@@ -440,6 +442,7 @@ async function spSavePolicy(p) {
     // brechen nicht, falls „Regelwerk" dort nicht als Auswahl hinterlegt ist.
     Typ2:                (p.typ === 'Konzept') ? 'Konzept' : '',
     KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
+    RegelwerkTyp:        p.regelwerkTyp || '',
   };
   // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
   // Regelwerke lassen Typ2 leer → gar nicht senden).
@@ -447,6 +450,7 @@ async function spSavePolicy(p) {
   if (!all.NaechsteReview)    delete all.NaechsteReview;
   if (!all.PruefungSeit)      delete all.PruefungSeit;
   if (!all.Typ2)              delete all.Typ2;
+  if (!all.RegelwerkTyp)      delete all.RegelwerkTyp;   // nur senden, wenn ein Typ gewählt ist
   // Auf tatsächliche interne Feldnamen abbilden (z. B. Anzeigename „Typ2" → interner Name)
   // und nur vorhandene Felder senden → keine 400er.
   const fields = {};
