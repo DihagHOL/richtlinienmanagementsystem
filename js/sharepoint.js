@@ -324,15 +324,16 @@ function _mapPolicy(item) {
       freigabeKonfig = { freigeber: Array.isArray(fk.freigeber) ? fk.freigeber : [], schwelle: (fk.schwelle === 'alle' || fk.schwelle === 'einer') ? fk.schwelle : '' };
     }
   } catch { freigabeKonfig = { freigeber: [], schwelle: '' }; }
-  let kbrBetroffen = false, mitbestimmungWerke = [], mitbestimmung = null;
+  let kbrBetroffen = false, mitbestimmungWerke = [], mitbestimmung = null, freigabeReihenfolge = 'gl_mb';
   try {
     if (f.MitbestimmungJson) {
       const mb = JSON.parse(f.MitbestimmungJson);
       kbrBetroffen = mb.kbrBetroffen === true;
       mitbestimmungWerke = Array.isArray(mb.werke) ? mb.werke : [];
       mitbestimmung = (mb.bestaetigung && typeof mb.bestaetigung === 'object') ? mb.bestaetigung : null;
+      freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
     }
-  } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; }
+  } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
   return {
     id:                  item.id,
     title:               f.Title || '',
@@ -361,6 +362,7 @@ function _mapPolicy(item) {
     kbrBetroffen,
     mitbestimmungWerke,
     mitbestimmung,
+    freigabeReihenfolge,
     pruefungSeit:        f.PruefungSeit || '',
     modifiedAt:          item.lastModifiedDateTime || '',
   };
@@ -403,7 +405,7 @@ async function spSavePolicy(p) {
     NormbezugJson:       JSON.stringify(p.normbezug || []),
     PruefKonfigJson:     JSON.stringify(p.pruefKonfig || { pruefer: [], schwelle: '' }),
     FreigabeKonfigJson:  JSON.stringify(p.freigabeKonfig || { freigeber: [], schwelle: '' }),
-    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [], bestaetigung: p.mitbestimmung || null }),
+    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [], bestaetigung: p.mitbestimmung || null, reihenfolge: (p.freigabeReihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb' }),
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))

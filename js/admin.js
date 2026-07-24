@@ -8,7 +8,9 @@
  */
 
 const AdminState = { members: null, allAcks: null, lastComplianceRows: null };
-let _editing = null;          // aktuell bearbeitete Richtlinie
+let _editing = null;          // aktuell bearbeitetes Regelwerk
+// Auf-/Zugeklappt-Zustand der Workflow-Abschnitte im Editor (bleibt über Re-Render erhalten)
+let _edSecOpen = { pruef: false, frei: false, mit: false };
 let _dpDrives = null;         // ISMS-Bibliotheken (Cache)
 let _dpState = null;          // Dokumentwähler-Navigation
 let _cfgEdit = null;          // Einstellungen-Entwurf
@@ -357,6 +359,7 @@ function newPolicy() {
     pruefKonfig: { pruefer: [], schwelle: '' },
     freigabeKonfig: { freigeber: [], schwelle: '' },
     kbrBetroffen: false, mitbestimmungWerke: [],
+    freigabeReihenfolge: 'gl_mb',   // 'gl_mb' = Freigabe vor Mitbestimmung (Standard), 'mb_gl' = Mitbestimmung vor Freigabe
   };
 }
 
@@ -375,7 +378,7 @@ function renderPolicyEditor() {
   const cats = ['ISO 27001', 'NIS2', 'ISMS allgemein', 'Datenschutz', 'IT-Sicherheit', 'Arbeitssicherheit', 'Allgemein'];
   const body = `
     <div class="modal-header">
-      <h3>${p.id ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'}</h3>
+      <h3>${p.id ? 'Regelwerk bearbeiten' : 'Neues Regelwerk'}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
@@ -447,9 +450,7 @@ function renderPolicyEditor() {
       </div>
       ${renderZielgruppenSection()}
       ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
-      ${renderPruefKonfigSection()}
-      ${renderFreigabeKonfigSection()}
-      ${renderMitbestimmungSection()}
+      ${renderWorkflowSections()}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -639,29 +640,114 @@ function nbClear() { _editing.normbezug = []; renderPolicyEditor(); }
 
 /* ── Konformitätsprüfer pro Richtlinie (optional, Fallback: global) ── */
 
-function renderPruefKonfigSection() {
+/* ═══════════════════════════════════════════════════
+   Workflow-Abschnitte im Editor (ausklappbar):
+   Konformitätsprüfung · Freigabe (GL) · Mitbestimmung (BR).
+   Die Reihenfolge von Freigabe ↔ Mitbestimmung ist pro Regelwerk
+   umschaltbar (_editing.freigabeReihenfolge: 'gl_mb' | 'mb_gl').
+═══════════════════════════════════════════════════ */
+
+function renderWorkflowSections() {
+  const p = _editing;
+  const order = (p.freigabeReihenfolge === 'mb_gl') ? ['mit', 'frei'] : ['frei', 'mit'];
+  const moveCtrls = (key) => {
+    const idx = order.indexOf(key);
+    const up = idx > 0, down = idx < order.length - 1;
+    return `<span onclick="event.stopPropagation()" style="display:inline-flex;gap:2px">
+      <button type="button" class="btn btn-ghost btn-sm" title="nach oben" ${up ? '' : 'disabled'}
+        onclick="event.stopPropagation();edSwapWorkflowOrder()" style="padding:1px 8px;line-height:1.2">▲</button>
+      <button type="button" class="btn btn-ghost btn-sm" title="nach unten" ${down ? '' : 'disabled'}
+        onclick="event.stopPropagation();edSwapWorkflowOrder()" style="padding:1px 8px;line-height:1.2">▼</button>
+    </span>`;
+  };
+  const blocks = {
+    frei: _edCollapsible('frei', 'Freigabe (Geschäftsleitung)', _edFreiBadge(), renderFreigabeKonfigInner(), moveCtrls('frei')),
+    mit:  _edCollapsible('mit', 'Mitbestimmung (Betriebsverfassung)', _edMitBadge(), renderMitbestimmungInner(), moveCtrls('mit')),
+  };
+  return `
+    <div style="margin-top:16px">
+      <div style="font-weight:700;font-size:.78rem;color:var(--c-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Freigabe-Workflow</div>
+      <div class="field-hint" style="margin-bottom:4px">Abschnitte per Klick auf die Kopfzeile aus-/einklappen. Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> mit ▲▼ tauschen – gilt nur für dieses Regelwerk.</div>
+      ${_edCollapsible('pruef', 'Konformitätsprüfung', _edPruefBadge(), renderPruefKonfigInner(), '')}
+      ${order.map(k => blocks[k]).join('')}
+    </div>`;
+}
+
+function _edCollapsible(key, title, badge, bodyInner, moveCtrls) {
+  const open = !!_edSecOpen[key];
+  return `
+    <div style="border:1px solid var(--c-border);border-radius:10px;overflow:hidden;margin-top:8px">
+      <div onclick="edToggleSection('${key}')" role="button" tabindex="0"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();edToggleSection('${key}')}"
+        style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open ? 'var(--c-primary-l)' : 'var(--c-bg)'};user-select:none">
+        <span style="width:12px;color:var(--c-primary);font-size:.8rem">${open ? '▾' : '▸'}</span>
+        <span style="font-weight:700;font-size:.9rem;color:var(--c-text)">${title}</span>
+        ${badge}
+        <span style="flex:1"></span>
+        ${moveCtrls || ''}
+      </div>
+      ${open ? `<div style="padding:14px 14px 4px">${bodyInner}</div>` : ''}
+    </div>`;
+}
+
+function _edBadge(text, kind) {
+  const map = {
+    global: ['var(--c-bg)', 'var(--c-muted)'],
+    custom: ['var(--c-primary-l)', 'var(--c-primary)'],
+    off:    ['var(--c-bg)', 'var(--c-muted)'],
+  };
+  const [bg, fg] = map[kind] || map.global;
+  return `<span style="font-size:.7rem;font-weight:600;padding:2px 9px;border-radius:999px;background:${bg};color:${fg};white-space:nowrap">${esc(text)}</span>`;
+}
+
+function _edPruefBadge() {
+  const n = ((_editing.pruefKonfig && _editing.pruefKonfig.pruefer) || []).length;
+  return n ? _edBadge(`${n} eigene Prüfer`, 'custom') : _edBadge('global', 'global');
+}
+function _edFreiBadge() {
+  const n = ((_editing.freigabeKonfig && _editing.freigabeKonfig.freigeber) || []).length;
+  return n ? _edBadge(`${n} eigene Freigeber`, 'custom') : _edBadge('global', 'global');
+}
+function _edMitBadge() {
+  const p = _editing;
+  const w = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke.length : 0;
+  if (!p.kbrBetroffen && !w) return _edBadge('nicht betroffen', 'off');
+  const parts = [];
+  if (p.kbrBetroffen) parts.push('KBR');
+  if (w) parts.push(`${w} Werk${w > 1 ? 'e' : ''}`);
+  return _edBadge(parts.join(' · '), 'custom');
+}
+
+function edToggleSection(key) {
+  _edSecOpen[key] = !_edSecOpen[key];
+  renderPolicyEditor();
+}
+
+function edSwapWorkflowOrder() {
+  _editing.freigabeReihenfolge = (_editing.freigabeReihenfolge === 'mb_gl') ? 'gl_mb' : 'mb_gl';
+  renderPolicyEditor();
+}
+
+function renderPruefKonfigInner() {
   const pk = _editing.pruefKonfig || (_editing.pruefKonfig = { pruefer: [], schwelle: '' });
   const global = (typeof getPruefer === 'function') ? getPruefer() : [];
   const gSchwelle = (typeof getKonformSchwelle === 'function') ? getKonformSchwelle() : 'alle';
   return `
-    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Konformitätsprüfung – nur für diese Richtlinie (optional)</div>
-      <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globalen</b> Prüfer/Schwelle aus den Einstellungen gelten. Trägst du hier Prüfer ein, gelten für diese Richtlinie <b>ausschließlich diese</b>.</div>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Prüfer (E-Mails, kommagetrennt)</label>
-          <input type="text" id="pk-pruefer" value="${esc((pk.pruefer || []).join(', '))}"
-            placeholder="z. B. it-sibe@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="pkSetPruefer(this.value)">
-          <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
-        </div>
-        <div class="form-group">
-          <label>„Konform", wenn …</label>
-          <select onchange="pkSetSchwelle(this.value)">
-            <option value="" ${!pk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
-            <option value="alle" ${pk.schwelle === 'alle' ? 'selected' : ''}>alle Prüfer zustimmen</option>
-            <option value="einer" ${pk.schwelle === 'einer' ? 'selected' : ''}>ein Prüfer reicht</option>
-          </select>
-        </div>
+    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globalen</b> Prüfer/Schwelle aus den Einstellungen gelten. Trägst du hier Prüfer ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Prüfer (E-Mails, kommagetrennt)</label>
+        <input type="text" id="pk-pruefer" value="${esc((pk.pruefer || []).join(', '))}"
+          placeholder="z. B. it-sibe@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="pkSetPruefer(this.value)">
+        <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
+      </div>
+      <div class="form-group">
+        <label>„Konform", wenn …</label>
+        <select onchange="pkSetSchwelle(this.value)">
+          <option value="" ${!pk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
+          <option value="alle" ${pk.schwelle === 'alle' ? 'selected' : ''}>alle Prüfer zustimmen</option>
+          <option value="einer" ${pk.schwelle === 'einer' ? 'selected' : ''}>ein Prüfer reicht</option>
+        </select>
       </div>
     </div>`;
 }
@@ -678,31 +764,28 @@ function pkSetSchwelle(v) {
   _editing.pruefKonfig.schwelle = (v === 'alle' || v === 'einer') ? v : '';
 }
 
-/* ── Freigabe (Geschäftsleitung) pro Richtlinie (optional, Fallback: global) ── */
+/* ── Freigabe (Geschäftsleitung) pro Regelwerk (optional, Fallback: global) ── */
 
-function renderFreigabeKonfigSection() {
+function renderFreigabeKonfigInner() {
   const fk = _editing.freigabeKonfig || (_editing.freigabeKonfig = { freigeber: [], schwelle: '' });
   const global = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
   const gSchwelle = (typeof getFreigabeSchwelle === 'function') ? getFreigabeSchwelle() : 'einer';
   return `
-    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Freigabe (Geschäftsleitung) – nur für diese Richtlinie (optional)</div>
-      <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globale</b> Geschäftsleitung/Schwelle aus den Einstellungen gilt. Trägst du hier Freigeber ein, gelten für diese Richtlinie <b>ausschließlich diese</b>.</div>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Freigeber (E-Mails, kommagetrennt)</label>
-          <input type="text" id="fk-freigeber" value="${esc((fk.freigeber || []).join(', '))}"
-            placeholder="z. B. gf@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="fkSetFreigeber(this.value)">
-          <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
-        </div>
-        <div class="form-group">
-          <label>„Freigegeben", wenn …</label>
-          <select onchange="fkSetSchwelle(this.value)">
-            <option value="" ${!fk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
-            <option value="alle" ${fk.schwelle === 'alle' ? 'selected' : ''}>alle Freigeber zustimmen</option>
-            <option value="einer" ${fk.schwelle === 'einer' ? 'selected' : ''}>ein Freigeber reicht</option>
-          </select>
-        </div>
+    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globale</b> Geschäftsleitung/Schwelle aus den Einstellungen gilt. Trägst du hier Freigeber ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Freigeber (E-Mails, kommagetrennt)</label>
+        <input type="text" id="fk-freigeber" value="${esc((fk.freigeber || []).join(', '))}"
+          placeholder="z. B. gf@dihag.com, ${esc(global[0] || 'name@dihag.com')}" oninput="fkSetFreigeber(this.value)">
+        <span class="field-hint">Global hinterlegt: ${global.length ? esc(global.join(', ')) : '– keine –'}</span>
+      </div>
+      <div class="form-group">
+        <label>„Freigegeben", wenn …</label>
+        <select onchange="fkSetSchwelle(this.value)">
+          <option value="" ${!fk.schwelle ? 'selected' : ''}>Global (${gSchwelle === 'alle' ? 'alle zustimmen' : 'einer reicht'})</option>
+          <option value="alle" ${fk.schwelle === 'alle' ? 'selected' : ''}>alle Freigeber zustimmen</option>
+          <option value="einer" ${fk.schwelle === 'einer' ? 'selected' : ''}>ein Freigeber reicht</option>
+        </select>
       </div>
     </div>`;
 }
@@ -720,33 +803,30 @@ function fkSetSchwelle(v) {
 }
 
 /* ── Mitbestimmung (Betriebsverfassung): KBR + Betriebsräte je Werk ──
-   Ist der KBR bzw. ein Werks-BR betroffen, geht die Richtlinie beim
+   Ist der KBR bzw. ein Werks-BR betroffen, geht das Regelwerk beim
    Einreichen zur Konformitätsprüfung zusätzlich zur Mitbestimmungsprüfung
    an die in den Einstellungen hinterlegten Mailadressen. */
-function renderMitbestimmungSection() {
+function renderMitbestimmungInner() {
   const p = _editing;
   const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
   const werkeList = (typeof MITBESTIMMUNG_WERKE !== 'undefined') ? MITBESTIMMUNG_WERKE : [];
   const kbrHinterlegt = (typeof getKbrMail === 'function') && getKbrMail();
   const brMails = (typeof getBrMails === 'function') ? getBrMails() : {};
   return `
-    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Mitbestimmung (Betriebsverfassung)</div>
-      <div class="field-hint" style="margin-bottom:10px">Ist die Mitbestimmung betroffen, wird die Richtlinie beim Einreichen zur Konformitätsprüfung zusätzlich zur Prüfung an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke gesendet (Mailadressen unter <b>Einstellungen → Mitbestimmung</b>).</div>
-      <label class="ack-check" style="font-weight:600;margin-bottom:8px">
-        <input type="checkbox" ${p.kbrBetroffen ? 'checked' : ''} onchange="_editing.kbrBetroffen=this.checked">
-        <span>Konzernbetriebsrat (KBR) betroffen${!kbrHinterlegt ? ' <span style="color:#b45309;font-weight:600">– keine KBR-Mail hinterlegt</span>' : ''}</span>
-      </label>
-      <div style="font-weight:500;font-size:.82rem;margin:8px 0 6px">Betroffene Betriebsräte (Werke)</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:2px 12px">
-        ${werkeList.map(code => {
-          const sel = werke.includes(code);
-          const fehlt = sel && !((brMails[code] || '').trim());
-          return `<label class="ack-check" style="font-weight:500">
-            <input type="checkbox" ${sel ? 'checked' : ''} onchange="mitEditorToggleWerk('${code}', this.checked)">
-            <span>${esc(code)}${fehlt ? ' <span style="color:#b45309">⚠</span>' : ''}</span></label>`;
-        }).join('')}
-      </div>
+    <div class="field-hint" style="margin-bottom:10px">Ist die Mitbestimmung betroffen, wird das Regelwerk beim Einreichen zur Konformitätsprüfung zusätzlich zur Prüfung an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke gesendet (Mailadressen unter <b>Einstellungen → Mitbestimmung</b>).</div>
+    <label class="ack-check" style="font-weight:600;margin-bottom:8px">
+      <input type="checkbox" ${p.kbrBetroffen ? 'checked' : ''} onchange="_editing.kbrBetroffen=this.checked;renderPolicyEditor()">
+      <span>Konzernbetriebsrat (KBR) betroffen${!kbrHinterlegt ? ' <span style="color:#b45309;font-weight:600">– keine KBR-Mail hinterlegt</span>' : ''}</span>
+    </label>
+    <div style="font-weight:500;font-size:.82rem;margin:8px 0 6px">Betroffene Betriebsräte (Werke)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:2px 12px">
+      ${werkeList.map(code => {
+        const sel = werke.includes(code);
+        const fehlt = sel && !((brMails[code] || '').trim());
+        return `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" ${sel ? 'checked' : ''} onchange="mitEditorToggleWerk('${code}', this.checked)">
+          <span>${esc(code)}${fehlt ? ' <span style="color:#b45309">⚠</span>' : ''}</span></label>`;
+      }).join('')}
     </div>`;
 }
 
@@ -754,6 +834,7 @@ function mitEditorToggleWerk(code, on) {
   if (!Array.isArray(_editing.mitbestimmungWerke)) _editing.mitbestimmungWerke = [];
   _editing.mitbestimmungWerke = _editing.mitbestimmungWerke.filter(x => x !== code);
   if (on) _editing.mitbestimmungWerke.push(code);
+  renderPolicyEditor();   // Badge „x Werke" aktualisieren
 }
 
 async function savePolicy(newStatus) {
@@ -1280,12 +1361,12 @@ async function notifyPruefer(p) {
     return;   // Power Automate verschickt die Genehmigungs-Mail
   }
   const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
-  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Richtlinie im Editor).', 'error'); return; }
+  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error'); return; }
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
-    await spSendMail(pruefer, `Neue Richtlinie zur Sichtung: ${p.title}`,
-      _wfMailHtml('Neue Richtlinie – bitte um Sichtung und ggf. Anmerkung', p,
-        'Bitte prüfe die Richtlinie auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
+    await spSendMail(pruefer, `Neues Regelwerk zur Sichtung: ${p.title}`,
+      _wfMailHtml('Neues Regelwerk – bitte um Sichtung und ggf. Anmerkung', p,
+        'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
         att ? att.name : '', 'pruefung'),
       att ? [att] : []);
     toast('Prüfer benachrichtigt ✓' + (att ? ' (mit Dokument)' : ''), 'success');
@@ -1300,9 +1381,9 @@ async function notifyGL(p) {
   if (!gl.length) return;
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
-    await spSendMail(gl, `Richtlinie zur Freigabe: ${p.title}`,
-      _wfMailHtml('Richtlinie ist konform – bitte um Freigabe', p,
-        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib die Richtlinie zur Veröffentlichung frei.',
+    await spSendMail(gl, `Regelwerk zur Freigabe: ${p.title}`,
+      _wfMailHtml('Regelwerk ist konform – bitte um Freigabe', p,
+        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
         att ? att.name : '', 'freigabe'),
       att ? [att] : []);
   } catch (e) { console.warn('GL-Mail:', e.message); }
