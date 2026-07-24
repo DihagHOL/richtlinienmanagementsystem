@@ -100,7 +100,7 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Die dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, Kurs, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -608,6 +608,54 @@ const RMS_PROCESS_SEEDS = [
 5. Maßnahmen festlegen und umsetzen
 6. Restrisiko bewerten
 7. Zur Wiedervorlage terminieren` },
+  { name: 'Kurs / Schulung (RMS)', steps: `
+1. Kurs anlegen
+2. Regelwerke dem Kurs zuordnen
+3. Kurs veröffentlichen
+4. Mitarbeiter: Kurs absolvieren
+5. Alle Regelwerke bestätigt?
+6. Teilnahme dokumentiert` },
+  { name: 'KI-System beantragen (RMS)', steps: `
+1. Mitarbeiter: KI-System-Antrag erfassen
+2. Risikoklasse einschätzen
+3. Antrag einreichen
+4. KI-Gremium: Antrag prüfen
+5. Genehmigt?
+6. KI-System freigeben und dokumentieren` },
+  { name: 'Dokument-Health-Check (RMS)', steps: `
+1. Dokumente-Prüfung starten
+2. Befunde sichten (Dubletten, Platzhalter, leere Kapitel)
+3. Handlungsbedarf?
+4. Dokument korrigieren (neue Version)
+5. Prüfung wiederholen
+6. Dokumente in Ordnung` },
+  { name: 'ISMS-Abdeckung & SoA (RMS)', steps: `
+1. ISO-27001-Controls sichten
+2. Abdeckung je Control bewerten
+3. Lücke vorhanden?
+4. Regelwerk/Maßnahme zuordnen
+5. Statement of Applicability (SoA) aktualisieren
+6. Abdeckung dokumentiert` },
+  { name: 'Fälligkeit / Wiedervorlage (RMS)', steps: `
+1. Wiedervorlage-Termine überwachen
+2. Review fällig?
+3. Regelwerk inhaltlich prüfen
+4. Aktualisierung nötig?
+5. Regelwerk aktualisieren (neue Version)
+6. Nächsten Review-Termin setzen` },
+  { name: 'Governance-Übernahme (RMS)', steps: `
+1. Legal: Entwurf im Governance-Board bearbeiten
+2. Entwurf finalisiert?
+3. Als Regelwerk übernehmen
+4. Zur Prüfung einreichen
+5. In den Regelwerk-Lebenszyklus überführen` },
+  { name: 'Audit-Report / C-Level (RMS)', steps: `
+1. Kennzahlen und Reifegrad zusammenstellen
+2. ISO-27001-Abgleich durchführen
+3. C-Level-Bericht erstellen
+4. Freigeben und versenden?
+5. Bericht per Mail an die Geschäftsleitung senden
+6. Bericht archiviert` },
 ];
 
 /** Die dokumentierten RMS-Abläufe als BPMN-Entwürfe anlegen (überspringt bereits vorhandene). */
