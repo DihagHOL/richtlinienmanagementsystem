@@ -46,6 +46,7 @@ const _sp = {
   ismsSiteId: null,
   ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
+  policyColumns: [],   // [{name, displayName}] – für Auflösung interner Namen (SharePoint benennt interne Namen bei Umbenennung NICHT um)
   ackFields: new Set(['Title']),
   courseFields: new Set(['Title']),
   ready: false,
@@ -81,9 +82,27 @@ const POLICY_COLUMNS = [
   { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
 ];
 
+/** Eine Spalte gilt als vorhanden, wenn ihr interner Name ODER ihr Anzeigename passt
+ *  (SharePoint ändert den internen Namen bei Umbenennung nicht – Anzeigename „Typ2"
+ *  kann also einen abweichenden internen Namen haben). Vergleich case-insensitiv. */
+function _policyHasColumn(expected) {
+  const want = String(expected).toLowerCase();
+  return (_sp.policyColumns || []).some(c =>
+    String(c.name).toLowerCase() === want || String(c.displayName || '').toLowerCase() === want);
+}
+
+/** Liefert den tatsächlichen internen Feldnamen zu einem erwarteten Namen
+ *  (per internem Namen oder Anzeigenamen). Fallback: der erwartete Name selbst. */
+function _policyFieldName(expected) {
+  const want = String(expected).toLowerCase();
+  const hit = (_sp.policyColumns || []).find(c =>
+    String(c.name).toLowerCase() === want || String(c.displayName || '').toLowerCase() === want);
+  return hit ? hit.name : expected;
+}
+
 /** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
 function spMissingPolicyColumns() {
-  return POLICY_COLUMNS.filter(c => !_sp.policyFields.has(c.name));
+  return POLICY_COLUMNS.filter(c => !_policyHasColumn(c.name));
 }
 
 /* Erwartete Spalten der Liste „Bestaetigungen". */
@@ -132,6 +151,7 @@ async function spInit() {
   // Spalten beider Listen (nur vorhandene Felder schreiben → keine 400er)
   try {
     const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/columns`, token);
+    _sp.policyColumns = (cols.value || []).map(c => ({ name: c.name, displayName: c.displayName || c.name }));
     (cols.value || []).forEach(c => _sp.policyFields.add(c.name));
   } catch (e) {
     console.warn('[sp] Spalten der Richtlinien-Liste nicht lesbar:', e.message);
@@ -336,9 +356,11 @@ function _mapPolicy(item) {
       freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
     }
   } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
-  const typ = (f.Typ2 === 'Konzept') ? 'Konzept' : 'Regelwerk';
+  const typVal = f[_policyFieldName('Typ2')];
+  const typ = (typVal === 'Konzept') ? 'Konzept' : 'Regelwerk';
   let konzept = null;
-  try { if (f.KonzeptJson) konzept = JSON.parse(f.KonzeptJson); } catch { konzept = null; }
+  const konzeptRaw = f[_policyFieldName('KonzeptJson')];
+  try { if (konzeptRaw) konzept = JSON.parse(konzeptRaw); } catch { konzept = null; }
   return {
     typ,
     konzept: (konzept && typeof konzept === 'object') ? konzept : null,
@@ -419,14 +441,19 @@ async function spSavePolicy(p) {
     Typ2:                (p.typ === 'Konzept') ? 'Konzept' : '',
     KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
   };
-  const fields = Object.fromEntries(
-    Object.entries(all).filter(([k]) => _sp.policyFields.has(k))
-  );
-  // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
-  if (!fields.VeroeffentlichtAm) delete fields.VeroeffentlichtAm;
-  if (!fields.NaechsteReview)    delete fields.NaechsteReview;
-  if (!fields.PruefungSeit)      delete fields.PruefungSeit;
-  if (!fields.Typ2)              delete fields.Typ2;   // Regelwerke: Feld gar nicht senden
+  // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
+  // Regelwerke lassen Typ2 leer → gar nicht senden).
+  if (!all.VeroeffentlichtAm) delete all.VeroeffentlichtAm;
+  if (!all.NaechsteReview)    delete all.NaechsteReview;
+  if (!all.PruefungSeit)      delete all.PruefungSeit;
+  if (!all.Typ2)              delete all.Typ2;
+  // Auf tatsächliche interne Feldnamen abbilden (z. B. Anzeigename „Typ2" → interner Name)
+  // und nur vorhandene Felder senden → keine 400er.
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    const actual = _policyFieldName(k);
+    if (_sp.policyFields.has(actual)) fields[actual] = v;
+  }
 
   if (p.id) {
     return _patch(
