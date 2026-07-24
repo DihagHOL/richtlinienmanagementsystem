@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#17509e;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
   // Deep-Link aus Mail (?richtlinie=… oder ?ansicht=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
-  if (/[?&](richtlinie|ansicht)=/.test(location.search)) {
+  if (/[?&](richtlinie|ansicht|konzept)=/.test(location.search)) {
     try { sessionStorage.setItem('rms_deeplink', location.search); } catch (e) {}
   }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
@@ -88,6 +88,23 @@ async function applyDeepLinkOrDefault() {
   try { search = sessionStorage.getItem('rms_deeplink') || location.search; } catch (e) { search = location.search; }
   try { sessionStorage.removeItem('rms_deeplink'); } catch (e) {}
   const params = new URLSearchParams(search);
+
+  // Konzept-Deeplink aus GF-Mail (?konzept=ID&aktion=annehmen|zurueckstellen|ablehnen)
+  const konzeptId = params.get('konzept');
+  if (konzeptId) {
+    const aktion = (params.get('aktion') || '').toLowerCase();
+    if (typeof canReadTab === 'function' && !canReadTab('verwaltung')) {
+      await switchView('meine');
+      toast('Für die Konzept-Prüfung fehlt dir der Zugriff auf das Regelwerk-Dashboard.');
+      return;
+    }
+    if (typeof handleKonzeptMailAction === 'function' || typeof renderKonzeptCards === 'function') _adminMode = 'konzepte';
+    await switchView('verwaltung');
+    if (aktion && typeof handleKonzeptMailAction === 'function') handleKonzeptMailAction(konzeptId, aktion);
+    else if (typeof focusKonzeptCard === 'function') focusKonzeptCard(konzeptId);
+    return;
+  }
+
   const deepId = params.get('richtlinie');
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {

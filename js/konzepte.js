@@ -107,7 +107,7 @@ function _konzeptCard(k, isGF, canWrite) {
   }
   const actionsRow = actions.length ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">${actions.join('')}</div>` : '';
   return `
-    <div class="item-card" onclick="openKonzeptEditor('${k.id}')">
+    <div class="item-card" id="konzept-${esc(k.id)}" onclick="openKonzeptEditor('${k.id}')">
       <div class="ic-top">
         <div class="ic-title">💡 ${esc(k.title)}</div>
         <div class="ic-topright">${konzeptStatusBadge(k)}</div>
@@ -415,6 +415,27 @@ function openPolicyFromKonzept(regelwerkId) {
   if (typeof openPolicyEditor === 'function') openPolicyEditor(regelwerkId);
 }
 
+/** Konzept-Karte hervorheben (Deep-Link ohne Aktion). */
+function focusKonzeptCard(id) {
+  const el = document.getElementById('konzept-' + id);
+  if (!el) { toast('Dieses Konzept ist gerade nicht in der Liste (evtl. schon entschieden).'); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('fg-highlight');
+  setTimeout(() => el.classList.remove('fg-highlight'), 4500);
+}
+
+/** Aus dem Mail-Button (?konzept=…&aktion=…): Entscheidung direkt ausführen (mit Rückfrage/Begründung). */
+function handleKonzeptMailAction(id, aktion) {
+  const k = (State.konzepte || []).find(x => x.id === id);
+  if (!k) { toast('Konzept nicht gefunden (evtl. schon entschieden).'); return; }
+  const map = { annehmen: 'angenommen', zurueckstellen: 'zurueckgestellt', zuruckstellen: 'zurueckgestellt', ablehnen: 'abgelehnt' };
+  const decision = map[String(aktion || '').toLowerCase()];
+  focusKonzeptCard(id);
+  if (!decision) return;
+  // kurz warten, damit die Liste sichtbar ist, dann Entscheidung (konzeptDecide prüft GF-Recht + fragt Begründung ab)
+  setTimeout(() => { konzeptDecide(id, decision); }, 500);
+}
+
 /* ── Mail an die Geschäftsleitung ── */
 
 async function notifyKonzeptGF(k) {
@@ -444,6 +465,12 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
     : (hasDoc
       ? `<p>📎 Ein Entwurf/Anhang${k.dokumentName ? ` (<b>${esc(k.dokumentName)}</b>)` : ''} ist im Konzept hinterlegt (zu groß für den E-Mail-Anhang) – bitte über den Button ansehen.</p>`
       : '');
+  const url = `${base}?konzept=${encodeURIComponent(k.id || '')}`;
+  const act = (a) => `${url}&aktion=${a}`;
+  const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
+  const actions = k.id
+    ? btn(act('annehmen'), '#16a34a', '✓ Annehmen → Regelwerk') + btn(act('zurueckstellen'), '#64748b', '⏸ Zurückstellen') + btn(act('ablehnen'), '#dc2626', '✗ Ablehnen')
+    : '';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>Neues Regelwerk-Konzept zur Prüfung durch die Geschäftsleitung</b></p>
     <p>Titel: <b>${esc(k.title)}</b>${k.kategorie ? ' (' + esc(k.kategorie) + ')' : ''}<br>
@@ -451,8 +478,9 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
     ${ko.motivation ? `<p><b>Warum?</b><br>${br(ko.motivation)}</p>` : ''}
     ${ko.skizze ? `<p><b>Wie könnte es aussehen?</b><br>${br(ko.skizze)}</p>` : ''}
     ${anhangZeile}
-    <p>Bitte im Regelwerk-Management prüfen und entscheiden – <b>Annehmen</b> (es entsteht ein Regelwerk-Entwurf), <b>Zurückstellen</b> oder <b>Ablehnen</b>:</p>
-    <p><a href="${esc(base)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
+    ${actions
+      ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>`
+      : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>`}
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet das Konzept in der App und führt die Entscheidung nach kurzer Rückfrage aus (Ablehnen/Zurückstellen mit Begründung; Anmeldung nötig, nur Geschäftsleitung). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
   </div>`;
 }
