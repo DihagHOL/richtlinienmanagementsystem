@@ -77,6 +77,8 @@ const POLICY_COLUMNS = [
   { name: 'PruefKonfigJson',     typ: 'Mehrere Zeilen Text' },
   { name: 'FreigabeKonfigJson',  typ: 'Mehrere Zeilen Text' },
   { name: 'MitbestimmungJson',   typ: 'Mehrere Zeilen Text' },
+  { name: 'Typ',                 typ: 'Auswahl (Regelwerk/Konzept)' },
+  { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
 ];
 
 /** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
@@ -334,7 +336,12 @@ function _mapPolicy(item) {
       freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
     }
   } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
+  const typ = (f.Typ === 'Konzept') ? 'Konzept' : 'Regelwerk';
+  let konzept = null;
+  try { if (f.KonzeptJson) konzept = JSON.parse(f.KonzeptJson); } catch { konzept = null; }
   return {
+    typ,
+    konzept: (konzept && typeof konzept === 'object') ? konzept : null,
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
@@ -406,6 +413,8 @@ async function spSavePolicy(p) {
     PruefKonfigJson:     JSON.stringify(p.pruefKonfig || { pruefer: [], schwelle: '' }),
     FreigabeKonfigJson:  JSON.stringify(p.freigabeKonfig || { freigeber: [], schwelle: '' }),
     MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [], bestaetigung: p.mitbestimmung || null, reihenfolge: (p.freigabeReihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb' }),
+    Typ:                 (p.typ === 'Konzept') ? 'Konzept' : 'Regelwerk',
+    KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
   };
   const fields = Object.fromEntries(
     Object.entries(all).filter(([k]) => _sp.policyFields.has(k))

@@ -11,6 +11,7 @@ const AdminState = { members: null, allAcks: null, lastComplianceRows: null };
 let _editing = null;          // aktuell bearbeitetes Regelwerk
 // Auf-/Zugeklappt-Zustand der Workflow-Abschnitte im Editor (bleibt über Re-Render erhalten)
 let _edSecOpen = { pruef: false, frei: false, mit: false };
+let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Regelwerk-Dashboard
 let _dpDrives = null;         // ISMS-Bibliotheken (Cache)
 let _dpState = null;          // Dokumentwähler-Navigation
 let _cfgEdit = null;          // Einstellungen-Entwurf
@@ -19,14 +20,34 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
    Verwaltung: Liste
 ═══════════════════════════════════════════════════ */
 
+function setAdminMode(mode) {
+  _adminMode = (mode === 'konzepte') ? 'konzepte' : 'regelwerke';
+  renderAdminList();
+}
+
+/** Segmentierter Umschalter Regelwerke ↔ Konzepte (mit Zählern). */
+function _adminModeBar() {
+  const seg = (m, label, count) => {
+    const on = _adminMode === m;
+    return `<button type="button" onclick="setAdminMode('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label} <span style="opacity:.85;font-weight:500">${count}</span></button>`;
+  };
+  const nKon = (State.konzepte || []).length;
+  return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
+    ${seg('regelwerke', 'Regelwerke', (State.policies || []).length)}${seg('konzepte', '💡 Konzepte', nKon)}</div>`;
+}
+
 function renderAdminList() {
   const list = document.getElementById('list-admin');
   if (!list) return;
   // Nur-Lese-Zugriff (Reiter-Berechtigung): Anlegen ausblenden, Hinweis zeigen.
   const readOnly = typeof isReadOnlyTab === 'function' && isReadOnlyTab('verwaltung');
   const newBtn = document.getElementById('btn-new-policy');
+  const konzeptBtn = document.getElementById('btn-new-konzept');
+  const filterEl = document.getElementById('filter-admin');
+  const healthBtn = document.getElementById('btn-health');
   if (newBtn) newBtn.style.display = readOnly ? 'none' : '';
-  const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Richtlinien Dashboard" – Anlegen und Bearbeiten sind gesperrt.</div>` : '';
+  if (konzeptBtn) konzeptBtn.style.display = readOnly ? 'none' : '';
+  const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Regelwerk Dashboard" – Anlegen und Bearbeiten sind gesperrt.</div>` : '';
   const _colBanner = (liste, miss) => miss.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
       Bitte in SharePoint anlegen: ${miss.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
@@ -35,15 +56,28 @@ function renderAdminList() {
     _colBanner('Richtlinien', (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : []) +
     _colBanner('Bestaetigungen', (typeof spMissingAckColumns === 'function') ? spMissingAckColumns() : []);
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
-  const f = document.getElementById('filter-admin')?.value || 'all';
+  const modeBar = _adminModeBar();
+
+  // Konzept-Modus: Status-Filter/Dokumentprüfung ausblenden, an konzepte.js delegieren.
+  if (_adminMode === 'konzepte') {
+    if (filterEl) filterEl.style.display = 'none';
+    if (healthBtn) healthBtn.style.display = 'none';
+    const inner = (typeof renderKonzeptCards === 'function') ? renderKonzeptCards(q) : '';
+    list.innerHTML = warn + modeBar + inner;
+    return;
+  }
+  if (filterEl) filterEl.style.display = '';
+  if (healthBtn) healthBtn.style.display = '';
+
+  const f = filterEl?.value || 'all';
   let rows = State.policies.slice();
   if (f !== 'all') rows = rows.filter(p => p.status === f);
   if (q) rows = rows.filter(p => (p.title + ' ' + p.kategorie).toLowerCase().includes(q));
   rows.sort((a, b) => (b.modifiedAt || '').localeCompare(a.modifiedAt || ''));
 
-  if (!rows.length) { list.innerHTML = warn + emptyState('Keine Richtlinien. Lege oben eine neue an.', '📄'); return; }
+  if (!rows.length) { list.innerHTML = warn + modeBar + emptyState('Keine Regelwerke. Lege oben eines neu an.', '📄'); return; }
 
-  list.innerHTML = warn + rows.map(p => `
+  list.innerHTML = warn + modeBar + rows.map(p => `
     <div class="item-card" onclick="openPolicyEditor('${p.id}')">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
@@ -350,7 +384,7 @@ function _policyOpenButtons(p) {
 
 function newPolicy() {
   return {
-    id: null, title: '', beschreibung: '', kategorie: 'ISO 27001',
+    id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],

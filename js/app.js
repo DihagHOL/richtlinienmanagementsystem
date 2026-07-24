@@ -9,7 +9,8 @@
 const State = {
   user: null,        // { upn, name }
   myRoles: [],       // effektive Unternehmensrollen (AD-Abteilung + manuell)
-  policies: [],      // alle Richtlinien (Admin sieht alle; Mitarbeiter-Filter clientseitig)
+  policies: [],      // alle Regelwerke (Admin sieht alle; Mitarbeiter-Filter clientseitig)
+  konzepte: [],      // Regelwerk-Konzepte (Typ='Konzept'); getrennt von den Regelwerken gehalten
   acks: [],          // Bestätigungen des aktuellen Users
   loaded: false,
   loadedAt: 0,       // Zeitstempel des letzten reloadData() – für den Daten-Cache
@@ -120,7 +121,9 @@ async function reloadData() {
     spGetPolicies(),
     spGetAcknowledgements(State.user.upn),
   ]);
-  State.policies = policies;
+  // Regelwerke und Konzepte trennen: bestehende Ansichten sehen nur echte Regelwerke.
+  State.policies = policies.filter(p => p.typ !== 'Konzept');
+  State.konzepte = policies.filter(p => p.typ === 'Konzept');
   State.acks = acks;
   State.loaded = true;
   State.loadedAt = Date.now();
@@ -629,6 +632,44 @@ function uiConfirm(message, opts = {}) {
 }
 function uiConfirmResolve(v) {
   const r = _uiConfirmResolve; _uiConfirmResolve = null;
+  closeModal();
+  if (r) r(v);
+}
+
+/* App-eigener Eingabedialog (statt Browser-„prompt"). @returns Promise<string|null> (null = abgebrochen) */
+let _uiPromptResolve = null;
+function uiPrompt(message, opts = {}) {
+  return new Promise(resolve => {
+    _uiPromptResolve = resolve;
+    const ok = opts.okLabel || 'OK';
+    const cancel = opts.cancelLabel || 'Abbrechen';
+    const multiline = opts.multiline !== false;
+    const field = multiline
+      ? `<textarea id="ui-prompt-input" style="width:100%;min-height:90px" placeholder="${esc(opts.placeholder || '')}">${esc(opts.value || '')}</textarea>`
+      : `<input type="text" id="ui-prompt-input" style="width:100%" placeholder="${esc(opts.placeholder || '')}" value="${esc(opts.value || '')}">`;
+    openModal(`
+      <div class="modal-header"><h3>${esc(opts.title || 'Eingabe')}</h3>
+        <button class="modal-close" onclick="uiPromptResolve(null)">×</button></div>
+      <div class="modal-body">
+        <p style="line-height:1.55;margin:0 0 10px">${esc(message)}</p>
+        ${field}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="uiPromptResolve(null)">${esc(cancel)}</button>
+        <button class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" onclick="uiPromptSubmit()">${esc(ok)}</button>
+      </div>`);
+    setTimeout(() => { const el = document.getElementById('ui-prompt-input'); if (el) el.focus(); }, 30);
+  });
+}
+function uiPromptSubmit() {
+  const el = document.getElementById('ui-prompt-input');
+  const v = el ? el.value : '';
+  const r = _uiPromptResolve; _uiPromptResolve = null;
+  closeModal();
+  if (r) r(v);
+}
+function uiPromptResolve(v) {
+  const r = _uiPromptResolve; _uiPromptResolve = null;
   closeModal();
   if (r) r(v);
 }
