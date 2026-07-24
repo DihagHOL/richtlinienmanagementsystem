@@ -27,6 +27,7 @@ function newKonzept() {
     beschreibung: '',
     kategorie: 'ISO 27001',
     status: 'Entwurf',            // SP-Status-Spalte neutral halten (nicht für Konzepte genutzt)
+    dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',   // optionaler Anhang (Entwurf/Skizze als Datei)
     konzept: {
       motivation: '',
       skizze: '',
@@ -114,6 +115,7 @@ function _konzeptCard(k, isGF, canWrite) {
       <div class="ic-tags">
         ${k.kategorie ? `<span class="ic-tag cat">${esc(k.kategorie)}</span>` : ''}
         <span class="ic-tag">Prio: ${esc(konzeptPrioLabel(ko.prioritaet))}</span>
+        ${k.dokumentName ? `<span class="ic-tag" title="${esc(k.dokumentName)}">📎 Anhang</span>` : ''}
         ${ko.antragstellerName ? `<span class="ic-tag">👤 ${esc(ko.antragstellerName)}</span>` : ''}
         ${ko.eingereichtAm ? `<span class="ic-tag">📤 eingereicht ${fmtDate(ko.eingereichtAm)}</span>` : ''}
       </div>
@@ -179,6 +181,20 @@ function renderKonzeptEditor() {
           <label>Wie könnte es aussehen? – Skizze / Inhalt (optional)</label>
           <textarea oninput="_kEditing.konzept.skizze=this.value" placeholder="Grobe Inhalte, Geltungsbereich, Kernaussagen – als Entwurfsgedanke.">${esc(ko.skizze)}</textarea>
         </div>
+        <div class="form-group full">
+          <label>Anhang (optional)</label>
+          <div class="doc-chip ${k.dokumentName ? '' : 'doc-chip-empty'}">
+            ${k.dokumentName ? '📎 ' + esc(k.dokumentName) : 'kein Anhang'}
+          </div>
+          <div class="doc-actions" style="margin-top:6px">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('k-upload-input').click()">⬆ ${k.dokumentName ? 'Ersetzen' : 'Datei anhängen'}</button>
+            ${k.dokumentUrl ? `<button class="btn btn-outline btn-sm" onclick="konzeptOpenAttachmentOffice()" title="Im Desktop-Office öffnen">✏️ In Office</button>
+              <button class="btn btn-outline btn-sm" onclick="konzeptOpenAttachmentWeb()" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser</button>` : ''}
+            ${k.dokumentName ? `<button class="btn btn-ghost btn-sm" onclick="konzeptRemoveAttachment()">✕ Entfernen</button>` : ''}
+            <input type="file" id="k-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt,.png,.jpg,.jpeg" style="display:none" onchange="konzeptUploadAttachment(this.files[0]); this.value='';">
+          </div>
+          <span class="field-hint">Optionaler Entwurf/Skizze als Datei (z. B. Word/PDF) – zeigt, wie das Regelwerk aussehen könnte. Bei Annahme wird der Anhang als Startdokument des Regelwerks übernommen.</span>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -191,6 +207,48 @@ function renderKonzeptEditor() {
              : ''}`}
     </div>`;
   openModal(body, true);
+}
+
+/* ── Anhang (optionaler Datei-Entwurf am Konzept) ── */
+
+async function konzeptUploadAttachment(file) {
+  if (!file || !_kEditing) return;
+  toast('Anhang wird hochgeladen …');
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await spUploadPolicyDoc(file.name, bytes, file.type);
+    _kEditing.dokumentUrl = doc.url;
+    _kEditing.dokumentName = doc.name;
+    _kEditing.dokumentDriveId = doc.driveId;
+    _kEditing.dokumentItemId = doc.itemId;
+    renderKonzeptEditor();
+    toast('Anhang hinzugefügt ✓ – nicht vergessen zu speichern.', 'success');
+  } catch (e) {
+    toast('Upload fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+function konzeptRemoveAttachment() {
+  if (!_kEditing) return;
+  _kEditing.dokumentUrl = ''; _kEditing.dokumentName = '';
+  _kEditing.dokumentDriveId = ''; _kEditing.dokumentItemId = '';
+  renderKonzeptEditor();
+}
+
+function konzeptOpenAttachmentWeb() {
+  if (_kEditing && _kEditing.dokumentUrl) window.open(_kEditing.dokumentUrl, '_blank', 'noopener');
+  else toast('Kein Anhang hinterlegt.', 'error');
+}
+
+async function konzeptOpenAttachmentOffice() {
+  if (!_kEditing || !_kEditing.dokumentDriveId || !_kEditing.dokumentItemId) { toast('Kein Anhang hinterlegt.', 'error'); return; }
+  const scheme = (typeof _policyOfficeScheme === 'function') ? _policyOfficeScheme(_kEditing.dokumentName) : null;
+  if (!scheme) { konzeptOpenAttachmentWeb(); return; }   // z. B. PDF → im Browser
+  toast('Datei-URL wird ermittelt …');
+  let fileUrl = '';
+  try { fileUrl = await spGetDirectFileUrl(_kEditing.dokumentDriveId, _kEditing.dokumentItemId); } catch (e) { fileUrl = ''; }
+  if (fileUrl) { window.location.href = `${scheme}:ofe|u|${fileUrl}`; toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser" nutzen.'); }
+  else konzeptOpenAttachmentWeb();
 }
 
 async function saveKonzept(submit) {
@@ -320,6 +378,13 @@ async function konzeptDecide(id, decision) {
     rw.kategorie = k.kategorie;
     rw.beschreibung = _konzeptToBeschreibung(k);
     rw.status = 'Entwurf';
+    // Anhang des Konzepts als Startdokument des Regelwerks übernehmen (falls vorhanden)
+    if (k.dokumentItemId || k.dokumentUrl) {
+      rw.dokumentUrl = k.dokumentUrl || '';
+      rw.dokumentName = k.dokumentName || '';
+      rw.dokumentDriveId = k.dokumentDriveId || '';
+      rw.dokumentItemId = k.dokumentItemId || '';
+    }
     const savedRw = await spSavePolicy(rw);
     const rwId = (savedRw && savedRw.id) ? savedRw.id : '';
     // 2) Konzept als angenommen markieren + Verweis speichern
@@ -352,15 +417,23 @@ function openPolicyFromKonzept(regelwerkId) {
 
 /* ── Mail an die Geschäftsleitung ── */
 
-function notifyKonzeptGF(k) {
+async function notifyKonzeptGF(k) {
   const gl = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
   if (!gl.length) { toast('Keine Geschäftsleitung hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
-  spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k), [])
-    .then(() => toast('Geschäftsleitung benachrichtigt ✓', 'success'))
-    .catch(e => { console.warn('Konzept-GF-Mail:', e.message); toast('Mail an GL fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); });
+  let att = null;
+  if (k.dokumentDriveId && k.dokumentItemId && typeof spGetDocAttachment === 'function') {
+    try { att = await spGetDocAttachment(k.dokumentDriveId, k.dokumentItemId, k.dokumentName); } catch (e) { att = null; }
+  }
+  try {
+    await spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k, !!att), att ? [att] : []);
+    toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : ''), 'success');
+  } catch (e) {
+    console.warn('Konzept-GF-Mail:', e.message);
+    toast('Mail an GL fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error');
+  }
 }
 
-function _konzeptMailHtml(k) {
+function _konzeptMailHtml(k, hasAttachment) {
   const ko = k.konzept || {};
   const base = 'https://richtlinienmanagement.dihag-extern.com/';
   const br = (s) => esc(String(s || '')).replace(/\n/g, '<br>');
@@ -370,6 +443,7 @@ function _konzeptMailHtml(k) {
        Priorität (Vorschlag): <b>${esc(konzeptPrioLabel(ko.prioritaet))}</b>${ko.antragstellerName ? '<br>Eingereicht von: ' + esc(ko.antragstellerName) : ''}</p>
     ${ko.motivation ? `<p><b>Warum?</b><br>${br(ko.motivation)}</p>` : ''}
     ${ko.skizze ? `<p><b>Wie könnte es aussehen?</b><br>${br(ko.skizze)}</p>` : ''}
+    ${hasAttachment ? `<p>📎 Ein Entwurf/Anhang ist dieser E-Mail beigefügt${k.dokumentName ? `: <b>${esc(k.dokumentName)}</b>` : ''}.</p>` : ''}
     <p>Bitte im Regelwerk-Management prüfen und entscheiden – <b>Annehmen</b> (es entsteht ein Regelwerk-Entwurf), <b>Zurückstellen</b> oder <b>Ablehnen</b>:</p>
     <p><a href="${esc(base)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
