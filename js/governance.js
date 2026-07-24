@@ -66,8 +66,8 @@ function fillGovFolderFilter() {
   if (!sel) return;
   const prev = sel.value;
   const folders = [...new Set((_govDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  sel.style.display = folders.length >= 1 ? '' : 'none';   // nur zeigen, wenn es Unterordner gibt
-  sel.innerHTML = '<option value="">Alle Ordner</option>' +
+  sel.style.display = '';   // immer sichtbar (wie der Ordner-Filter im ISMS-Reiter)
+  sel.innerHTML = '<option value="">Alle (Governance-Board)</option>' +
     folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
   if (prev && folders.includes(prev)) sel.value = prev;    // Auswahl über Re-Fill hinweg erhalten
 }
