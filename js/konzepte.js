@@ -420,30 +420,37 @@ function openPolicyFromKonzept(regelwerkId) {
 async function notifyKonzeptGF(k) {
   const gl = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
   if (!gl.length) { toast('Keine Geschäftsleitung hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
+  const hasDoc = !!(k.dokumentDriveId && k.dokumentItemId);
   let att = null;
-  if (k.dokumentDriveId && k.dokumentItemId && typeof spGetDocAttachment === 'function') {
+  if (hasDoc && typeof spGetDocAttachment === 'function') {
     try { att = await spGetDocAttachment(k.dokumentDriveId, k.dokumentItemId, k.dokumentName); } catch (e) { att = null; }
   }
   try {
-    await spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k, !!att), att ? [att] : []);
-    toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : ''), 'success');
+    await spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k, !!att, hasDoc), att ? [att] : []);
+    // hasDoc && !att = Datei vorhanden, aber zu groß / nicht ladbar → nur im Konzept hinterlegt
+    toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : (hasDoc ? ' (Anhang zu groß – im Konzept hinterlegt)' : '')), 'success');
   } catch (e) {
     console.warn('Konzept-GF-Mail:', e.message);
     toast('Mail an GL fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error');
   }
 }
 
-function _konzeptMailHtml(k, hasAttachment) {
+function _konzeptMailHtml(k, hasAttachment, hasDoc) {
   const ko = k.konzept || {};
   const base = 'https://richtlinienmanagement.dihag-extern.com/';
   const br = (s) => esc(String(s || '')).replace(/\n/g, '<br>');
+  const anhangZeile = hasAttachment
+    ? `<p>📎 Ein Entwurf/Anhang ist dieser E-Mail beigefügt${k.dokumentName ? `: <b>${esc(k.dokumentName)}</b>` : ''}.</p>`
+    : (hasDoc
+      ? `<p>📎 Ein Entwurf/Anhang${k.dokumentName ? ` (<b>${esc(k.dokumentName)}</b>)` : ''} ist im Konzept hinterlegt (zu groß für den E-Mail-Anhang) – bitte über den Button ansehen.</p>`
+      : '');
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>Neues Regelwerk-Konzept zur Prüfung durch die Geschäftsleitung</b></p>
     <p>Titel: <b>${esc(k.title)}</b>${k.kategorie ? ' (' + esc(k.kategorie) + ')' : ''}<br>
        Priorität (Vorschlag): <b>${esc(konzeptPrioLabel(ko.prioritaet))}</b>${ko.antragstellerName ? '<br>Eingereicht von: ' + esc(ko.antragstellerName) : ''}</p>
     ${ko.motivation ? `<p><b>Warum?</b><br>${br(ko.motivation)}</p>` : ''}
     ${ko.skizze ? `<p><b>Wie könnte es aussehen?</b><br>${br(ko.skizze)}</p>` : ''}
-    ${hasAttachment ? `<p>📎 Ein Entwurf/Anhang ist dieser E-Mail beigefügt${k.dokumentName ? `: <b>${esc(k.dokumentName)}</b>` : ''}.</p>` : ''}
+    ${anhangZeile}
     <p>Bitte im Regelwerk-Management prüfen und entscheiden – <b>Annehmen</b> (es entsteht ein Regelwerk-Entwurf), <b>Zurückstellen</b> oder <b>Ablehnen</b>:</p>
     <p><a href="${esc(base)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>

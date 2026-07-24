@@ -1307,17 +1307,24 @@ async function spGetDocAttachment(driveId, itemId, fallbackName) {
   if (!token) return null;
   try {
     const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`, token);
-    if ((meta.size || 0) > 2.5 * 1024 * 1024) return null;   // > 2,5 MB → nur Link
+    if ((meta.size || 0) > 3 * 1024 * 1024) return null;   // > 3 MB → nur Link (Graph-Limit für einfache Anhänge)
+    let bytes = null;
+    // 1) Bevorzugt der vorsignierte downloadUrl (kein Auth-Header nötig)
     const url = meta['@microsoft.graph.downloadUrl'];
-    if (!url) return null;
-    const resp = await fetch(url);
-    if (!resp.ok) return null;
-    const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (url) {
+      try { const r = await fetch(url); if (r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (e) { bytes = null; }
+    }
+    // 2) Fallback: manche Bibliotheken liefern keinen downloadUrl → /content mit Bearer
+    if (!bytes) {
+      const r = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) bytes = new Uint8Array(await r.arrayBuffer());
+    }
+    if (!bytes) return null;
     let bin = '';
     for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return {
       '@odata.type': '#microsoft.graph.fileAttachment',
-      name: meta.name || fallbackName || 'Richtlinie',
+      name: meta.name || fallbackName || 'Anhang',
       contentType: (meta.file && meta.file.mimeType) || 'application/octet-stream',
       contentBytes: btoa(bin),
     };
