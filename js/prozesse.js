@@ -100,6 +100,7 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Die dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -562,7 +563,79 @@ ${di.join('\n')}
   return { name: name || 'Prozess', xml, policyIds };
 }
 
+/* ── Standard-Prozesse aus den dokumentierten RMS-Abläufen ──
+   Jeder Seed ist ein nummerierter Ablauf; „…?"/Schlüsselwörter werden zu
+   Entscheidungs-Gateways. Wird per Button als BPMN-Entwurf angelegt und ist
+   danach im Modeler frei anpassbar. */
+const RMS_PROCESS_SEEDS = [
+  { name: 'Regelwerk-Lebenszyklus (RMS)', steps: `
+1. Regelwerk-Entwurf erstellen
+2. Dokument zuordnen
+3. Zur Konformitätsprüfung einreichen
+4. Konform?
+5. Mitbestimmung (Betriebsverfassung) einholen
+6. Freigabe durch die Geschäftsleitung
+7. Freigegeben?
+8. Regelwerk veröffentlichen
+9. Wiedervorlage/Review terminieren` },
+  { name: 'Regelwerk-Konzept (RMS)', steps: `
+1. Konzept (Idee/Skizze) erfassen
+2. Optionalen Entwurf als Anhang hinterlegen
+3. Zur Prüfung an die Geschäftsleitung einreichen
+4. Vom GF angenommen?
+5. Regelwerk-Entwurf aus dem Konzept erstellen
+6. In den Regelwerk-Lebenszyklus überführen` },
+  { name: 'Kenntnisnahme & Wissenstest (RMS)', steps: `
+1. Mitarbeiter: Veröffentlichtes Regelwerk lesen
+2. Kenntnisnahme bestätigen
+3. Wissenstest erforderlich?
+4. Wissenstest absolvieren
+5. Bestanden?
+6. Nachweis dokumentiert
+7. Wiederholung fällig?` },
+  { name: 'Änderungsvorschlag ISMS-Dokument (RMS)', steps: `
+1. Mitarbeiter: Änderungsvorschlag erfassen
+2. Mail an die ISMS-Verantwortlichen
+3. ISMS-Team: Vorschlag prüfen
+4. Umsetzen?
+5. Dokument aktualisieren (neue Version)
+6. Rückmeldung an den Einreicher` },
+  { name: 'Risiko-Management (RMS)', steps: `
+1. Risiko erfassen
+2. Schutzziele (CIA) und Assets zuordnen
+3. Eintritt und Auswirkung bewerten
+4. Maßnahmen erforderlich?
+5. Maßnahmen festlegen und umsetzen
+6. Restrisiko bewerten
+7. Zur Wiedervorlage terminieren` },
+];
+
+/** Die dokumentierten RMS-Abläufe als BPMN-Entwürfe anlegen (überspringt bereits vorhandene). */
+async function seedStandardProcesses() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const norm = (s) => String(s || '').toLowerCase().replace(/\.bpmn$/, '').trim();
+  const existing = new Set((_processes || []).map(p => norm(p.title)));
+  const todo = RMS_PROCESS_SEEDS.filter(s => !existing.has(norm(s.name)));
+  const skip = RMS_PROCESS_SEEDS.length - todo.length;
+  if (!todo.length) { toast('Alle Standard-Prozesse sind bereits angelegt.', 'success'); return; }
+  const ok = await uiConfirm(
+    `${todo.length} Standard-Prozess(e) aus den dokumentierten RMS-Abläufen als BPMN-Entwurf anlegen${skip ? ` (${skip} bereits vorhanden, werden übersprungen)` : ''}? Danach im Modeler frei anpassbar.`,
+    { title: 'Standard-Prozesse anlegen', okLabel: `${todo.length} anlegen` });
+  if (!ok) return;
+  let done = 0, fail = 0;
+  for (const s of todo) {
+    try {
+      const { xml } = _bpmnFromText(s.steps, s.name, []);
+      await spSaveProcess(s.name, xml);
+      done++;
+    } catch (e) { console.warn('Standard-Prozess fehlgeschlagen:', s.name, e.message); fail++; }
+  }
+  _processes = null; _procLinkCache = {};
+  await initProzesse();
+  toast(`${done} Standard-Prozess(e) angelegt${fail ? `, ${fail} fehlgeschlagen` : ''} ✓`, fail ? 'error' : 'success');
+}
+
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { _parseSteps, _bpmnFromText, _clipLabel };
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS };
 }
