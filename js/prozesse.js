@@ -100,7 +100,7 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, Kurs, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, Kurs, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -656,6 +656,22 @@ const RMS_PROCESS_SEEDS = [
 4. Freigeben und versenden?
 5. Bericht per Mail an die Geschäftsleitung senden
 6. Bericht archiviert` },
+  { name: 'Regelwerk – Allgemein (RMS)', steps: `
+1. Bedarf für ein Regelwerk feststellen
+2. Verantwortlichen (Owner) benennen
+3. Regelwerk erstellen
+4. Fachlich prüfen
+5. Prüfung bestanden?
+6. Freigeben
+7. Veröffentlichen und kommunizieren
+8. Regelmäßig überprüfen` },
+  { name: 'Regelwerk außer Kraft setzen / Archivierung (RMS)', steps: `
+1. Ablösung oder Wegfall feststellen
+2. Nachfolge-Regelwerk vorhanden?
+3. Nachfolge-Regelwerk verlinken
+4. Außerkraftsetzung freigeben lassen
+5. Regelwerk archivieren
+6. Betroffene informieren` },
 ];
 
 /** Die dokumentierten RMS-Abläufe als BPMN-Entwürfe anlegen (überspringt bereits vorhandene). */
