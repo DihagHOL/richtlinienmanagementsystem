@@ -23,10 +23,9 @@ async function initGovernance() {
   try {
     _govDocs = [];
     _govLoading = true;
-    const final = await spGetGovDocs((partial) => { _govDocs = partial.slice(); fillGovFolderFilter(); renderGovernanceDocs(); });
+    const final = await spGetGovDocs((partial) => { _govDocs = partial.slice(); renderGovernanceDocs(); });
     _govDocs = final;
     _govLoading = false;
-    fillGovFolderFilter();
     renderGovernanceDocs();
   } catch (e) {
     _govLoading = false;
@@ -59,17 +58,53 @@ function _govIcon(name) {
   return '📄';
 }
 
-/** Ordner-Filter (neben der Suche) aus den geladenen Entwürfen befüllen – wie bei ISMS-Dokumenten.
- *  Zeigt die Unterordner des Governance-Ordners; die aktuelle Auswahl bleibt beim Nachladen erhalten. */
-function fillGovFolderFilter() {
-  const sel = document.getElementById('filter-governance-folder');
-  if (!sel) return;
-  const prev = sel.value;
-  const folders = [...new Set((_govDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  sel.style.display = '';   // immer sichtbar (wie der Ordner-Filter im ISMS-Reiter)
-  sel.innerHTML = '<option value="">Alle (Governance-Board)</option>' +
-    folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
-  if (prev && folders.includes(prev)) sel.value = prev;    // Auswahl über Re-Fill hinweg erhalten
+/* ── Ordner-Baum (Navigation links neben der Dokumentliste) ── */
+let _govFolder = '';         // aktuell gewählter Ordner ('' = alle)
+let _govExpanded = null;      // Set aufgeklappter Ordnerpfade (null = noch nicht initialisiert)
+
+/** Baum aus den Ordnerpfaden der Entwürfe bauen; count je Knoten inkl. Unterordner. */
+function _govBuildTree(docs) {
+  const root = { name: 'Governance-Board', path: '', children: {}, count: 0 };
+  const ensure = (path) => {
+    let node = root, cur = '';
+    for (const part of String(path || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + part : part;
+      node = (node.children[part] = node.children[part] || { name: part, path: cur, children: {}, count: 0 });
+    }
+    return node;
+  };
+  for (const d of docs) {
+    ensure(d.folder || '');                     // Ordnerknoten anlegen (auch leere Zwischenordner)
+    root.count++;                               // Gesamtzahl am Wurzelknoten
+    let cur = '';
+    for (const part of String(d.folder || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + part : part;
+      ensure(cur).count++;                      // jeder Vorfahr zählt das Dokument mit
+    }
+  }
+  return root;
+}
+
+/** Einen Baumknoten (rekursiv) als HTML rendern. */
+function _govTreeNodeHtml(node, depth) {
+  const kids = Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const hasKids = kids.length > 0;
+  const expanded = _govExpanded.has(node.path);
+  const sel = _govFolder === node.path;
+  const caret = hasKids ? (expanded ? '▾' : '▸') : '';
+  const html = `<div class="gov-tree-node${sel ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px" onclick="govSelectFolder('${esc(node.path)}')">
+    <span class="gov-tree-caret"${hasKids ? ` onclick="event.stopPropagation();govToggleFolder('${esc(node.path)}')"` : ''}>${caret}</span>
+    <span>${node.path === '' ? '🗂' : (expanded && hasKids ? '📂' : '📁')}</span>
+    <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
+    <span class="gov-tree-count">${node.count}</span>
+  </div>`;
+  return html + ((hasKids && expanded) ? kids.map(k => _govTreeNodeHtml(k, depth + 1)).join('') : '');
+}
+
+function govSelectFolder(path) { _govFolder = path || ''; renderGovernanceDocs(); }
+function govToggleFolder(path) {
+  if (_govExpanded.has(path)) _govExpanded.delete(path); else _govExpanded.add(path);
+  renderGovernanceDocs();
 }
 
 let _govSort = { key: 'modified', dir: -1 };
@@ -94,10 +129,19 @@ function renderGovernanceDocs() {
     return;
   }
 
-  const folder = document.getElementById('filter-governance-folder')?.value || '';
+  // Ordner-Baum aus ALLEN Entwürfen bauen (unabhängig von Suche/Auswahl)
+  const tree = _govBuildTree(all);
+  if (_govExpanded === null) _govExpanded = new Set(['']);   // Wurzel initial aufgeklappt
+  // Falls der gewählte Ordner nicht mehr existiert → zurück auf „alle"
+  if (_govFolder) {
+    const exists = all.some(d => d.folder === _govFolder || (d.folder || '').startsWith(_govFolder + '/'));
+    if (!exists) _govFolder = '';
+  }
+  const treeHtml = `<aside class="gov-tree">${_govTreeNodeHtml(tree, 0)}</aside>`;
+
   let rows = all.slice();
   // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z. B. „Anhänge/2024")
-  if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
+  if (_govFolder) rows = rows.filter(d => d.folder === _govFolder || (d.folder || '').startsWith(_govFolder + '/'));
   if (q) rows = rows.filter(d => (d.name + ' ' + d.folder).toLowerCase().includes(q));
 
   const sk = _govSort.key, dir = _govSort.dir;
@@ -108,33 +152,36 @@ function renderGovernanceDocs() {
     return va < vb ? -dir : va > vb ? dir : 0;
   });
 
+  const ort = _govFolder ? ` · Ordner: <b>${esc(_govFolder)}</b>` : '';
   const sub = `<div class="view-desc" style="margin:0 0 12px">
-    <b>${rows.length}</b> Entwurf/Entwürfe aus dem <b>Governance-Board</b> (Legal)
+    <b>${rows.length}</b> Entwurf/Entwürfe aus dem <b>Governance-Board</b> (Legal)${ort}
     ${_govLoading ? ' · <span style="color:var(--c-primary)">lädt weiter …</span>' : ''} · Zeile anklicken zum Öffnen.</div>`;
-
-  if (!rows.length) { mount.innerHTML = sub + emptyState('Keine Treffer für die aktuelle Suche.', '🔍'); return; }
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortGovDocs('${key}')">${label}${arrow(key)}</th>`;
 
-  mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
-    <thead><tr>
-      <th style="width:30px"></th>
-      ${th('name', 'Dokument')}
-      ${th('folder', 'Ordner')}
-      ${th('modified', 'Zuletzt geändert')}
-      <th>Von</th>
-      ${th('size', 'Größe', 'num')}
-    </tr></thead>
-    <tbody>${rows.map(d => `
-      <tr onclick="openGovernanceDoc('${esc(d.driveItemId)}')" style="cursor:pointer">
-        <td style="font-size:1.1rem;text-align:center">${_govIcon(d.name)}</td>
-        <td><b>${esc(d.name)}</b></td>
-        <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
-        <td style="color:var(--c-muted)">${d.modified ? fmtDateTime(d.modified) : '–'}</td>
-        <td style="color:var(--c-muted)">${esc(d.modifiedBy || '–')}</td>
-        <td class="num" style="color:var(--c-muted)">${_govFmtSize(d.size)}</td>
-      </tr>`).join('')}</tbody></table></div>`;
+  const docsHtml = !rows.length
+    ? sub + emptyState('Keine Treffer in diesem Ordner / für die aktuelle Suche.', '🔍')
+    : sub + `<div class="table-wrap"><table class="tbl">
+      <thead><tr>
+        <th style="width:30px"></th>
+        ${th('name', 'Dokument')}
+        ${th('folder', 'Ordner')}
+        ${th('modified', 'Zuletzt geändert')}
+        <th>Von</th>
+        ${th('size', 'Größe', 'num')}
+      </tr></thead>
+      <tbody>${rows.map(d => `
+        <tr onclick="openGovernanceDoc('${esc(d.driveItemId)}')" style="cursor:pointer">
+          <td style="font-size:1.1rem;text-align:center">${_govIcon(d.name)}</td>
+          <td><b>${esc(d.name)}</b></td>
+          <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
+          <td style="color:var(--c-muted)">${d.modified ? fmtDateTime(d.modified) : '–'}</td>
+          <td style="color:var(--c-muted)">${esc(d.modifiedBy || '–')}</td>
+          <td class="num" style="color:var(--c-muted)">${_govFmtSize(d.size)}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+
+  mount.innerHTML = `<div class="gov-layout">${treeHtml}<div class="gov-docs">${docsHtml}</div></div>`;
 }
 
 /** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
