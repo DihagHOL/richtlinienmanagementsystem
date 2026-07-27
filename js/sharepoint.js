@@ -81,6 +81,7 @@ const POLICY_COLUMNS = [
   { name: 'Typ2',                typ: 'Auswahl (Regelwerk/Konzept)' },
   { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
   { name: 'RegelwerkTyp',        typ: 'Einzelne Textzeile (oder Auswahl)' },
+  { name: 'GeltungsbereichJson', typ: 'Mehrere Zeilen Text' },
 ];
 
 /** Eine Spalte gilt als vorhanden, wenn ihr interner Name ODER ihr Anzeigename passt
@@ -362,10 +363,13 @@ function _mapPolicy(item) {
   let konzept = null;
   const konzeptRaw = f[_policyFieldName('KonzeptJson')];
   try { if (konzeptRaw) konzept = JSON.parse(konzeptRaw); } catch { konzept = null; }
+  let geltungsbereich = [];
+  try { const gb = JSON.parse(f[_policyFieldName('GeltungsbereichJson')] || '[]'); if (Array.isArray(gb)) geltungsbereich = gb; } catch { geltungsbereich = []; }
   return {
     typ,
     konzept: (konzept && typeof konzept === 'object') ? konzept : null,
     regelwerkTyp: f[_policyFieldName('RegelwerkTyp')] || '',
+    geltungsbereich,
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
@@ -443,6 +447,7 @@ async function spSavePolicy(p) {
     Typ2:                (p.typ === 'Konzept') ? 'Konzept' : '',
     KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
     RegelwerkTyp:        p.regelwerkTyp || '',
+    GeltungsbereichJson: JSON.stringify(p.geltungsbereich || []),
   };
   // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
   // Regelwerke lassen Typ2 leer → gar nicht senden).

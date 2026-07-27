@@ -27,6 +27,7 @@ function newKonzept() {
     beschreibung: '',
     kategorie: 'ISO 27001',
     regelwerkTyp: '',             // Dokumentart (Handbuch, Richtlinie, …) – wird bei Annahme übernommen
+    geltungsbereich: [],          // Standorte ('ALLE' = alle) – wird bei Annahme übernommen
     status: 'Entwurf',            // SP-Status-Spalte neutral halten (nicht für Konzepte genutzt)
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',   // optionaler Anhang (Entwurf/Skizze als Datei)
     konzept: {
@@ -116,6 +117,7 @@ function _konzeptCard(k, isGF, canWrite) {
       <div class="ic-tags">
         ${k.regelwerkTyp ? `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(k.regelwerkTyp)}</span>` : ''}
         ${k.kategorie ? `<span class="ic-tag cat">${esc(k.kategorie)}</span>` : ''}
+        ${(k.geltungsbereich && k.geltungsbereich.length && typeof geltungsbereichLabel === 'function') ? `<span class="ic-tag">📍 ${esc(geltungsbereichLabel(k.geltungsbereich))}</span>` : ''}
         <span class="ic-tag">Prio: ${esc(konzeptPrioLabel(ko.prioritaet))}</span>
         ${k.dokumentName ? `<span class="ic-tag" title="${esc(k.dokumentName)}">📎 Anhang</span>` : ''}
         ${ko.antragstellerName ? `<span class="ic-tag">👤 ${esc(ko.antragstellerName)}</span>` : ''}
@@ -157,6 +159,7 @@ function renderKonzeptEditor() {
     </div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:12px">Ein Konzept ist ein <b>Vorschlag</b> für ein mögliches neues Regelwerk – die Idee, wie es aussehen könnte bzw. ob es überhaupt erstellt werden soll. Die <b>Geschäftsleitung</b> entscheidet über Priorität und Umsetzung. Wird es angenommen, entsteht daraus automatisch ein Regelwerk-Entwurf.</div>
+      ${(typeof MUSTER_VORLAGE_URL !== 'undefined') ? `<p style="margin:0 0 12px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📄 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>` : ''}
       ${k.id ? `<div style="margin-bottom:12px">Status: ${konzeptStatusBadge(k)}${(ko.entscheidung && ko.entscheidung.kommentar) ? ` <span class="field-hint">– „${esc(ko.entscheidung.kommentar)}" (${esc(ko.entscheidung.vonName || ko.entscheidung.von)})</span>` : ''}</div>` : ''}
       <div class="form-grid">
         <div class="form-group full">
@@ -205,6 +208,7 @@ function renderKonzeptEditor() {
           <span class="field-hint">Optionaler Entwurf/Skizze als Datei (z. B. Word/PDF) – zeigt, wie das Regelwerk aussehen könnte. Bei Annahme wird der Anhang als Startdokument des Regelwerks übernommen.</span>
         </div>
       </div>
+      ${(typeof renderGeltungsbereichSection === 'function') ? renderGeltungsbereichSection(k.geltungsbereich, 'kgb') : ''}
     </div>
     <div class="modal-footer">
       ${readOnly
@@ -215,7 +219,8 @@ function renderKonzeptEditor() {
              ? `<button class="btn btn-primary" onclick="saveKonzept(true)">${st === 'GF-Prüfung' ? '↻ Erneut zur GF-Prüfung' : 'Zur GF-Prüfung einreichen →'}</button>`
              : ''}`}
     </div>`;
-  openModal(body, true);
+  // Re-Render ohne Scroll-Sprung (Geltungsbereich/Typ ändern …)
+  (typeof reopenModalKeepScroll === 'function' ? reopenModalKeepScroll : openModal)(body, true);
 }
 
 /* ── Anhang (optionaler Datei-Entwurf am Konzept) ── */
@@ -386,6 +391,7 @@ async function konzeptDecide(id, decision) {
     rw.title = k.title;
     rw.kategorie = k.kategorie;
     rw.regelwerkTyp = k.regelwerkTyp || '';   // Dokumentart aus dem Konzept übernehmen
+    rw.geltungsbereich = Array.isArray(k.geltungsbereich) ? k.geltungsbereich.slice() : [];   // Geltungsbereich übernehmen
     rw.beschreibung = _konzeptToBeschreibung(k);
     rw.status = 'Entwurf';
     // Anhang des Konzepts als Startdokument des Regelwerks übernehmen (falls vorhanden)

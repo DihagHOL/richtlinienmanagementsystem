@@ -630,6 +630,15 @@ function closeModal() {
   document.getElementById('modal-mount').innerHTML = '';
 }
 
+/** Modal neu rendern (z. B. Editor bei Ein-/Ausklappen), ohne dass die
+ *  Scroll-Position des Modal-Bodys nach oben springt. */
+function reopenModalKeepScroll(html, wide) {
+  const prev = document.querySelector('#modal-mount .modal-body');
+  const top = prev ? prev.scrollTop : 0;
+  openModal(html, wide);
+  if (top) { const nb = document.querySelector('#modal-mount .modal-body'); if (nb) nb.scrollTop = top; }
+}
+
 /* App-eigener Bestätigungsdialog (statt Browser-„Ja/Nein"). @returns Promise<boolean> */
 let _uiConfirmResolve = null;
 function uiConfirm(message, opts = {}) {

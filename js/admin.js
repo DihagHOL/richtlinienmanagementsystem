@@ -15,6 +15,76 @@ let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Re
 
 // Dokumentart eines Regelwerks (zentral – auch von den Konzepten genutzt)
 const REGELWERK_TYPEN = ['Handbuch', 'Richtlinie', 'Konzernrichtlinie', 'Konzernfachregelung', 'Arbeits-/Prozessanweisung', 'Leitfaden'];
+
+// Standorte für den Geltungsbereich (zentral – auch von den Konzepten genutzt); 'ALLE' = alle Standorte
+const STANDORTE = ['HOL', 'SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA'];
+
+/** Geltungsbereich-Auswahl (Standorte). arr = aktuelles Array; prefix = Handler-Präfix (gb | kgb). */
+function renderGeltungsbereichSection(arr, prefix) {
+  const list = Array.isArray(arr) ? arr : [];
+  const alle = list.includes('ALLE');
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Geltungsbereich (Standorte)</div>
+      <label class="ack-check" style="font-weight:600;margin-bottom:6px">
+        <input type="checkbox" ${alle ? 'checked' : ''} onchange="gbSectionSetAlle('${prefix}', this.checked)">
+        <span>Alle Standorte (konzernweit)</span>
+      </label>
+      ${alle ? '' : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:2px 12px">
+        ${STANDORTE.map(code => `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" ${list.includes(code) ? 'checked' : ''} onchange="gbSectionToggle('${prefix}','${code}', this.checked)">
+          <span>${esc(code)}</span></label>`).join('')}
+      </div>`}
+      <span class="field-hint">Für welche Standorte gilt das Regelwerk? „Alle Standorte" schließt alle ein.</span>
+    </div>`;
+}
+
+/** Ziel-Objekt + Re-Render für den Geltungsbereich, je nach Editor (gb = Regelwerk, kgb = Konzept). */
+function _gbScope(scope) {
+  if (scope === 'kgb') return {
+    obj: (typeof _kEditing !== 'undefined' ? _kEditing : null),
+    render: (typeof renderKonzeptEditor === 'function' ? renderKonzeptEditor : null),
+  };
+  return { obj: (typeof _editing !== 'undefined' ? _editing : null), render: renderPolicyEditor };
+}
+function gbSectionSetAlle(scope, on) {
+  const s = _gbScope(scope); if (!s.obj) return;
+  s.obj.geltungsbereich = on ? ['ALLE'] : [];
+  if (s.render) s.render();
+}
+function gbSectionToggle(scope, code, on) {
+  const s = _gbScope(scope); if (!s.obj) return;
+  if (!Array.isArray(s.obj.geltungsbereich)) s.obj.geltungsbereich = [];
+  s.obj.geltungsbereich = s.obj.geltungsbereich.filter(x => x !== code && x !== 'ALLE');
+  if (on) s.obj.geltungsbereich.push(code);
+}
+
+/** Anzeige-Text eines Geltungsbereichs für Tags/Listen. */
+function geltungsbereichLabel(arr) {
+  if (!Array.isArray(arr) || !arr.length) return '';
+  return arr.includes('ALLE') ? 'Alle Standorte' : arr.join(', ');
+}
+
+// Muster-Vorlage für komplett neue Regelwerke (Legal, „Erstellung von Konzernregelungen")
+const MUSTER_VORLAGE_URL = 'https://dihag.sharepoint.com/:w:/r/sites/ArbeitsplatzLegal/_layouts/15/Doc.aspx?sourcedoc=%7BDFD3E9F1-DD0C-493E-A2C6-4B74F948BE11%7D&file=2026_Muster_Erstellung%20von%20Konzernregelungen.docx&action=default&mobileredirect=true';
+
+/** Einstieg „+ Neues Regelwerk": komplett neue Regelwerke sollen zuerst als Konzept an die GF.
+ *  Bietet Konzept erstellen (empfohlen) · Direkt anlegen (Migration/Bestand) · Abbrechen. */
+function newRegelwerkGate() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
+  openModal(`
+    <div class="modal-header"><h3>Neues Regelwerk</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="line-height:1.55;margin:0 0 10px">Komplett <b>neue</b> Regelwerke müssen zuerst als <b>Konzept</b> an die Geschäftsleitung (Beantragung &amp; Prüfung). Erst nach Annahme entsteht daraus ein Regelwerk-Entwurf.</p>
+      <p style="margin:0 0 10px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📄 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>
+      <p class="field-hint" style="margin:0">„Direkt anlegen" nur für <b>bestehende</b> Dokumente / Migration verwenden.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-ghost" onclick="closeModal();openPolicyEditor()">Direkt anlegen</button>
+      <button class="btn btn-primary" onclick="closeModal();_adminMode='konzepte';if(typeof openKonzeptEditor==='function')openKonzeptEditor()">💡 Konzept erstellen</button>
+    </div>`, false);
+}
 let _dpDrives = null;         // ISMS-Bibliotheken (Cache)
 let _dpState = null;          // Dokumentwähler-Navigation
 let _cfgEdit = null;          // Einstellungen-Entwurf
@@ -89,6 +159,7 @@ function renderAdminList() {
       <div class="ic-tags">
         ${p.regelwerkTyp ? `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(p.regelwerkTyp)}</span>` : ''}
         ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}
+        ${(p.geltungsbereich && p.geltungsbereich.length) ? `<span class="ic-tag">📍 ${esc(geltungsbereichLabel(p.geltungsbereich))}</span>` : ''}
         <span class="ic-tag">v${esc(p.version)}</span>
         ${p.pflicht ? '<span class="ic-tag">Pflicht</span>' : '<span class="ic-tag">optional</span>'}
         ${p.quizErforderlich ? `<span class="ic-tag">📝 ${p.quiz.length} Fragen</span>` : ''}
@@ -390,7 +461,7 @@ function newPolicy() {
   return {
     id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
-    regelwerkTyp: '',
+    regelwerkTyp: '', geltungsbereich: [],
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
@@ -494,6 +565,7 @@ function renderPolicyEditor() {
           <span class="field-hint">Interner Termin zur Überprüfung der Richtlinie.</span>
         </div>
       </div>
+      ${renderGeltungsbereichSection(p.geltungsbereich, 'gb')}
       ${renderZielgruppenSection()}
       ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
       ${renderWorkflowSections()}
@@ -509,7 +581,8 @@ function renderPolicyEditor() {
              ? `<button class="btn btn-primary" onclick="savePolicy('Konformitätsprüfung')">${p.status === 'Konformitätsprüfung' ? '↻ Erneut zur Prüfung' : 'Zur Konformitätsprüfung →'}</button>`
              : ''}`}
     </div>`;
-  openModal(body, true);
+  // Re-Render ohne Scroll-Sprung (Ein-/Ausklappen, BR-Auswahl …)
+  (typeof reopenModalKeepScroll === 'function' ? reopenModalKeepScroll : openModal)(body, true);
 }
 
 function renderQuizEditorSection() {
@@ -1492,6 +1565,22 @@ function _mitMailHtml(p, label, attachmentName) {
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }
+/** „Bereits freigegeben"-Block für Workflow-Mails – zeigt dem nächsten Prüfer/Freigeber,
+ *  wer bereits zugestimmt hat (Konformitätsprüfung, Mitbestimmung, Freigabe). */
+function _wfApprovalsHtml(p) {
+  const d = (iso) => (typeof fmtDate === 'function' && iso) ? ' – ' + fmtDate(iso) : '';
+  const rows = [];
+  (p.konformitaet || []).filter(v => v.entscheidung === 'konform').forEach(v =>
+    rows.push(`✓ Konformitätsprüfung: <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
+  if (p.mitbestimmung && p.mitbestimmung.konform)
+    rows.push(`✓ Mitbestimmung: <b>${esc(p.mitbestimmung.name || p.mitbestimmung.upn)}</b>${d(p.mitbestimmung.datum)}`);
+  (p.freigaben || []).forEach(v =>
+    rows.push(`✓ Freigabe (GL): <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
+  if (!rows.length) return '';
+  return `<div style="margin:14px 0;padding:10px 14px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 8px 8px 0;font-size:13px;color:#14532d">
+    <b>Bereits freigegeben (zur Info):</b><br>${rows.join('<br>')}</div>`;
+}
+
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
   const base = 'https://richtlinienmanagement.dihag-extern.com/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
@@ -1507,6 +1596,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
     <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
     ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
+    ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
