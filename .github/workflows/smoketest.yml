@@ -1,6 +1,7 @@
-# Smoketests: Syntax, Bundle-Integrität, Inline-Handler-Referenzen, Config-Konsistenz.
-# Läuft bei jedem Push (außer dem Bot-Commit des Cache-Busters).
-name: Smoketest
+# Tests: Smoketest (Syntax, Bundle-Integrität, Inline-Handler, Config-Konsistenz)
+# plus alle Suiten aus tests/ (Workflow-Logik, Konzepte, Filter/Suche, SharePoint-Mapping …).
+# Läuft bei jedem Push (außer dem Bot-Commit des Cache-Busters) und bei Pull Requests.
+name: Tests
 
 on:
   push:
@@ -9,7 +10,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  smoketest:
+  tests:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -17,5 +18,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Smoketests ausführen
-        run: node scripts/smoketest.mjs
+      - name: Smoketest + Testsuiten ausführen
+        run: node scripts/test.mjs

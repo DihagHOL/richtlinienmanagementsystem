@@ -4,6 +4,7 @@
   "private": true,
   "description": "DIHAG Richtlinienmanagement + KI-Dashboard (statische SPA). package.json nur für Tests – GitHub Pages ignoriert es.",
   "scripts": {
+    "test": "node scripts/test.mjs",
     "smoke": "node scripts/smoketest.mjs",
     "smoke:deploy": "node scripts/deploy-smoke.mjs",
     "e2e:login": "playwright test --project=setup --headed",
