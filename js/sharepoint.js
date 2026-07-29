@@ -82,7 +82,12 @@ const POLICY_COLUMNS = [
   { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
   { name: 'RegelwerkTyp',        typ: 'Einzelne Textzeile (oder Auswahl)' },
   { name: 'GeltungsbereichJson', typ: 'Mehrere Zeilen Text' },
+  { name: 'HistorieJson',        typ: 'Mehrere Zeilen Text' },
 ];
+
+/** Wie viele Historien-Einträge je Regelwerk aufbewahrt werden (ältere fallen raus,
+ *  damit das Textfeld nicht überläuft – SharePoint-Limit für „Mehrere Zeilen Text"). */
+const HISTORIE_MAX = 200;
 
 /** Eine Spalte gilt als vorhanden, wenn ihr interner Name ODER ihr Anzeigename passt
  *  (SharePoint ändert den internen Namen bei Umbenennung nicht – Anzeigename „Typ2"
@@ -365,11 +370,14 @@ function _mapPolicy(item) {
   try { if (konzeptRaw) konzept = JSON.parse(konzeptRaw); } catch { konzept = null; }
   let geltungsbereich = [];
   try { const gb = JSON.parse(f[_policyFieldName('GeltungsbereichJson')] || '[]'); if (Array.isArray(gb)) geltungsbereich = gb; } catch { geltungsbereich = []; }
+  let historie = [];
+  try { const h = JSON.parse(f[_policyFieldName('HistorieJson')] || '[]'); if (Array.isArray(h)) historie = h; } catch { historie = []; }
   return {
     typ,
     konzept: (konzept && typeof konzept === 'object') ? konzept : null,
     regelwerkTyp: f[_policyFieldName('RegelwerkTyp')] || '',
     geltungsbereich,
+    historie,
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
@@ -448,6 +456,8 @@ async function spSavePolicy(p) {
     KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
     RegelwerkTyp:        p.regelwerkTyp || '',
     GeltungsbereichJson: JSON.stringify(p.geltungsbereich || []),
+    // Nur die jüngsten Einträge speichern – ältere fallen raus (Feldlängen-Limit)
+    HistorieJson:        JSON.stringify((p.historie || []).slice(-HISTORIE_MAX)),
   };
   // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
   // Regelwerke lassen Typ2 leer → gar nicht senden).

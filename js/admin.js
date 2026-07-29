@@ -10,7 +10,7 @@
 const AdminState = { members: null, allAcks: null, lastComplianceRows: null };
 let _editing = null;          // aktuell bearbeitetes Regelwerk
 // Auf-/Zugeklappt-Zustand der Workflow-Abschnitte im Editor (bleibt über Re-Render erhalten)
-let _edSecOpen = { pruef: false, frei: false, mit: false };
+let _edSecOpen = { pruef: false, frei: false, mit: false, hist: false };
 let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Regelwerk-Dashboard
 
 // Dokumentart eines Regelwerks (zentral – auch von den Konzepten genutzt)
@@ -63,6 +63,74 @@ function gbSectionToggle(scope, code, on) {
 function geltungsbereichLabel(arr) {
   if (!Array.isArray(arr) || !arr.length) return '';
   return arr.includes('ALLE') ? 'Alle Standorte' : arr.join(', ');
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungshistorie (Audit-Trail je Regelwerk)
+   Jede Änderung wird mit Zeitpunkt, Person und Beschreibung festgehalten –
+   Nachweis für ISO 27001 / NIS2 („wer hat wann was geändert/entschieden").
+═══════════════════════════════════════════════════ */
+
+/** Felder, deren Änderung protokolliert wird (Feld → Anzeigename). */
+const HISTORIE_FELDER = {
+  title: 'Titel', beschreibung: 'Beschreibung', kategorie: 'Kategorie',
+  regelwerkTyp: 'Typ', version: 'Version', status: 'Status', pflicht: 'Pflichtlektüre',
+  dokumentName: 'Dokument', naechsteReview: 'Nächste Überprüfung',
+  wiederholungMonate: 'Wiederholung (Monate)', quizErforderlich: 'Wissenstest',
+  geltungsbereich: 'Geltungsbereich', zielgruppen: 'Zielgruppe',
+  kbrBetroffen: 'KBR betroffen', mitbestimmungWerke: 'Betroffene Betriebsräte',
+  freigabeReihenfolge: 'Reihenfolge Freigabe/Mitbestimmung',
+};
+
+/** Wert für die Historie lesbar machen (Arrays, Ja/Nein, Datum, leer). */
+function _histWert(feld, v) {
+  if (v === undefined || v === null || v === '') return '–';
+  if (typeof v === 'boolean') return v ? 'ja' : 'nein';
+  if (Array.isArray(v)) return v.length ? v.join(', ') : '–';
+  if (feld === 'naechsteReview') return (typeof fmtDate === 'function') ? fmtDate(v) : String(v);
+  if (feld === 'freigabeReihenfolge') return v === 'mb_gl' ? 'Mitbestimmung → Freigabe' : 'Freigabe → Mitbestimmung';
+  return String(v);
+}
+
+/** Geänderte Felder zwischen zwei Ständen ermitteln. @returns ['Titel: „A" → „B"', …] */
+function policyDiff(alt, neu) {
+  const out = [];
+  if (!alt || !neu) return out;
+  for (const [feld, label] of Object.entries(HISTORIE_FELDER)) {
+    const a = _histWert(feld, alt[feld]), b = _histWert(feld, neu[feld]);
+    if (a !== b) out.push(`${label}: „${a}" → „${b}"`);
+  }
+  return out;
+}
+
+/** Historien-Eintrag anhängen (mutiert p.historie). */
+function historieAdd(p, aktion, text) {
+  if (!p) return;
+  if (!Array.isArray(p.historie)) p.historie = [];
+  const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
+  p.historie.push({
+    datum: new Date().toISOString(),
+    upn: u.upn || '', name: u.name || u.upn || '',
+    aktion: aktion || 'Änderung',
+    text: text || '',
+  });
+  return p.historie[p.historie.length - 1];
+}
+
+/** Historie im Editor – ausklappbarer, schreibgeschützter Abschnitt (neueste zuerst). */
+function renderHistorieSection(p) {
+  const h = Array.isArray(p.historie) ? p.historie : [];
+  const badge = _edBadge(h.length ? `${h.length} Einträge` : 'noch keine', h.length ? 'custom' : 'off');
+  const inner = !h.length
+    ? '<div class="field-hint">Noch keine Änderungen protokolliert. Ab jetzt wird jede Änderung mit Zeitpunkt und Person festgehalten.</div>'
+    : `<div style="max-height:280px;overflow:auto">${h.slice().reverse().map(e => `
+        <div style="padding:7px 0;border-bottom:1px solid var(--c-border-2)">
+          <div style="font-size:.83rem"><b>${esc(e.aktion || 'Änderung')}</b>
+            <span style="color:var(--c-muted)"> · ${esc(e.name || e.upn || 'unbekannt')} · ${typeof fmtDateTime === 'function' ? fmtDateTime(e.datum) : esc(e.datum || '')}</span></div>
+          ${e.text ? `<div style="font-size:.8rem;color:var(--c-muted);line-height:1.5;margin-top:2px;white-space:pre-wrap">${esc(e.text)}</div>` : ''}
+        </div>`).join('')}</div>
+      <div class="field-hint" style="margin-top:8px">Älteste Einträge werden nach ${typeof HISTORIE_MAX !== 'undefined' ? HISTORIE_MAX : 200} Einträgen automatisch verdrängt.</div>`;
+  return _edCollapsible('hist', 'Änderungshistorie', badge, inner, '');
 }
 
 // Muster-Vorlage für komplett neue Regelwerke (Legal, „Erstellung von Konzernregelungen")
@@ -516,7 +584,7 @@ function newPolicy() {
   return {
     id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
-    regelwerkTyp: '', geltungsbereich: [],
+    regelwerkTyp: '', geltungsbereich: [], historie: [],
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
@@ -624,6 +692,7 @@ function renderPolicyEditor() {
       ${renderZielgruppenSection()}
       ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
       ${renderWorkflowSections()}
+      ${p.id ? renderHistorieSection(p) : ''}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
@@ -1029,12 +1098,24 @@ async function savePolicy(newStatus) {
       if (q.optionen.filter(o => o.trim()).length < 2) { toast(`Frage ${i + 1}: mindestens 2 Antwortoptionen.`, 'error'); return; }
     }
   }
+  // Änderungen gegen den zuletzt geladenen Stand protokollieren (vor Statuswechsel diffen)
+  const alt = p.id ? State.policies.find(x => x.id === p.id) : null;
+  const aenderungen = alt ? policyDiff(alt, p) : [];
+
   if (newStatus) p.status = newStatus;
   if (newStatus === 'Konformitätsprüfung') {
     p.pruefungSeit = new Date().toISOString();
     p.konformitaet = [];                    // neue Prüfrunde startet ohne Votes
     p.mitbestimmung = null;                 // Betriebsrat muss im neuen Zyklus erneut beteiligt werden
   }
+
+  if (!p.id) historieAdd(p, 'Angelegt', `„${p.title}" als Entwurf angelegt.`);
+  else if (aenderungen.length) historieAdd(p, 'Bearbeitet', aenderungen.join('\n'));
+  if (newStatus === 'Konformitätsprüfung') {
+    historieAdd(p, 'Zur Konformitätsprüfung eingereicht',
+      alt && alt.status === 'Konformitätsprüfung' ? 'Erneut eingereicht – bisherige Prüfvoten zurückgesetzt.' : '');
+  }
+
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -1444,6 +1525,10 @@ async function markKonform(policyId, konform) {
     if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
     else { p.status = 'Freigabe'; toGL = true; }
   }
+  historieAdd(p, konform ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
+    (anmerkung ? 'Anmerkung: ' + anmerkung : '') +
+    (toBR ? (anmerkung ? '\n' : '') + 'Weiter an die Mitbestimmung (Betriebsrat).'
+     : toGL ? (anmerkung ? '\n' : '') + 'Weiter an die Freigabe (Geschäftsleitung).' : ''));
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -1495,6 +1580,9 @@ async function markMitbestimmung(policyId, konform) {
     datum: new Date().toISOString(), anmerkung,
   };
   p.status = konform ? 'Freigabe' : 'Konformitätsprüfung';   // konform → GL-Freigabe; sonst zurück
+  historieAdd(p, konform ? 'Mitbestimmung: konform' : 'Mitbestimmung: nicht konform',
+    (anmerkung ? 'Begründung: ' + anmerkung + '\n' : '') +
+    (konform ? 'Weiter an die Freigabe (Geschäftsleitung).' : 'Zurück in die Konformitätsprüfung.'));
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -1524,6 +1612,9 @@ async function markFreigabe(policyId) {
     p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
     published = true;
   }
+  historieAdd(p, published ? 'Freigegeben & veröffentlicht' : 'Freigabe erteilt',
+    (anmerkung ? 'Anmerkung: ' + anmerkung + '\n' : '') +
+    (published ? `Version ${p.version} veröffentlicht.` : 'Weitere Freigaben stehen noch aus.'));
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -1675,9 +1766,11 @@ async function previewPolicyDoc(id) {
 
 async function publishPolicy(id) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === id)));
+  const vorher = p.status;
   p.status = 'Veröffentlicht';
   p.veroeffentlichtAm = new Date().toISOString();
   p.freigegebenVon = State.user.upn;
+  historieAdd(p, 'Freigegeben & veröffentlicht', `Direkt veröffentlicht (vorher: ${vorher}).`);
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -1688,7 +1781,9 @@ async function publishPolicy(id) {
 
 async function setStatus(id, status) {
   const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === id)));
+  const vorher = p.status;
   p.status = status;
+  if (vorher !== status) historieAdd(p, 'Status geändert', `„${vorher}" → „${status}"`);
   try {
     await spSavePolicy(p);
     await reloadData();
