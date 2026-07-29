@@ -65,6 +65,32 @@ function geltungsbereichLabel(arr) {
   return arr.includes('ALLE') ? 'Alle Standorte' : arr.join(', ');
 }
 
+/**
+ * Gleichzeitigkeits-Schutz: Hat jemand anderes das Regelwerk geändert, seit es
+ * hier geöffnet wurde? Wenn ja, fragt die Funktion nach (Überschreiben oder
+ * Abbrechen und neu laden). @returns true = weitermachen, false = abbrechen
+ */
+async function pruefeFremdaenderung(p, aktion) {
+  if (!p || !p.id || typeof spGetPolicyMeta !== 'function') return true;
+  const meta = await spGetPolicyMeta(p.id);
+  if (!meta || !meta.modifiedAt || !p.modifiedAt) return true;      // unbekannt → nicht blockieren
+  if (meta.modifiedAt === p.modifiedAt) return true;                 // unverändert → alles gut
+  const wer = meta.modifiedBy ? ` von ${meta.modifiedBy}` : '';
+  const wann = (typeof fmtDateTime === 'function') ? fmtDateTime(meta.modifiedAt) : meta.modifiedAt;
+  const weiter = await uiConfirm(
+    `Dieses Regelwerk wurde zwischenzeitlich${wer} geändert (${wann}). ` +
+    `Wenn du jetzt ${aktion || 'speicherst'}, überschreibst du diese Änderungen. ` +
+    `Empfehlung: abbrechen, neu laden und die Änderungen ansehen.`,
+    { title: 'Zwischenzeitlich geändert', okLabel: 'Trotzdem überschreiben', cancelLabel: 'Abbrechen', danger: true });
+  if (!weiter) {
+    closeModal();
+    if (typeof refreshAll === 'function') refreshAll();
+    else if (typeof reloadData === 'function') reloadData().then(() => renderAdminList());
+    toast('Abgebrochen – die aktuelle Fassung wurde geladen.');
+  }
+  return weiter;
+}
+
 /* ═══════════════════════════════════════════════════
    Änderungshistorie (Audit-Trail je Regelwerk)
    Jede Änderung wird mit Zeitpunkt, Person und Beschreibung festgehalten –
@@ -1098,6 +1124,9 @@ async function savePolicy(newStatus) {
       if (q.optionen.filter(o => o.trim()).length < 2) { toast(`Frage ${i + 1}: mindestens 2 Antwortoptionen.`, 'error'); return; }
     }
   }
+  // Hat jemand anderes zwischenzeitlich gespeichert? (sonst gingen dessen Änderungen still verloren)
+  if (!await pruefeFremdaenderung(p, newStatus ? 'einreichst' : 'speicherst')) return;
+
   // Änderungen gegen den zuletzt geladenen Stand protokollieren (vor Statuswechsel diffen)
   const alt = p.id ? State.policies.find(x => x.id === p.id) : null;
   const aenderungen = alt ? policyDiff(alt, p) : [];
@@ -1525,6 +1554,7 @@ async function markKonform(policyId, konform) {
     if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
     else { p.status = 'Freigabe'; toGL = true; }
   }
+  if (!await pruefeFremdaenderung(p, 'die Prüfung abschließt')) return;
   historieAdd(p, konform ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
     (anmerkung ? 'Anmerkung: ' + anmerkung : '') +
     (toBR ? (anmerkung ? '\n' : '') + 'Weiter an die Mitbestimmung (Betriebsrat).'
@@ -1580,6 +1610,7 @@ async function markMitbestimmung(policyId, konform) {
     datum: new Date().toISOString(), anmerkung,
   };
   p.status = konform ? 'Freigabe' : 'Konformitätsprüfung';   // konform → GL-Freigabe; sonst zurück
+  if (!await pruefeFremdaenderung(p, 'die Mitbestimmung abschließt')) return;
   historieAdd(p, konform ? 'Mitbestimmung: konform' : 'Mitbestimmung: nicht konform',
     (anmerkung ? 'Begründung: ' + anmerkung + '\n' : '') +
     (konform ? 'Weiter an die Freigabe (Geschäftsleitung).' : 'Zurück in die Konformitätsprüfung.'));
@@ -1612,6 +1643,7 @@ async function markFreigabe(policyId) {
     p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
     published = true;
   }
+  if (!await pruefeFremdaenderung(p, 'freigibst')) return;
   historieAdd(p, published ? 'Freigegeben & veröffentlicht' : 'Freigabe erteilt',
     (anmerkung ? 'Anmerkung: ' + anmerkung + '\n' : '') +
     (published ? `Version ${p.version} veröffentlicht.` : 'Weitere Freigaben stehen noch aus.'));

@@ -486,6 +486,27 @@ async function spSavePolicy(p) {
   );
 }
 
+/**
+ * Aktuellen Änderungsstand eines Regelwerks abfragen (ohne die Felder zu laden).
+ * Für den Gleichzeitigkeits-Schutz: Wurde der Eintrag geändert, seit er im Editor
+ * geöffnet wurde? @returns { modifiedAt, modifiedBy } | null (z. B. wenn gelöscht)
+ */
+async function spGetPolicyMeta(id) {
+  if (!id) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  try {
+    const it = await _get(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}?$select=id,lastModifiedDateTime,lastModifiedBy`,
+      token);
+    return {
+      modifiedAt: it.lastModifiedDateTime || '',
+      modifiedBy: (it.lastModifiedBy && it.lastModifiedBy.user && it.lastModifiedBy.user.displayName) || '',
+    };
+  } catch (e) { console.warn('Änderungsstand nicht abrufbar:', e.message); return null; }
+}
+
 async function spDeletePolicy(id) {
   const token = await acquireToken(SP.scopes);
   if (!token) return;
