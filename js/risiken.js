@@ -515,7 +515,7 @@ async function saveRisk() {
     toast('Risikoakzeptanz muss begründet werden (ISO 27001 6.1.3 f).', 'error'); return;
   }
   const nettoScore = riskScore(r.netto.e, r.netto.a), bruttoScore = riskScore(r.brutto.e, r.brutto.a);
-  if (nettoScore > bruttoScore && !confirm('Das Netto-Risiko ist HÖHER als das Brutto-Risiko – ist das beabsichtigt?')) return;
+  if (nettoScore > bruttoScore && !await uiConfirm('Das Netto-Risiko ist HÖHER als das Brutto-Risiko – ist das beabsichtigt?', { title: 'Netto > Brutto', okLabel: 'Ja, so speichern' })) return;
   const wer = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : '';
   (r.historie = r.historie || []).push({
     datum: new Date().toISOString(), wer,
@@ -540,7 +540,8 @@ async function saveRisk() {
 async function deleteRiskConfirm(id) {
   if (typeof canWriteTab === 'function' && !canWriteTab('risiken')) return;
   const r = (_risks || []).find(x => String(x.id) === String(id));
-  if (!r || !confirm(`Risiko „${r.titel}" endgültig löschen?\n\nHinweis: Für den Audit-Trail ist meist „Status: geschlossen" die bessere Wahl.`)) return;
+  if (!r) return;
+  if (!await uiConfirm(`Risiko „${r.titel}" endgültig löschen? Hinweis: Für den Audit-Trail ist meist „Status: geschlossen" die bessere Wahl.`, { title: 'Risiko löschen', okLabel: 'Endgültig löschen', danger: true })) return;
   try {
     await spDeleteRisk(id);
     closeModal();

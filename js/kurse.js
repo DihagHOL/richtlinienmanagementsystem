@@ -156,7 +156,7 @@ async function saveCourse() {
 }
 
 async function deleteCourse(id) {
-  if (!confirm('Kurs wirklich löschen? (Die enthaltenen Richtlinien bleiben erhalten.)')) return;
+  if (!await uiConfirm('Kurs wirklich löschen? Die enthaltenen Regelwerke bleiben erhalten.', { title: 'Kurs löschen', okLabel: 'Löschen', danger: true })) return;
   try {
     await spDeleteCourse(id);
     KurseState.courses = await spGetCourses();

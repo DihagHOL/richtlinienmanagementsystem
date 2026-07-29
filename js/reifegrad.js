@@ -364,14 +364,14 @@ function reifegradSetMeasureText(tid, mid, val) {
   if (p) { p.text = (val || '').trim(); _reifegradDirty = true; }
 }
 
-function reifegradRemoveMeasure(tid, mid, isCustom) {
+async function reifegradRemoveMeasure(tid, mid, isCustom) {
   if (!_rgCanWrite()) return;
   if (isCustom === true || isCustom === 'true') {
     const arr = _rgCustomMeasureArr(tid);
     const i = arr ? arr.findIndex(x => x.id === mid) : -1;
     if (i >= 0) arr.splice(i, 1);
   } else {
-    if (!confirm('Diese Katalog-Maßnahme ausblenden? Sie zählt dann nicht mehr in die Bewertung (über „ausgeblendete wiederherstellen" reversibel).')) return;
+    if (!await uiConfirm('Diese Katalog-Maßnahme ausblenden? Sie zählt dann nicht mehr in die Bewertung – über „ausgeblendete wiederherstellen" reversibel.', { title: 'Maßnahme ausblenden', okLabel: 'Ausblenden' })) return;
     if (!_reifegrad.removed) _reifegrad.removed = [];
     if (!_reifegrad.removed.includes(mid)) _reifegrad.removed.push(mid);
   }
@@ -396,11 +396,11 @@ function reifegradSetTopicTitle(tid, val) {
   if (t) { t.titel = (val || '').trim(); _reifegradDirty = true; }
 }
 
-function reifegradRemoveTopic(tid) {
+async function reifegradRemoveTopic(tid) {
   if (!_rgCanWrite()) return;
   const t = (_reifegrad.customTopics || []).find(x => x.id === tid);
   if (!t) return;
-  if (!confirm(`Eigenes Thema „${t.titel || '(ohne Titel)'}" mit ${((t.punkte || []).length)} Maßnahme(n) löschen?`)) return;
+  if (!await uiConfirm(`Eigenes Thema „${t.titel || '(ohne Titel)'}" mit ${((t.punkte || []).length)} Maßnahme(n) löschen?`, { title: 'Thema löschen', okLabel: 'Löschen', danger: true })) return;
   (t.punkte || []).forEach(p => { delete _reifegrad.ratings[p.id]; if (_reifegrad.kommentare) delete _reifegrad.kommentare[p.id]; });
   _reifegrad.customTopics = _reifegrad.customTopics.filter(x => x.id !== tid);
   _rgAfterStructEdit();

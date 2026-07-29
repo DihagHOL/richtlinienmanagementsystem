@@ -312,7 +312,7 @@ async function deleteProcess() {
   if (!_procEditing || !_procEditing.itemId) return;
   if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
   const nm = (document.getElementById('proc-name')?.value || 'diesen Prozess').trim();
-  if (!confirm(`Prozess „${nm}" wirklich löschen?`)) return;
+  if (!await uiConfirm(`Prozess „${nm}" wirklich löschen?`, { title: 'Prozess löschen', okLabel: 'Löschen', danger: true })) return;
   try {
     await spDeleteProcess(_procEditing.itemId);
     _processes = null; _procLinkCache = {};

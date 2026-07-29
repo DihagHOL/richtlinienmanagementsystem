@@ -77,14 +77,28 @@ function _kClip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n 
 
 /* ── Liste (Konzept-Modus im Regelwerk-Dashboard) ── */
 
-function renderKonzeptCards(q) {
+/** Volltextsuche über ein Konzept: Titel, Kategorie, Typ, Standorte, Motivation, Skizze, Antragsteller. */
+function konzeptMatchesQuery(k, q) {
+  if (!q) return true;
+  const ko = k.konzept || {};
+  const teile = [
+    k.title, k.kategorie, k.regelwerkTyp, ko.motivation, ko.skizze, ko.antragstellerName,
+    (Array.isArray(k.geltungsbereich) && typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(k.geltungsbereich) : '',
+  ];
+  return teile.join(' ').toLowerCase().includes(q);
+}
+
+function renderKonzeptCards(q, fTyp) {
   let rows = (State.konzepte || []).slice();
-  if (q) rows = rows.filter(k => (k.title + ' ' + (k.kategorie || '') + ' ' + ((k.konzept && k.konzept.motivation) || '')).toLowerCase().includes(q));
+  if (fTyp) rows = rows.filter(k => (k.regelwerkTyp || '') === fTyp);
+  if (q) rows = rows.filter(k => konzeptMatchesQuery(k, q));
   const rank = (k) => { const s = konzeptStatus(k); return s === 'GF-Prüfung' ? 0 : s === 'Idee' ? 1 : s === 'Zurückgestellt' ? 2 : s === 'Angenommen' ? 3 : 4; };
   rows.sort((a, b) => rank(a) - rank(b) || (b.modifiedAt || '').localeCompare(a.modifiedAt || ''));
 
   const intro = `<div class="field-hint" style="margin-bottom:12px">Konzepte sind <b>Vorschläge</b> für mögliche neue Regelwerke. Die Geschäftsleitung prüft Priorität und Umsetzung. Angenommene Konzepte werden zu einem <b>Regelwerk-Entwurf</b>.</div>`;
-  if (!rows.length) return intro + emptyState('Noch keine Regelwerk-Konzepte. Lege oben mit „💡 Regelwerk-Konzept" eines an.', '💡');
+  if (!rows.length) return intro + emptyState(
+    (q || fTyp) ? 'Keine Treffer für die aktuellen Filter.' : 'Noch keine Regelwerk-Konzepte. Lege oben mit „💡 Regelwerk-Konzept" eines an.',
+    (q || fTyp) ? '🔍' : '💡');
 
   const isGF = typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung();
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('verwaltung');

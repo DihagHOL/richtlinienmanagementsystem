@@ -209,6 +209,12 @@
             <option value="Veröffentlicht">Veröffentlicht</option>
             <option value="Archiviert">Archiviert</option>
           </select>
+          <select id="filter-admin-typ" class="sort-select" onchange="renderAdminList()">
+            <option value="">Alle Typen</option>
+          </select>
+          <select id="filter-admin-standort" class="sort-select" onchange="renderAdminList()">
+            <option value="">Alle Standorte</option>
+          </select>
           <div class="toolbar-spacer"></div>
           <button class="btn btn-outline" id="btn-health" onclick="runHealthCheck()"
             title="Prüft die angehängten Word-Dokumente auf Inhalts-Dubletten, Titel-Abweichungen, Platzhalter und leere Kapitel – deterministisch im Browser, ohne externe Dienste">🩺 Dokumente prüfen</button>

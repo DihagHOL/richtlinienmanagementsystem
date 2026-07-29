@@ -109,6 +109,44 @@ function _adminModeBar() {
     ${seg('regelwerke', 'Regelwerke', (State.policies || []).length)}${seg('konzepte', '💡 Konzepte', nKon)}</div>`;
 }
 
+/** Typ-/Standort-Filter befüllen (nur real vorkommende Werte); Auswahl bleibt erhalten. */
+function _fillAdminFilters() {
+  const typEl = document.getElementById('filter-admin-typ');
+  const stdEl = document.getElementById('filter-admin-standort');
+  const alle = [...(State.policies || []), ...(State.konzepte || [])];
+  if (typEl) {
+    const prev = typEl.value;
+    const typen = (typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : [])
+      .filter(t => alle.some(p => p.regelwerkTyp === t));
+    typEl.innerHTML = '<option value="">Alle Typen</option>' +
+      typen.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    if (prev && typen.includes(prev)) typEl.value = prev;
+    typEl.style.display = typen.length ? '' : 'none';
+  }
+  if (stdEl) {
+    const prev = stdEl.value;
+    const codes = (typeof STANDORTE !== 'undefined' ? STANDORTE : [])
+      .filter(c => (State.policies || []).some(p => Array.isArray(p.geltungsbereich) && p.geltungsbereich.includes(c)));
+    stdEl.innerHTML = '<option value="">Alle Standorte</option>' +
+      codes.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if (prev && codes.includes(prev)) stdEl.value = prev;
+    stdEl.dataset.leer = codes.length ? '' : '1';
+  }
+}
+
+/** Volltextsuche über ein Regelwerk: Titel, Beschreibung, Kategorie, Typ, Standorte,
+ *  Version, Dokumentname, Zielgruppen und Normbezug. */
+function policyMatchesQuery(p, q) {
+  if (!q) return true;
+  const teile = [
+    p.title, p.beschreibung, p.kategorie, p.regelwerkTyp, p.version, p.dokumentName,
+    Array.isArray(p.geltungsbereich) ? geltungsbereichLabel(p.geltungsbereich) : '',
+    Array.isArray(p.zielgruppen) ? p.zielgruppen.join(' ') : '',
+    Array.isArray(p.normbezug) ? p.normbezug.join(' ') : '',
+  ];
+  return teile.join(' ').toLowerCase().includes(q);
+}
+
 function renderAdminList() {
   const list = document.getElementById('list-admin');
   if (!list) return;
@@ -117,6 +155,8 @@ function renderAdminList() {
   const newBtn = document.getElementById('btn-new-policy');
   const konzeptBtn = document.getElementById('btn-new-konzept');
   const filterEl = document.getElementById('filter-admin');
+  const typEl = document.getElementById('filter-admin-typ');
+  const stdEl = document.getElementById('filter-admin-standort');
   const healthBtn = document.getElementById('btn-health');
   if (newBtn) newBtn.style.display = readOnly ? 'none' : '';
   if (konzeptBtn) konzeptBtn.style.display = readOnly ? 'none' : '';
@@ -131,24 +171,39 @@ function renderAdminList() {
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
   const modeBar = _adminModeBar();
 
+  _fillAdminFilters();
+
   // Konzept-Modus: Status-Filter/Dokumentprüfung ausblenden, an konzepte.js delegieren.
   if (_adminMode === 'konzepte') {
     if (filterEl) filterEl.style.display = 'none';
     if (healthBtn) healthBtn.style.display = 'none';
-    const inner = (typeof renderKonzeptCards === 'function') ? renderKonzeptCards(q) : '';
+    if (stdEl) stdEl.style.display = 'none';
+    const inner = (typeof renderKonzeptCards === 'function') ? renderKonzeptCards(q, typEl?.value || '') : '';
     list.innerHTML = warn + modeBar + inner;
     return;
   }
   if (filterEl) filterEl.style.display = '';
   if (healthBtn) healthBtn.style.display = '';
+  if (stdEl) stdEl.style.display = '';
 
   const f = filterEl?.value || 'all';
+  const fTyp = typEl?.value || '';
+  const fStd = stdEl?.value || '';
   let rows = State.policies.slice();
   if (f !== 'all') rows = rows.filter(p => p.status === f);
-  if (q) rows = rows.filter(p => (p.title + ' ' + p.kategorie).toLowerCase().includes(q));
+  if (fTyp) rows = rows.filter(p => (p.regelwerkTyp || '') === fTyp);
+  // „Alle Standorte" (ALLE) gilt konzernweit ⇒ zählt bei jedem Standortfilter mit
+  if (fStd) rows = rows.filter(p => Array.isArray(p.geltungsbereich) && (p.geltungsbereich.includes(fStd) || p.geltungsbereich.includes('ALLE')));
+  if (q) rows = rows.filter(p => policyMatchesQuery(p, q));
   rows.sort((a, b) => (b.modifiedAt || '').localeCompare(a.modifiedAt || ''));
 
-  if (!rows.length) { list.innerHTML = warn + modeBar + emptyState('Keine Regelwerke. Lege oben eines neu an.', '📄'); return; }
+  const aktiveFilter = (f !== 'all' || fTyp || fStd || q);
+  if (!rows.length) {
+    list.innerHTML = warn + modeBar + emptyState(
+      aktiveFilter ? 'Keine Treffer für die aktuellen Filter.' : 'Keine Regelwerke. Lege oben eines neu an.',
+      aktiveFilter ? '🔍' : '📄');
+    return;
+  }
 
   list.innerHTML = warn + modeBar + rows.map(p => `
     <div class="item-card" onclick="openPolicyEditor('${p.id}')">
@@ -1374,7 +1429,9 @@ async function markKonform(policyId, konform) {
       field.style.borderColor = '#ef4444'; field.focus();
       return;
     }
-    anmerkung = (prompt('Anmerkung (warum nicht konform)? – Pflicht:') || '').trim();
+    const res = await uiPrompt('Warum ist das Regelwerk nicht konform? (Pflicht)', { title: 'Nicht konform', okLabel: 'Als nicht konform melden', danger: true });
+    if (res === null) return;
+    anmerkung = res.trim();
     if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
   }
   p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
@@ -1427,7 +1484,9 @@ async function markMitbestimmung(policyId, konform) {
       field.style.borderColor = '#ef4444'; field.focus();
       return;
     }
-    anmerkung = (prompt('Anmerkung (warum lehnt die Mitbestimmung ab)? – Pflicht:') || '').trim();
+    const res = await uiPrompt('Warum lehnt die Mitbestimmung ab? (Pflicht)', { title: 'Mitbestimmung: nicht konform', okLabel: 'Als nicht konform melden', danger: true });
+    if (res === null) return;
+    anmerkung = res.trim();
     if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
   }
   p.mitbestimmung = {
@@ -1943,7 +2002,7 @@ async function remindOpenForCurrent() {
   if (!p) { toast('Keine Richtlinie gewählt.', 'error'); return; }
   const offene = [...new Set(rows.filter(r => r.st !== 'abgeschlossen').map(r => r.upn))];
   if (!offene.length) { toast('Keine offenen Mitarbeiter – nichts zu erinnern.', 'success'); return; }
-  if (!confirm(`Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`)) return;
+  if (!await uiConfirm(`Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`, { title: 'Erinnerung senden', okLabel: 'Senden' })) return;
   try {
     const ok = await spSendMail(offene, `Erinnerung: Pflicht-Richtlinie „${p.title}"`, reminderHtml(p));
     if (ok) toast(`Erinnerung an ${offene.length} Mitarbeiter gesendet ✓`, 'success');

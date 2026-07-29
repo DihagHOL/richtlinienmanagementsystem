@@ -190,7 +190,7 @@ async function soaSave() {
     if (typeof toast === 'function') toast('Nur Lesezugriff.', 'error'); return;
   }
   const k = _soaKpis();
-  if (k.begrFehlt && !confirm(`${k.begrFehlt} ausgeschlossene(s) Control(s) haben noch KEINE Begründung (rot markiert) – ISO 27001 verlangt sie.\n\nTrotzdem speichern?`)) return;
+  if (k.begrFehlt && !await uiConfirm(`${k.begrFehlt} ausgeschlossene(s) Control(s) haben noch KEINE Begründung (rot markiert) – ISO 27001 verlangt sie. Trotzdem speichern?`, { title: 'Begründung fehlt', okLabel: 'Trotzdem speichern' })) return;
   const btn = document.getElementById('soa-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
   _soaData.meta = {
