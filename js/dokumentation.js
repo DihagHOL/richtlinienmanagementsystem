@@ -38,6 +38,7 @@ const _DOKU_TOC = [
   ['ki',            'KI-Systeme beantragen'],
   ['cockpit',       'Cockpit (Admin-Startseite)'],
   ['verwalten',     'Regelwerke anlegen & verwalten'],
+  ['konzepte',      'Regelwerk-Konzepte'],
   ['freigabe',      'Konformitätsprüfung & Freigabe'],
   ['health',        'Dokument-Health-Check'],
   ['abdeckung',     'ISMS-Abdeckung & SoA'],
@@ -135,21 +136,48 @@ function _dokuSections() {
       'ISO 27001 Klausel 9.1 (Überwachung, Messung, Analyse &amp; Bewertung), 9.3 (Managementbewertung – Eingaben).'),
 
     sec('verwalten', 'Regelwerke anlegen & verwalten', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Regelwerk Dashboard"</b> → <b>„+ Neue Regelwerk"</b> oder bestehende anklicken. Mehrere Word-/PDF-Dateien lassen sich per <b>Import</b> gleichzeitig als Entwürfe anlegen.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Regelwerk Dashboard"</b>. Oben stehen drei Wege, ein Regelwerk anzulegen:</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>„+ Neues Regelwerk"</b> – fragt zuerst, ob es sich um ein <b>komplett neues</b> Regelwerk handelt. Wenn ja, muss zuerst ein <b>Konzept an die Geschäftsleitung</b> (siehe „Regelwerk-Konzepte"). „Direkt anlegen" ist nur für <b>bestehende</b> Dokumente / die Migration gedacht. Im selben Dialog liegt der Link zur <b>Muster-Vorlage „Erstellung von Konzernregelungen"</b>.</li>
+        <li style="${li}"><b>„💡 Regelwerk-Konzept"</b> – schlägt ein neues Regelwerk vor, ohne es schon zu schreiben.</li>
+        <li style="${li}"><b>„⬆ Importieren"</b> – mehrere Word-/PDF-Dateien per Drag &amp; Drop auf einmal als Entwürfe anlegen (Titel aus dem Dateinamen).</li>
+      </ul>
+      <div style="${h3}">Finden: Suche und Filter</div>
+      <p style="margin:0 0 8px;line-height:1.55">Die <b>Suche</b> durchsucht nicht nur den Titel, sondern auch Beschreibung, Kategorie, Typ, Standorte, Version, Dokumentname, Zielgruppen und Normbezug. Daneben filtern drei Auswahlfelder nach <b>Status</b>, <b>Typ</b> (Dokumentart) und <b>Standort</b>. Ein Regelwerk mit Geltungsbereich „Alle Standorte" erscheint dabei bei jedem Standort.</p>
       <div style="${h3}">Der Editor im Überblick</div>
       <ul style="${ol}">
         <li style="${li}"><b>Titel, Beschreibung, Kategorie, Version</b> – neue Version ⇒ alle müssen erneut bestätigen.</li>
+        <li style="${li}"><b>Typ (Dokumentart)</b> – Handbuch, Richtlinie, Konzernrichtlinie, Konzernfachregelung, Arbeits-/Prozessanweisung oder Leitfaden.</li>
+        <li style="${li}"><b>Geltungsbereich (Standorte)</b> – „Alle Standorte" (konzernweit) oder einzelne Werke: HOL, SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA.</li>
         <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten). Ist bereits ein Dokument zugeordnet, stehen <b>„✏️ In Office bearbeiten"</b> (On-Premise Office) und <b>„🌐 Im Browser bearbeiten"</b> zur Verfügung – wie bei den ISMS-Dokumenten legt SharePoint beim Speichern automatisch eine neue Version an.</li>
-        <li style="${li}"><b>Zielgruppe</b> – wer die Regelwerk sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
+        <li style="${li}"><b>Zielgruppe</b> – wer das Regelwerk sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
         <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Wiederholungspflicht</b>.</li>
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
-        <li style="${li}"><b>Normbezug</b> – erscheint nur bei Kategorie <b>„ISO 27001"</b> oder <b>„NIS2"</b>: welche Controls/Artikel die Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
-        <li style="${li}"><b>Konformitätsprüfung – nur für diese Regelwerk</b> (optional): eigene Prüfer/Schwelle. Leer = globale Einstellung.</li>
-        <li style="${li}"><b>Freigabe (Geschäftsleitung) – nur für diese Regelwerk</b> (optional): eigene Freigeber/Schwelle. Leer = globale Einstellung.</li>
+        <li style="${li}"><b>Normbezug</b> – erscheint nur bei Kategorie <b>„ISO 27001"</b> oder <b>„NIS2"</b>: welche Controls/Artikel das Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
+        <li style="${li}"><b>Freigabe-Workflow</b> (ausklappbare Abschnitte): eigene <b>Prüfer</b> bzw. <b>Freigeber</b> nur für dieses Regelwerk (leer = globale Einstellung) und die <b>Mitbestimmung</b> (KBR / Betriebsräte je Werk). Die Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> lässt sich mit ▲▼ pro Regelwerk tauschen.</li>
+        <li style="${li}"><b>Änderungshistorie</b> – ausklappbar, schreibgeschützt: wer wann was geändert oder entschieden hat (siehe unten).</li>
       </ul>
-      <div style="${hint}">🔒 <b>Pro-Regelwerk-Prüfer/-Freigeber ersetzen</b> die globalen für genau diese Regelwerk (nicht additiv). Karten-Tags „👤 eigene Prüfer" / „👤 eigene Freigeber" zeigen an, wo das gesetzt ist.</div>
+      <div style="${hint}">🔒 <b>Pro-Regelwerk-Prüfer/-Freigeber ersetzen</b> die globalen für genau dieses Regelwerk (nicht additiv). Karten-Tags „👤 eigene Prüfer" / „👤 eigene Freigeber" zeigen an, wo das gesetzt ist.</div>
+      <div style="${h3}">Änderungshistorie (Nachweis)</div>
+      <p style="margin:0 0 8px;line-height:1.55">Jede Änderung wird automatisch mit <b>Zeitpunkt, Person und Inhalt</b> festgehalten – inhaltliche Bearbeitungen im Klartext (z. B. <i>Version: „1.0" → „2.0"</i>), dazu Einreichen, Prüf- und Mitbestimmungsentscheidungen samt Begründung, Freigaben, Veröffentlichung und Archivierung. Die jüngsten 200 Einträge bleiben erhalten.</p>
+      <div style="${h3}">Außer Kraft setzen</div>
+      <p style="margin:0 0 8px;line-height:1.55">Bei einem veröffentlichten Regelwerk gibt es im Editor <b>„📦 Archivieren"</b> (optional mit Grund, z. B. „abgelöst durch …"). Es verschwindet dann aus „Meine Regelwerke", bleibt aber mit allen Bestätigungen und der Historie für Audits erhalten. <b>„↩ Reaktivieren"</b> holt es zurück in den Entwurf – der Freigabeprozess läuft dann erneut.</p>
+      <div style="${hint}">👥 Bearbeiten zwei Personen dasselbe Regelwerk, warnt die App beim Speichern („zwischenzeitlich geändert von …") und bietet an, abzubrechen und die aktuelle Fassung zu laden.</div>
       <div style="margin-top:10px;line-height:1.55"><b>„Zur Konformitätsprüfung"</b> startet den Freigabe-Workflow (siehe „Konformitätsprüfung &amp; Freigabe").</div>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik), A.5.1 (Informationssicherheitsrichtlinien).'),
+
+    sec('konzepte', 'Regelwerk-Konzepte', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Ein <b>Konzept</b> ist ein Vorschlag für ein mögliches neues Regelwerk – die Idee, wie es aussehen könnte bzw. <i>ob</i> es überhaupt erstellt werden soll. Damit wird nicht erst geschrieben und dann gefragt, sondern die <b>Geschäftsleitung entscheidet vorab</b> über Priorität und Umsetzung.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Zu finden im <b>Regelwerk Dashboard</b> über den Umschalter <b>„Regelwerke | 💡 Konzepte"</b>.</p>
+      <div style="${h3}">Ablauf</div>
+      <ol style="${ol}">
+        <li style="${li}"><b>Konzept anlegen</b> (Button „💡 Regelwerk-Konzept"): Arbeitstitel, Typ, Kategorie, Priorität, <b>Warum?</b> (Motivation) und optional <b>Wie könnte es aussehen?</b> (Skizze). Ein <b>Anhang</b> (Word/PDF, z. B. ein erster Entwurf) kann beigelegt werden – die Muster-Vorlage ist verlinkt.</li>
+        <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons.</li>
+        <li style="${li}"><b>Entscheidung</b> – direkt aus der Mail oder in der App: <b>✓ Annehmen</b>, <b>⏸ Zurückstellen</b> (mit Notiz) oder <b>✗ Ablehnen</b> (Begründung ist Pflicht).</li>
+        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Danach läuft der normale Weg über die Konformitätsprüfung.</li>
+      </ol>
+      <div style="${hint}">📬 Empfänger der Prüf-Mail ist die <b>Geschäftsleitung</b> aus <b>Einstellungen → „Geschäftsleitung"</b>. Nur diese Personen können über Konzepte entscheiden.</div>`,
+      'ISO 27001 Klausel 6.2 (Ziele und Planung), 7.5.1 (Erstellung dokumentierter Information).'),
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
       <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
@@ -171,12 +199,12 @@ function _dokuSections() {
       </ul>
       <div style="${h3}">2 · Freigabe (Geschäftsleitung)</div>
       <ul style="${ol}">
-        <li style="${li}"><b>„Freigeben"</b> (optional mit Kommentar) → die Regelwerk wird veröffentlicht.</li>
+        <li style="${li}"><b>„Freigeben"</b> (optional mit Kommentar) → das Regelwerk wird veröffentlicht.</li>
         <li style="${li}">Kommentare/Voten erscheinen im Verlauf der Karte.</li>
       </ul>
       <div style="${h3}">Direkt aus der E-Mail entscheiden</div>
       <ul style="${ol}">
-        <li style="${li}"><b>App-Mails (Standard):</b> Prüf- und Freigabe-Mails enthalten Buttons <b>„✓ Konform / ✗ Nicht konform"</b> bzw. <b>„✓ Freigeben / ✗ Zurück"</b>. Ein Klick öffnet die Regelwerk in der App und führt die Entscheidung nach kurzer Rückfrage aus.</li>
+        <li style="${li}"><b>App-Mails (Standard):</b> Prüf- und Freigabe-Mails enthalten Buttons <b>„✓ Konform / ✗ Nicht konform"</b> bzw. <b>„✓ Freigeben / ✗ Zurück"</b>. Ein Klick öffnet das Regelwerk in der App und führt die Entscheidung nach kurzer Rückfrage aus.</li>
         <li style="${li}"><b>Power Automate (ohne Portal):</b> Alternativ läuft die Genehmigung als <b>actionable Outlook-Mail</b> – Genehmigen/Ablehnen wird <b>direkt in der Mail</b> geklickt, ganz ohne die App zu öffnen. In den Einstellungen je Etappe wählbar: <b>aus</b> · <b>nur Freigabe (Geschäftsleitung)</b> · <b>Prüfung + Freigabe</b>. Für die per Power Automate gesteuerte Etappe verschickt die App keine eigene Mail. In Outlook getroffene Freigaben erscheinen im <b>Audit Report</b> als eigenes Ereignis.</li>
       </ul>
       <div style="${h3}">Beispiel – eine neue Regelwerk von A bis Z</div>
@@ -187,7 +215,7 @@ function _dokuSections() {
           <li style="${li}"><b>Prüfung:</b> Der ISB klickt in der Mail „✓ Konform". Schwelle erreicht → weil Mitbestimmung betroffen ist, geht es <b>nicht</b> direkt zur Freigabe, sondern zu Status <b>Mitbestimmung (Betriebsverfassung)</b>; KBR und BR-SHB erhalten automatisch das Dokument zur Mitbestimmung.</li>
           <li style="${li}"><b>Mitbestimmung:</b> Nach Rückmeldung klickt der/die Zuständige <b>„Konform"</b> (bei Ablehnung „Nicht konform" mit Begründung → zurück in die Prüfung). → Status <b>Freigabe</b>, die Geschäftsleitung wird informiert.</li>
           <li style="${li}"><b>Freigabe:</b> Ist Power Automate „nur Freigabe (GL)" aktiv, bekommt die GL eine <b>Outlook-Mail mit Genehmigen/Ablehnen</b> und klickt „Genehmigen" – <b>ohne Portalbesuch</b>. → Status <b>Veröffentlicht</b>, Zeitpunkt + Freigebende:r werden vermerkt.</li>
-          <li style="${li}"><b>Wirkung:</b> Alle Mitarbeitenden sehen die Regelwerk ab jetzt unter „Meine Regelwerke" als „offen" und müssen Kenntnisnahme + Wissenstest erledigen; die Erfüllungsquote läuft im <b>Audit Report</b> mit.</li>
+          <li style="${li}"><b>Wirkung:</b> Alle Mitarbeitenden sehen das Regelwerk ab jetzt unter „Meine Regelwerke" als „offen" und müssen Kenntnisnahme + Wissenstest erledigen; die Erfüllungsquote läuft im <b>Audit Report</b> mit.</li>
         </ol>
       </div>
       <div style="${hint}">⏰ <b>Erinnerungen & Eskalation</b> laufen automatisch (GitHub-Cron): erst nach X Tagen, dann alle Y Tage, ab Z Tagen zusätzlich an den Ersatz-Empfänger. Die richtige Person je Regelwerk wird erinnert (pro-Regelwerk-Prüfer/-Freigeber bevorzugt).</div>`,
@@ -243,7 +271,7 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}">Gruppen: <b>überfällig</b> · <b>fällig in ≤ 30 Tagen</b> · <b>später terminiert</b> · <b>ohne Termin</b>, mit Kennzahl-Kacheln.</li>
         <li style="${li}"><b>„🔁 +12 Monate"</b> setzt den nächsten Überprüfungstermin sofort auf heute + 12 Monate.</li>
-        <li style="${li}"><b>„✏ Bearbeiten"</b> öffnet die Regelwerk im Editor (z. B. um den Termin frei zu wählen).</li>
+        <li style="${li}"><b>„✏ Bearbeiten"</b> öffnet das Regelwerk im Editor (z. B. um den Termin frei zu wählen).</li>
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron schickt zusätzlich einen <b>Fälligkeits-Digest</b> an die Admins: alle überfälligen und in den nächsten Tagen fälligen Überprüfungen, mit Direktlink in diesen Reiter.</div>`,
       'ISO 27001 A.5.1 (regelmäßige Überprüfung der Regelwerke), Klausel 9.3/10.1 (Bewertung &amp; fortlaufende Verbesserung).'),
@@ -282,17 +310,23 @@ function _dokuSections() {
         <li style="${li}">Im Governance-Board liegen <b>alle Entwürfe</b> der Konzernregelungen. Sobald ein Entwurf die interne <b>Konformitätsprüfung + Freigabe</b> hier im RMS durchlaufen hat, wird das Dokument dort von Legal überschrieben/neu erstellt und veröffentlicht.</li>
         <li style="${li}"><b>„👁 Vorschau"</b>, <b>„✏️ In Office bearbeiten"</b> / <b>„🌐 Im Browser bearbeiten"</b> und <b>„🕘 Versionsverlauf"</b> wie bei ISMS-Dokumenten; <b>„↗ SharePoint"</b> öffnet den Ordner direkt.</li>
         <li style="${li}"><b>„＋ Als Regelwerk übernehmen"</b> holt einen Entwurf in den Regelwerk-Workflow (Editor mit vorbefülltem Dokument) – der Start der Konformitätsprüfung/Freigabe.</li>
-      </ul>`,
+      </ul>
+      <div style="${h3}">Navigation über die Ordnerstruktur</div>
+      <p style="margin:0 0 8px;line-height:1.55">Links steht der <b>Ordner-Baum</b> der Legal-Ablage: mit ▸/▾ auf- und zuklappen, je Ordner die Anzahl der Entwürfe (inklusive Unterordner). Ein Klick filtert die Liste rechts auf diesen Ordner <b>samt aller Unterordner</b>; die Suche wirkt zusätzlich.</p>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik) – gemeinsam mit der Konformitätsprüfung/Freigabe im RMS.'),
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerke verknüpfen</b> („im Einklang mit den Regelwerke"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
       <ul style="${ol}">
         <li style="${li}"><b>+ Neuer Prozess</b> – leeres Diagramm im Modeler (Elemente aus der Palette ziehen).</li>
+        <li style="${li}"><b>📋 Standard-Prozesse</b> – legt die <b>im RMS gelebten Abläufe</b> auf einen Schlag als BPMN-Entwürfe an (siehe unten).</li>
         <li style="${li}"><b>⬆ Importieren</b> – eine vorhandene <b>.bpmn/.xml</b>-Datei einlesen und weiterbearbeiten.</li>
-        <li style="${li}"><b>✨ Aus Regelwerk</b> – erzeugt einen echten Prozessentwurf per <b>Texterkennung</b> aus dem verknüpften Word-Dokument der Regelwerk.</li>
+        <li style="${li}"><b>✨ Aus Regelwerk</b> – erzeugt einen echten Prozessentwurf per <b>Texterkennung</b> aus dem verknüpften Word-Dokument des Regelwerks.</li>
         <li style="${li}">Je Prozess wählbar, welche <b>Regelwerke</b> er umsetzt; die Verknüpfung wird in der BPMN-Datei mitgespeichert und auf den Karten angezeigt.</li>
       </ul>
+      <div style="${h3}">📋 Standard-Prozesse</div>
+      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>14 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, Kurs/Schulung, KI-Antrag, Dokument-Health-Check, ISMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
+      <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: bereits vorhandene Prozesse werden übersprungen, angelegt wird erst nach Bestätigung. Die Diagramme sind saubere <b>Startvorlagen</b> mit Aufgaben und Entscheidungs-Gateways – danach frei anpassbar.</div>
       <div style="${h3}">„Aus Regelwerk" – so entsteht der Entwurf</div>
       <ul style="${ol}">
         <li style="${li}">Regelwerk wählen → die App liest den <b>Text des Word-Dokuments</b> aus (direkt im Browser, ohne Server/KI) und zeigt ihn <b>editierbar</b> an.</li>
@@ -302,7 +336,7 @@ function _dokuSections() {
       <div style="background:var(--c-bg,#f8fafc);border:1px solid var(--c-border,#e5e7eb);border-radius:10px;padding:12px 14px;line-height:1.6">
         Eine Beschaffungsrichtlinie enthält im Word-Dokument:
         <div style="font-family:monospace;font-size:.82rem;margin:6px 0;color:var(--c-muted)">1. Antrag im System erfassen<br>2. Vorgesetzter: Antrag prüfen<br>3. Freigegeben?<br>4. Bestellung auslösen<br>5. Wareneingang dokumentieren</div>
-        „✨ Aus Regelwerk" erzeugt daraus: <b>Start → Aufgabe „Antrag erfassen" → Aufgabe „Vorgesetzter: Antrag prüfen" → Gateway „Freigegeben?"</b> (ja → „Bestellung auslösen" → „Wareneingang dokumentieren" → Ende; nein → „Abweichung behandeln" → Ende „Nachbessern"). Der Prozess ist automatisch mit der Regelwerk verknüpft.
+        „✨ Aus Regelwerk" erzeugt daraus: <b>Start → Aufgabe „Antrag erfassen" → Aufgabe „Vorgesetzter: Antrag prüfen" → Gateway „Freigegeben?"</b> (ja → „Bestellung auslösen" → „Wareneingang dokumentieren" → Ende; nein → „Abweichung behandeln" → Ende „Nachbessern"). Der Prozess ist automatisch mit dem Regelwerk verknüpft.
       </div>
       <div style="${hint}">💡 Kein Word-Dokument verknüpft? Dann einfach den Prozesstext in das Feld einfügen – der Entwurf wird genauso erzeugt.</div>`,
       'ISO 27001 A.5.37 (Dokumentierte Betriebsabläufe), Klausel 8.1 (Betriebliche Planung &amp; Steuerung); NIS2 Art. 21(2) (Verfahren &amp; Maßnahmen).'),

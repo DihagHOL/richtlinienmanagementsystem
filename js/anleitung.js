@@ -133,11 +133,16 @@ function anleitungHtml() {
       <h2 style="${h2}">4. Verwaltung ${_aBadge('Administratoren', 'admin')}</h2>
       <h3 style="${h3}">Regelwerk Dashboard</h3>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
-        <li style="${liStyle}"><b>„Regelwerk Dashboard“</b> → „+ Neue Regelwerk“ oder bestehende
-          anklicken.</li>
-        <li style="${liStyle}">Titel, Beschreibung, Kategorie, Zielgruppe (wer sie sehen muss),
+        <li style="${liStyle}"><b>„Regelwerk Dashboard“</b> → „+ Neues Regelwerk“ oder bestehende
+          anklicken. Suche und die Filter <b>Status</b>, <b>Typ</b> und <b>Standort</b> helfen beim Finden.</li>
+        <li style="${liStyle}">Titel, Beschreibung, Kategorie, <b>Typ</b> (Handbuch, Richtlinie, Konzernrichtlinie …),
+          <b>Geltungsbereich</b> (alle Standorte oder einzelne Werke), Zielgruppe (wer es sehen muss),
           Pflicht/optional, Wissenstest und das zugehörige <b>Dokument</b> festlegen.</li>
+        <li style="${liStyle}"><b>Komplett neue</b> Regelwerke laufen zuerst als <b>💡 Konzept</b> an die
+          Geschäftsleitung – erst nach deren Zustimmung entsteht ein Entwurf.</li>
         <li style="${liStyle}">„Zur Konformitätsprüfung“ startet den Freigabe-Workflow (siehe Abschnitt 3).</li>
+        <li style="${liStyle}">Die <b>Änderungshistorie</b> im Editor zeigt, wer wann was geändert oder
+          entschieden hat. Veröffentlichte Regelwerke lassen sich <b>archivieren</b> (bleiben für Audits erhalten).</li>
         <li style="${liStyle}"><b>Audit Report</b> (Compliance) zeigt, wer welche Pflicht-Regelwerk
           erledigt hat (inkl. CSV-Export).</li>
       </ul>
