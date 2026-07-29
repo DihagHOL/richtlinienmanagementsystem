@@ -92,7 +92,10 @@ function _govTreeNodeHtml(node, depth) {
   const expanded = _govExpanded.has(node.path);
   const sel = _govFolder === node.path;
   const caret = hasKids ? (expanded ? '▾' : '▸') : '';
-  const html = `<div class="gov-tree-node${sel ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px" onclick="govSelectFolder('${esc(node.path)}')">
+  const html = `<div class="gov-tree-node${sel ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px"
+    role="treeitem" tabindex="0" aria-level="${depth + 1}" aria-selected="${sel ? 'true' : 'false'}"${hasKids ? ` aria-expanded="${expanded ? 'true' : 'false'}"` : ''}
+    onclick="govSelectFolder('${esc(node.path)}')"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();govSelectFolder('${esc(node.path)}')}${hasKids ? `else if(event.key==='ArrowRight'&&'${expanded}'==='false'){event.preventDefault();govToggleFolder('${esc(node.path)}')}else if(event.key==='ArrowLeft'&&'${expanded}'==='true'){event.preventDefault();govToggleFolder('${esc(node.path)}')}` : ''}">
     <span class="gov-tree-caret"${hasKids ? ` onclick="event.stopPropagation();govToggleFolder('${esc(node.path)}')"` : ''}>${caret}</span>
     <span>${node.path === '' ? '🗂' : (expanded && hasKids ? '📂' : '📁')}</span>
     <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
@@ -137,7 +140,7 @@ function renderGovernanceDocs() {
     const exists = all.some(d => d.folder === _govFolder || (d.folder || '').startsWith(_govFolder + '/'));
     if (!exists) _govFolder = '';
   }
-  const treeHtml = `<aside class="gov-tree">${_govTreeNodeHtml(tree, 0)}</aside>`;
+  const treeHtml = `<aside class="gov-tree" role="tree" aria-label="Ordnerstruktur des Governance-Boards">${_govTreeNodeHtml(tree, 0)}</aside>`;
 
   let rows = all.slice();
   // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z. B. „Anhänge/2024")

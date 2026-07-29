@@ -609,10 +609,14 @@ function workflowBadge(status) {
   return `<span class="status-badge ${cls}">${esc(label)}</span>`;
 }
 
-/* ── Toast ── */
+/* ── Toast ──
+   Meldungen werden über eine Live-Region angekündigt, damit Screenreader sie
+   mitbekommen (Fehler dringlicher als Erfolgsmeldungen). */
 function toast(msg, type = '') {
   const c = document.getElementById('toast-c');
   if (!c) return;
+  c.setAttribute('role', 'status');
+  c.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   const t = document.createElement('div');
   t.className = 'toast ' + type;
   t.textContent = msg;
@@ -620,23 +624,68 @@ function toast(msg, type = '') {
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 3200);
 }
 
-/* ── Modal ── */
-function openModal(html, wide = false) {
-  const mount = document.getElementById('modal-mount');
-  mount.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal${wide ? ' wide' : ''}">${html}</div></div>`;
+/* ── Modal ──
+   Barrierefrei: als Dialog ausgezeichnet, Escape schließt, Tab bleibt im Dialog
+   gefangen, und beim Schließen kehrt der Fokus dorthin zurück, wo er herkam. */
+let _modalOpener = null;      // Element, das den Dialog geöffnet hat
+let _modalKeyHandler = null;  // aktiver Tastatur-Handler (Escape/Tab)
+
+/** Alle fokussierbaren Elemente im Dialog (für die Fokus-Falle). */
+function _modalFocusables() {
+  const m = document.querySelector('#modal-mount .modal');
+  if (!m) return [];
+  return [...m.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetParent !== null || el === document.activeElement);
 }
+
+function openModal(html, wide = false, opts = {}) {
+  const mount = document.getElementById('modal-mount');
+  const bereitsOffen = !!mount.querySelector('.modal');
+  if (!bereitsOffen) _modalOpener = document.activeElement;   // nur beim ersten Öffnen merken
+  const titel = opts.label || 'Dialog';
+  mount.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(titel)}">${html}</div></div>`;
+
+  // Überschrift im Dialog als Beschriftung nutzen, falls vorhanden
+  const h = mount.querySelector('.modal-header h3');
+  const box = mount.querySelector('.modal');
+  if (h && box) { h.id = h.id || 'modal-titel'; box.setAttribute('aria-labelledby', h.id); box.removeAttribute('aria-label'); }
+
+  if (!_modalKeyHandler) {
+    _modalKeyHandler = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+      if (e.key !== 'Tab') return;
+      const f = _modalFocusables();
+      if (!f.length) return;
+      const erste = f[0], letzte = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === erste) { e.preventDefault(); letzte.focus(); }
+      else if (!e.shiftKey && document.activeElement === letzte) { e.preventDefault(); erste.focus(); }
+    };
+    document.addEventListener('keydown', _modalKeyHandler, true);
+  }
+  // Fokus in den Dialog holen (erstes sinnvolles Element, nicht das ✕)
+  if (!bereitsOffen) setTimeout(() => {
+    const f = _modalFocusables().filter(el => !el.classList.contains('modal-close'));
+    (f[0] || _modalFocusables()[0])?.focus();
+  }, 30);
+}
+
 function closeModal() {
   document.getElementById('modal-mount').innerHTML = '';
+  if (_modalKeyHandler) { document.removeEventListener('keydown', _modalKeyHandler, true); _modalKeyHandler = null; }
+  if (_modalOpener && typeof _modalOpener.focus === 'function' && document.contains(_modalOpener)) _modalOpener.focus();
+  _modalOpener = null;
 }
 
 /** Modal neu rendern (z. B. Editor bei Ein-/Ausklappen), ohne dass die
- *  Scroll-Position des Modal-Bodys nach oben springt. */
+ *  Scroll-Position des Modal-Bodys nach oben springt und ohne Fokusverlust. */
 function reopenModalKeepScroll(html, wide) {
   const prev = document.querySelector('#modal-mount .modal-body');
   const top = prev ? prev.scrollTop : 0;
+  const aktivId = document.activeElement && document.activeElement.id;
   openModal(html, wide);
   if (top) { const nb = document.querySelector('#modal-mount .modal-body'); if (nb) nb.scrollTop = top; }
+  if (aktivId) { const wieder = document.getElementById(aktivId); if (wieder) wieder.focus(); }
 }
 
 /* App-eigener Bestätigungsdialog (statt Browser-„Ja/Nein"). @returns Promise<boolean> */

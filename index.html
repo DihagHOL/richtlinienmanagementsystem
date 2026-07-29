@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/style.css?v=63246ea7"/>
 </head>
 <body>
+<a href="#hauptinhalt" class="skip-link">Zum Inhalt springen</a>
 
 <!-- ── BOOT ─────────────────────────────────────────────────────── -->
 <div id="boot">
@@ -32,7 +33,7 @@
       <svg width="26" height="26" viewBox="0 0 26 26"><rect width="26" height="26" rx="6" fill="#17509e"/><text x="6" y="19" font-size="13" font-weight="700" fill="white" font-family="Exo">R</text></svg>
       <span>Regelwerk</span>
     </div>
-    <nav class="sidebar-nav" id="sidebar-nav">
+    <nav class="sidebar-nav" id="sidebar-nav" aria-label="Hauptnavigation">
       <a class="nav-item active" data-view="meine">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>
         Meine Regelwerke
@@ -137,7 +138,7 @@
   </aside>
 
   <!-- Main -->
-  <main class="main">
+  <main class="main" id="hauptinhalt" tabindex="-1">
     <header class="topbar">
       <div class="topbar-left">
         <button class="menu-toggle" id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
@@ -161,9 +162,9 @@
         <div class="view-toolbar">
           <div class="search-box">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-            <input type="text" id="search-meine" placeholder="Regelwerk suchen …" oninput="renderMeine()"/>
+            <input type="text" id="search-meine" placeholder="Regelwerk suchen …" oninput="renderMeine()" aria-label="Regelwerk suchen"/>
           </div>
-          <select id="filter-meine" class="sort-select" onchange="renderMeine()">
+          <select id="filter-meine" class="sort-select" onchange="renderMeine()" aria-label="Filter: Alle anzeigen">
             <option value="all">Alle anzeigen</option>
             <option value="open">Nur offene</option>
             <option value="done">Nur abgeschlossene</option>
@@ -198,9 +199,9 @@
         <div class="view-toolbar">
           <div class="search-box">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-            <input type="text" id="search-admin" placeholder="Suchen …" oninput="renderAdminList()"/>
+            <input type="text" id="search-admin" placeholder="Suchen …" oninput="renderAdminList()" aria-label="Suchen"/>
           </div>
-          <select id="filter-admin" class="sort-select" onchange="renderAdminList()">
+          <select id="filter-admin" class="sort-select" onchange="renderAdminList()" aria-label="Filter: Alle Status">
             <option value="all">Alle Status</option>
             <option value="Entwurf">Entwurf</option>
             <option value="Konformitätsprüfung">Konformitätsprüfung</option>
@@ -209,10 +210,10 @@
             <option value="Veröffentlicht">Veröffentlicht</option>
             <option value="Archiviert">Archiviert</option>
           </select>
-          <select id="filter-admin-typ" class="sort-select" onchange="renderAdminList()">
+          <select id="filter-admin-typ" class="sort-select" onchange="renderAdminList()" aria-label="Filter: Alle Typen">
             <option value="">Alle Typen</option>
           </select>
-          <select id="filter-admin-standort" class="sort-select" onchange="renderAdminList()">
+          <select id="filter-admin-standort" class="sort-select" onchange="renderAdminList()" aria-label="Filter: Alle Standorte">
             <option value="">Alle Standorte</option>
           </select>
           <div class="toolbar-spacer"></div>
@@ -232,12 +233,12 @@
         <div class="view-toolbar">
           <div class="search-box">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-            <input type="text" id="search-isms" placeholder="Dokument suchen …" oninput="renderIsmsDocs()"/>
+            <input type="text" id="search-isms" placeholder="Dokument suchen …" oninput="renderIsmsDocs()" aria-label="Dokument suchen"/>
           </div>
-          <select id="filter-isms-stand" class="sort-select" onchange="renderIsmsDocs()">
+          <select id="filter-isms-stand" class="sort-select" onchange="renderIsmsDocs()" aria-label="Filter: Alle Stände">
             <option value="">Alle Stände</option>
           </select>
-          <select id="filter-isms-folder" class="sort-select" onchange="renderIsmsDocs()">
+          <select id="filter-isms-folder" class="sort-select" onchange="renderIsmsDocs()" aria-label="Filter: Alle Ordner">
             <option value="">Alle Ordner</option>
           </select>
           <div class="toolbar-spacer"></div>
@@ -251,7 +252,7 @@
         <div class="view-toolbar">
           <div class="search-box">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-            <input type="text" id="search-governance" placeholder="Entwurf suchen …" oninput="renderGovernanceDocs()"/>
+            <input type="text" id="search-governance" placeholder="Entwurf suchen …" oninput="renderGovernanceDocs()" aria-label="Entwurf suchen"/>
           </div>
           <div class="toolbar-spacer"></div>
           <a class="btn btn-sm btn-outline" href="https://dihag.sharepoint.com/sites/ArbeitsplatzLegal/Freigegebene%20Dokumente/Forms/AllItems.aspx?id=%2Fsites%2FArbeitsplatzLegal%2FFreigegebene%20Dokumente%2FEntwurf_010_Corporate%20Govenance-Board&viewid=9d48f2f0-0117-46a3-a4cf-cf65f3cdfc29" target="_blank" rel="noopener">↗ SharePoint</a>
@@ -295,9 +296,9 @@
         <div class="view-toolbar">
           <div class="search-box">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-            <input type="text" id="search-prop" placeholder="Vorschlag suchen …" oninput="renderProposals()"/>
+            <input type="text" id="search-prop" placeholder="Vorschlag suchen …" oninput="renderProposals()" aria-label="Vorschlag suchen"/>
           </div>
-          <select id="filter-prop-status" class="sort-select" onchange="renderProposals()">
+          <select id="filter-prop-status" class="sort-select" onchange="renderProposals()" aria-label="Filter: Alle Status">
             <option value="">Alle Status</option>
             <option value="Offen">Offen</option>
             <option value="In Bearbeitung">In Bearbeitung</option>

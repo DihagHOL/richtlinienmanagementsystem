@@ -400,6 +400,25 @@ a { color: inherit; }
   .doc-actions-grp + .doc-actions-grp { border-left: 1px solid var(--c-border); padding-left: 14px; }
 }
 
+/* ── Barrierefreiheit ── */
+/* Sprungmarke: unsichtbar, bis sie per Tab fokussiert wird */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 300;
+  background: var(--c-primary); color: #fff; padding: 10px 18px;
+  border-radius: 0 0 8px 0; font-weight: 600; text-decoration: none;
+}
+.skip-link:focus { left: 0; }
+#hauptinhalt:focus { outline: none; }   /* Programmatischer Fokus ohne störenden Rahmen */
+
+/* Durchgängig sichtbarer Tastaturfokus (Maus-Klicks bleiben unauffällig) */
+:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; border-radius: 4px; }
+.gov-tree-node:focus-visible { outline-offset: -2px; }
+
+/* Wer „Bewegung reduzieren" eingestellt hat, bekommt keine Animationen */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
 /* ── Governance-Board: Ordner-Baum neben der Dokumentliste ── */
 .gov-layout { display: flex; gap: 16px; align-items: flex-start; }
 .gov-tree { flex: 0 0 250px; max-width: 300px; border: 1px solid var(--c-border); border-radius: 10px; padding: 6px; background: #fff; max-height: 72vh; overflow: auto; }

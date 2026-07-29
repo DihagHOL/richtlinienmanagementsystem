@@ -954,7 +954,7 @@ function _edCollapsible(key, title, badge, bodyInner, moveCtrls) {
   const open = !!_edSecOpen[key];
   return `
     <div style="border:1px solid var(--c-border);border-radius:10px;overflow:hidden;margin-top:8px">
-      <div onclick="edToggleSection('${key}')" role="button" tabindex="0"
+      <div onclick="edToggleSection('${key}')" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}"
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();edToggleSection('${key}')}"
         style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open ? 'var(--c-primary-l)' : 'var(--c-bg)'};user-select:none">
         <span style="width:12px;color:var(--c-primary);font-size:.8rem">${open ? '▾' : '▸'}</span>
