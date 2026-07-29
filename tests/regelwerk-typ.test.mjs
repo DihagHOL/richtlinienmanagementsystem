@@ -24,7 +24,7 @@ const shp = fs.readFileSync(ROOT+'/js/sharepoint.js','utf8');
 ok(shp.includes("{ name: 'RegelwerkTyp',"), 'POLICY_COLUMNS enthält RegelwerkTyp');
 ok(/RegelwerkTyp:\s*p\.regelwerkTyp/.test(shp), 'spSavePolicy schreibt RegelwerkTyp');
 ok(/if \(!all\.RegelwerkTyp\)\s*delete all\.RegelwerkTyp/.test(shp), 'spSavePolicy lässt leeren Typ weg');
-ok(/f\[_policyFieldName\('RegelwerkTyp'\)\]/.test(shp), 'Lesen über internen Namen (Resolver)');
+ok(/_policyFieldName\(def\.spalte\)/.test(shp), 'Lesen über internen Namen (Resolver)');
 
 // ── B: admin.js Regelwerk-Editor ──
 const actx = { console, esc };

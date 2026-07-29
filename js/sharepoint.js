@@ -78,6 +78,29 @@ const POLICY_COLUMNS = [
   { name: 'PruefKonfigJson',     typ: 'Mehrere Zeilen Text' },
   { name: 'FreigabeKonfigJson',  typ: 'Mehrere Zeilen Text' },
   { name: 'MitbestimmungJson',   typ: 'Mehrere Zeilen Text' },
+  { name: 'DatenJson',           typ: 'Mehrere Zeilen Text' },
+];
+
+/**
+ * Erweiterungsfelder – alles, was nach der Grundversion dazukam.
+ * Sie liegen gebündelt im Sammelfeld `DatenJson`; existiert zusätzlich eine
+ * eigene Spalte, wird sie weiterhin mitgeschrieben (Kompatibilität, SharePoint-
+ * Ansichten). Neue Felder brauchen deshalb KEINE neue SharePoint-Spalte mehr:
+ * einfach hier eintragen.
+ *   feld    – Eigenschaft am Regelwerk-Objekt
+ *   spalte  – optionale Einzelspalte (Altbestand); null = nur DatenJson
+ *   json    – true, wenn die Einzelspalte den Wert als JSON-Text hält
+ */
+const POLICY_EXT_FIELDS = [
+  { feld: 'regelwerkTyp',       spalte: 'RegelwerkTyp',        json: false, leer: '' },
+  { feld: 'geltungsbereich',    spalte: 'GeltungsbereichJson', json: true,  leer: [] },
+  { feld: 'historie',           spalte: 'HistorieJson',        json: true,  leer: [] },
+  { feld: 'konzept',            spalte: 'KonzeptJson',         json: true,  leer: null },
+];
+
+/** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,
+ *  solange `DatenJson` existiert (dann werden sie nicht als „fehlend" gemeldet). */
+const POLICY_OPTIONAL_COLUMNS = [
   { name: 'Typ2',                typ: 'Auswahl (Regelwerk/Konzept)' },
   { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
   { name: 'RegelwerkTyp',        typ: 'Einzelne Textzeile (oder Auswahl)' },
@@ -107,9 +130,65 @@ function _policyFieldName(expected) {
   return hit ? hit.name : expected;
 }
 
-/** Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit) */
+/**
+ * Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit)
+ * Die Kompatibilitäts-Spalten (Typ2, RegelwerkTyp …) werden nur gemeldet,
+ * solange das Sammelfeld `DatenJson` fehlt – mit ihm sind sie entbehrlich.
+ */
 function spMissingPolicyColumns() {
-  return POLICY_COLUMNS.filter(c => !_policyHasColumn(c.name));
+  const fehlt = POLICY_COLUMNS.filter(c => !_policyHasColumn(c.name));
+  if (!_policyHasColumn('DatenJson')) {
+    fehlt.push(...POLICY_OPTIONAL_COLUMNS.filter(c => !_policyHasColumn(c.name)));
+  }
+  return fehlt;
+}
+
+/** Historie auf die jüngsten Einträge kürzen (Feldlängen-Limit). */
+function _histKurz(p) { return (p.historie || []).slice(-HISTORIE_MAX); }
+
+/** Sammelfeld-Inhalt aus einem Regelwerk bauen (alle Erweiterungsfelder). */
+function _buildDatenJson(p) {
+  const o = { typ: (p.typ === 'Konzept') ? 'Konzept' : 'Regelwerk' };
+  for (const def of POLICY_EXT_FIELDS) {
+    o[def.feld] = (def.feld === 'historie') ? _histKurz(p)
+      : (p[def.feld] !== undefined ? p[def.feld] : def.leer);
+  }
+  return o;
+}
+
+/** Erweiterungsfelder aus `DatenJson` lesen (Fallback: Einzelspalten). */
+function _readExtFields(f) {
+  let daten = {};
+  try {
+    const raw = f[_policyFieldName('DatenJson')];
+    const o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o === 'object' && !Array.isArray(o)) daten = o;
+  } catch { daten = {}; }
+
+  const out = {};
+  for (const def of POLICY_EXT_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(daten, def.feld)) {
+      out[def.feld] = daten[def.feld];                       // Sammelfeld hat Vorrang
+      continue;
+    }
+    let v = def.leer;                                         // sonst Einzelspalte (Altbestand)
+    if (def.spalte) {
+      const raw = f[_policyFieldName(def.spalte)];
+      if (def.json) { try { const p = raw ? JSON.parse(raw) : null; if (p !== null && p !== undefined) v = p; } catch { /* Default */ } }
+      else if (raw) v = raw;
+    }
+    out[def.feld] = v;
+  }
+  // Typ (Regelwerk/Konzept) – im Sammelfeld unter „typ", sonst aus der Spalte Typ2
+  const typRaw = Object.prototype.hasOwnProperty.call(daten, 'typ') ? daten.typ : f[_policyFieldName('Typ2')];
+  out.typ = (typRaw === 'Konzept') ? 'Konzept' : 'Regelwerk';
+
+  // Arrays/Objekte defensiv normalisieren (kaputte Daten dürfen die App nicht kippen)
+  if (!Array.isArray(out.geltungsbereich)) out.geltungsbereich = [];
+  if (!Array.isArray(out.historie)) out.historie = [];
+  if (typeof out.regelwerkTyp !== 'string') out.regelwerkTyp = '';
+  if (!out.konzept || typeof out.konzept !== 'object' || Array.isArray(out.konzept)) out.konzept = null;
+  return out;
 }
 
 /* Erwartete Spalten der Liste „Bestaetigungen". */
@@ -363,21 +442,14 @@ function _mapPolicy(item) {
       freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
     }
   } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
-  const typVal = f[_policyFieldName('Typ2')];
-  const typ = (typVal === 'Konzept') ? 'Konzept' : 'Regelwerk';
-  let konzept = null;
-  const konzeptRaw = f[_policyFieldName('KonzeptJson')];
-  try { if (konzeptRaw) konzept = JSON.parse(konzeptRaw); } catch { konzept = null; }
-  let geltungsbereich = [];
-  try { const gb = JSON.parse(f[_policyFieldName('GeltungsbereichJson')] || '[]'); if (Array.isArray(gb)) geltungsbereich = gb; } catch { geltungsbereich = []; }
-  let historie = [];
-  try { const h = JSON.parse(f[_policyFieldName('HistorieJson')] || '[]'); if (Array.isArray(h)) historie = h; } catch { historie = []; }
+  // Erweiterungsfelder: Sammelfeld DatenJson mit Rückfall auf die Einzelspalten
+  const ext = _readExtFields(f);
   return {
-    typ,
-    konzept: (konzept && typeof konzept === 'object') ? konzept : null,
-    regelwerkTyp: f[_policyFieldName('RegelwerkTyp')] || '',
-    geltungsbereich,
-    historie,
+    typ:          ext.typ,
+    konzept:      ext.konzept,
+    regelwerkTyp: ext.regelwerkTyp,
+    geltungsbereich: ext.geltungsbereich,
+    historie:     ext.historie,
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
@@ -457,7 +529,10 @@ async function spSavePolicy(p) {
     RegelwerkTyp:        p.regelwerkTyp || '',
     GeltungsbereichJson: JSON.stringify(p.geltungsbereich || []),
     // Nur die jüngsten Einträge speichern – ältere fallen raus (Feldlängen-Limit)
-    HistorieJson:        JSON.stringify((p.historie || []).slice(-HISTORIE_MAX)),
+    HistorieJson:        JSON.stringify(_histKurz(p)),
+    // Sammelfeld: alle Erweiterungsfelder in EINER Spalte – dadurch braucht ein
+    // neues Feld künftig keine neue SharePoint-Spalte mehr.
+    DatenJson:           JSON.stringify(_buildDatenJson(p)),
   };
   // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
   // Regelwerke lassen Typ2 leer → gar nicht senden).

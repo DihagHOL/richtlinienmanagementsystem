@@ -111,7 +111,12 @@ ok(Array.isArray(sctx.__mBad.historie) && sctx.__mBad.historie.length === 0, '_m
 
 const shp = fs.readFileSync(ROOT + '/js/sharepoint.js', 'utf8');
 ok(shp.includes("{ name: 'HistorieJson',"), 'POLICY_COLUMNS enthält HistorieJson');
-ok(/HistorieJson:\s*JSON\.stringify\(\(p\.historie \|\| \[\]\)\.slice\(-HISTORIE_MAX\)\)/.test(shp), 'spSavePolicy kappt auf die jüngsten Einträge');
+ok(/_histKurz\(p\)/.test(shp) && /slice\(-HISTORIE_MAX\)/.test(shp), 'spSavePolicy kappt auf die jüngsten Einträge');
+vm.runInContext(`
+  const lang = { historie: Array.from({length: 250}, (_, i) => ({ aktion: 'A' + i })) };
+  globalThis.__kurz = _histKurz(lang);
+`, sctx);
+ok(sctx.__kurz.length === 200 && sctx.__kurz[0].aktion === 'A50', 'Kürzung behält die jüngsten 200 Einträge');
 ok(sctx.__MAX === 200, 'HISTORIE_MAX = 200');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
