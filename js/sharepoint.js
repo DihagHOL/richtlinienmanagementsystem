@@ -31,9 +31,6 @@ const SP = {
   ],
 };
 
-/** Browser-URL der App-Site (dort liegen die meisten App-Listen), z. B.
- *  https://dihag.sharepoint.com/sites/IT – für Hinweise/Links beim manuellen Anlegen. */
-function spAppSiteUrl() { return 'https://' + SP.appSiteHost.replace(':/', '/'); }
 /** Browser-URL der ISMS-Site (dort liegt bewusst die Risiken-Liste), z. B.
  *  https://dihag.sharepoint.com/sites/ISMS. */
 function spIsmsSiteUrl() { return 'https://' + SP.ismsSiteHost.replace(':/', '/'); }
@@ -611,9 +608,6 @@ const COURSE_COLUMNS = [
   { name: 'Status',         typ: 'Auswahl (Entwurf/Veröffentlicht)' },
 ];
 function spCoursesAvailable() { return !!_sp.courseListId; }
-function spMissingCourseColumns() {
-  return _sp.courseListId ? COURSE_COLUMNS.filter(c => !_sp.courseFields.has(c.name)) : [];
-}
 
 async function spGetCourses() {
   const token = await acquireToken(SP.scopes);
@@ -1280,8 +1274,6 @@ async function _govResolve(token) {
   _gov.folderId = folder.id;
 }
 
-/** Name der genutzten Bibliothek (für Diagnose). */
-function spGovCurrentLibrary() { return _gov.driveName || ''; }
 
 /** Direkte Datei-URL (Bibliothekswurzel + Ordner + Dateiname) für das Office-URI-Schema. */
 function _govFileUrl(subPath, name) {

@@ -147,7 +147,6 @@ function getBrMails()           { const m = _cfg().brMails; return (m && typeof 
 function getBrMail(werk)        { return getBrMails()[werk] || ''; }
 /* ── C-Level-Audit-Bericht: Empfänger ── */
 function getClevelMail()        { return _cfg().clevelMail || ''; }
-function getEskalationMail()    { return _cfg().eskalationMail || ''; }
 /* ── Power-Automate-Genehmigung: Umfang je Etappe ── */
 function getGenehmigungPAScope() {
   const s = _cfg().genehmigungPAScope;
@@ -158,12 +157,11 @@ function getGenehmigungPAScope() {
 function isPAFreigabe()  { const s = getGenehmigungPAScope(); return s === 'gl' || s === 'alle'; }
 /** Konformitätsprüfung läuft über Power Automate? (nur bei „alle") */
 function isPAPruefung()  { return getGenehmigungPAScope() === 'alle'; }
-function getGenehmigungPA()     { return getGenehmigungPAScope() !== 'aus'; }
-function getErinnerungenAktiv()        { return _cfg().erinnerungenAktiv !== false; }
-function getMailSender()               { return _cfg().mailSender || ''; }
-function getErinnerungErsteNachTagen() { return _posInt(_cfg().erinnerungErsteNachTagen, 7); }
-function getErinnerungDannAlleTage()   { return _posInt(_cfg().erinnerungDannAlleTage, 3); }
-function getEskalationAbTagen()        { return _posInt(_cfg().eskalationAbTagen, 14); }
+/* Hinweis: Die Einstellungen zu Erinnerungen/Eskalation (erinnerungenAktiv,
+   mailSender, erinnerungErsteNachTagen, erinnerungDannAlleTage, eskalationAbTagen,
+   eskalationMail) werden hier gepflegt, aber ausschließlich vom nächtlichen
+   GitHub-Actions-Job gelesen (scripts/erinnerungen.mjs liest die Config direkt).
+   Deshalb gibt es dafür bewusst keine Getter in der App. */
 
 /* ── Pro-Richtlinie-Überschreibung: Prüfer/Schwelle je Richtlinie, sonst global ──
    Eine Richtlinie kann eigene Konformitätsprüfer haben (p.pruefKonfig.pruefer).

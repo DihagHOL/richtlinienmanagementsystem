@@ -248,12 +248,15 @@ function renderAdminList() {
   const readOnly = typeof isReadOnlyTab === 'function' && isReadOnlyTab('verwaltung');
   const newBtn = document.getElementById('btn-new-policy');
   const konzeptBtn = document.getElementById('btn-new-konzept');
+  const importBtn = document.getElementById('btn-import-policy');
   const filterEl = document.getElementById('filter-admin');
   const typEl = document.getElementById('filter-admin-typ');
   const stdEl = document.getElementById('filter-admin-standort');
   const healthBtn = document.getElementById('btn-health');
   if (newBtn) newBtn.style.display = readOnly ? 'none' : '';
   if (konzeptBtn) konzeptBtn.style.display = readOnly ? 'none' : '';
+  // Import nur im Regelwerk-Modus (Konzepte werden nicht aus Dateien importiert)
+  if (importBtn) importBtn.style.display = (readOnly || _adminMode === 'konzepte') ? 'none' : '';
   const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Regelwerk Dashboard" – Anlegen und Bearbeiten sind gesperrt.</div>` : '';
   const _colBanner = (liste, miss) => miss.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
@@ -726,6 +729,11 @@ function renderPolicyEditor() {
         ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff – Änderungen können nicht gespeichert werden.</span>
            <button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
         : `${p.id ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>` : ''}
+           ${p.id && p.status === 'Archiviert'
+             ? `<button class="btn btn-outline btn-sm" onclick="reaktivierePolicy('${p.id}')" title="Zurück in den Entwurfsstatus holen">↩ Reaktivieren</button>`
+             : (p.id && p.status === 'Veröffentlicht'
+               ? `<button class="btn btn-outline btn-sm" onclick="archivierePolicy('${p.id}')" title="Außer Kraft setzen: nicht mehr in „Meine Regelwerke", bleibt für Audits erhalten">📦 Archivieren</button>`
+               : '')}
            <button class="btn btn-outline" onclick="savePolicy()">Speichern (Entwurf)</button>
            ${(!p.id || p.status === 'Entwurf' || p.status === 'Konformitätsprüfung' || p.status === 'InReview')
              ? `<button class="btn btn-primary" onclick="savePolicy('Konformitätsprüfung')">${p.status === 'Konformitätsprüfung' ? '↻ Erneut zur Prüfung' : 'Zur Konformitätsprüfung →'}</button>`
@@ -1784,45 +1792,47 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
   </div>`;
 }
 
-async function previewPolicyDoc(id) {
-  const p = State.policies.find(x => x.id === id);
-  if (!p) return;
-  if (p.dokumentUrl) { window.open(p.dokumentUrl, '_blank', 'noopener'); return; }
-  if (p.dokumentDriveId && p.dokumentItemId) {
-    try {
-      const u = await spGetPreviewUrl(p.dokumentDriveId, p.dokumentItemId);
-      if (u) window.open(u, '_blank', 'noopener'); else toast('Keine Vorschau verfügbar.', 'error');
-    } catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); }
-  } else toast('Kein Dokument hinterlegt.', 'error');
-}
 
-async function publishPolicy(id) {
-  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === id)));
-  const vorher = p.status;
-  p.status = 'Veröffentlicht';
-  p.veroeffentlichtAm = new Date().toISOString();
-  p.freigegebenVon = State.user.upn;
-  historieAdd(p, 'Freigegeben & veröffentlicht', `Direkt veröffentlicht (vorher: ${vorher}).`);
-  try {
-    await spSavePolicy(p);
-    await reloadData();
-    renderFreigaben();
-    toast('Freigegeben & veröffentlicht ✓', 'success');
-  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
-}
 
-async function setStatus(id, status) {
-  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === id)));
+async function setStatus(id, status, historienText) {
+  const src = State.policies.find(x => x.id === id);
+  if (!src) { toast('Regelwerk nicht gefunden.', 'error'); return; }
+  const p = JSON.parse(JSON.stringify(src));
   const vorher = p.status;
+  if (!await pruefeFremdaenderung(p, 'den Status änderst')) return;
   p.status = status;
-  if (vorher !== status) historieAdd(p, 'Status geändert', `„${vorher}" → „${status}"`);
+  if (vorher !== status) historieAdd(p, 'Status geändert', historienText || `„${vorher}" → „${status}"`);
   try {
     await spSavePolicy(p);
     await reloadData();
-    renderFreigaben();
+    if (typeof renderFreigaben === 'function') renderFreigaben();
     renderAdminList();
     toast('Status geändert: ' + status, 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Veröffentlichtes Regelwerk außer Kraft setzen (bleibt für Audits erhalten). */
+async function archivierePolicy(id) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
+  const p = State.policies.find(x => x.id === id);
+  if (!p) return;
+  const grund = await uiPrompt(
+    `„${p.title}" archivieren? Es erscheint dann nicht mehr unter „Meine Regelwerke", bleibt aber mit allen Bestätigungen und der Historie erhalten.\n\nGrund (optional, z. B. „abgelöst durch …"):`,
+    { title: 'Regelwerk archivieren', okLabel: 'Archivieren' });
+  if (grund === null) return;
+  closeModal();
+  await setStatus(id, 'Archiviert', `„${p.status}" → „Archiviert"` + (grund.trim() ? `\nGrund: ${grund.trim()}` : ''));
+}
+
+/** Archiviertes Regelwerk zurück in den Entwurf holen. */
+async function reaktivierePolicy(id) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
+  const p = State.policies.find(x => x.id === id);
+  if (!p) return;
+  if (!await uiConfirm(`„${p.title}" reaktivieren? Es geht zurück in den Status „Entwurf" und muss den Freigabeprozess erneut durchlaufen, bevor es wieder sichtbar wird.`,
+    { title: 'Regelwerk reaktivieren', okLabel: 'Reaktivieren' })) return;
+  closeModal();
+  await setStatus(id, 'Entwurf', '„Archiviert" → „Entwurf" (reaktiviert)');
 }
 
 /* ═══════════════════════════════════════════════════

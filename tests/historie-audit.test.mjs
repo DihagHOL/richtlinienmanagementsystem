@@ -88,8 +88,9 @@ for (const [fn, marker] of [
   ['markKonform', /historieAdd\(p, konform \? 'Konformitätsprüfung: konform'/],
   ['markMitbestimmung', /historieAdd\(p, konform \? 'Mitbestimmung: konform'/],
   ['markFreigabe', /historieAdd\(p, published \?/],
-  ['publishPolicy', /historieAdd\(p, 'Freigegeben & veröffentlicht', `Direkt/],
-  ['setStatus', /historieAdd\(p, 'Status geändert'/],
+  ['setStatus', /historieAdd\(p, 'Status geändert', historienText/],
+  ['archivieren (mit Grund)', /setStatus\(id, 'Archiviert', .*Archiviert/s],
+  ['reaktivieren', /setStatus\(id, 'Entwurf', '„Archiviert" → „Entwurf" \(reaktiviert\)'\)/],
 ]) ok(marker.test(adm), `Protokolliert: ${fn}`);
 
 /* ── 6) Persistenz in SharePoint ── */
