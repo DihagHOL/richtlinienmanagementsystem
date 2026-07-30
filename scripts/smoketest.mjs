@@ -131,6 +131,22 @@ for (const page of PAGES) {
   }
   if (unknown.size === 0) ok(`alle Handler-Aufrufe aufgelöst (${defined.size} Funktionen im Bundle)`);
   else for (const [id, files] of unknown) fail(`unbekannte Funktion "${id}()" referenziert in: ${[...files].join(', ')}`);
+
+  /* Alle Skripte teilen einen globalen Scope. Ein Name, der zweimal per
+     function/let/const deklariert wird, ist bei let/const ein SyntaxError und
+     legt die GANZE App still – typischer Fehler beim Aufteilen von Dateien. */
+  head(`3b. Keine doppelten Deklarationen – ${page.name}`);
+  const wo = new Map();   // Name -> [Datei:Zeile, …]
+  for (const f of bundle) {
+    rd(f).split('\n').forEach((line, i) => {
+      const m = line.match(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/)
+             || line.match(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/);
+      if (m) (wo.get(m[1]) || wo.set(m[1], []).get(m[1])).push(`${f}:${i + 1}`);
+    });
+  }
+  const doppelt = [...wo].filter(([, orte]) => orte.length > 1);
+  if (doppelt.length === 0) ok(`${wo.size} Top-Level-Namen, alle eindeutig`);
+  else for (const [name, orte] of doppelt) fail(`"${name}" mehrfach deklariert: ${orte.join(' · ')}`);
 }
 
 /* ── 4. access-config Cross-File-Konsistenz ─────────────────────── */

@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
@@ -18,7 +19,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const doku = read('js/dokumentation.js');
 const anleitung = read('js/anleitung.js');
-const admin = read('js/admin.js');
+const admin = ADMIN_DATEIEN.map(f => read('js/' + f)).join('\n');
 const konzepte = read('js/konzepte.js');
 const governance = read('js/governance.js');
 const prozesse = read('js/prozesse.js');

@@ -3,6 +3,7 @@ import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let pass=0, fail=0; const ok=(c,m)=>{ if(c){pass++;console.log('  OK ',m);}else{fail++;console.log('  XX ',m);} };
 
@@ -27,7 +28,7 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(ROOT+'/js/admin.js','utf8'), ctx);
+ADMIN_DATEIEN.forEach(f => vm.runInContext(fs.readFileSync(ROOT + '/js/' + f, 'utf8'), ctx));
 const run = (s) => vm.runInContext(s, ctx);
 
 const P = (o) => Object.assign({ id:'x', title:'', beschreibung:'', kategorie:'', regelwerkTyp:'', geltungsbereich:[],
@@ -140,7 +141,7 @@ for (const f of files) {
 ok(popups.length === 0, 'Keine Browser-confirm/prompt/alert mehr: ' + (popups.join(' | ') || 'sauber'));
 
 // awaits korrekt gesetzt
-const chk = [['admin','uiPrompt'],['kurse','uiConfirm'],['prozesse','uiConfirm'],['reifegrad','uiConfirm'],['risiken','uiConfirm'],['soa','uiConfirm']];
+const chk = [['freigaben','uiPrompt'],['kurse','uiConfirm'],['prozesse','uiConfirm'],['reifegrad','uiConfirm'],['risiken','uiConfirm'],['soa','uiConfirm']];
 for (const [f, fn] of chk) {
   const src = fs.readFileSync(`${ROOT}/js/${f}.js`,'utf8');
   const calls = [...src.matchAll(new RegExp('(await\\s+)?' + fn + '\\s*\\(', 'g'))];

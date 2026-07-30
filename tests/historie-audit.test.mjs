@@ -6,6 +6,7 @@ import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let pass = 0, fail = 0;
@@ -25,7 +26,7 @@ const ctx = {
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), ctx);   // gemeinsame Helfer
-vm.runInContext(fs.readFileSync(ROOT + '/js/admin.js', 'utf8'), ctx);
+ADMIN_DATEIEN.forEach(f => vm.runInContext(fs.readFileSync(ROOT + '/js/' + f, 'utf8'), ctx));
 const run = (s) => vm.runInContext(s, ctx);
 
 /* ── 1) Diff erkennt fachliche Änderungen ── */
@@ -78,7 +79,7 @@ run(`_edSecOpen.hist = false; globalThis.__zu = renderHistorieSection((()=>{cons
 ok(!ctx.__zu.includes('Anna Admin'), 'Anzeige: eingeklappt zeigt keine Einträge');
 
 /* ── 4) Editor bindet die Historie ein (nur bei gespeichertem Regelwerk) ── */
-const adm = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
+const adm = ADMIN_DATEIEN.map(f => fs.readFileSync(ROOT + '/js/' + f, 'utf8')).join('\n');
 ok(/\$\{p\.id \? renderHistorieSection\(p\) : ''\}/.test(adm), 'Editor: Historie nur bei vorhandener id');
 
 /* ── 5) Alle Mutationspfade protokollieren ── */

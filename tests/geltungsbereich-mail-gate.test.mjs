@@ -3,6 +3,7 @@ import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let pass=0, fail=0; const ok=(c,m)=>{ if(c){pass++;console.log('  OK ',m);}else{fail++;console.log('  XX ',m);} };
 
@@ -11,10 +12,10 @@ const actx = { console, esc, fmtDate:()=> '24.07.2026', toast:()=>{}, canWriteTa
   __modal:'', openModal:(h)=>{ actx.__modal=h; }, closeModal:()=>{}, renderPolicyEditor:()=>{},
   openPolicyEditor:()=>{}, openKonzeptEditor:()=>{} };
 actx.window=actx; actx.globalThis=actx; vm.createContext(actx);
-vm.runInContext(fs.readFileSync(ROOT+'/js/admin.js','utf8'), actx);
+ADMIN_DATEIEN.forEach(f => vm.runInContext(fs.readFileSync(ROOT + '/js/' + f, 'utf8'), actx));
 vm.runInContext('renderPolicyEditor = () => {};', actx);   // echte Render-Funktion für die Handler-Tests neutralisieren
 const arun=(s)=>vm.runInContext(s,actx);
-const adm = fs.readFileSync(ROOT+'/js/admin.js','utf8');
+const adm = ADMIN_DATEIEN.map(f => fs.readFileSync(ROOT + '/js/' + f, 'utf8')).join('\n');
 
 arun('globalThis.__a = _wfApprovalsHtml({ konformitaet:[{name:"Anna",entscheidung:"konform",datum:"2026-07-01"},{name:"Bob",entscheidung:"nicht konform"}], mitbestimmung:{konform:true,name:"KBR"}, freigaben:[{name:"Chef"}] });');
 ok(actx.__a.includes('Anna') && actx.__a.includes('KBR') && actx.__a.includes('Chef'), 'Mail: bereits Freigegebene aufgelistet');

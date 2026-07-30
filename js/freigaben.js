@@ -1,0 +1,593 @@
+/**
+ * Reiter „Freigaben" – Konformitätsprüfung, Mitbestimmung, Freigabe
+ * =================================================================
+ * Der Genehmigungs-Workflow eines Regelwerks: Prüfer bewerten die Konformität,
+ * bei Bedarf entscheidet die Mitbestimmung (KBR/Betriebsräte), zuletzt gibt die
+ * Geschäftsleitung frei. Dazu die Workflow-Mails (inkl. Entscheidungs-Buttons),
+ * der Schutz vor gleichzeitigem Bearbeiten und Statuswechsel wie Archivieren.
+ *
+ * Ausgegliedert aus admin.js, um die Datei überschaubar zu halten. Läuft im
+ * gemeinsamen globalen Scope – Reihenfolge in index.html: nach admin.js.
+ */
+
+
+/**
+ * Gleichzeitigkeits-Schutz: Hat jemand anderes das Regelwerk geändert, seit es
+ * hier geöffnet wurde? Wenn ja, fragt die Funktion nach (Überschreiben oder
+ * Abbrechen und neu laden). @returns true = weitermachen, false = abbrechen
+ */
+async function pruefeFremdaenderung(p, aktion) {
+  if (!p || !p.id || typeof spGetPolicyMeta !== 'function') return true;
+  const meta = await spGetPolicyMeta(p.id);
+  if (!meta || !meta.modifiedAt || !p.modifiedAt) return true;      // unbekannt → nicht blockieren
+  if (meta.modifiedAt === p.modifiedAt) return true;                 // unverändert → alles gut
+  const wer = meta.modifiedBy ? ` von ${meta.modifiedBy}` : '';
+  const wann = (typeof fmtDateTime === 'function') ? fmtDateTime(meta.modifiedAt) : meta.modifiedAt;
+  const weiter = await uiConfirm(
+    `Dieses Regelwerk wurde zwischenzeitlich${wer} geändert (${wann}). ` +
+    `Wenn du jetzt ${aktion || 'speicherst'}, überschreibst du diese Änderungen. ` +
+    `Empfehlung: abbrechen, neu laden und die Änderungen ansehen.`,
+    { title: 'Zwischenzeitlich geändert', okLabel: 'Trotzdem überschreiben', cancelLabel: 'Abbrechen', danger: true });
+  if (!weiter) {
+    closeModal();
+    if (typeof refreshAll === 'function') refreshAll();
+    else if (typeof reloadData === 'function') reloadData().then(() => renderAdminList());
+    toast('Abgebrochen – die aktuelle Fassung wurde geladen.');
+  }
+  return weiter;
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungshistorie (Audit-Trail je Regelwerk)
+   Jede Änderung wird mit Zeitpunkt, Person und Beschreibung festgehalten –
+   Nachweis für ISO 27001 / NIS2 („wer hat wann was geändert/entschieden").
+═══════════════════════════════════════════════════ */
+
+let _freigabenScope = null;   // 'meine' | 'alle' (null → automatisch je nach Zuständigkeit)
+let _fgSecOpen = { pruef: true, mb: true, frei: true };   // ausklappbare Abschnitte im Freigaben-Reiter
+
+function renderFreigaben() {
+  const list = document.getElementById('list-freigaben');
+  if (!list) return;
+  const admin = isCurrentUserAdmin();
+  const inPruefung = State.policies.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
+  const inMitbestimmung = State.policies.filter(p => p.status === 'Mitbestimmung');
+  const inFreigabe = State.policies.filter(p => p.status === 'Freigabe');
+  // Prüfer-Sicht: global ODER für mindestens eine laufende Richtlinie individuell hinterlegt.
+  const istPruefer = admin || (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
+    || (typeof isCurrentUserPrueferForPolicy === 'function' && inPruefung.some(p => isCurrentUserPrueferForPolicy(p)));
+  // GL-Sicht: global ODER für mindestens eine wartende Richtlinie individuell hinterlegt.
+  const istGL = admin || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung())
+    || (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && inFreigabe.some(p => isCurrentUserGeschaeftsleitungForPolicy(p)));
+
+  const prozess = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="font-size:.85rem;line-height:1.6;color:#374151">
+    <b>So läuft die Freigabe:</b> Entwurf → <b>1. Konformitätsprüfung</b> durch ${esc(getPruefer().join(', ') || '– keine Prüfer hinterlegt –')}
+    (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>1.5 Mitbestimmung</b> (Betriebsrat, nur wenn im Editor als betroffen markiert)
+    → <b>2. Freigabe</b> durch die Geschäftsleitung
+    ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben – dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
+  </div></div>`;
+  // Ausklappbarer Abschnitt (Kopf klickbar).
+  const secBlock = (key, title, count, body) => {
+    const open = _fgSecOpen[key] !== false;
+    return `<div style="margin:14px 0 4px">
+      <div onclick="fgToggleSection('${key}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 2px">
+        <span style="width:1em">${open ? '▾' : '▸'}</span><span>${title} (${count})</span>
+      </div>
+      <div id="fg-sec-${key}" style="${open ? '' : 'display:none'}">${body}</div>
+    </div>`;
+  };
+
+  const kannBR = istPruefer || istGL;   // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten
+
+  // „Eigene" = für die jeweilige Richtlinie bin ich der zuständige Prüfer bzw. Freigeber.
+  const isMinePruef = p => typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p);
+  const isMineFrei  = p => typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p);
+  const meinePruef = inPruefung.filter(isMinePruef);
+  const meineFrei  = inFreigabe.filter(isMineFrei);
+  const meineMb    = inMitbestimmung.filter(p => isMinePruef(p) || isMineFrei(p));
+  const meineCount = meinePruef.length + meineMb.length + meineFrei.length;
+  const alleCount  = inPruefung.length + inMitbestimmung.length + inFreigabe.length;
+  // Standard: „mir zugewiesen", sobald es etwas für mich gibt – sonst „alle".
+  if (_freigabenScope !== 'meine' && _freigabenScope !== 'alle') _freigabenScope = meineCount ? 'meine' : 'alle';
+  const scope = _freigabenScope;
+  const eigen = scope === 'meine';
+  const pruefList = eigen ? meinePruef : inPruefung;
+  const mbList    = eigen ? meineMb    : inMitbestimmung;
+  const freiList  = eigen ? meineFrei  : inFreigabe;
+
+  const toggle = (istPruefer || istGL) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn btn-sm ${eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('meine')" title="Nur Vorgänge, für die du zuständig bist">👤 Mir zugewiesen (${meineCount})</button>
+    <button class="btn btn-sm ${!eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('alle')" title="Alle laufenden Vorgänge (Gesamtübersicht)">🗂 Alle Vorgänge (${alleCount})</button>
+  </div>` : '';
+
+  const leer = (was) => emptyState(eigen ? `Aktuell ist dir nichts ${was} zugewiesen.` : `Aktuell nichts ${was}.`, '✓');
+
+  let html = prozess + toggle;
+  if (istPruefer) {
+    html += secBlock('pruef', '1 · Konformitätsprüfung', pruefList.length,
+      pruefList.length ? pruefList.map(p => pruefCardHtml(p)).join('') : leer('zur Prüfung'));
+  }
+  if (kannBR) {
+    html += secBlock('mb', '1.5 · Mitbestimmung (Betriebsverfassung)', mbList.length,
+      mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : leer('in der Mitbestimmung'));
+  }
+  if (istGL) {
+    html += secBlock('frei', '2 · Freigabe (Geschäftsleitung)', freiList.length,
+      freiList.length ? freiList.map(p => freigabeCardHtml(p)).join('') : leer('zur Freigabe'));
+  }
+  if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Du bist weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
+  list.innerHTML = html;
+}
+
+/** Abschnitt im Freigaben-Reiter ein-/ausklappen. */
+function fgToggleSection(key) {
+  _fgSecOpen[key] = _fgSecOpen[key] === false ? true : false;
+  const body = document.getElementById('fg-sec-' + key);
+  if (body) body.style.display = _fgSecOpen[key] ? '' : 'none';
+  const caret = body && body.previousElementSibling && body.previousElementSibling.querySelector('span');
+  if (caret) caret.textContent = _fgSecOpen[key] ? '▾' : '▸';
+}
+
+/** Umschalten zwischen „mir zugewiesen" und „alle Vorgänge" im Freigaben-Reiter. */
+function setFreigabenScope(s) {
+  _freigabenScope = (s === 'alle') ? 'alle' : 'meine';
+  renderFreigaben();
+}
+
+/** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
+function focusPolicyCard(id) {
+  const el = document.getElementById('fg-' + id);
+  if (!el) { toast('Diese Richtlinie ist gerade nicht in deiner Freigabe-Liste (evtl. schon bearbeitet oder veröffentlicht).'); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('fg-highlight');
+  setTimeout(() => el.classList.remove('fg-highlight'), 4500);
+}
+
+/** Aus dem Mail-Button (?aktion=…): Bewertung mit kurzer Rückfrage direkt ausführen. */
+function handleMailAction(id, aktion) {
+  const p = State.policies.find(x => x.id === id);
+  if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
+  setTimeout(async () => {
+    if (aktion === 'konform') {
+      if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
+      if (await uiConfirm(`„${p.title}" als konform markieren?`, { title: 'Konformitätsprüfung', okLabel: 'Als konform markieren' })) markKonform(id, true);
+    } else if (aktion === 'nicht_konform') {
+      if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
+      markKonform(id, false);   // fragt anschließend nach der Anmerkung
+    } else if (aktion === 'freigeben') {
+      if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && !isCurrentUserGeschaeftsleitungForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegte Geschäftsleitung darf freigeben.'); return; }
+      if (await uiConfirm(`„${p.title}" freigeben und veröffentlichen?`, { title: 'Freigabe', okLabel: 'Freigeben & veröffentlichen' })) markFreigabe(id);
+    } else if (aktion === 'zurueck') {
+      markKonform(id, false);
+    }
+  }, 600);
+}
+
+function _votesHtml(p) {
+  // Konformitätsprüfung + Freigabe – beide mit (optionaler) Anmerkung anzeigen
+  const k = (p.konformitaet || []).map(v =>
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> ${v.entscheidung === 'konform'
+      ? '<span style="color:#15803d">konform ✓</span>'
+      : '<span style="color:#b91c1c">nicht konform</span>'}${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+  const f = (p.freigaben || []).map(v =>
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+  const all = [...k, ...f];
+  if (!all.length) return '';
+  return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${all.join('')}</div>`;
+}
+
+/* Kommentar-/Anmerkungsfeld in einer Prüf-/Freigabe-Karte (RMS-Inline-Styling). */
+function kommentarFeldHtml(id, placeholder) {
+  return `<textarea id="fg-kom-${esc(id)}" rows="2" placeholder="${esc(placeholder)}"
+    oninput="this.style.borderColor=''"
+    style="width:100%;margin-top:10px;border:1px solid #d1d5db;border-radius:7px;padding:7px 10px;font-size:.85rem;font-family:inherit;resize:vertical;outline:none"></textarea>`;
+}
+
+function pruefCardHtml(p) {
+  const mein = (p.konformitaet || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
+  const kannPruefen = typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p);
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
+    ${_votesHtml(p)}
+    ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      ${_policyOpenButtons(p)}
+      <div style="flex:1"></div>
+      ${kannPruefen ? `
+        <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markKonform('${p.id}',true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (du)' : 'Konform'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function mitbestimmungCardHtml(p, kannHandeln) {
+  const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
+  const betroffen = [p.kbrBetroffen ? 'KBR' : null, ...werke].filter(Boolean).join(', ');
+  const ziel = [p.kbrBetroffen ? 'den Konzernbetriebsrat' : null,
+    werke.length ? 'die Betriebsräte (' + esc(werke.join(', ')) + ')' : null].filter(Boolean).join(' und ');
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span>
+      <span class="ic-tag" style="background:#eef2ff;color:#3730a3">🏛️ Betroffen: ${esc(betroffen || '–')}</span></div>
+    ${_votesHtml(p)}
+    <div class="field-hint" style="margin-top:8px">Das Regelwerk ist konform und wurde zur Mitbestimmungsprüfung an ${ziel || 'die Mitbestimmung'} gesendet. Nach Beteiligung des Betriebsrats hier entscheiden: <b>Konform</b> (weiter) oder <b>Nicht konform</b> (mit Begründung, zurück in die Prüfung).</div>
+    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional (z. B. „BR SHB zugestimmt am …") …') : ''}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      ${_policyOpenButtons(p)}
+      <div style="flex:1"></div>
+      ${kannHandeln ? `
+        <button class="btn btn-outline btn-sm" onclick="resendMitbestimmung('${p.id}')" title="Mitbestimmungs-Mail an KBR/BR erneut senden">✉ Erneut an BR senden</button>
+        <button class="btn btn-ghost btn-sm" onclick="markMitbestimmung('${p.id}',false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markMitbestimmung('${p.id}',true)">Konform</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function freigabeCardHtml(p) {
+  const mein = (p.freigaben || []).find(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
+  const kannFreigeben = typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p);
+  return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
+    <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
+    ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
+    ${_votesHtml(p)}
+    ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
+    <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      ${_policyOpenButtons(p)}
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
+      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (du)' : '✓ Freigeben'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function konformErreicht(p) {
+  const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
+  if (!pruefer.length) return false;
+  const schwelle = (typeof getPolicyKonformSchwelle === 'function') ? getPolicyKonformSchwelle(p) : getKonformSchwelle();
+  const ja = (p.konformitaet || []).filter(v => v.entscheidung === 'konform').map(v => (v.upn || '').toLowerCase());
+  return schwelle === 'einer' ? ja.length >= 1 : pruefer.every(u => ja.includes(u.toLowerCase()));
+}
+function freigabeErreicht(p) {
+  const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
+  if (!gl.length) return false;
+  const schwelle = (typeof getPolicyFreigabeSchwelle === 'function') ? getPolicyFreigabeSchwelle(p) : getFreigabeSchwelle();
+  const ja = (p.freigaben || []).map(v => (v.upn || '').toLowerCase());
+  return schwelle === 'alle' ? gl.every(u => ja.includes(u.toLowerCase())) : ja.length >= 1;
+}
+
+/** Ist die Mitbestimmung betroffen (KBR oder mind. ein Werks-BR gewählt)? */
+function mitbestimmungPflicht(p) {
+  return !!(p && (p.kbrBetroffen || (Array.isArray(p.mitbestimmungWerke) && p.mitbestimmungWerke.length)));
+}
+/** Wurde die Mitbestimmung (Betriebsrat) bereits dokumentiert bestätigt? */
+function mitbestimmungBestaetigt(p) {
+  return !!(p && p.mitbestimmung && p.mitbestimmung.bestaetigt);
+}
+
+async function markKonform(policyId, konform) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  // Anmerkung aus dem Karten-Textfeld (Fallback prompt, falls Karte nicht im DOM, z. B. Mail-Aktion)
+  const field = document.getElementById('fg-kom-' + policyId);
+  let anmerkung = (field ? field.value : '').trim();
+  if (!konform && !anmerkung) {
+    if (field) {
+      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      field.style.borderColor = '#ef4444'; field.focus();
+      return;
+    }
+    const res = await uiPrompt('Warum ist das Regelwerk nicht konform? (Pflicht)', { title: 'Nicht konform', okLabel: 'Als nicht konform melden', danger: true });
+    if (res === null) return;
+    anmerkung = res.trim();
+    if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
+  }
+  p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
+  p.konformitaet.push({ upn: State.user.upn, name: State.user.name, entscheidung: konform ? 'konform' : 'nicht_konform', anmerkung: anmerkung || '', datum: new Date().toISOString() });
+  let toGL = false, toBR = false;
+  if (!konform) p.status = 'Konformitätsprüfung';
+  else if (konformErreicht(p)) {
+    // Ist die Mitbestimmung betroffen und noch nicht bestätigt → erst zum Betriebsrat,
+    // sonst direkt zur GL-Freigabe.
+    if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
+    else { p.status = 'Freigabe'; toGL = true; }
+  }
+  if (!await pruefeFremdaenderung(p, 'die Prüfung abschließt')) return;
+  historieAdd(p, konform ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
+    (anmerkung ? 'Anmerkung: ' + anmerkung : '') +
+    (toBR ? (anmerkung ? '\n' : '') + 'Weiter an die Mitbestimmung (Betriebsrat).'
+     : toGL ? (anmerkung ? '\n' : '') + 'Weiter an die Freigabe (Geschäftsleitung).' : ''));
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast(konform
+      ? (toBR ? 'Konform – geht jetzt zur Mitbestimmung (Betriebsrat) ✓'
+         : toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓')
+      : 'Als „nicht konform" vermerkt.', 'success');
+    if (toBR && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);   // KBR/BR benachrichtigen
+    if (toGL) notifyGL(p);
+    if (toGL || toBR) _ismsWriteback(p, 'konform');   // Konformität ans Ursprungs-ISMS-Dokument zurückschreiben
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Status der Richtlinie an das Ursprungs-ISMS-Dokument zurückschreiben (best effort). */
+async function _ismsWriteback(p, kind) {
+  if (!p.dokumentDriveId || !p.dokumentItemId || typeof spIsmsWritebackStatus !== 'function') return;
+  try {
+    const ok = await spIsmsWritebackStatus(p.dokumentDriveId, p.dokumentItemId, kind,
+      { upn: State.user.upn, name: State.user.name });
+    if (ok) {
+      toast(kind === 'freigabe' ? 'ISMS-Dokument: Freigabe vermerkt ✓' : 'ISMS-Dokument: Konformität vermerkt ✓', 'success');
+      if (typeof invalidateIsmsCache === 'function') invalidateIsmsCache();   // ISMS-Reiter zeigt den neuen Stand frisch
+    }
+  } catch (e) { console.warn('[wf] ISMS-Rückschreiben (' + kind + ') fehlgeschlagen:', e.message); }
+}
+
+/** Mitbestimmung (Betriebsverfassung) entscheiden – wie die Konformitätsprüfung:
+ *  konform → weiter zur GL-Freigabe; nicht konform (mit Pflicht-Begründung) → zurück in die Prüfung. */
+async function markMitbestimmung(policyId, konform) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  const field = document.getElementById('fg-kom-' + policyId);
+  let anmerkung = (field ? field.value : '').trim();
+  if (!konform && !anmerkung) {
+    if (field) {
+      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      field.style.borderColor = '#ef4444'; field.focus();
+      return;
+    }
+    const res = await uiPrompt('Warum lehnt die Mitbestimmung ab? (Pflicht)', { title: 'Mitbestimmung: nicht konform', okLabel: 'Als nicht konform melden', danger: true });
+    if (res === null) return;
+    anmerkung = res.trim();
+    if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
+  }
+  p.mitbestimmung = {
+    bestaetigt: !!konform, konform: !!konform,
+    upn: State.user.upn, name: State.user.name,
+    datum: new Date().toISOString(), anmerkung,
+  };
+  p.status = konform ? 'Freigabe' : 'Konformitätsprüfung';   // konform → GL-Freigabe; sonst zurück
+  if (!await pruefeFremdaenderung(p, 'die Mitbestimmung abschließt')) return;
+  historieAdd(p, konform ? 'Mitbestimmung: konform' : 'Mitbestimmung: nicht konform',
+    (anmerkung ? 'Begründung: ' + anmerkung + '\n' : '') +
+    (konform ? 'Weiter an die Freigabe (Geschäftsleitung).' : 'Zurück in die Konformitätsprüfung.'));
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast(konform ? 'Mitbestimmung konform – geht jetzt zur Freigabe ✓' : 'Mitbestimmung: nicht konform – zurück in die Prüfung.', konform ? 'success' : 'error');
+    if (konform) notifyGL(p);
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Mitbestimmungs-Mail (KBR/BR) für eine Richtlinie erneut senden. */
+function resendMitbestimmung(policyId) {
+  const p = State.policies.find(x => x.id === policyId);
+  if (p && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);
+}
+
+async function markFreigabe(policyId) {
+  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
+  if (!p) return;
+  const field = document.getElementById('fg-kom-' + policyId);
+  const anmerkung = (field ? field.value : '').trim();   // bei Freigabe optional
+  p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
+  p.freigaben.push({ upn: State.user.upn, name: State.user.name, anmerkung, datum: new Date().toISOString() });
+  let published = false;
+  if (freigabeErreicht(p)) {
+    p.status = 'Veröffentlicht';
+    p.veroeffentlichtAm = new Date().toISOString();
+    p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
+    published = true;
+  }
+  if (!await pruefeFremdaenderung(p, 'freigibst')) return;
+  historieAdd(p, published ? 'Freigegeben & veröffentlicht' : 'Freigabe erteilt',
+    (anmerkung ? 'Anmerkung: ' + anmerkung + '\n' : '') +
+    (published ? `Version ${p.version} veröffentlicht.` : 'Weitere Freigaben stehen noch aus.'));
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    renderFreigaben();
+    toast(published ? 'Freigegeben & veröffentlicht ✓' : 'Freigabe vermerkt (weitere GL nötig).', 'success');
+    if (published) _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function notifyPruefer(p) {
+  if (typeof isPAPruefung === 'function' && isPAPruefung()) {
+    console.info('[wf] Konformitätsprüfung über Power Automate – App-Prüfer-Mail übersprungen.');
+    return;   // Power Automate verschickt die Genehmigungs-Mail
+  }
+  const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
+  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error'); return; }
+  try {
+    const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
+    await spSendMail(pruefer, `Neues Regelwerk zur Sichtung: ${p.title}`,
+      _wfMailHtml('Neues Regelwerk – bitte um Sichtung und ggf. Anmerkung', p,
+        'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
+        att ? att.name : '', 'pruefung'),
+      att ? [att] : []);
+    toast('Prüfer benachrichtigt ✓' + (att ? ' (mit Dokument)' : ''), 'success');
+  } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
+}
+async function notifyGL(p) {
+  if (typeof isPAFreigabe === 'function' && isPAFreigabe()) {
+    console.info('[wf] Freigabe über Power Automate – App-GL-Mail übersprungen.');
+    return;   // Power Automate verschickt die Freigabe-Mail
+  }
+  const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
+  if (!gl.length) return;
+  try {
+    const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
+    await spSendMail(gl, `Regelwerk zur Freigabe: ${p.title}`,
+      _wfMailHtml('Regelwerk ist konform – bitte um Freigabe', p,
+        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
+        att ? att.name : '', 'freigabe'),
+      att ? [att] : []);
+  } catch (e) { console.warn('GL-Mail:', e.message); }
+}
+
+/* ── Mitbestimmung: KBR + Betriebsräte der betroffenen Werke benachrichtigen ──
+   Einzelversand pro Empfänger (Betriebsräte sehen sich nicht gegenseitig).
+   Admin-gepflegte Adressen dürfen auch auf Gruppengesellschafts-Domains liegen. */
+async function notifyMitbestimmung(p) {
+  const werke = Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [];
+  if (!p.kbrBetroffen && !werke.length) return;   // nichts betroffen → keine Mail
+
+  const recipients = [];   // { mail, label }
+  const fehlt = [];
+  if (p.kbrBetroffen) {
+    const kbr = (typeof getKbrMail === 'function' ? getKbrMail() : '').trim();
+    if (kbr) recipients.push({ mail: kbr, label: 'Konzernbetriebsrat' });
+    else fehlt.push('KBR');
+  }
+  for (const code of werke) {
+    const m = (typeof getBrMail === 'function' ? getBrMail(code) : '').trim();
+    if (m) recipients.push({ mail: m, label: 'Betriebsrat ' + code });
+    else fehlt.push(code);
+  }
+  if (fehlt.length) {
+    toast('Mitbestimmung: keine Mail hinterlegt für ' + fehlt.join(', ') + ' – bitte in den Einstellungen ergänzen.', 'error');
+  }
+  if (!recipients.length) return;
+
+  // Dokument einmal laden und an jede Council-Mail anhängen
+  let att = null;
+  try { att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName); }
+  catch (e) { console.warn('Mitbestimmung: Anhang nicht ladbar:', e.message); }
+
+  let sent = 0;
+  for (const r of recipients) {
+    const dom = r.mail.includes('@') ? r.mail.split('@').pop() : '';
+    try {
+      await spSendMail([r.mail], `Mitbestimmung – Richtlinie zur Prüfung: ${p.title}`,
+        _mitMailHtml(p, r.label, att ? att.name : ''),
+        att ? [att] : [], null, dom ? [dom] : []);
+      sent++;
+    } catch (e) { console.warn('Mitbestimmungs-Mail an', r.mail, e.message); }
+  }
+  if (sent) toast(`Mitbestimmung: ${sent} Empfänger (KBR/Betriebsrat) benachrichtigt ✓`, 'success');
+}
+/** „Bereits freigegeben"-Block für Workflow-Mails – zeigt dem nächsten Prüfer/Freigeber,
+ *  wer bereits zugestimmt hat (Konformitätsprüfung, Mitbestimmung, Freigabe). */
+function _wfApprovalsHtml(p) {
+  const d = (iso) => (typeof fmtDate === 'function' && iso) ? ' – ' + fmtDate(iso) : '';
+  const rows = [];
+  (p.konformitaet || []).filter(v => v.entscheidung === 'konform').forEach(v =>
+    rows.push(`✓ Konformitätsprüfung: <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
+  if (p.mitbestimmung && p.mitbestimmung.konform)
+    rows.push(`✓ Mitbestimmung: <b>${esc(p.mitbestimmung.name || p.mitbestimmung.upn)}</b>${d(p.mitbestimmung.datum)}`);
+  (p.freigaben || []).forEach(v =>
+    rows.push(`✓ Freigabe (GL): <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
+  if (!rows.length) return '';
+  return `<div style="margin:14px 0;padding:10px 14px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 8px 8px 0;font-size:13px;color:#14532d">
+    <b>Bereits freigegeben (zur Info):</b><br>${rows.join('<br>')}</div>`;
+}
+
+function _wfMailHtml(headline, p, text, attachmentName, phase) {
+  const base = 'https://richtlinienmanagement.dihag-extern.com/';
+  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
+  const act = (a) => `${url}&aktion=${a}`;
+  const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
+  const actions = phase === 'freigabe'
+    ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
+    : phase === 'pruefung'
+      ? btn(act('konform'), '#16a34a', '✓ Konform') + btn(act('nicht_konform'), '#dc2626', '✗ Nicht konform')
+      : '';
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p><b>${esc(headline)}</b></p>
+    <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p>${esc(text)}</p>
+    ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
+    ${_wfApprovalsHtml(p)}
+    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+  </div>`;
+}
+
+
+
+async function setStatus(id, status, historienText) {
+  const src = State.policies.find(x => x.id === id);
+  if (!src) { toast('Regelwerk nicht gefunden.', 'error'); return; }
+  const p = JSON.parse(JSON.stringify(src));
+  const vorher = p.status;
+  if (!await pruefeFremdaenderung(p, 'den Status änderst')) return;
+  p.status = status;
+  if (vorher !== status) historieAdd(p, 'Status geändert', historienText || `„${vorher}" → „${status}"`);
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    if (typeof renderFreigaben === 'function') renderFreigaben();
+    renderAdminList();
+    toast('Status geändert: ' + status, 'success');
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/** Veröffentlichtes Regelwerk außer Kraft setzen (bleibt für Audits erhalten). */
+async function archivierePolicy(id) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
+  const p = State.policies.find(x => x.id === id);
+  if (!p) return;
+  const grund = await uiPrompt(
+    `„${p.title}" archivieren? Es erscheint dann nicht mehr unter „Meine Regelwerke", bleibt aber mit allen Bestätigungen und der Historie erhalten.\n\nGrund (optional, z. B. „abgelöst durch …"):`,
+    { title: 'Regelwerk archivieren', okLabel: 'Archivieren' });
+  if (grund === null) return;
+  closeModal();
+  await setStatus(id, 'Archiviert', `„${p.status}" → „Archiviert"` + (grund.trim() ? `\nGrund: ${grund.trim()}` : ''));
+}
+
+/** Archiviertes Regelwerk zurück in den Entwurf holen. */
+async function reaktivierePolicy(id) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
+  const p = State.policies.find(x => x.id === id);
+  if (!p) return;
+  if (!await uiConfirm(`„${p.title}" reaktivieren? Es geht zurück in den Status „Entwurf" und muss den Freigabeprozess erneut durchlaufen, bevor es wieder sichtbar wird.`,
+    { title: 'Regelwerk reaktivieren', okLabel: 'Reaktivieren' })) return;
+  closeModal();
+  await setStatus(id, 'Entwurf', '„Archiviert" → „Entwurf" (reaktiviert)');
+}
+
+/* ═══════════════════════════════════════════════════
+   Compliance-Dashboard
+═══════════════════════════════════════════════════ */
+
+/** Alle Konformitäts-/Freigabe-Ereignisse aller Richtlinien als flache, chronologische Liste. */
+function _freigabeAuditRows() {
+  const out = [];
+  for (const p of (State.policies || [])) {
+    for (const v of (p.konformitaet || [])) {
+      out.push({
+        datum: v.datum || '', policy: p.title, version: p.version,
+        aktion: v.entscheidung === 'konform' ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
+        wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+      });
+    }
+    for (const v of (p.freigaben || [])) {
+      out.push({
+        datum: v.datum || '', policy: p.title, version: p.version,
+        aktion: 'Freigabe erteilt', wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+      });
+    }
+    // In Outlook (Power Automate) erteilte Freigabe: kein App-JSON, aber FreigegebenVon gesetzt
+    if (!(p.freigaben || []).length && p.freigegebenVon) {
+      out.push({
+        datum: p.veroeffentlichtAm || '', policy: p.title, version: p.version,
+        aktion: 'Freigabe erteilt (Outlook / Power Automate)', wer: p.freigegebenVon, anmerkung: '',
+      });
+    }
+    if (p.veroeffentlichtAm) {
+      out.push({
+        datum: p.veroeffentlichtAm, policy: p.title, version: p.version,
+        aktion: 'Veröffentlicht', wer: p.freigegebenVon || '', anmerkung: '',
+      });
+    }
+  }
+  out.sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+  return out;
+}
