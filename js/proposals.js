@@ -169,7 +169,7 @@ function proposalDrawerOpenOffice(id) {
   const u = _propLink(id);
   if (!u) { toast('Kein Dokument-Link hinterlegt.', 'error'); return; }
   const clean = u.split('?')[0];
-  const scheme = (typeof _policyOfficeScheme === 'function' && _policyOfficeScheme(clean)) || 'ms-word';
+  const scheme = officeScheme(clean) || 'ms-word';
   window.location.href = `${scheme}:ofe|u|${u}`;
   toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser öffnen" nutzen.');
 }

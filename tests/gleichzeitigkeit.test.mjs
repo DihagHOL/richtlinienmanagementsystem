@@ -31,6 +31,7 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), ctx);   // gemeinsame Helfer
 vm.runInContext(fs.readFileSync(ROOT + '/js/admin.js', 'utf8'), ctx);
 
 const P = (mod) => ({ id: '1', title: 'Test', modifiedAt: mod });

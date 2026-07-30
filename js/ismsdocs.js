@@ -184,25 +184,10 @@ function fillIsmsStandFilter() {
   if (cur) sel.value = cur;
 }
 
-function _ismsFmtSize(bytes) {
-  if (!bytes) return '–';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-}
+/* Dateigröße, Datei-Icon und Office-Schema: siehe js/util.js
+   (fmtFileSize, fileIcon, officeScheme) – vorher je Ansicht eine eigene Kopie. */
 
 /** Emoji-Icon je Dateiendung. */
-function _ismsIcon(name) {
-  const ext = (String(name).split('.').pop() || '').toLowerCase();
-  if (ext === 'pdf') return '📕';
-  if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return '📘';
-  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return '📗';
-  if (['ppt', 'pptx', 'odp'].includes(ext)) return '📙';
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'webp'].includes(ext)) return '🖼️';
-  if (['zip', '7z', 'rar', 'tar', 'gz'].includes(ext)) return '🗜️';
-  if (['txt', 'md', 'log'].includes(ext)) return '📃';
-  return '📄';
-}
 
 /** Verknüpfte Richtlinie zu einem Dokument (falls State.policies geladen ist). */
 function _ismsLinkedPolicy(d) {
@@ -287,7 +272,7 @@ function renderIsmsDocs() {
       const lp = _ismsLinkedPolicy(d);
       const title = d.fields?.Title || d.name;
       return `<tr onclick="openIsmsDoc('${esc(d.itemId)}')" style="cursor:pointer">
-        <td style="font-size:1.1rem;text-align:center">${_ismsIcon(d.name)}</td>
+        <td style="font-size:1.1rem;text-align:center">${fileIcon(d.name)}</td>
         <td>
           <b>${esc(title)}</b>
           ${lp ? `<span class="ic-tag" style="margin-left:6px;background:#ecfdf5;color:#047857;font-size:.66rem">🔗 ${esc(lp.status || 'Richtlinie')}</span>` : ''}
@@ -406,7 +391,7 @@ async function openIsmsDoc(itemId) {
       </div>
 
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
-        ${_ismsOfficeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
+        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
         ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="ismsEditWeb('${esc(d.driveItemId)}')">🌐 Im Browser bearbeiten</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version hochladen</button>
         <button class="btn btn-outline btn-sm" onclick="ismsShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
@@ -606,20 +591,13 @@ function _ismsWorkflowPanel(d) {
 }
 
 /** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
-function _ismsOfficeScheme(name) {
-  const ext = (String(name).split('.').pop() || '').toLowerCase();
-  if (['doc', 'docx', 'docm', 'dot', 'dotx', 'rtf'].includes(ext)) return 'ms-word';
-  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'].includes(ext)) return 'ms-excel';
-  if (['ppt', 'pptx', 'pps', 'ppsx'].includes(ext)) return 'ms-powerpoint';
-  return null;
-}
 
 /** Dokument direkt bearbeiten: Office-Datei → Desktop-Office (speichert automatisch
  *  eine neue SharePoint-Version); andere → in SharePoint öffnen (dort Web-Edit). */
 function ismsEditOffice(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
-  const scheme = _ismsOfficeScheme(d.name);
+  const scheme = officeScheme(d.name);
   // Office-URI-Schema braucht die DIREKTE Datei-URL (nicht die Doc.aspx-Viewer-URL).
   const fileUrl = d.fileUrl || d.webUrl;
   if (scheme && fileUrl) {
@@ -718,7 +696,7 @@ async function ismsPreview(driveItemId) {
 }
 
 function ismsNewVersion(driveItemId, name) {
-  const canOffice = !!_ismsOfficeScheme(name);
+  const canOffice = !!officeScheme(name);
   openModal(`
     <div class="modal-header"><h3>Neue Version – ${esc(name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
@@ -789,7 +767,7 @@ async function ismsShowVersions(driveItemId, name) {
       ? `<table class="tbl"><thead><tr><th>Version</th><th>Geändert</th><th>Von</th><th class="num">Größe</th><th></th></tr></thead>
          <tbody>${vers.map(v => `<tr>
            <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
-           <td class="num">${_ismsFmtSize(v.size)}</td>
+           <td class="num">${fmtFileSize(v.size)}</td>
            <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">↓</a>` : ''}</td>
          </tr>`).join('')}</tbody></table>`
       : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');
@@ -862,7 +840,7 @@ function openProposalModal(titel, ctx) {
     `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`);
   // „In Office öffnen" – wie bei der Richtlinie selbst (Desktop-Office via ms-word/excel/…-Schema)
   const officeName = _proposalCtx.doc ? _proposalCtx.doc.name : (_proposalCtx.policy ? _proposalCtx.policy.dokumentName : '');
-  if (typeof _policyOfficeScheme === 'function' && _policyOfficeScheme(officeName)) {
+  if (officeScheme(officeName)) {
     linkEls.push(`<a href="javascript:void(0)" onclick="proposalOpenOffice()" style="color:var(--c-primary);font-weight:600">📝 In Office öffnen ↗</a>`);
   }
   const linksHtml = linkEls.length
@@ -939,7 +917,7 @@ async function proposalOpenOffice() {
   const ctx = _proposalCtx || {};
   const d = ctx.doc, p = ctx.policy;
   const name = d ? d.name : (p ? p.dokumentName : '');
-  const scheme = (typeof _policyOfficeScheme === 'function') ? _policyOfficeScheme(name) : null;
+  const scheme = officeScheme(name);
   if (!scheme) { toast('Dieses Dokument lässt sich nicht direkt in Office öffnen.', 'error'); return; }
   toast('Datei-URL wird ermittelt …');
   let fileUrl = '';

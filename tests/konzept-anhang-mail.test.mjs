@@ -10,6 +10,7 @@ const kctx = { console, esc, fmtDate:()=> '', emptyState:()=> '', toast:()=>{}, 
   isCurrentUserGeschaeftsleitung:()=>false, canWriteTab:()=>true };
 kctx.window = kctx; kctx.globalThis = kctx;
 vm.createContext(kctx);
+vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), kctx);   // gemeinsame Helfer
 vm.runInContext(fs.readFileSync(ROOT + '/js/konzepte.js','utf8'), kctx);
 const run = (s)=>vm.runInContext(s, kctx);
 

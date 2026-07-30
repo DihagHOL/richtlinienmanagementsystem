@@ -536,18 +536,11 @@ async function openDocVersions() {
 
 /* ── Richtliniendokument direkt bearbeiten (On-Premise Office / Browser), wie bei ISMS-Dokumenten ── */
 
-function _policyOfficeScheme(name) {
-  const ext = (String(name || '').split('.').pop() || '').toLowerCase();
-  if (['doc', 'docx', 'docm', 'dot', 'dotx', 'rtf'].includes(ext)) return 'ms-word';
-  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'].includes(ext)) return 'ms-excel';
-  if (['ppt', 'pptx', 'pps', 'ppsx'].includes(ext)) return 'ms-powerpoint';
-  return null;
-}
 
 /** Zugeordnetes Dokument im Desktop-Office öffnen (speichert automatisch eine neue Version). */
 async function policyEditOffice() {
   if (!_editing || !_editing.dokumentDriveId || !_editing.dokumentItemId) { toast('Diesem Eintrag ist noch kein Dokument zugeordnet.', 'error'); return; }
-  const scheme = _policyOfficeScheme(_editing.dokumentName);
+  const scheme = officeScheme(_editing.dokumentName);
   if (!scheme) { policyEditWeb(); return; }
   toast('Datei-URL wird ermittelt …');
   let fileUrl = '';
@@ -579,7 +572,7 @@ function _policyById(id) { return (State.policies || []).find(p => String(p.id) 
 async function policyCardOpenOffice(id) {
   const p = _policyById(id);
   if (!p) return;
-  const scheme = _policyOfficeScheme(p.dokumentName || p.dokumentUrl);
+  const scheme = officeScheme(p.dokumentName || p.dokumentUrl);
   if (!scheme || !p.dokumentDriveId || !p.dokumentItemId) { policyCardOpenWeb(id); return; }
   toast('Datei-URL wird ermittelt …');
   let fileUrl = '';
@@ -685,7 +678,7 @@ function renderPolicyEditor() {
             ${p.dokumentDriveId && p.dokumentItemId ? `
             <div class="doc-actions-grp">
               <span class="doc-actions-lbl">Bearbeiten</span>
-              ${_policyOfficeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()" title="In der Desktop-Office-App öffnen – beim Speichern legt SharePoint automatisch eine neue Version an">✏️ In Office</button>` : ''}
+              ${officeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()" title="In der Desktop-Office-App öffnen – beim Speichern legt SharePoint automatisch eine neue Version an">✏️ In Office</button>` : ''}
               <button class="btn btn-outline btn-sm" onclick="policyEditWeb()" title="In Office für das Web öffnen – beim Speichern neue Version">🌐 Im Browser</button>
               <button class="btn btn-outline btn-sm" onclick="openDocVersions()" title="Versionsverlauf ansehen">🕘 Versionen</button>
             </div>` : ''}

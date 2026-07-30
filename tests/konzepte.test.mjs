@@ -21,6 +21,7 @@ const kctx = {
 kctx.window = kctx; kctx.globalThis = kctx;
 let kISGF = false, kCANWRITE = true;
 vm.createContext(kctx);
+vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), kctx);   // gemeinsame Helfer
 vm.runInContext(fs.readFileSync(ROOT + '/js/konzepte.js','utf8'), kctx);
 
 const run = (src) => vm.runInContext(src, kctx);

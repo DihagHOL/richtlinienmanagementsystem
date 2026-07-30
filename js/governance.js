@@ -42,21 +42,8 @@ async function refreshGovernanceDocs() {
   toast('Governance-Board aktualisiert', 'success');
 }
 
-function _govFmtSize(bytes) {
-  if (!bytes) return '–';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-}
-
-function _govIcon(name) {
-  const ext = (String(name).split('.').pop() || '').toLowerCase();
-  if (ext === 'pdf') return '📕';
-  if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return '📘';
-  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return '📗';
-  if (['ppt', 'pptx', 'odp'].includes(ext)) return '📙';
-  return '📄';
-}
+/* Dateigröße, Datei-Icon und Office-Schema kommen aus js/util.js
+   (fmtFileSize, fileIcon, officeScheme) – vorher je Ansicht eine eigene Kopie. */
 
 /* ── Ordner-Baum (Navigation links neben der Dokumentliste) ── */
 let _govFolder = '';         // aktuell gewählter Ordner ('' = alle)
@@ -176,24 +163,15 @@ function renderGovernanceDocs() {
       </tr></thead>
       <tbody>${rows.map(d => `
         <tr onclick="openGovernanceDoc('${esc(d.driveItemId)}')" style="cursor:pointer">
-          <td style="font-size:1.1rem;text-align:center">${_govIcon(d.name)}</td>
+          <td style="font-size:1.1rem;text-align:center">${fileIcon(d.name)}</td>
           <td><b>${esc(d.name)}</b></td>
           <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
           <td style="color:var(--c-muted)">${d.modified ? fmtDateTime(d.modified) : '–'}</td>
           <td style="color:var(--c-muted)">${esc(d.modifiedBy || '–')}</td>
-          <td class="num" style="color:var(--c-muted)">${_govFmtSize(d.size)}</td>
+          <td class="num" style="color:var(--c-muted)">${fmtFileSize(d.size)}</td>
         </tr>`).join('')}</tbody></table></div>`;
 
   mount.innerHTML = `<div class="gov-layout">${treeHtml}<div class="gov-docs">${docsHtml}</div></div>`;
-}
-
-/** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
-function _govOfficeScheme(name) {
-  const ext = (String(name).split('.').pop() || '').toLowerCase();
-  if (['doc', 'docx', 'docm', 'dot', 'dotx', 'rtf'].includes(ext)) return 'ms-word';
-  if (['xls', 'xlsx', 'xlsm', 'xlsb', 'csv'].includes(ext)) return 'ms-excel';
-  if (['ppt', 'pptx', 'pps', 'ppsx'].includes(ext)) return 'ms-powerpoint';
-  return null;
 }
 
 function openGovernanceDoc(driveItemId) {
@@ -209,10 +187,10 @@ function openGovernanceDoc(driveItemId) {
       <div class="col-warning" style="display:block;background:#f9fafb;border-color:var(--c-border);color:var(--c-muted)">
         <b>Ordner:</b> ${esc(d.folder || GOV.folderPath)}
         &nbsp;·&nbsp; <b>Zuletzt geändert:</b> ${fmtDateTime(d.modified)}${d.modifiedBy ? ' von ' + esc(d.modifiedBy) : ''}
-        &nbsp;·&nbsp; <b>Größe:</b> ${_govFmtSize(d.size)}
+        &nbsp;·&nbsp; <b>Größe:</b> ${fmtFileSize(d.size)}
       </div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 4px">
-        ${_govOfficeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="govEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
+        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="govEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
         ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="govEditWeb('${esc(d.driveItemId)}')">🌐 Im Browser bearbeiten</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="govPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
         <button class="btn btn-outline btn-sm" onclick="govShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
@@ -230,7 +208,7 @@ function openGovernanceDoc(driveItemId) {
 function govEditOffice(driveItemId) {
   const d = (_govDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
-  const scheme = _govOfficeScheme(d.name);
+  const scheme = officeScheme(d.name);
   const fileUrl = d.fileUrl || d.webUrl;
   if (scheme && fileUrl) {
     window.location.href = `${scheme}:ofe|u|${fileUrl}`;
@@ -338,7 +316,7 @@ async function govShowVersions(driveItemId, name) {
       ? `<table class="tbl"><thead><tr><th>Version</th><th>Geändert</th><th>Von</th><th class="num">Größe</th><th></th></tr></thead>
          <tbody>${vers.map(v => `<tr>
            <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
-           <td class="num">${_govFmtSize(v.size)}</td>
+           <td class="num">${fmtFileSize(v.size)}</td>
            <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">↓</a>` : ''}</td>
          </tr>`).join('')}</tbody></table>`
       : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');

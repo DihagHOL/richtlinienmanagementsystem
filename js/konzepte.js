@@ -270,7 +270,7 @@ function konzeptOpenAttachmentWeb() {
 
 async function konzeptOpenAttachmentOffice() {
   if (!_kEditing || !_kEditing.dokumentDriveId || !_kEditing.dokumentItemId) { toast('Kein Anhang hinterlegt.', 'error'); return; }
-  const scheme = (typeof _policyOfficeScheme === 'function') ? _policyOfficeScheme(_kEditing.dokumentName) : null;
+  const scheme = officeScheme(_kEditing.dokumentName);
   if (!scheme) { konzeptOpenAttachmentWeb(); return; }   // z. B. PDF → im Browser
   toast('Datei-URL wird ermittelt …');
   let fileUrl = '';

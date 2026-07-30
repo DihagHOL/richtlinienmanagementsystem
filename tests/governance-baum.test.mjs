@@ -11,6 +11,7 @@ els['governance-mount']=mk(); els['search-governance']=mk({value:''});
 const ctx = { console, esc, emptyState:(t)=>`<empty>${t}</empty>`, fmtDateTime:()=> 'x', toast:()=>{},
   GOV:{folderPath:'Entwurf_010'}, document:{ getElementById:id=>els[id]||null } };
 ctx.window=ctx; ctx.globalThis=ctx; vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(ROOT+'/js/util.js','utf8'), ctx);   // gemeinsame Helfer
 vm.runInContext(fs.readFileSync(ROOT+'/js/governance.js','utf8'), ctx);
 const run=(s)=>vm.runInContext(s,ctx);
 

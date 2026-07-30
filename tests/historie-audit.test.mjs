@@ -24,6 +24,7 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), ctx);   // gemeinsame Helfer
 vm.runInContext(fs.readFileSync(ROOT + '/js/admin.js', 'utf8'), ctx);
 const run = (s) => vm.runInContext(s, ctx);
 
