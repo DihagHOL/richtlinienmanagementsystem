@@ -43,6 +43,15 @@ function newKonzept() {
   };
 }
 
+/** Pflichtfelder eines Konzepts prüfen. @returns Meldung oder '' (alles gut) */
+function konzeptPflichtfelderFehlen(k) {
+  if (!k) return '';
+  if (!(k.regelwerkTyp || '').trim()) return 'Bitte den Typ (Dokumentart) wählen – z. B. Richtlinie oder Konzernrichtlinie.';
+  if (!Array.isArray(k.geltungsbereich) || !k.geltungsbereich.length)
+    return 'Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.';
+  return '';
+}
+
 /* ── Status-Ableitung & Anzeige ── */
 
 /** Abgeleiteter Konzept-Status: Idee · GF-Prüfung · Angenommen · Abgelehnt · Zurückgestellt. */
@@ -181,7 +190,7 @@ function renderKonzeptEditor() {
           <input type="text" value="${esc(k.title)}" oninput="_kEditing.title=this.value" placeholder="z. B. Regelwerk zur Nutzung von KI">
         </div>
         <div class="form-group">
-          <label>Typ (Dokumentart)</label>
+          <label>Typ (Dokumentart) <span class="req">*</span></label>
           <select onchange="_kEditing.regelwerkTyp=this.value">
             <option value="">– bitte wählen –</option>
             ${(typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : []).map(t => `<option ${t === k.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
@@ -283,6 +292,8 @@ async function saveKonzept(submit) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff – Speichern nicht möglich.', 'error'); return; }
   const k = _kEditing;
   if (!k.title.trim()) { toast('Bitte einen Arbeitstitel angeben.', 'error'); return; }
+  const fehlt = konzeptPflichtfelderFehlen(k);
+  if (fehlt) { toast(fehlt, 'error'); return; }
   if (submit && !((k.konzept.motivation || '').trim())) { toast('Für die Einreichung bitte die Motivation ausfüllen.', 'error'); return; }
   k.typ = 'Konzept';
   k.status = 'Entwurf';
@@ -357,6 +368,9 @@ async function _kPersist(k, msg, type) {
 async function konzeptSubmitGF(id) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff.', 'error'); return; }
   const k = _kClone(id); if (!k) return;
+  // Ältere Konzepte (vor der Pflicht) müssen erst vervollständigt werden
+  const fehlt = konzeptPflichtfelderFehlen(k);
+  if (fehlt) { toast(fehlt + ' – bitte das Konzept öffnen und ergänzen.', 'error'); openKonzeptEditor(id); return; }
   k.konzept.eingereichtAm = new Date().toISOString();
   if (!k.konzept.antragstellerUpn && State.user) {
     k.konzept.antragstellerUpn = State.user.upn;

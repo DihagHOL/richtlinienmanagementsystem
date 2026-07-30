@@ -25,7 +25,7 @@ function renderGeltungsbereichSection(arr, prefix) {
   const alle = list.includes('ALLE');
   return `
     <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Geltungsbereich (Standorte)</div>
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Geltungsbereich (Standorte) <span class="req">*</span></div>
       <label class="ack-check" style="font-weight:600;margin-bottom:6px">
         <input type="checkbox" ${alle ? 'checked' : ''} onchange="gbSectionSetAlle('${prefix}', this.checked)">
         <span>Alle Standorte (konzernweit)</span>
@@ -35,7 +35,7 @@ function renderGeltungsbereichSection(arr, prefix) {
           <input type="checkbox" ${list.includes(code) ? 'checked' : ''} onchange="gbSectionToggle('${prefix}','${code}', this.checked)">
           <span>${esc(code)}</span></label>`).join('')}
       </div>`}
-      <span class="field-hint">Für welche Standorte gilt das Regelwerk? „Alle Standorte" schließt alle ein.</span>
+      <span class="field-hint">Pflichtangabe: Für welche Standorte gilt das Regelwerk? „Alle Standorte" schließt alle ein.</span>
     </div>`;
 }
 
@@ -1077,6 +1077,9 @@ async function savePolicy(newStatus) {
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
   if (!p.dokumentItemId && !p.dokumentUrl) { toast('Bitte ein Dokument zuordnen.', 'error'); return; }
+  if (!Array.isArray(p.geltungsbereich) || !p.geltungsbereich.length) {
+    toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return;
+  }
   if (p._zgSpecific && (!p.zielgruppen || !p.zielgruppen.length)) {
     toast('Bitte mindestens eine Rolle wählen oder „Für alle Mitarbeiter" auswählen.', 'error'); return;
   }
