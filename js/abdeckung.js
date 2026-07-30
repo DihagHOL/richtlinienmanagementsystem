@@ -267,7 +267,7 @@ function abdeckungExportReport() {
       th,td{border:1px solid #d1d5db;padding:4px 8px;text-align:left;vertical-align:top}
       th{background:#111827;color:#fff;font-size:11px} .kpi{display:flex;gap:22px;margin:10px 0}
       .kpi b{font-size:20px;display:block} .noprint{margin:16px 0}
-      @media print{.noprint{display:none}}
+      @media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     <h1>ISMS-Abdeckung &amp; Konformitätsstatus</h1>

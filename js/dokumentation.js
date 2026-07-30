@@ -454,7 +454,7 @@ function dokuPrint() {
       .doku-tbl td{border:1px solid #d1d5db;padding:5px 9px;vertical-align:top}
       .doku-tbl tr td:first-child{width:210px;font-weight:600}
       a{color:#17509e} ul,ol{margin:8px 0 0} :root{--c-muted:#6b7280;--c-primary:#17509e;--c-text:#111827;--c-bg:#f8fafc;--c-surface:#fff;--c-border:#e5e7eb;--c-faint:#9ca3af}
-      .noprint{margin-bottom:14px}@media print{.noprint{display:none}}
+      .noprint{margin-bottom:14px}@media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     <h1>Benutzerhandbuch – DIHAG Regelwerk-Management</h1>
