@@ -156,6 +156,8 @@ async function refreshAll() {
   if (btn) btn.disabled = true;
   showSync(true);
   State.loadedAt = 0;   // Cache invalidieren → garantiert frische Daten
+  if (typeof AdminState !== 'undefined') AdminState.members = null;   // Mitarbeiterliste neu holen
+  if (typeof spInvalidateMembers === 'function') spInvalidateMembers();
   try {
     await reloadData();
     if (typeof renderAdminList === 'function') renderAdminList();

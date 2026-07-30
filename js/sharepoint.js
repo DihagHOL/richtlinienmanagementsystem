@@ -1332,26 +1332,86 @@ async function spGetGovDocs(onProgress) {
    Mitarbeiterliste (Soll für Compliance)
 ═══════════════════════════════════════════════════ */
 
-/** Aktive Mitarbeiter (Postfach vorhanden, kein Gast) inkl. AD-Abteilung. */
+/* Mitarbeiterliste: teuer (blättert durch das ganze Verzeichnis), ändert sich aber
+   selten. Deshalb dreifach abgesichert:
+   1. Speicher-Cache für die laufende Ansicht,
+   2. sessionStorage, damit ein Reiterwechsel/Reload nicht neu lädt,
+   3. eine gemeinsame „läuft schon"-Zusage, damit parallele Aufrufer EINE Abfrage teilen
+      (vorher holten ISMS-Dokumente und Risiko-Register die Liste jeweils zusätzlich). */
+const MEMBERS_TTL = 30 * 60 * 1000;          // 30 Minuten
+const MEMBERS_CACHE_KEY = 'rms_members_v1';
+let _members = null;                          // { at, list }
+let _membersInflight = null;                  // laufende Abfrage
+
+function _membersFromSession() {
+  try {
+    const raw = sessionStorage.getItem(MEMBERS_CACHE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !Array.isArray(o.list) || (Date.now() - (o.at || 0)) > MEMBERS_TTL) return null;
+    return o;
+  } catch { return null; }
+}
+
+function _membersToSession(o) {
+  try { sessionStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(o)); } catch { /* Speicher voll/gesperrt – egal */ }
+}
+
+/** Cache verwerfen (z. B. nach „Aktualisieren"), damit die Liste frisch geladen wird. */
+function spInvalidateMembers() {
+  _members = null; _membersInflight = null;
+  try { sessionStorage.removeItem(MEMBERS_CACHE_KEY); } catch { /* egal */ }
+}
+
+/** Aktive Mitarbeiter (Postfach vorhanden, kein Gast) inkl. AD-Abteilung – gecacht. */
 async function spGetMembers() {
-  const token = await acquireToken(SP.scopes);
-  if (!token) return [];
-  let url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$top=999`;
-  const out = [];
-  while (url) {
-    const resp = await _get(url, token);
-    (resp.value || []).forEach(u => {
-      if (u.accountEnabled !== false && u.mail && (u.userType || 'Member') === 'Member') {
-        out.push({
-          name: u.displayName || u.mail,
-          upn: (u.userPrincipalName || u.mail),
-          department: u.department || '',
-        });
+  if (_members && (Date.now() - _members.at) < MEMBERS_TTL) return _members.list;
+  const ausSession = _membersFromSession();
+  if (ausSession) { _members = ausSession; return _members.list; }
+  if (_membersInflight) return _membersInflight;          // parallele Aufrufer warten mit
+
+  _membersInflight = (async () => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) return [];
+    // Serverseitig vorfiltern: deaktivierte Konten und Gäste gar nicht erst laden.
+    const filter = encodeURIComponent("accountEnabled eq true and userType eq 'Member'");
+    let url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$filter=${filter}&$top=999`;
+    let gefiltert = true;
+    const out = [];
+    while (url) {
+      let resp;
+      try {
+        resp = await _get(url, token);
+      } catch (e) {
+        // Manche Mandanten/Berechtigungen lassen den Filter nicht zu → ohne Filter erneut
+        if (gefiltert) {
+          console.warn('[sp] Mitarbeiterfilter nicht möglich, lade ungefiltert:', e.message);
+          gefiltert = false;
+          url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$top=999`;
+          continue;
+        }
+        throw e;
       }
-    });
-    url = resp['@odata.nextLink'] || null;
-  }
-  return out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      (resp.value || []).forEach(u => {
+        // Clientseitig gegenprüfen (falls ungefiltert geladen wurde)
+        if (u.accountEnabled !== false && u.mail && (u.userType || 'Member') === 'Member') {
+          out.push({
+            name: u.displayName || u.mail,
+            upn: (u.userPrincipalName || u.mail),
+            department: u.department || '',
+          });
+        }
+      });
+      url = resp['@odata.nextLink'] || null;
+    }
+    const list = out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    _members = { at: Date.now(), list };
+    _membersToSession(_members);
+    return list;
+  })();
+
+  try { return await _membersInflight; }
+  finally { _membersInflight = null; }
 }
 
 /** Azure-AD-Abteilung des angemeldeten Users (für die automatische Rollen-Zuordnung). */
