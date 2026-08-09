@@ -68,8 +68,9 @@ async function checkPage(label, pageUrl, mustContain) {
   console.log(`Deployment-Smoke · ${new Date().toISOString()}\nBASE=${BASE}`);
 
   // 1. RMS-Startseite + Verdrahtung zum KI-Dashboard
-  await checkPage('1. Richtlinienmanagement', `${BASE}/`,
-    ['Richtlinienmanagement', 'href="ki/"', 'js/auth.js', 'js/app.js']);
+  // Marker müssen zur ausgelieferten index.html passen (siehe Test „deploy-marker").
+  await checkPage('1. Regelwerk-Management', `${BASE}/`,
+    ['Regelwerk-Management', 'href="ki/"', 'js/auth.js', 'js/app.js']);
 
   // 2. KI-Dashboard unter /ki/
   await checkPage('2. KI-Dashboard', `${BASE}/ki/`,
