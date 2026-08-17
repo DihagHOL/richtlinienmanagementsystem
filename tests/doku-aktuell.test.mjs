@@ -44,6 +44,7 @@ const FEATURES = [
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
   { name: 'Reihenfolge Freigabe/MB', code: () => /function edSwapWorkflowOrder/.test(admin),         begriffe: ['Reihenfolge'] },
+  { name: 'Geführter Rundgang',      code: () => /function startTutorial/.test(read('js/tutorial.js')), begriffe: ['Rundgang'] },
 ];
 
 for (const f of FEATURES) {

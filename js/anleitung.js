@@ -46,6 +46,19 @@ function anleitungHtml() {
         welche Bereiche du siehst, hängt von deinen Rechten ab.</p>
     </div>
 
+    <!-- Einstieg: geführter Rundgang am Beispiel -->
+    <div style="background:var(--c-primary-l);border:1px solid var(--c-primary);border-radius:14px;
+      padding:18px 22px;margin:0 0 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:1.8rem;line-height:1">🎬</div>
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:800;color:var(--c-primary);margin-bottom:3px">Neu hier? Der geführte Rundgang</div>
+        <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">In acht Schritten der komplette
+          Weg eines Regelwerks – von der Idee über Prüfung und Mitbestimmung bis zur Freigabe,
+          Kenntnisnahme und zum Audit-Nachweis. An einem durchgehenden Beispiel, in rund drei Minuten.</div>
+      </div>
+      <button class="btn btn-primary" onclick="startTutorial(0)">▶ Rundgang starten</button>
+    </div>
+
     ${_aCard(`
       <div style="display:flex;gap:14px;align-items:flex-start">
         <div style="font-size:1.6rem;line-height:1">🔑</div>

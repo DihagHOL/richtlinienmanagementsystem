@@ -74,6 +74,7 @@ function _dokuSections() {
     sec('start', 'Erste Schritte', 'all', `
       <ul style="${ol}">
         <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
+        <li style="${li}"><b>Geführter Rundgang:</b> Im Reiter <b>Anleitung</b> führt „▶ Rundgang starten" in acht Schritten durch den kompletten Weg eines Regelwerks – von der Idee bis zum Audit-Nachweis, an einem durchgehenden Beispiel. Es werden dabei keine Daten angelegt oder geändert.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt – das KI-Dashboard nutzt dieselbe Anmeldung.</li>
         <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
         <li style="${li}"><b>Was du siehst, hängt von deiner Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
