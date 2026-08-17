@@ -94,5 +94,19 @@ const reihen = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(m => m[
 ok(reihen.includes('tutorial'), 'tutorial.js ist eingebunden');
 ok(reihen.indexOf('tutorial') < reihen.indexOf('anleitung'), 'tutorial.js lädt vor anleitung.js');
 
+/* ── 8) Eigenständige Seite rundgang.html ──
+   Notfall-Ebene für Vorführungen: läuft ohne Anmeldung, ohne SharePoint und offline. */
+const rg = fs.readFileSync(ROOT + '/rundgang.html', 'utf8');
+ok(/<script src="js\/tutorial\.js"/.test(rg), 'rundgang.html bindet js/tutorial.js ein');
+ok(/href="css\/style\.css"/.test(rg), 'rundgang.html nutzt dasselbe Stylesheet');
+ok(/onclick="startTutorial\(0\)"/.test(rg), 'rundgang.html hat den Startknopf');
+ok(/id="modal-mount"/.test(rg), 'rundgang.html hat den Einhängepunkt für den Dialog');
+for (const shim of ['function esc(', 'function openModal(', 'function closeModal('])
+  ok(rg.includes(shim), `rundgang.html bringt ${shim.replace('function ', '').replace('(', '()')} selbst mit`);
+ok(rg.indexOf('function openModal(') < rg.indexOf('src="js/tutorial.js"'),
+  'Die Ersatzteile stehen vor tutorial.js');
+for (const abhaengig of ['msal', 'graph.microsoft.com', 'js/sharepoint.js', 'js/app.js'])
+  ok(!rg.includes(abhaengig), `rundgang.html braucht kein ${abhaengig}`);
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
