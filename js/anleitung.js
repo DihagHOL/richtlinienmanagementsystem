@@ -59,6 +59,24 @@ function anleitungHtml() {
       <button class="btn btn-primary" onclick="startTutorial(0)">▶ Rundgang starten</button>
     </div>
 
+    <!-- Einstieg: echte Vorführung (nur für Freigeschaltete) -->
+    ${(typeof darfDemo === 'function' && darfDemo()) ? `
+    <div style="background:#fff7ed;border:1px solid var(--c-warn);border-radius:14px;
+      padding:18px 22px;margin:0 0 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:1.8rem;line-height:1">🧪</div>
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:800;color:#b45309;margin-bottom:3px">Vorführ- und Testmodus</div>
+        <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">Derselbe Ablauf, aber in der
+          <b>echten Anwendung</b>: Du klickst die richtigen Schaltflächen, der Ablauf reagiert wirklich.
+          Die Daten sind erfunden und erreichen SharePoint nicht; E-Mails gehen als gekennzeichnete
+          Testnachricht an dein eigenes Postfach. Eignet sich auch als Funktionsprüfung nach einer
+          Aktualisierung.</div>
+        <div class="field-hint" style="margin-top:5px">Nur für freigeschaltete Personen
+          (Einstellungen → Vorführmodus).</div>
+      </div>
+      <button class="btn btn-outline" onclick="demoStart()">🧪 Vorführung starten</button>
+    </div>` : ''}
+
     ${_aCard(`
       <div style="display:flex;gap:14px;align-items:flex-start">
         <div style="font-size:1.6rem;line-height:1">🔑</div>

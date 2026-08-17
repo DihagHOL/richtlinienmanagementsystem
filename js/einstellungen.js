@@ -35,6 +35,26 @@ function renderEinstellungen() {
       ${reiterRechteCard()}
 
       <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Vorführmodus (Demo &amp; Funktionsprüfung)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Der Vorführmodus zeigt die Anwendung mit <b>erfundenen Daten</b>: Nichts wird in SharePoint
+            gespeichert. E-Mails werden aber <b>wirklich versendet</b> – gekennzeichnet und ausschließlich
+            an das Postfach der vorführenden Person. Damit eignet er sich für Präsentationen und als
+            Funktionsprüfung nach einer Aktualisierung.<br>
+            <b>Admins sind immer freigeschaltet.</b> Hier zusätzliche Personen eintragen.
+          </div>
+          <div id="cfg-demoUser"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input type="email" id="cfg-input-demoUser" placeholder="name@dihag.com"
+              style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+              onkeydown="if(event.key==='Enter')cfgAdd('demoUser')">
+            <button class="btn btn-outline btn-sm" onclick="cfgAdd('demoUser')">+ Hinzufügen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">Ablauf: Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</div>

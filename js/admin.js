@@ -1659,7 +1659,7 @@ function _rrAllUsers() {
 }
 
 function renderCfgLists() {
-  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger'].forEach(role => {
+  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger', 'demoUser'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
     if (!host) return;
     const arr = _cfgEdit[role] || [];

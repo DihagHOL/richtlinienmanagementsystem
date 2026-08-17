@@ -74,6 +74,9 @@ async function bootApp(account) {
     await loadRuntimeAccessConfig();
     State.myRoles = await getCurrentUserRoles();   // vor initRoleNav: Reiter-Rechte können an Rollen hängen
     initRoleNav();
+    // Vorführ-/Testmodus (?demo=1): erst nach der Anmeldung, nur für Freigeschaltete.
+    if (typeof demoGewuenscht === 'function' && demoGewuenscht()
+        && typeof demoAktivieren === 'function' && await demoAktivieren()) return;
     await applyDeepLinkOrDefault();   // lädt Daten + rendert (Mail-Deeplink oder Standard)
   } catch (e) {
     console.error(e);

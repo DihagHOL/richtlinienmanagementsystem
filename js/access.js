@@ -76,6 +76,7 @@ async function loadRuntimeAccessConfig() {
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
+        demoUser:   Array.isArray(cfg.demoUser) ? cfg.demoUser : [],
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
         clevelMail:        typeof cfg.clevelMail === 'string' ? cfg.clevelMail : '',
@@ -100,10 +101,14 @@ async function loadRuntimeAccessConfig() {
   }
 }
 
+/** Geladene Konfiguration und Rollen verwerfen (Vorführmodus überlagert beides). */
+function _resetAccessCache() { _runtimeConfig = null; _myRolesCache = null; }
+
 function getAccessConfig() {
   const c = _cfg();
   return {
     ...JSON.parse(JSON.stringify(c)),   // alle Felder mitnehmen (inkl. ki* vom KI-Dashboard)
+    demoUser:   [...(c.demoUser || [])],
     admins:     [...(c.admins || [])],
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
@@ -214,6 +219,14 @@ function _has(list, upn) {
 
 function isAdmin(upn)      { return _has(_cfg().admins, upn); }
 function isGenehmiger(upn) { return _has(_cfg().genehmiger, upn) || isAdmin(upn); }
+
+/* ── Vorführ- und Testmodus ──
+   Bewusst eng gefasst: Der Modus versendet echte Testmails und zeigt den vollen
+   Funktionsumfang, deshalb ist er nicht allgemein zugänglich. Admins sind immer
+   freigeschaltet, weitere Personen über die Einstellungen. */
+function getDemoUser()      { return [...(_cfg().demoUser || [])]; }
+function darfDemo(upn)      { const u = upn || _currentUpn(); return isAdmin(u) || _has(_cfg().demoUser, u); }
+function isCurrentUserDemoBerechtigt() { return darfDemo(); }
 
 function _currentUpn() {
   const acc = typeof getAuthUser === 'function' ? getAuthUser() : null;

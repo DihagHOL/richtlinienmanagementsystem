@@ -50,6 +50,7 @@ const _DOKU_TOC = [
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
+  ['vorfuehrung',   'Vorführ- und Testmodus'],
   ['glossar',       'Begriffe & Normbezug'],
   ['faq',           'Häufige Fragen & Hilfe'],
 ];
@@ -372,6 +373,33 @@ function _dokuSections() {
         <li style="${li}"><b>Reiter-Berechtigungen (Lesen/Schreiben):</b> Benutzer per E-Mail hinzufügen, dann je Reiter (z. B. Regelwerk Dashboard, Audit Report, Fälligkeiten) <b>Lesen/Schreiben per Häkchen</b> vergeben – <b>additiv</b> zu den Standardrechten, Admins haben immer Zugriff. „Nur Lesen" = Reiter sichtbar, aber Anlegen/Bearbeiten gesperrt; „Schreiben" schließt Lesen ein. „Einstellungen" bleibt Admins vorbehalten.</li>
       </ul>`,
       'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
+
+    sec('vorfuehrung', 'Vorführ- und Testmodus', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Neben dem erklärenden <b>Rundgang</b> (Reiter „Anleitung")
+      gibt es eine <b>echte Vorführung</b>: dieselbe Anwendung, dieselben Schaltflächen, aber auf einer
+      erfundenen Datenbasis. Start über <b>Anleitung → „Vorführung starten"</b> oder <code>?demo=1</code>.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Keine echten Daten:</b> Alle Regelwerke, Konzepte und Kenntnisnahmen liegen nur
+          im Arbeitsspeicher des Browsers. In den SharePoint-Listen wird nichts angelegt oder geändert –
+          nach dem Beenden ist alles wieder weg.</li>
+        <li style="${li}"><b>Echter Mailversand:</b> E-Mails gehen wirklich über Microsoft Graph raus –
+          aber ausschließlich an das eigene Postfach, mit Betreff-Kennzeichnung <code>[RMS-Vorführung]</code>
+          und einem Hinweis, wer sie im Echtbetrieb bekäme. Dadurch ist die Vorführung zugleich ein Test der
+          Mailstrecke. Abschaltbar über den Schalter im Hinweisstreifen.</li>
+        <li style="${li}"><b>Postausgang:</b> Jede erzeugte Nachricht ist im Streifen unter „Postausgang"
+          abrufbar – samt der Entscheidungs-Schaltflächen (Annehmen/Zurückstellen/Ablehnen bzw.
+          Konform/Freigeben), die dort genauso funktionieren wie in Outlook.</li>
+        <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
+          hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
+          Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>
+        <li style="${li}"><b>Selbsttest:</b> spielt Konzept → Entwurf → Konformitätsprüfung → Mitbestimmung →
+          Freigabe → Kenntnisnahme → Historie in einem Zug durch und zeigt einen Bericht mit allen
+          Prüfpunkten. Sinnvoll nach jeder Aktualisierung, um die Prozesskette und den Mailversand zu prüfen.</li>
+        <li style="${li}"><b>Nur für Freigeschaltete:</b> Administratoren immer, weitere Personen über
+          <b>Einstellungen → Vorführmodus</b>. Grund: Der Modus versendet echte E-Mails und zeigt den
+          vollen Funktionsumfang unabhängig von den sonstigen Reiter-Berechtigungen.</li>
+      </ul>`,
+      'ISO 27001 Klausel 7.2 (Kompetenz), 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung).'),
 
     sec('glossar', 'Begriffe & Normbezug', 'all', `
       <ul style="${ol}">
