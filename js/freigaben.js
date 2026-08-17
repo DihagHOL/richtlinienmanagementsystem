@@ -490,7 +490,7 @@ function _wfApprovalsHtml(p) {
 }
 
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
-  const base = 'https://richtlinienmanagement.dihag-extern.com/';
+  const base = 'https://rms.dihag.de/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
   const act = (a) => `${url}&aktion=${a}`;
   const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;

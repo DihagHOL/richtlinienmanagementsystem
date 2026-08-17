@@ -52,8 +52,8 @@ function anleitungHtml() {
         <div>
           <div style="font-weight:700;margin-bottom:4px">Aufruf &amp; Anmeldung</div>
           <div style="color:var(--c-muted);line-height:1.55">
-            Aufruf über <a href="https://richtlinienmanagement.dihag-extern.com/"
-              style="color:var(--c-primary);font-weight:600">richtlinienmanagement.dihag-extern.com</a>.
+            Aufruf über <a href="https://rms.dihag.de/"
+              style="color:var(--c-primary);font-weight:600">rms.dihag.de</a>.
             Anmeldung mit dem normalen DIHAG-Microsoft-Konto – einmal anmelden genügt, das KI-Dashboard
             nutzt dieselbe Anmeldung. Bei Problemen Seite neu laden oder „Erneut versuchen“ klicken.
           </div>

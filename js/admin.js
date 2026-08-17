@@ -1269,7 +1269,7 @@ function dpSelect(idx) {
 ═══════════════════════════════════════════════════ */
 
 function _mitMailHtml(p, label, attachmentName) {
-  const base = 'https://richtlinienmanagement.dihag-extern.com/';
+  const base = 'https://rms.dihag.de/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
@@ -1559,7 +1559,7 @@ async function remindOpenForCurrent() {
 }
 
 function reminderHtml(p) {
-  const url = 'https://richtlinienmanagement.dihag-extern.com/';
+  const url = 'https://rms.dihag.de/';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p>Hallo,</p>
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>

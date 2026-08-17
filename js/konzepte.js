@@ -502,7 +502,7 @@ async function notifyKonzeptGF(k) {
 
 function _konzeptMailHtml(k, hasAttachment, hasDoc) {
   const ko = k.konzept || {};
-  const base = 'https://richtlinienmanagement.dihag-extern.com/';
+  const base = 'https://rms.dihag.de/';
   const br = (s) => esc(String(s || '')).replace(/\n/g, '<br>');
   const anhangZeile = hasAttachment
     ? `<p>📎 Ein Entwurf/Anhang ist dieser E-Mail beigefügt${k.dokumentName ? `: <b>${esc(k.dokumentName)}</b>` : ''}.</p>`

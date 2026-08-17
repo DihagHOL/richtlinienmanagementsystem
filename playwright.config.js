@@ -3,7 +3,7 @@
 const fs = require('fs');
 const { defineConfig, devices } = require('@playwright/test');
 
-const BASE = (process.env.BASE || 'https://richtlinienmanagement.dihag-extern.com').replace(/\/$/, '');
+const BASE = (process.env.BASE || 'https://rms.dihag.de').replace(/\/$/, '');
 const STATE = 'e2e/.auth/state.json';
 const hasState = fs.existsSync(STATE);   // Login-State vorhanden? (via `npm run e2e:login` erzeugt)
 

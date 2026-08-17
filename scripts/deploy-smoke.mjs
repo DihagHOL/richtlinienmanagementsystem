@@ -11,7 +11,7 @@
  *
  * Exit 0 = grün, 1 = Fehler. Reine GET-Requests, verändert nichts.
  */
-const BASE     = (process.env.BASE || 'https://richtlinienmanagement.dihag-extern.com').replace(/\/$/, '');
+const BASE     = (process.env.BASE || 'https://rms.dihag.de').replace(/\/$/, '');
 const OLD_KI   = process.env.OLD_KI || 'https://ki-dashboard.dihag-extern.com';
 const TIMEOUT  = 15000;
 
@@ -84,7 +84,11 @@ async function checkPage(label, pageUrl, mustContain) {
     else fail(`HTTP ${r.status}`);
     if (/umgezogen/i.test(r.body)) ok('zeigt Umzugsseite');
     else fail('Umzugsseite-Marker "umgezogen" fehlt');
-    if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) ok('verweist auf neues /ki/');
+    // Die Umzugsseite liegt in einem anderen Repo. Während der Domain-Umstellung
+    // zählt beides als richtig – sie verweist entweder schon auf rms.dihag.de
+    // oder noch auf die alte Domain, die ihrerseits weiterleitet.
+    if (r.body.includes('rms.dihag.de/ki/')) ok('verweist auf /ki/ (neue Domain)');
+    else if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) ok('verweist auf /ki/ (noch alte Domain – bitte umstellen)');
     else fail('Verweis auf /ki/ fehlt');
   } catch (e) { fail(`alte KI-URL nicht erreichbar: ${e.message}`); }
 

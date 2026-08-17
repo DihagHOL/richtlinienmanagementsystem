@@ -73,7 +73,7 @@ function _dokuSections() {
   return [
     sec('start', 'Erste Schritte', 'all', `
       <ul style="${ol}">
-        <li style="${li}"><b>Aufruf:</b> <a href="https://richtlinienmanagement.dihag-extern.com/" style="color:var(--c-primary);font-weight:600">richtlinienmanagement.dihag-extern.com</a> im Browser.</li>
+        <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt – das KI-Dashboard nutzt dieselbe Anmeldung.</li>
         <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
         <li style="${li}"><b>Was du siehst, hängt von deiner Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>

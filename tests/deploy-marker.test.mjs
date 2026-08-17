@@ -38,11 +38,22 @@ for (const m of rmsMarker || [])
 for (const m of kiMarker || [])
   ok(ki.includes(m), `ki/index.html enthält den Marker „${m}"`);
 
-/* Der alte Name darf als Marker nicht zurückkehren – die Domain bleibt aber
-   bewusst richtlinienmanagement.dihag-extern.com (kleingeschrieben). */
+/* Weder der alte Name noch die alte Domain dürfen zurückkehren. */
 const alteMarker = (rmsMarker || []).filter(m => /Richtlinienmanagement/.test(m));
 ok(alteMarker.length === 0, 'Kein Marker mit dem alten Namen „Richtlinienmanagement"');
-ok(/richtlinienmanagement\.dihag-extern\.com/.test(smoke), 'Die Domain bleibt unverändert (kleingeschrieben)');
+ok(/rms\.dihag\.de/.test(smoke), 'Deploy-Smoke prüft die aktuelle Domain rms.dihag.de');
+
+/* Die Domain steckt auch in den Deep-Links der Workflow-Mails und im
+   Erinnerungs-Job. Bleibt dort die alte stehen, führen Mail-Buttons ins Leere. */
+const domainDateien = ['js/freigaben.js', 'js/konzepte.js', 'js/admin.js', 'js/anleitung.js',
+                       'js/dokumentation.js', 'scripts/erinnerungen.mjs', 'playwright.config.js'];
+const alteDomain = domainDateien.filter(f => /richtlinienmanagement\.dihag-extern\.com/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+ok(alteDomain.length === 0, 'Keine alte Domain mehr im Code' + (alteDomain.length ? ': ' + alteDomain.join(', ') : ''));
+
+/* CNAME (GitHub Pages) muss zur geprüften Domain passen. */
+const cname = fs.readFileSync(path.join(ROOT, 'CNAME'), 'utf8').trim();
+ok(cname === 'rms.dihag.de', `CNAME zeigt auf die aktuelle Domain (ist „${cname}")`);
+ok(smoke.includes(cname), 'Deploy-Smoke und CNAME nennen dieselbe Domain');
 
 /* Umzugsseite: der geprüfte Text muss dort auch stehen. */
 const umzug = ROOT + '/../ki-dashboard/index.html';
