@@ -27,14 +27,7 @@ const _LOGIN_SCOPES = [
   'Files.ReadWrite.All',
   'User.Read.All',
   'Mail.Send',
-  // Für den Versand aus dem gemeinsamen Absender-Postfach (Einstellungen →
-  // „Absender-Postfach"). Ohne diese Freigabe verschickt die App weiterhin über
-  // das Postfach der angemeldeten Person.
-  'Mail.Send.Shared',
 ];
-
-/** Scopes für den Mailversand – inklusive gemeinsamem Postfach. */
-const _MAIL_SCOPES = ['https://graph.microsoft.com/Mail.Send', 'https://graph.microsoft.com/Mail.Send.Shared'];
 
 let _msal = null;
 let _account = null;

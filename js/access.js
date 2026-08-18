@@ -39,7 +39,7 @@ const ACCESS_CONFIG_DEFAULT = {
   genehmigungPA:    false,     // Legacy-Spiegel (true == PA aktiv); aus genehmigungPAScope abgeleitet
   // ── Erinnerungen (vom GitHub-Actions-Cron gelesen) ──
   erinnerungenAktiv:        true,  // Erinnerungen senden ja/nein
-  mailSender:               'pruefer@dihag.com',   // gemeinsames Absender-Postfach für Workflow-Mails
+  mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
   erinnerungErsteNachTagen: 7,     // erste Erinnerung nach X Tagen
   erinnerungDannAlleTage:   3,     // danach alle Y Tage
   eskalationAbTagen:        14,    // ab Z Tagen zusätzlich an eskalationMail
@@ -90,9 +90,7 @@ async function loadRuntimeAccessConfig() {
           ? cfg.genehmigungPAScope : (cfg.genehmigungPA === true ? 'alle' : 'aus'),
         genehmigungPA:     cfg.genehmigungPA === true || cfg.genehmigungPAScope === 'gl' || cfg.genehmigungPAScope === 'alle',
         erinnerungenAktiv:        cfg.erinnerungenAktiv !== false,
-        // Leer heißt „nicht gepflegt" – dann gilt das Standard-Postfach.
-        mailSender:               (typeof cfg.mailSender === 'string' && cfg.mailSender.trim())
-          ? cfg.mailSender.trim() : ACCESS_CONFIG_DEFAULT.mailSender,
+        mailSender:               typeof cfg.mailSender === 'string' ? cfg.mailSender : '',
         erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
         erinnerungDannAlleTage:   _posInt(cfg.erinnerungDannAlleTage, 3),
         eskalationAbTagen:        _posInt(cfg.eskalationAbTagen, 14),
@@ -147,8 +145,6 @@ function getKonformSchwelle()   { return _cfg().konformSchwelle || 'alle'; }
 function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 /* ── Mitbestimmung: KBR- und je-Werk-BR-Mailadressen ── */
 function getKbrMail()           { return _cfg().kbrMail || ''; }
-/** Gemeinsames Absender-Postfach für Workflow-Mails (leer = eigenes Postfach). */
-function getMailSender()        { return (_cfg().mailSender || '').trim(); }
 function getBrMails()           { const m = _cfg().brMails; return (m && typeof m === 'object') ? { ...m } : {}; }
 function getBrMail(werk)        { return getBrMails()[werk] || ''; }
 /* ── C-Level-Audit-Bericht: Empfänger ── */

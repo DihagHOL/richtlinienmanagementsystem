@@ -1424,7 +1424,7 @@ async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraD
   if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
   const cc = clean(ccUpns).filter(a => !unique.includes(a));   // keine Doppel-Empfänger
 
-  const token = await acquireToken(_MAIL_SCOPES);
+  const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
   if (!token) return false;   // Redirect zum Consent läuft
 
   const message = {
@@ -1435,20 +1435,6 @@ async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraD
   if (cc.length) message.ccRecipients = cc.map(a => ({ emailAddress: { address: a } }));
   if (attachments && attachments.length) message.attachments = attachments;
 
-  // Absender: möglichst das gemeinsame Postfach aus den Einstellungen, damit
-  // Workflow-Mails nicht von wechselnden Personen kommen. Klappt das nicht
-  // (fehlende „Senden als"-Berechtigung), geht es über das eigene Postfach –
-  // eine Nachricht, die ankommt, ist besser als gar keine.
-  const absender = (typeof getMailSender === 'function') ? getMailSender() : '';
-  if (absender) {
-    try {
-      await _post(`${SP.graphBase}/users/${encodeURIComponent(absender)}/sendMail`, token,
-        { message, saveToSentItems: true });
-      return true;
-    } catch (e) {
-      console.warn(`[sp] Versand über ${absender} nicht möglich (${e.message}) – nutze das eigene Postfach.`);
-    }
-  }
   await _post(`${SP.graphBase}/me/sendMail`, token, { message, saveToSentItems: true });
   return true;
 }

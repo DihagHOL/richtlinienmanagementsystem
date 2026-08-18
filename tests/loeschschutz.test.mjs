@@ -67,14 +67,20 @@ const fn = sp.slice(sp.indexOf('async function spGetAcknowledgements'),
 ok(!/while \(url\)/.test(fn), 'Die Handschlaufe über alle Seiten ist raus');
 ok(/_getAll\(/.test(fn), 'Stattdessen der gemeinsame Seiten-Helfer');
 
-/* ── 4) Absender-Postfach ── */
-ok(/function getMailSender/.test(lies('js/access.js')), 'Es gibt ein konfigurierbares Absender-Postfach');
-ok(/mailSender:\s+'pruefer@dihag\.com'/.test(lies('js/access.js')), 'Standard ist pruefer@dihag.com');
-ok(/ACCESS_CONFIG_DEFAULT\.mailSender/.test(lies('js/access.js')),
-  'Ein leeres Feld in der gespeicherten Konfiguration fällt auf den Standard zurück');
-ok(/users\/\$\{encodeURIComponent\(absender\)\}\/sendMail/.test(sp), 'Versendet wird über dieses Postfach');
-ok(/nutze das eigene Postfach/.test(sp), 'Fehlt die Berechtigung, geht es über das eigene – ohne Ausfall');
-ok(/Mail\.Send\.Shared/.test(lies('js/auth.js')), 'Der dafür nötige Scope wird angefordert');
+/* ── 4) Mailversand bleibt, wie er war ──
+   Der Versand über ein gemeinsames Postfach war kurz eingebaut und wurde
+   zurückgenommen: Er hätte den Scope „Mail.Send.Shared" gebraucht, und der löst
+   beim nächsten Anmelden eine neue Zustimmungsabfrage aus. Solange das nicht
+   gebraucht wird, bleibt die Anmeldung unverändert. */
+const auth = lies('js/auth.js');
+ok(!/Mail\.Send\.Shared/.test(auth), 'Kein zusätzlicher Mail-Scope – keine neue Zustimmungsabfrage');
+const scopes = (auth.match(/const _LOGIN_SCOPES = \[([\s\S]*?)\]/) || [])[1] || '';
+const anzahl = (scopes.match(/'/g) || []).length / 2;
+ok(anzahl === 5, `Fünf Scopes wie bisher (sind ${anzahl})`);
+ok(/'Mail\.Send',/.test(scopes), 'Mail.Send ist dabei');
+ok(/me\/sendMail/.test(sp), 'Versendet wird über das eigene Postfach');
+ok(!/users\/\$\{encodeURIComponent\(absender\)\}/.test(sp), 'Kein Versand über ein fremdes Postfach');
+ok(!/function getMailSender/.test(lies('js/access.js')), 'Der Helfer dafür ist wieder raus');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
