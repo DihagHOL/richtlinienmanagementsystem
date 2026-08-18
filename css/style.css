@@ -494,18 +494,48 @@ body.demo-mode .main { padding-bottom: 64px; }
 .demo-mail-body { border: 1px solid var(--c-border); border-radius: 9px; padding: 14px; background: #fff; overflow-x: auto; }
 
 /* ── Geführte Vorführung: Ausschnitt-Maske + Sprechblase ── */
-.tour-mask { position: fixed; background: rgba(15,23,42,.55); z-index: 300; pointer-events: auto; }
-.tour-ring { position: fixed; z-index: 301; border: 2px solid var(--c-warn); border-radius: 9px; pointer-events: none;
-  box-shadow: 0 0 0 3px rgba(240,131,0,.25); transition: all .18s ease; }
-.tour-tip { position: fixed; z-index: 302; width: 340px; max-width: calc(100vw - 24px); background: #fff;
-  border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.28); padding: 14px 16px 13px; }
-.tour-tip-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-.tour-zaehler { font-size: .72rem; font-weight: 700; color: var(--c-warn); letter-spacing: .04em; }
-.tour-x { background: none; border: none; font-size: 1.2rem; line-height: 1; color: var(--c-faint); cursor: pointer; padding: 0 3px; }
+.tour-mask { position: fixed; background: rgba(15,23,42,.62); z-index: 300; pointer-events: auto;
+  backdrop-filter: saturate(.7); }
+.tour-ring { position: fixed; z-index: 301; border: 2px solid var(--c-warn); border-radius: 10px; pointer-events: none;
+  transition: left .22s cubic-bezier(.4,0,.2,1), top .22s cubic-bezier(.4,0,.2,1),
+              width .22s cubic-bezier(.4,0,.2,1), height .22s cubic-bezier(.4,0,.2,1), border-color .2s;
+  animation: tour-puls 1.8s ease-in-out infinite; }
+.tour-ring.ok { border-color: var(--c-success); animation: none; box-shadow: 0 0 0 4px rgba(22,163,74,.28); }
+@keyframes tour-puls {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(240,131,0,.30); }
+  50%      { box-shadow: 0 0 0 8px rgba(240,131,0,.10); }
+}
+
+.tour-tip { position: fixed; z-index: 302; width: 366px; max-width: calc(100vw - 24px); background: #fff;
+  border-radius: 14px; box-shadow: 0 22px 60px rgba(15,23,42,.34); padding: 0 18px 15px;
+  overflow: hidden; animation: tour-auf .22s cubic-bezier(.2,.9,.3,1.2); }
+.tour-tip-mitte { width: 420px; }
+@keyframes tour-auf { from { opacity: 0; transform: translateY(7px) scale(.98); } }
+.tour-tip-mitte { animation: none; }
+
+.tour-fortschritt { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--c-border-2); }
+.tour-fortschritt span { display: block; height: 100%; background: var(--c-warn); transition: width .3s ease; }
+
+.tour-tip-kopf { display: flex; align-items: center; gap: 9px; padding: 13px 0 0; }
+.tour-zaehler { font-size: .7rem; font-weight: 700; color: var(--c-muted); letter-spacing: .05em; text-transform: uppercase; }
+.tour-wartet { display: inline-flex; align-items: center; gap: 5px; font-size: .7rem; font-weight: 700; color: #b45309;
+  background: #fff7ed; border-radius: 999px; padding: 2px 9px; }
+.tour-wartet i { width: 6px; height: 6px; border-radius: 50%; background: var(--c-warn);
+  animation: demo-puls 1.4s ease-in-out infinite; }
+.tour-ok { font-size: .7rem; font-weight: 700; color: var(--c-success-d); background: #f0fdf4;
+  border-radius: 999px; padding: 2px 9px; }
+.tour-x { margin-left: auto; background: none; border: none; font-size: 1.25rem; line-height: 1; color: var(--c-faint);
+  cursor: pointer; padding: 0 2px; }
 .tour-x:hover { color: var(--c-text); }
-.tour-titel { font-size: .95rem; font-weight: 700; margin: 0 0 6px; }
-.tour-text { font-size: .84rem; line-height: 1.6; color: var(--c-text); }
-.tour-tip-fuss { display: flex; gap: 7px; justify-content: flex-end; margin-top: 13px; }
+
+.tour-kopfzeile { display: flex; align-items: center; gap: 9px; margin: 9px 0 7px; }
+.tour-symbol { font-size: 1.25rem; line-height: 1; }
+.tour-titel { font-size: 1rem; font-weight: 700; margin: 0; }
+.tour-text { font-size: .855rem; line-height: 1.62; color: var(--c-text); }
+.tour-hinweis { margin-top: 11px; font-size: .78rem; line-height: 1.55; color: var(--c-muted);
+  background: var(--c-bg); border-left: 3px solid var(--c-primary); border-radius: 0 8px 8px 0; padding: 8px 12px; }
+.tour-tip-fuss { display: flex; align-items: center; gap: 7px; margin-top: 15px; }
+.tour-luecke { flex: 1; }
 @media (max-width: 700px) {
   .demo-banner-text { display: none; }
   .tour-tip { width: calc(100vw - 24px); }

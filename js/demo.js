@@ -15,9 +15,16 @@
  *   2. E-Mails: werden WIRKLICH über Microsoft Graph versendet – aber
  *      ausschließlich an das Postfach der vorführenden Person. Betreff und
  *      Kopfzeile weisen den Testcharakter aus, die ursprünglichen Empfänger
- *      stehen im Hinweis. Dadurch ist die Vorführung zugleich ein echter Test
- *      der Mailstrecke (Mail.Send, Vorlagen, Schaltflächen, Anhänge).
- *      Abschaltbar über den Schalter im Streifen.
+ *      stehen im Hinweis. Angesehen werden die Nachrichten im normalen
+ *      Postfach (Outlook/OWA) – die Anwendung baut dafür bewusst keine eigene
+ *      Ansicht nach. Abschaltbar über den Schalter im Streifen.
+ *
+ * Der Anhang ist echt: Die Vorführung erzeugt ein PDF zum Regelwerk und hängt
+ * es an, zusätzlich verweist die Mail auf die Fundstelle in SharePoint. So ist
+ * erkennbar, was Prüfer und Geschäftsleitung im Betrieb wirklich vorfinden.
+ *
+ * Damit die Entscheidungs-Schaltflächen aus dem Postfach funktionieren,
+ * überleben die Vorführdaten den Seitenwechsel (localStorage, 12 Stunden).
  *
  * Zugang: nur für freigeschaltete Personen – Administratoren sowie die in den
  * Einstellungen unter „Vorführmodus" hinterlegten Benutzer (siehe darfDemo()).
@@ -57,6 +64,7 @@ function demoStart() {
 /** Vorführung beenden und normal weiterarbeiten. */
 function demoBeenden() {
   if (!confirm('Vorführung beenden? Alle Demo-Daten werden verworfen.')) return;
+  _demoVergessen();
   location.href = location.pathname;
 }
 
@@ -92,7 +100,9 @@ async function demoAktivieren() {
   if (typeof darfDemo === 'function' && !darfDemo()) { demoKeinZugriff(); return false; }
 
   _demoAn = true;
-  _demoSeed();
+  // Kommt der Aufruf aus einer Testmail, muss der alte Stand wieder da sein –
+  // sonst kennt die Anwendung den Vorgang aus der Mail nicht mehr.
+  if (!_demoWiederherstellen()) _demoSeed();
   _demoStubs();
   _demoBanner();
 
@@ -103,7 +113,10 @@ async function demoAktivieren() {
   initRoleNav();
   State.loadedAt = 0;
   await reloadData();
-  await switchView('verwaltung');
+  // Entscheidungs-Link aus einer Testmail? Dann dorthin. Sonst normal starten –
+  // die geführte Vorführung soll den Weg ins Dashboard selbst zeigen.
+  if (/[?&](konzept|richtlinie)=/.test(location.search)) await applyDeepLinkOrDefault();
+  else await switchView('meine');
 
   if (/[?&]tour=1(&|$)/.test(location.search) && typeof tourStart === 'function') {
     setTimeout(() => tourStart(), 500);
@@ -151,6 +164,7 @@ function _demoSeed() {
       beschreibung: 'Grundsätze der Informationssicherheit in der DIHAG-Gruppe: Schutzziele, Verantwortlichkeiten und Verhalten im Alltag.',
       kategorie: 'IT-Sicherheit', regelwerkTyp: 'Konzernrichtlinie',
       geltungsbereich: ['ALLE'], version: '2.1', status: 'Veröffentlicht',
+      ..._demoDokFelder(),
       veroeffentlichtAm: _demoIso(120), freigegebenVon: 'Demo Geschäftsleitung',
       wiederholungMonate: 12,
       naechsteReview: new Date(Date.now() + 90 * 86400000).toISOString(),
@@ -178,6 +192,7 @@ function _demoSeed() {
       beschreibung: 'Mindestlänge, Wechselintervalle und Umgang mit dem Passwort-Manager.',
       kategorie: 'IT-Sicherheit', regelwerkTyp: 'Konzernfachregelung',
       geltungsbereich: ['ALLE'], version: '1.0', status: 'Konformitätsprüfung',
+      ..._demoDokFelder(),
       pruefungSeit: _demoIso(4),
       pruefKonfig: { pruefer: [ich], schwelle: 'einer' },
       normbezug: ['ISO27001:A.5.17'],
@@ -191,6 +206,7 @@ function _demoSeed() {
       beschreibung: 'Ablauf, Zuständigkeiten und Dokumentation von Audits bei Lieferanten.',
       kategorie: 'Qualitätsmanagement', regelwerkTyp: 'Arbeits-/Prozessanweisung',
       geltungsbereich: ['SHB', 'EIS'], version: '0.3', status: 'Entwurf',
+      ..._demoDokFelder(),
       zielgruppen: ['Qualitätsmanagement', 'Einkauf'],
       historie: [{ datum: _demoIso(2), upn: ich, name: meinName, aktion: 'Angelegt', text: '' }],
     }),
@@ -231,6 +247,147 @@ function _demoConfig() {
 }
 
 /* ═══════════════════════════════════════════════════
+   Das Dokument zum Regelwerk
+   ═══════════════════════════════════════════════════
+   Ein Regelwerk ohne Datei erklärt die Lage nur halb: Prüfer und Geschäfts-
+   leitung entscheiden anhand des Dokuments. Die Vorführung erzeugt deshalb ein
+   echtes PDF als Mailanhang und verweist zusätzlich auf die Muster-Vorlage in
+   SharePoint – dort sehen die Empfänger, wo die Datei im Betrieb liegt. */
+
+const DEMO_DOK = {
+  name: 'Regelwerk-Entwurf (Vorführung).pdf',
+  driveId: 'demo-drive',
+  itemId: 'demo-item',
+};
+
+/** SharePoint-Fundstelle, auf die die Vorführung verweist. */
+function _demoDokUrl() {
+  return (typeof MUSTER_VORLAGE_URL !== 'undefined') ? MUSTER_VORLAGE_URL : '';
+}
+
+/** Dokumentfelder für ein Vorführ-Regelwerk. */
+function _demoDokFelder() {
+  return {
+    dokumentName: DEMO_DOK.name,
+    dokumentUrl: _demoDokUrl(),
+    dokumentDriveId: DEMO_DOK.driveId,
+    dokumentItemId: DEMO_DOK.itemId,
+  };
+}
+
+/** Typografie und Umlaute auf das PDF-Zeichenset (WinAnsi) herunterbrechen. */
+function _demoLatin(t) {
+  const karte = { '„': '"', '“': '"', '”': '"', '‘': "'", '’': "'",
+                  '–': '-', '—': '-', '→': '->', ' ': ' ' };
+  return String(t).split('').map(c => {
+    if (karte[c]) return karte[c];
+    return c.charCodeAt(0) < 256 ? c : '';
+  }).join('');
+}
+
+/**
+ * Erzeugt ein kleines, gültiges PDF – ohne Bibliothek, damit die Vorführung
+ * überall läuft. Reicht für den Zweck: Es lässt sich öffnen, drucken und zeigt,
+ * was im Betrieb an der Mail hängt.
+ */
+function _demoPdfBauen(titel, zeilen) {
+  const BS = String.fromCharCode(92);   // Backslash und Zeilenumbruch ohne
+  const NL = String.fromCharCode(10);   // Escape-Sequenzen im Quelltext
+  const t = (s) => _demoLatin(s).split(BS).join(BS + BS)
+    .split('(').join(BS + '(').split(')').join(BS + ')');
+
+  let y = 780;
+  const text = [`BT /F1 17 Tf 56 ${y} Td (${t(titel)}) Tj ET`];
+  y -= 34;
+  for (const z of zeilen) {
+    const fett = z.startsWith('#');
+    const zeile = fett ? z.slice(1) : z;
+    if (!zeile) { y -= 10; continue; }
+    text.push(`BT /${fett ? 'F1' : 'F2'} ${fett ? 12 : 11} Tf 56 ${y} Td (${t(zeile)}) Tj ET`);
+    y -= fett ? 22 : 17;
+  }
+  const inhalt = text.join(NL);
+
+  const objekte = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 5 0 R/F2 6 0 R>>>>/Contents 4 0 R>>',
+    `<</Length ${inhalt.length}>>stream${NL}${inhalt}${NL}endstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>',
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>',
+  ];
+  let pdf = '%PDF-1.4' + NL;
+  const stellen = [];
+  objekte.forEach((o, i) => { stellen.push(pdf.length); pdf += `${i + 1} 0 obj${o}endobj${NL}`; });
+  const xref = pdf.length;
+  pdf += `xref${NL}0 ${objekte.length + 1}${NL}0000000000 65535 f ${NL}`;
+  stellen.forEach(off => { pdf += String(off).padStart(10, '0') + ' 00000 n ' + NL; });
+  pdf += `trailer<</Size ${objekte.length + 1}/Root 1 0 R>>${NL}startxref${NL}${xref}${NL}%%EOF`;
+  return pdf;
+}
+
+/** Mailanhang (Graph-fileAttachment) mit dem erzeugten PDF. */
+function _demoAnhang(p) {
+  const zeilen = [
+    '#1. Zweck und Geltungsbereich',
+    'Dieses Dokument ist Teil einer Vorfuehrung des Regelwerk-Managements.',
+    'Es liegt kein echter Vorgang zugrunde.',
+    '',
+    `Titel: ${p && p.title ? p.title : '-'}`,
+    `Dokumentart: ${p && p.regelwerkTyp ? p.regelwerkTyp : '-'}`,
+    `Geltungsbereich: ${(p && typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(p.geltungsbereich) : '-'}`,
+    `Version: ${p && p.version ? p.version : '-'}`,
+    '',
+    '#2. Warum ein Anhang?',
+    'Im Betrieb entscheiden Pruefer und Geschaeftsleitung anhand der Datei.',
+    'Sie haengt an der Mail und liegt zugleich in SharePoint - dort mit',
+    'Versionsverlauf und Kommentaren, immer im aktuellen Stand.',
+    '',
+    '#3. Naechster Schritt',
+    'Ueber die Schaltflaechen in der Mail wird direkt entschieden.',
+  ];
+  const pdf = _demoPdfBauen(_demoLatin((p && p.title) || 'Regelwerk') + ' (Vorfuehrung)', zeilen);
+  return {
+    '@odata.type': '#microsoft.graph.fileAttachment',
+    name: DEMO_DOK.name,
+    contentType: 'application/pdf',
+    contentBytes: btoa(pdf),
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+   Persistenz: Vorführdaten überleben den Seitenwechsel
+   ═══════════════════════════════════════════════════
+   Sonst liefen die Entscheidungs-Schaltflächen aus dem Postfach ins Leere:
+   Outlook öffnet einen neuen Tab, und der kennt den Arbeitsspeicher der
+   Vorführung nicht. */
+
+const DEMO_SPEICHER = 'rms_demo_daten';
+const DEMO_HALTBAR = 12 * 60 * 60 * 1000;   // 12 Stunden
+
+function _demoSpeichern() {
+  try {
+    localStorage.setItem(DEMO_SPEICHER, JSON.stringify({ am: Date.now(), daten: DemoDaten }));
+  } catch (e) { /* Speicher voll oder gesperrt – die Vorführung läuft trotzdem */ }
+}
+
+/** @returns true, wenn ein brauchbarer Stand wiederhergestellt wurde */
+function _demoWiederherstellen() {
+  try {
+    const roh = localStorage.getItem(DEMO_SPEICHER);
+    if (!roh) return false;
+    const o = JSON.parse(roh);
+    if (!o || !o.daten || (Date.now() - (o.am || 0)) > DEMO_HALTBAR) { _demoVergessen(); return false; }
+    Object.assign(DemoDaten, o.daten);
+    return Array.isArray(DemoDaten.policies) && DemoDaten.policies.length > 0;
+  } catch (e) { return false; }
+}
+
+function _demoVergessen() {
+  try { localStorage.removeItem(DEMO_SPEICHER); } catch (e) { /* egal */ }
+}
+
+/* ═══════════════════════════════════════════════════
    Ersatz für die SharePoint-Schicht
 ═══════════════════════════════════════════════════ */
 
@@ -251,9 +408,17 @@ function _demoStubs() {
     const rein = _demoKlon(p);
     rein.modifiedAt = new Date().toISOString();
     const i = DemoDaten.policies.findIndex(x => String(x.id) === String(rein.id));
-    if (rein.id && i >= 0) { DemoDaten.policies[i] = { ...DemoDaten.policies[i], ...rein }; return { id: rein.id }; }
+    if (rein.id && i >= 0) {
+      DemoDaten.policies[i] = { ...DemoDaten.policies[i], ...rein };
+      _demoSpeichern();
+      return { id: rein.id };
+    }
     rein.id = String(DemoDaten.naechsteId++);
+    // Neue Regelwerke bekommen das Vorführdokument, damit die Mails an Prüfer und
+    // Geschäftsleitung wie im Betrieb einen Anhang und eine Fundstelle tragen.
+    if (rein.typ !== 'Konzept' && !rein.dokumentItemId) Object.assign(rein, _demoDokFelder());
     DemoDaten.policies.push(rein);
+    _demoSpeichern();
     return { id: rein.id };
   };
 
@@ -281,6 +446,7 @@ function _demoStubs() {
     if (rein.id && i >= 0) { DemoDaten.acks[i] = { ...DemoDaten.acks[i], ...rein }; return { id: rein.id }; }
     rein.id = 'a' + DemoDaten.naechsteId++;
     DemoDaten.acks.push(rein);
+    _demoSpeichern();
     return { id: rein.id };
   };
 
@@ -294,7 +460,13 @@ function _demoStubs() {
 
   // Dokumentablage gibt es in der Vorführung nicht – freundlich abfangen.
   g.spUploadPolicyDoc = async () => { toast('Vorführung: Es wird keine Datei hochgeladen.'); return null; };
-  g.spGetDocAttachment = async () => null;
+  // Echter Anhang: Prüfer und Geschäftsleitung sollen die Datei vor sich haben.
+  g.spGetDocAttachment = async (driveId, itemId) => {
+    if (driveId !== DEMO_DOK.driveId && itemId !== DEMO_DOK.itemId) return null;
+    const p = DemoDaten.policies.find(x => x.dokumentItemId === DEMO_DOK.itemId
+      && x.status !== 'Veröffentlicht') || DemoDaten.policies[0] || null;
+    try { return _demoAnhang(p); } catch (e) { console.warn('[demo] PDF-Anhang:', e.message); return null; }
+  };
 
   // Mailversand umlenken (siehe _demoSendMail)
   if (!_demoEchtSendMail) _demoEchtSendMail = g.spSendMail;
@@ -325,10 +497,12 @@ function _demoMailHinweis(anUrspruenglich, ccUrspruenglich) {
 async function _demoSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraDomains) {
   const ich = _demoIch();
   const betreff = '[RMS-Vorführung] ' + String(subject || '');
-  const html = _demoMailHinweis(toUpns, ccUpns) + (htmlBody || '');
+  // Die Schaltflächen in der Mail müssen zurück in die Vorführung führen, nicht
+  // in den Echtbetrieb – dort gäbe es die Vorgangsnummer gar nicht.
+  const html = _demoMailHinweis(toUpns, ccUpns) + _demoLinksUmbiegen(htmlBody || '');
 
   let versendet = false, fehler = '';
-  if (_demoMailEcht && ich && _demoEchtSendMail) {
+  if (_demoMailEcht && ich) {
     try {
       versendet = await _demoEchtSendMail([ich], betreff, html, attachments, [], extraDomains);
     } catch (e) {
@@ -339,19 +513,25 @@ async function _demoSendMail(toUpns, subject, htmlBody, attachments, ccUpns, ext
 
   DemoDaten.mails.unshift({
     an: Array.isArray(toUpns) ? toUpns : [toUpns],
-    cc: Array.isArray(ccUpns) ? ccUpns : (ccUpns ? [ccUpns] : []),
-    betreff: String(subject || '(ohne Betreff)'),
-    html: htmlBody || '',
+    betreff: String(subject || ''),
     anhaenge: (attachments || []).map(a => a && a.name).filter(Boolean),
     am: new Date().toISOString(),
     versendetAn: versendet ? ich : '',
     fehler,
   });
+  if (DemoDaten.mails.length > 30) DemoDaten.mails.length = 30;
+  _demoSpeichern();
   _demoBannerAktualisieren();
 
   if (fehler) toast('Vorführung: Mail konnte nicht versendet werden – ' + fehler, 'error');
-  else if (versendet) toast('Testmail an dich selbst versendet ✓');
+  else if (versendet) toast('Testmail an dich versendet ✓ – im Outlook ansehen'
+    + ((attachments || []).length ? ' (mit Anhang)' : ''), 'success');
   return true;
+}
+
+/** Deep-Links in der Mail um ?demo=1 ergänzen, damit sie in der Vorführung landen. */
+function _demoLinksUmbiegen(html) {
+  return String(html).replace(/(https:\/\/rms\.dihag\.de\/)\?/g, '$1?demo=1&');
 }
 
 /** Echten Versand an-/abschalten. */
@@ -374,11 +554,10 @@ function _demoBanner() {
     <span class="demo-dot" aria-hidden="true"></span>
     <b>Vorführ- und Testmodus</b>
     <span class="demo-banner-text">Erfundene Daten – nichts wird in SharePoint gespeichert.
-      E-Mails gehen als Test an dich selbst.</span>
+      Test-E-Mails gehen an dein Postfach: <b id="demo-mailzahl">0</b> bisher – ansehen in Outlook.</span>
     <label class="demo-switch" title="Testmails wirklich versenden">
       <input type="checkbox" id="demo-mail-an" checked onchange="demoMailSchalter(this.checked)"> Mailversand
     </label>
-    <button class="demo-banner-btn" id="demo-postausgang" onclick="demoPostausgang()">✉ Postausgang <span id="demo-mailzahl">0</span></button>
     <button class="demo-banner-btn" onclick="tourStart()">▶ Geführte Vorführung</button>
     <button class="demo-banner-btn" onclick="demoSelbsttest()">✓ Selbsttest</button>
     <button class="demo-banner-btn" onclick="demoBeenden()">Beenden</button>`;
@@ -390,99 +569,6 @@ function _demoBanner() {
 function _demoBannerAktualisieren() {
   const el = document.getElementById('demo-mailzahl');
   if (el) el.textContent = String(DemoDaten.mails.length);
-  const btn = document.getElementById('demo-postausgang');
-  if (btn) btn.classList.toggle('demo-neu', DemoDaten.mails.length > 0);
-}
-
-function demoPostausgang() {
-  const liste = DemoDaten.mails.length
-    ? DemoDaten.mails.map((m, i) => `
-        <button class="demo-mail-row" onclick="demoZeigeMail(${i})">
-          <div class="demo-mail-subj">${esc(m.betreff)}</div>
-          <div class="demo-mail-meta">an ${esc(m.an.join(', '))}${m.anhaenge.length ? ' · 📎 ' + esc(m.anhaenge.join(', ')) : ''}
-            · ${typeof fmtDateTime === 'function' ? fmtDateTime(m.am) : esc(m.am)}
-            ${m.versendetAn ? ` · <span style="color:var(--c-success)">als Test an ${esc(m.versendetAn)} versendet</span>`
-              : (m.fehler ? ` · <span style="color:var(--c-danger)">Versand fehlgeschlagen</span>` : ' · nicht versendet')}</div>
-        </button>`).join('')
-    : `<div class="field-hint">Noch keine E-Mail erzeugt. Reiche zum Beispiel ein Konzept bei der
-       Geschäftsleitung ein – die Nachricht landet dann hier und in deinem Postfach.</div>`;
-
-  openModal(`
-    <div class="modal-header">
-      <h3>Postausgang (Vorführung)</h3>
-      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button>
-    </div>
-    <div class="modal-body">
-      <p class="field-hint" style="margin-bottom:12px">Jede Nachricht geht als Testmail an dein eigenes
-      Postfach – mit Hinweis, dass kein echter Vorgang dahintersteht. Hier sind dieselben
-      Entscheidungs-Schaltflächen bedienbar wie im Postfach der Empfänger.</p>
-      ${liste}
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
-    </div>`, true);
-}
-
-function demoZeigeMail(i) {
-  const m = DemoDaten.mails[i];
-  if (!m) return;
-  openModal(`
-    <div class="modal-header">
-      <h3>${esc(m.betreff)}</h3>
-      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="demo-mail-head">
-        <div><b>An:</b> ${esc(m.an.join(', '))}</div>
-        ${m.cc.length ? `<div><b>Cc:</b> ${esc(m.cc.join(', '))}</div>` : ''}
-        ${m.anhaenge.length ? `<div><b>Anhang:</b> ${esc(m.anhaenge.join(', '))}</div>` : ''}
-        <div class="field-hint">${m.versendetAn
-          ? 'Als Testmail an ' + esc(m.versendetAn) + ' versendet.'
-          : (m.fehler ? 'Versand fehlgeschlagen: ' + esc(m.fehler) : 'Nicht versendet (Mailversand aus).')}</div>
-      </div>
-      <div id="demo-mail-body" class="demo-mail-body">${m.html}</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="demoPostausgang()">← Postausgang</button>
-    </div>`, true);
-
-  // Die Schaltflächen in der Mail sind echte Links auf die App. In der Vorführung
-  // führen wir die Aktion direkt aus, statt die Seite neu zu laden.
-  const body = document.getElementById('demo-mail-body');
-  if (body) body.addEventListener('click', (e) => {
-    const a = e.target.closest('a[href]');
-    if (!a) return;
-    e.preventDefault();
-    demoMailLink(a.getAttribute('href'));
-  });
-}
-
-/** Deep-Link aus einer Demo-Mail ausführen (?konzept=…&aktion=… bzw. ?richtlinie=…). */
-function demoMailLink(href) {
-  let params;
-  try { params = new URL(href, location.href).searchParams; }
-  catch (e) { return; }
-  const aktion    = (params.get('aktion') || '').toLowerCase();
-  const konzeptId = params.get('konzept');
-  const policyId  = params.get('richtlinie');
-
-  closeModal();
-  if (konzeptId) {
-    if (typeof setAdminMode === 'function') setAdminMode('konzepte');
-    switchView('verwaltung').then(() => {
-      if (aktion && typeof handleKonzeptMailAction === 'function') handleKonzeptMailAction(konzeptId, aktion);
-      else if (typeof focusKonzeptCard === 'function') focusKonzeptCard(konzeptId);
-    });
-    return;
-  }
-  if (policyId) {
-    switchView('freigaben').then(() => {
-      if (aktion && typeof handleMailAction === 'function') handleMailAction(policyId, aktion);
-      else if (typeof focusPolicyCard === 'function') focusPolicyCard(policyId);
-    });
-    return;
-  }
-  toast('Dieser Link führt in der Vorführung nirgendwohin.');
 }
 
 /* ═══════════════════════════════════════════════════
@@ -622,7 +708,6 @@ function _demoBericht(titel) {
       ${zeilen}
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="demoPostausgang()">✉ Postausgang</button>
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`, true);
 }

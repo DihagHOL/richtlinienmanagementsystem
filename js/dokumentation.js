@@ -384,11 +384,15 @@ function _dokuSections() {
           nach dem Beenden ist alles wieder weg.</li>
         <li style="${li}"><b>Echter Mailversand:</b> E-Mails gehen wirklich über Microsoft Graph raus –
           aber ausschließlich an das eigene Postfach, mit Betreff-Kennzeichnung <code>[RMS-Vorführung]</code>
-          und einem Hinweis, wer sie im Echtbetrieb bekäme. Dadurch ist die Vorführung zugleich ein Test der
-          Mailstrecke. Abschaltbar über den Schalter im Hinweisstreifen.</li>
-        <li style="${li}"><b>Postausgang:</b> Jede erzeugte Nachricht ist im Streifen unter „Postausgang"
-          abrufbar – samt der Entscheidungs-Schaltflächen (Annehmen/Zurückstellen/Ablehnen bzw.
-          Konform/Freigeben), die dort genauso funktionieren wie in Outlook.</li>
+          und einem Hinweis, wer sie im Echtbetrieb bekäme. Angesehen werden sie im normalen
+          <b>Outlook-Postfach</b>; die Anwendung baut dafür bewusst keine eigene Ansicht nach.
+          Abschaltbar über den Schalter im Hinweisstreifen.</li>
+        <li style="${li}"><b>Anhang und Fundstelle:</b> Die Mails tragen ein erzeugtes <b>PDF</b> zum Regelwerk
+          und verweisen zusätzlich auf die Datei <b>in SharePoint</b> – so wie im Betrieb. Prüfer,
+          Betriebsrat und Geschäftsleitung sehen damit genau das, was sie zum Entscheiden brauchen.</li>
+        <li style="${li}"><b>Entscheiden aus dem Postfach:</b> Die Schaltflächen in der Testmail führen
+          zurück in die Vorführung (nicht in den Echtbestand). Der Vorführstand überlebt den
+          Seitenwechsel dafür bis zu zwölf Stunden.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
           hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
           Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>

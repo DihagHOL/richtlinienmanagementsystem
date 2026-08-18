@@ -68,8 +68,9 @@ function anleitungHtml() {
         <div style="font-weight:800;color:#b45309;margin-bottom:3px">Vorführ- und Testmodus</div>
         <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">Derselbe Ablauf, aber in der
           <b>echten Anwendung</b>: Du klickst die richtigen Schaltflächen, der Ablauf reagiert wirklich.
-          Die Daten sind erfunden und erreichen SharePoint nicht; E-Mails gehen als gekennzeichnete
-          Testnachricht an dein eigenes Postfach. Eignet sich auch als Funktionsprüfung nach einer
+          Die Daten sind erfunden und erreichen SharePoint nicht. E-Mails gehen als gekennzeichnete
+          Testnachricht an dein eigenes Postfach – mit dem Dokument im Anhang und dem Link auf die
+          Datei in SharePoint, genau wie im Betrieb. Eignet sich auch als Funktionsprüfung nach einer
           Aktualisierung.</div>
         <div class="field-hint" style="margin-top:5px">Nur für freigeschaltete Personen
           (Einstellungen → Vorführmodus).</div>

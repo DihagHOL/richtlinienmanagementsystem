@@ -489,6 +489,24 @@ function _wfApprovalsHtml(p) {
     <b>Bereits freigegeben (zur Info):</b><br>${rows.join('<br>')}</div>`;
 }
 
+/**
+ * Dokumentzeile der Workflow-Mails.
+ * Der Anhang ist bequem, reicht aber nicht: Wer entscheidet, soll die Datei auch
+ * an ihrem Platz in SharePoint ansehen können – dort steht sie mit Versionsstand
+ * und Kommentaren. Deshalb immer beides anbieten, soweit vorhanden.
+ */
+function _wfDokumentHtml(p, attachmentName) {
+  const zeilen = [];
+  if (attachmentName) zeilen.push(`📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.`);
+  else if (p.dokumentName) zeilen.push(`📎 Hinterlegtes Dokument: <b>${esc(p.dokumentName)}</b> (nicht angehängt – zu groß oder nicht abrufbar).`);
+  if (!zeilen.length && !p.dokumentUrl) return '';
+  const link = p.dokumentUrl
+    ? `<p style="margin:6px 0 0"><a href="${esc(p.dokumentUrl)}" style="color:#17509e;font-weight:600;text-decoration:none">📄 Dokument in SharePoint öffnen →</a>
+       <span style="color:#9ca3af;font-size:12px">(immer der aktuelle Stand, mit Versionsverlauf)</span></p>`
+    : '';
+  return `${zeilen.length ? `<p style="margin:12px 0 0">${zeilen.join('<br>')}</p>` : ''}${link}`;
+}
+
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
   const base = 'https://rms.dihag.de/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
@@ -503,7 +521,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
     <p><b>${esc(headline)}</b></p>
     <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     <p>${esc(text)}</p>
-    ${attachmentName ? `<p>📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
+    ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>

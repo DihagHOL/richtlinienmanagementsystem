@@ -504,10 +504,16 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
   const ko = k.konzept || {};
   const base = 'https://rms.dihag.de/';
   const br = (s) => esc(String(s || '')).replace(/\n/g, '<br>');
-  const anhangZeile = hasAttachment
+  // Anhang UND Fundstelle in SharePoint: Wer entscheidet, soll die Datei auch dort
+  // ansehen können – mit Versionsstand und Kommentaren.
+  const anhangZeile = (hasAttachment
     ? `<p>📎 Ein Entwurf/Anhang ist dieser E-Mail beigefügt${k.dokumentName ? `: <b>${esc(k.dokumentName)}</b>` : ''}.</p>`
     : (hasDoc
-      ? `<p>📎 Ein Entwurf/Anhang${k.dokumentName ? ` (<b>${esc(k.dokumentName)}</b>)` : ''} ist im Konzept hinterlegt (zu groß für den E-Mail-Anhang) – bitte über den Button ansehen.</p>`
+      ? `<p>📎 Ein Entwurf/Anhang${k.dokumentName ? ` (<b>${esc(k.dokumentName)}</b>)` : ''} ist im Konzept hinterlegt (zu groß für den E-Mail-Anhang).</p>`
+      : ''))
+    + (k.dokumentUrl
+      ? `<p style="margin:6px 0 0"><a href="${esc(k.dokumentUrl)}" style="color:#17509e;font-weight:600;text-decoration:none">📄 Dokument in SharePoint öffnen →</a>
+         <span style="color:#9ca3af;font-size:12px">(immer der aktuelle Stand, mit Versionsverlauf)</span></p>`
       : '');
   const url = `${base}?konzept=${encodeURIComponent(k.id || '')}`;
   const act = (a) => `${url}&aktion=${a}`;

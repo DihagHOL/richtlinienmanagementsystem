@@ -22,7 +22,23 @@ const ctx = {
   console,
   esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   toast: () => {}, openModal: () => {}, closeModal: () => {},
-  document: { getElementById: () => null, querySelector: () => null, createElement: () => ({ style: {}, classList: { add() {}, toggle() {} }, setAttribute() {} }), body: { appendChild() {}, classList: { add() {}, remove() {} } } },
+  // Winziges Schein-DOM: genug, damit die Führung wirklich läuft (nicht nur gelesen wird)
+  document: (() => {
+    const reg = new Map();
+    const mk = () => ({ id: '', className: '', innerHTML: '', style: { cssText: '' },
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      setAttribute() {}, offsetHeight: 200, offsetWidth: 360,
+      getBoundingClientRect: () => ({ left: 10, top: 10, width: 100, height: 30, right: 110, bottom: 40 }),
+      scrollIntoView() {}, remove() {} });
+    return {
+      _reg: reg,
+      getElementById: (id) => reg.get(id) || null,
+      querySelector: () => null, querySelectorAll: () => [],
+      createElement: () => { const e = mk(); const set = e; 
+        return new Proxy(set, { set(t, k, v) { t[k] = v; if (k === 'id') reg.set(v, t); return true; } }); },
+      body: { appendChild() {}, classList: { add() {}, remove() {} } },
+    };
+  })(),
   location: { search: '', pathname: '/', href: 'https://rms.dihag.de/' },
   URL, URLSearchParams, setTimeout, clearInterval, setInterval,
   addEventListener: () => {},
@@ -30,6 +46,11 @@ const ctx = {
   ZIELGRUPPE_ALLE: 'ALLE',
   TUT_BEISPIEL: { titel: 'Regelwerk zur Nutzung von KI', typ: 'Konzernrichtlinie' },
   getAccessConfig: () => ({ admins: ['chef@dihag.com'] }),
+  MUSTER_VORLAGE_URL: 'https://dihag.sharepoint.com/muster.docx',
+  geltungsbereichLabel: (a) => (a || []).join(', ') || 'Alle Standorte',
+  btoa: (bin) => Buffer.from(bin, 'latin1').toString('base64'),
+  localStorage: (() => { const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; })(),
   // Die „echte" Mailfunktion, die demo.js umlenken soll
   spSendMail: async (to, betreff, html) => { gesendet.push({ to, betreff, html }); return true; },
   spGetMembers: async () => [{ name: 'Echte Kollegin', upn: 'kollegin@dihag.com', department: 'IT' }],
@@ -39,7 +60,9 @@ vm.createContext(ctx);
 vm.runInContext(lies('js/demo.js'), ctx);
 vm.runInContext(lies('js/tour.js'), ctx);
 const run = (s) => vm.runInContext(s, ctx);
-const wert = (s) => vm.runInContext(s, ctx);   // const/let aus dem Skript sind keine ctx-Eigenschaften
+const wert = (s) => vm.runInContext(s, ctx);
+const quelleRoh = () => lies('js/demo.js');
+const tourRoh = () => lies('js/tour.js');   // const/let aus dem Skript sind keine ctx-Eigenschaften
 
 /* ── 1) Beispieldaten ── */
 run('_demoSeed();');
@@ -83,16 +106,17 @@ ok(/kein echter Vorgang/.test(m.html), 'Der Hinweis sagt, dass nichts zu veranla
 ok(m.html.includes('gf@dihag.com') && m.html.includes('kbr@dihag.com'),
   'Die ursprünglichen Empfänger stehen im Hinweis');
 ok(m.html.includes('<p>Inhalt</p>'), 'Der eigentliche Inhalt bleibt erhalten');
-ok(wert('DemoDaten').mails.length === 1, 'Die Nachricht liegt zusätzlich im Postausgang');
-ok(wert('DemoDaten').mails[0].versendetAn === 'chef@dihag.com', 'Der Postausgang vermerkt den Versand');
-ok(wert('DemoDaten').mails[0].betreff === 'Freigabe nötig', 'Im Postausgang steht der Original-Betreff');
+ok(wert('DemoDaten').mails.length === 1, 'Der Versand wird protokolliert');
+ok(wert('DemoDaten').mails[0].versendetAn === 'chef@dihag.com', 'Das Protokoll vermerkt den Empfänger');
+ok(wert('DemoDaten').mails[0].betreff === 'Freigabe nötig', 'Im Protokoll steht der Original-Betreff');
+ok(!quelleRoh().includes('function demoPostausgang'), 'Es gibt keine nachgebaute Postfach-Ansicht mehr');
 
 /* Abschalten muss den Versand wirklich unterbinden. */
 gesendet.length = 0;
 run(`demoMailSchalter(false); spSendMail(['gf@dihag.com'], 'Zweite', '<p>x</p>');`);
 await new Promise(r => setTimeout(r, 10));
 ok(gesendet.length === 0, 'Mit ausgeschaltetem Versand geht nichts raus');
-ok(wert('DemoDaten').mails.length === 2, 'Die Nachricht steht trotzdem im Postausgang');
+ok(wert('DemoDaten').mails.length === 2, 'Sie steht trotzdem im Protokoll');
 ok(wert('DemoDaten').mails[0].versendetAn === '', 'Sie ist als „nicht versendet" vermerkt');
 
 /* ── 4) Zugriffsschutz ── */
@@ -119,10 +143,34 @@ ok(/cfg-demoUser/.test(eins), 'Einstellungen pflegen die Freischaltliste');
 ok(/Vorführmodus/.test(eins), 'Der Abschnitt heißt „Vorführmodus"');
 ok(/'demoUser'/.test(lies('js/admin.js')), 'renderCfgLists zeigt die Liste an');
 
-/* ── 5) Deep-Links aus den Testmails ── */
-ok(/function demoMailLink/.test(quelle), 'Links aus der Mail werden abgefangen');
-ok(/handleKonzeptMailAction/.test(quelle) && /handleMailAction/.test(quelle),
-  'Beide Entscheidungswege (Konzept und Regelwerk) sind angebunden');
+/* ── 5) Aus dem Postfach zurück in die Vorführung ── */
+run(`globalThis.__lnk = _demoLinksUmbiegen('<a href="https://rms.dihag.de/?konzept=7&aktion=annehmen">x</a>');`);
+ok(ctx.__lnk.includes('?demo=1&konzept=7'), 'Links aus der Mail führen zurück in die Vorführung');
+ok(/function _demoWiederherstellen/.test(quelle), 'Der Stand überlebt den Seitenwechsel');
+ok(/localStorage/.test(quelle), 'Dafür wird localStorage genutzt (nicht sessionStorage – Outlook öffnet einen neuen Tab)');
+ok(/DEMO_HALTBAR/.test(quelle), 'Der gespeicherte Stand verfällt nach einer Frist');
+ok(quelle.includes('_demoVergessen();'), 'Beenden räumt den Speicher auf');
+ok(/applyDeepLinkOrDefault/.test(quelle), 'Ein Entscheidungs-Link wird beim Start ausgeführt');
+
+/* ── 5b) Dokument: Anhang und Fundstelle in SharePoint ── */
+run(`globalThis.__att = null; spGetDocAttachment('demo-drive', 'demo-item').then(a => { globalThis.__att = a; });`);
+await new Promise(r => setTimeout(r, 20));
+const att = ctx.__att;
+ok(!!att, 'Die Vorführung erzeugt einen echten Anhang');
+ok(att && att.contentType === 'application/pdf', 'Der Anhang ist ein PDF');
+ok(att && att['@odata.type'] === '#microsoft.graph.fileAttachment', 'Er hat das Format, das Graph erwartet');
+const pdf = att ? Buffer.from(att.contentBytes, 'base64').toString('latin1') : '';
+ok(pdf.startsWith('%PDF-'), 'Das PDF hat einen gültigen Kopf');
+ok(pdf.trimEnd().endsWith('%%EOF'), 'Das PDF ist sauber abgeschlossen');
+ok(/startxref/.test(pdf) && /xref/.test(pdf), 'Die Querverweistabelle ist vorhanden');
+const xrefOff = Number((pdf.slice(pdf.lastIndexOf('startxref') + 9).trim().split(/\s/)[0]));
+ok(pdf.slice(xrefOff, xrefOff + 4) === 'xref', 'startxref zeigt auf die Tabelle');
+ok(wert('DemoDaten').policies.filter(p => p.dokumentUrl).length >= 3,
+  'Die Beispiele verweisen auf ein Dokument in SharePoint');
+ok(/_wfDokumentHtml/.test(lies('js/freigaben.js')), 'Die Workflow-Mail hat eine Dokumentzeile');
+ok(/Dokument in SharePoint öffnen/.test(lies('js/freigaben.js')),
+  'Prüfer und Geschäftsleitung bekommen den SharePoint-Link');
+ok(/Dokument in SharePoint öffnen/.test(lies('js/konzepte.js')), 'Auch die Konzept-Mail verlinkt das Dokument');
 
 /* ── 6) Selbsttest ── */
 ok(/async function demoSelbsttest/.test(quelle), 'Es gibt einen Selbsttest');
@@ -147,6 +195,9 @@ ok(mit.length >= 9, `Die meisten Schritte warten auf eine echte Aktion (${mit.le
 ok(schritte.filter(s => typeof s.vormachen === 'function').length >= 9,
   'Fast jeder Schritt lässt sich auch vormachen');
 ok(typeof schritte[0].erfuellt !== 'function', 'Der Begrüßungsschritt wartet auf nichts');
+ok(schritte.every(s => s.symbol), 'Jeder Schritt hat ein Symbol');
+ok(titel.includes('Postfach'), 'Ein Schritt führt ins Outlook-Postfach');
+ok(!/Postausgang/.test(tourRoh()), 'Die Führung verweist nicht mehr auf eine App-interne Postfach-Ansicht');
 ok(typeof schritte[schritte.length - 1].erfuellt !== 'function', 'Der Schlussschritt wartet auf nichts');
 
 /* Die Bedingungen dürfen nie werfen, auch wenn noch gar nichts da ist. */
@@ -158,6 +209,9 @@ const tour = lies('js/tour.js');
 ok(/tour-mask/.test(tour) && /_tourPositioniere/.test(tour),
   'Die Hervorhebung lässt das Ziel als Ausschnitt frei (anklickbar)');
 ok(/TOUR_MINDEST/.test(tour), 'Ein Schritt bleibt eine Mindestzeit stehen');
+ok(/_tourVorerf/.test(tour), 'Ein beim Betreten schon erfüllter Schritt wird nicht übersprungen');
+ok(/if \(_tourVorerf\) return;/.test(tour), 'Die Prüfschleife respektiert das');
+ok(/tour-fortschritt/.test(tour) && /tour-wartet/.test(tour), 'Fortschritt und Wartezustand sind sichtbar');
 ok(/demoAktiv\(\)/.test(tour), 'Die Vorführung läuft nur im Demo-Modus');
 
 /* ── 8) Einbindung ── */
@@ -168,6 +222,32 @@ ok(reihen.indexOf('tutorial') < reihen.indexOf('tour'), 'tour.js lädt nach tuto
 ok(reihen.indexOf('demo') < reihen.indexOf('anleitung'), 'demo.js lädt vor anleitung.js');
 ok(/\.demo-banner\b/.test(lies('css/style.css')) && /\.tour-tip\b/.test(lies('css/style.css')),
   'Die Formatierung für Streifen und Sprechblase ist vorhanden');
+
+/* ── 9) Der gemeldete Fehler: Schritt 1 lief von allein weiter ──
+   Die Vorführung startete im Dashboard; damit war „Dashboard öffnen" bereits
+   erfüllt und wurde sofort übersprungen. Jetzt muss der Schritt stehen bleiben. */
+run(`_tourListe = tourSchritte();
+     _tourAnsicht = () => true;              // Ansicht ist schon offen
+     _tourGehe(1);
+     globalThis.__vorerf = _tourVorerf;
+     _tourSeit = 0;                          // Mindestverweildauer aushebeln
+     _tourTakt(); _tourTakt();
+     globalThis.__idxDanach = _tourIdx;`);
+ok(ctx.__vorerf === true, 'Ein bereits erfüllter Schritt wird als erledigt erkannt');
+ok(ctx.__idxDanach === 1, 'Er bleibt trotzdem stehen und springt nicht weiter');
+
+run(`_tourAnsicht = () => false;             // noch nicht erledigt
+     _tourGehe(1);
+     globalThis.__wartet = _tourVorerf;
+     _tourSeit = 0; _tourTakt();
+     globalThis.__idxWartend = _tourIdx;
+     _tourAnsicht = () => true;              // jetzt führt der Anwender den Schritt aus
+     _tourSeit = 0; _tourTakt();
+     globalThis.__nachKlick = _tourVorerf;`);
+ok(ctx.__wartet === false, 'Ein offener Schritt wartet');
+ok(ctx.__idxWartend === 1, 'Und bleibt stehen, solange nichts passiert');
+ok(ctx.__nachKlick === true, 'Nach der echten Aktion wird er als erledigt erkannt');
+run('tourEnde();');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

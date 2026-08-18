@@ -7,22 +7,25 @@
  * geht es weiter. Es gibt keine nachgebauten Bildschirme – jeder Klick löst genau
  * das aus, was er im Betrieb auslöst.
  *
- * Damit das gefahrlos geht, läuft die Führung im Demo-Modus (demo.js): erfundene
- * Daten im Arbeitsspeicher, kein SharePoint, kein Mailversand.
+ * Damit das gefahrlos geht, läuft die Führung im Vorführmodus (demo.js):
+ * erfundene Daten, echter Mailversand an das eigene Postfach.
  *
  * Fortschritt wird nicht über abgefangene Klicks erkannt, sondern über den
- * tatsächlichen Zustand (`erfuellt`). Dadurch ist es egal, auf welchem Weg der
- * Vorführende ans Ziel kommt – auch ein Umweg zählt.
+ * tatsächlichen Zustand (`erfuellt`). Dadurch ist es egal, auf welchem Weg man
+ * ans Ziel kommt – auch ein Umweg zählt. Ein Schritt, dessen Bedingung beim
+ * Betreten schon erfüllt ist, springt NICHT weiter: sonst rauschte die Führung
+ * an Schritten vorbei, die man noch gar nicht gesehen hat.
  */
 
-let _tourIdx      = -1;     // aktueller Schritt (-1 = aus)
-let _tourTimer    = null;   // Takt für Nachführen + Zustandsprüfung
-let _tourListe    = null;   // Schritte der laufenden Führung
-let _tourBasis    = null;   // Zustandsschnappschuss beim Betreten des Schritts
-let _tourSeit     = 0;      // Zeitpunkt des Schrittwechsels (Mindestverweildauer)
+let _tourIdx      = -1;      // aktueller Schritt (-1 = aus)
+let _tourTimer    = null;    // Takt für Nachführen + Zustandsprüfung
+let _tourListe    = null;    // Schritte der laufenden Führung
+let _tourBasis    = null;    // Zustandsschnappschuss beim Betreten des Schritts
+let _tourSeit     = 0;       // Zeitpunkt des Schrittwechsels
+let _tourVorerf   = false;   // war der Schritt beim Betreten schon erfüllt?
 
-const TOUR_TAKT      = 350;   // ms zwischen zwei Prüfungen
-const TOUR_MINDEST   = 900;   // ms, die ein Schritt mindestens stehen bleibt
+const TOUR_TAKT    = 350;    // ms zwischen zwei Prüfungen
+const TOUR_MINDEST = 700;    // ms, die ein Schritt mindestens stehen bleibt
 
 /* ═══════════════════════════════════════════════════
    Hilfen für die Schrittdefinitionen
@@ -42,11 +45,10 @@ function _tourDialog(teil) {
   return !!(h && h.textContent.includes(teil));
 }
 
-/** Das im Rundgang erzeugte Regelwerk (nach Titel). */
+/** Das in der Vorführung erzeugte Regelwerk bzw. Konzept (nach Titel). */
 function _tourRegelwerk() {
   return (State.policies || []).find(p => p.title === TUT_BEISPIEL.titel) || null;
 }
-
 function _tourKonzept() {
   return (State.konzepte || []).find(k => k.title === TUT_BEISPIEL.titel) || null;
 }
@@ -58,30 +60,35 @@ function _tourKonzept() {
 function tourSchritte() {
   return [
     {
-      titel: 'Vorführung starten',
+      symbol: '🎬',
+      titel: 'Los geht es',
       text: `Ab hier bedienst du die <b>echte Anwendung</b> – nur mit erfundenen Daten.
              Jeder Schritt wartet, bis du ihn wirklich ausgeführt hast.
-             Wenn es schnell gehen soll: <b>Vormachen</b> erledigt den Schritt für dich.`,
-      ziel: null,
-      erfuellt: null,
+             Wenn es schnell gehen soll, erledigt <b>Vormachen</b> den Schritt für dich.`,
+      hinweis: 'Nichts wird in SharePoint gespeichert. E-Mails gehen als Test an dein eigenes Postfach.',
+      ziel: null, erfuellt: null,
     },
     {
-      titel: '1 · Regelwerk-Dashboard öffnen',
+      symbol: '📋',
+      titel: 'Regelwerk-Dashboard öffnen',
       text: 'Hier verwaltet die Fachseite alle Regelwerke und Konzepte. Klick den Reiter an.',
       ziel: '#nav-verwaltung',
       erfuellt: () => _tourAnsicht('verwaltung'),
       vormachen: () => switchView('verwaltung'),
     },
     {
-      titel: '2 · Ein Konzept anlegen',
-      text: `Neue Regelwerke starten als <b>Konzept</b>: erst entscheidet die Geschäftsleitung,
+      symbol: '💡',
+      titel: 'Ein Konzept anlegen',
+      text: `Neue Regelwerke starten als <b>Konzept</b>: Erst entscheidet die Geschäftsleitung,
              ob es überhaupt gebraucht wird. Klick auf „💡 Regelwerk-Konzept".`,
+      hinweis: 'Das spart Arbeit an Regelwerken, die am Ende niemand will.',
       ziel: '#btn-new-konzept',
       erfuellt: () => _tourDialog('Regelwerk-Konzept'),
       vormachen: () => { setAdminMode('konzepte'); openKonzeptEditor(); },
     },
     {
-      titel: '3 · Konzept ausfüllen und einreichen',
+      symbol: '✍️',
+      titel: 'Ausfüllen und einreichen',
       text: `Arbeitstitel, Dokumentart und Geltungsbereich sind Pflicht, dazu die Frage <i>Warum?</i>.
              Dann unten „Zur GF-Prüfung einreichen".`,
       ziel: '.modal-footer .btn-primary',
@@ -103,32 +110,35 @@ function tourSchritte() {
       },
     },
     {
-      titel: '4 · Die Mail an die Geschäftsleitung',
-      text: `Die Anwendung hat die Geschäftsleitung benachrichtigt. In der Vorführung wird nichts
-             versendet – die Nachricht liegt im <b>Postausgang</b>. Öffne sie.`,
-      ziel: '#demo-postausgang',
-      erfuellt: () => !!document.getElementById('demo-mail-body'),
-      vormachen: () => { demoPostausgang(); setTimeout(() => demoZeigeMail(0), 300); },
+      symbol: '✉️',
+      titel: 'Die Mail im Postfach ansehen',
+      text: `Die Geschäftsleitung wurde benachrichtigt – die Testmail liegt jetzt in <b>deinem</b>
+             Outlook-Postfach. Wechsle kurz dorthin: Dort stehen die Entscheidungs-Schaltflächen,
+             der <b>Anhang</b> mit dem Dokument und der Link auf die Datei <b>in SharePoint</b>.`,
+      hinweis: 'Genau das bekommen Geschäftsführung, Prüfer und Betriebsrat im Betrieb zu sehen.',
+      ziel: null, erfuellt: null,
     },
     {
-      titel: '5 · Entscheiden – direkt aus der Mail',
-      text: `Annehmen, Zurückstellen oder Ablehnen stehen als Schaltflächen <b>in der Mail</b>.
-             Klick auf „✓ Annehmen" – daraus entsteht automatisch ein Regelwerk-Entwurf.`,
-      ziel: '#demo-mail-body a',
+      symbol: '✓',
+      titel: 'Entscheiden',
+      text: `Annehmen, Zurückstellen oder Ablehnen – wahlweise direkt in der Mail oder hier auf der
+             Karte. Nimm das Konzept an: Daraus entsteht automatisch ein Regelwerk-Entwurf.`,
+      ziel: '.item-card .btn-primary',
       erfuellt: () => {
         const k = _tourKonzept();
         return !!(k && k.konzept && k.konzept.entscheidung && k.konzept.entscheidung.status === 'angenommen');
       },
       vormachen: () => {
         const k = _tourKonzept();
-        if (k) { closeModal(); switchView('verwaltung').then(() => konzeptDecide(k.id, 'angenommen')); }
+        if (k) { setAdminMode('konzepte'); switchView('verwaltung').then(() => konzeptDecide(k.id, 'angenommen')); }
       },
     },
     {
-      titel: '6 · Aus dem Konzept wird ein Entwurf',
-      text: `Titel, Dokumentart, Geltungsbereich und die Begründung sind übernommen.
-             Ergänze jetzt, was das Regelwerk braucht – und schick es mit
-             „Zur Konformitätsprüfung →" weiter.`,
+      symbol: '📄',
+      titel: 'Aus dem Konzept wird ein Entwurf',
+      text: `Titel, Dokumentart, Geltungsbereich und Begründung sind übernommen. Ergänze, was das
+             Regelwerk braucht – und schick es mit „Zur Konformitätsprüfung →" weiter.`,
+      hinweis: 'Prüfer und Betriebsrat bekommen das Dokument als Anhang und als SharePoint-Link.',
       ziel: '.modal-footer .btn-primary',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Konformitätsprüfung'); },
       vormachen: () => {
@@ -138,15 +148,16 @@ function tourSchritte() {
         setTimeout(() => {
           if (typeof _editing !== 'undefined' && _editing) {
             _editing.kbrBetroffen = true;
-            _editing.pruefKonfig = { pruefer: ['demo.pruefer@dihag.com'], schwelle: 'einer' };
+            _editing.pruefKonfig = { pruefer: [State.user.upn], schwelle: 'einer' };
           }
           savePolicy('Konformitätsprüfung');
         }, 400);
       },
     },
     {
-      titel: '7 · Konformitätsprüfung',
-      text: `Der Reiter <b>Freigaben</b> zeigt alles, was auf eine Entscheidung wartet.
+      symbol: '🔍',
+      titel: 'Konformitätsprüfung',
+      text: `Der Reiter <b>Freigaben</b> sammelt alles, was auf eine Entscheidung wartet.
              Öffne ihn und setze das Regelwerk auf „Konform".`,
       ziel: '#nav-freigaben',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && (p.konformitaet || []).length); },
@@ -156,9 +167,11 @@ function tourSchritte() {
       },
     },
     {
-      titel: '8 · Mitbestimmung',
+      symbol: '🤝',
+      titel: 'Mitbestimmung',
       text: `Ist die Mitbestimmung betroffen, geht es an den Konzernbetriebsrat bzw. die
-             Betriebsräte der gewählten Werke. Auch das wird hier entschieden.`,
+             Betriebsräte der gewählten Werke – mit demselben Dokument.`,
+      hinweis: 'Diese Stufe ist der Grund für den stufenweisen Rollout.',
       ziel: '#view-freigaben',
       erfuellt: () => {
         const p = _tourRegelwerk();
@@ -170,7 +183,8 @@ function tourSchritte() {
       },
     },
     {
-      titel: '9 · Freigabe durch die Geschäftsleitung',
+      symbol: '🚀',
+      titel: 'Freigabe durch die Geschäftsleitung',
       text: `In der Freigabe-Karte steht, wer vorher schon zugestimmt hat.
              Mit der Freigabe wird das Regelwerk veröffentlicht.`,
       ziel: '#view-freigaben',
@@ -178,7 +192,8 @@ function tourSchritte() {
       vormachen: () => { const p = _tourRegelwerk(); if (p) markFreigabe(p.id); },
     },
     {
-      titel: '10 · Kenntnisnahme',
+      symbol: '👀',
+      titel: 'Kenntnisnahme',
       text: `Jetzt erscheint das Regelwerk bei allen Mitarbeitenden der Zielgruppe.
              Wechsle zu „Meine Regelwerke", öffne es und bestätige die Kenntnisnahme.`,
       ziel: '.nav-item[data-view="meine"]',
@@ -192,11 +207,12 @@ function tourSchritte() {
       },
     },
     {
-      titel: '11 · Nachweis im Audit',
+      symbol: '🗂️',
+      titel: 'Nachweis im Audit',
       text: `Der eigentliche Zweck: Auf Knopfdruck belegbar, <b>wer wann was</b> entschieden hat.
              Öffne das Regelwerk im Dashboard und klapp die <b>Änderungshistorie</b> auf.`,
       ziel: '#nav-verwaltung',
-      erfuellt: () => !!_tourEl('#ed-sec-hist.open, #ed-body-hist'),
+      erfuellt: () => !!_tourEl('#ed-body-hist'),
       vormachen: () => {
         const p = _tourRegelwerk();
         if (!p) return;
@@ -208,12 +224,12 @@ function tourSchritte() {
       },
     },
     {
+      symbol: '🏁',
       titel: 'Durchlauf abgeschlossen',
       text: `Vom Konzept über Prüfung und Mitbestimmung bis zu Freigabe, Kenntnisnahme und
-             Audit-Nachweis – alles an einer Stelle und lückenlos protokolliert.<br><br>
-             Die Vorführung lässt sich oben im Streifen jederzeit neu starten oder beenden.`,
-      ziel: null,
-      erfuellt: null,
+             Audit-Nachweis – alles an einer Stelle und lückenlos protokolliert.`,
+      hinweis: 'Der Selbsttest im Streifen unten spielt genau das automatisch durch und berichtet je Prüfpunkt.',
+      ziel: null, erfuellt: null,
     },
   ];
 }
@@ -222,10 +238,12 @@ function tourSchritte() {
    Steuerung
 ═══════════════════════════════════════════════════ */
 
-/** Führung starten. Ohne Demo-Modus zuerst dorthin wechseln. */
+/** Führung starten. Ohne Vorführmodus zuerst dorthin wechseln. */
 function tourStart(idx) {
   if (typeof demoAktiv !== 'function' || !demoAktiv()) {
-    if (!confirm('Die geführte Vorführung läuft im Demo-Modus mit erfundenen Daten.\n\nJetzt in den Demo-Modus wechseln? Die Seite wird dazu neu geladen.')) return;
+    const frage = 'Die geführte Vorführung läuft im Vorführmodus mit erfundenen Daten.'
+      + '\n\nJetzt dorthin wechseln? Die Seite wird neu geladen.';
+    if (!confirm(frage)) return;
     location.href = location.pathname + '?demo=1&tour=1';
     return;
   }
@@ -239,6 +257,11 @@ function _tourGehe(i) {
   _tourIdx = Math.max(0, Math.min(_tourListe.length - 1, i));
   const s = _tourListe[_tourIdx];
   _tourBasis = (typeof s.basis === 'function') ? s.basis() : null;
+  // Schon erledigt? Dann trotzdem stehen bleiben und den Weiter-Knopf anbieten.
+  _tourVorerf = false;
+  if (typeof s.erfuellt === 'function') {
+    try { _tourVorerf = !!s.erfuellt(_tourBasis); } catch (e) { _tourVorerf = false; }
+  }
   _tourSeit = Date.now();
   _tourZeichne();
 }
@@ -259,7 +282,7 @@ function tourVormachen() {
 
 function tourEnde() {
   if (_tourTimer) { clearInterval(_tourTimer); _tourTimer = null; }
-  _tourIdx = -1; _tourListe = null; _tourBasis = null;
+  _tourIdx = -1; _tourListe = null; _tourBasis = null; _tourVorerf = false;
   document.querySelectorAll('.tour-mask, .tour-ring, .tour-tip').forEach(el => el.remove());
   document.body.classList.remove('tour-on');
 }
@@ -270,13 +293,22 @@ function _tourTakt() {
   const s = _tourListe[_tourIdx];
   _tourPositioniere();
   if (typeof s.erfuellt !== 'function') return;
+  if (_tourVorerf) return;                       // war schon erledigt – nicht überspringen
   if (Date.now() - _tourSeit < TOUR_MINDEST) return;
   let fertig = false;
   try { fertig = !!s.erfuellt(_tourBasis); } catch (e) { fertig = false; }
-  if (fertig) {
-    _tourSeit = Date.now();          // Doppel-Auslösung verhindern
-    setTimeout(() => { if (_tourIdx >= 0) tourWeiter(); }, 500);
-  }
+  if (!fertig) return;
+  _tourVorerf = true;                            // Doppel-Auslösung verhindern
+  _tourErledigt();
+  setTimeout(() => { if (_tourIdx >= 0) tourWeiter(); }, 850);
+}
+
+/** Kurze Rückmeldung, bevor der nächste Schritt kommt. */
+function _tourErledigt() {
+  const st = document.getElementById('tour-status');
+  if (st) st.innerHTML = '<span class="tour-ok">✓ erledigt</span>';
+  const ring = document.getElementById('tour-ring');
+  if (ring) ring.classList.add('ok');
 }
 
 /* ═══════════════════════════════════════════════════
@@ -287,7 +319,6 @@ function _tourZeichne() {
   document.body.classList.add('tour-on');
   const s = _tourListe[_tourIdx];
 
-  // Grundgerüst nur einmal anlegen
   if (!document.getElementById('tour-tip')) {
     ['t', 'r', 'b', 'l'].forEach(k => {
       const d = document.createElement('div');
@@ -305,19 +336,36 @@ function _tourZeichne() {
   }
 
   const tip = document.getElementById('tour-tip');
+  const ring = document.getElementById('tour-ring');
+  if (ring) ring.classList.remove('ok');
+
   const n = _tourListe.length;
+  const anteil = Math.round((_tourIdx / (n - 1)) * 100);
+  const wartet = typeof s.erfuellt === 'function' && !_tourVorerf;
+  const status = wartet
+    ? '<span class="tour-wartet"><i></i> wartet auf dich</span>'
+    : (typeof s.erfuellt === 'function' ? '<span class="tour-ok">✓ erledigt</span>' : '');
+
+  tip.className = 'tour-tip' + (s.ziel ? '' : ' tour-tip-mitte');
   tip.innerHTML = `
+    <div class="tour-fortschritt"><span style="width:${anteil}%"></span></div>
     <div class="tour-tip-kopf">
-      <span class="tour-zaehler">Schritt ${_tourIdx + 1} / ${n}</span>
+      <span class="tour-zaehler">Schritt ${_tourIdx + 1} von ${n}</span>
+      <span id="tour-status">${status}</span>
       <button class="tour-x" onclick="tourEnde()" aria-label="Vorführung beenden">×</button>
     </div>
-    <h4 class="tour-titel">${esc(s.titel)}</h4>
+    <div class="tour-kopfzeile">
+      <span class="tour-symbol" aria-hidden="true">${s.symbol || '•'}</span>
+      <h4 class="tour-titel">${esc(s.titel)}</h4>
+    </div>
     <div class="tour-text">${s.text}</div>
+    ${s.hinweis ? `<div class="tour-hinweis">${s.hinweis}</div>` : ''}
     <div class="tour-tip-fuss">
-      ${_tourIdx > 0 ? '<button class="btn btn-outline btn-sm" onclick="tourZurueck()">← Zurück</button>' : ''}
-      ${typeof s.vormachen === 'function' ? '<button class="btn btn-outline btn-sm" onclick="tourVormachen()">Vormachen</button>' : ''}
+      ${_tourIdx > 0 ? '<button class="btn btn-ghost btn-sm" onclick="tourZurueck()">← Zurück</button>' : ''}
+      <span class="tour-luecke"></span>
+      ${typeof s.vormachen === 'function' ? '<button class="btn btn-outline btn-sm" onclick="tourVormachen()">✨ Vormachen</button>' : ''}
       <button class="btn btn-primary btn-sm" onclick="tourWeiter()">
-        ${_tourIdx === n - 1 ? 'Fertig' : (typeof s.erfuellt === 'function' ? 'Überspringen →' : 'Weiter →')}</button>
+        ${_tourIdx === n - 1 ? 'Fertig' : (wartet ? 'Überspringen →' : 'Weiter →')}</button>
     </div>`;
 
   _tourPositioniere(true);
@@ -357,15 +405,14 @@ function _tourPositioniere(scrollen) {
   masken[3].style.cssText = `left:0;top:${y}px;width:${Math.max(0, x)}px;height:${h}px`;
 
   ring.style.display = '';
-  ring.style.cssText += `;left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+  ring.style.left = x + 'px'; ring.style.top = y + 'px';
+  ring.style.width = w + 'px'; ring.style.height = h + 'px';
 
   // Sprechblase unter das Ziel, sonst darüber
-  const tipH = tip.offsetHeight || 200, tipW = tip.offsetWidth || 340;
+  const tipH = tip.offsetHeight || 220, tipW = tip.offsetWidth || 360;
   const platzUnten = window.innerHeight - (y + h);
-  let top = platzUnten > tipH + 20 ? (y + h + 12) : Math.max(12, y - tipH - 12);
-  // Erst am rechten Rand einfangen, dann am linken – sonst rutscht die Sprechblase
-  // auf schmalen Fenstern ins Negative.
-  let left = Math.max(12, Math.min(Math.max(12, x), window.innerWidth - tipW - 12));
+  const top = platzUnten > tipH + 20 ? (y + h + 14) : Math.max(12, y - tipH - 14);
+  const left = Math.max(12, Math.min(Math.max(12, x), window.innerWidth - tipW - 12));
   tip.style.transform = 'none';
   tip.style.left = left + 'px';
   tip.style.top = top + 'px';
