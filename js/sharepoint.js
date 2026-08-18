@@ -670,22 +670,43 @@ async function spGetDocVersions(driveId, itemId) {
    Bestätigungen / Abschlüsse
 ═══════════════════════════════════════════════════ */
 
+/**
+ * Bestätigungen laden – wahlweise nur die einer Person.
+ *
+ * Bisher wurde immer die ganze Liste geholt und erst im Browser gefiltert. Bei
+ * 1.500 Mitarbeitenden und zehn Pflicht-Regelwerken sind das 15.000 Elemente
+ * pro Anmeldung, um zehn eigene Zeilen zu finden – und oberhalb der
+ * SharePoint-Listenschwelle wird das unzuverlässig.
+ *
+ * Jetzt filtert SharePoint selbst. Ist die Spalte „BenutzerUPN" nicht indiziert,
+ * lehnt Graph die Abfrage ab; dann greift der bisherige Weg als Rückfall, damit
+ * nichts stehen bleibt. Sobald der Index existiert, ist die Abfrage schlank.
+ */
 async function spGetAcknowledgements(filterUpn) {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await spInit();
-  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items?$expand=fields&$top=500`;
-  const out = [];
-  while (url) {
-    const resp = await _get(url, token);
-    (resp.value || []).forEach(item => {
-      const a = _mapAck(item);
-      if (!filterUpn || a.benutzerUpn.toLowerCase() === filterUpn.toLowerCase()) out.push(a);
-    });
-    url = resp['@odata.nextLink'] || null;
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items`;
+
+  if (filterUpn) {
+    const wert = String(filterUpn).replace(/'/g, "''");           // Hochkomma für OData verdoppeln
+    const url = `${basis}?$expand=fields&$top=500&$filter=fields/BenutzerUPN eq '${encodeURIComponent(wert)}'`;
+    try {
+      const items = await _getAll(url, token, 2000);
+      return items.map(_mapAck);
+    } catch (e) {
+      console.info('[sp] Serverseitiger Filter auf Bestätigungen nicht möglich '
+        + '(Spalte „BenutzerUPN" indizieren macht es schnell) – lade ungefiltert:', e.message);
+    }
   }
-  return out;
+
+  const alle = await _getAll(`${basis}?$expand=fields&$top=500`, token, 20000);
+  const out = alle.map(_mapAck);
+  return filterUpn
+    ? out.filter(a => a.benutzerUpn.toLowerCase() === String(filterUpn).toLowerCase())
+    : out;
 }
+
 
 function _mapAck(item) {
   const f = item.fields || {};
@@ -1403,7 +1424,7 @@ async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraD
   if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
   const cc = clean(ccUpns).filter(a => !unique.includes(a));   // keine Doppel-Empfänger
 
-  const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
+  const token = await acquireToken(_MAIL_SCOPES);
   if (!token) return false;   // Redirect zum Consent läuft
 
   const message = {
@@ -1414,6 +1435,20 @@ async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraD
   if (cc.length) message.ccRecipients = cc.map(a => ({ emailAddress: { address: a } }));
   if (attachments && attachments.length) message.attachments = attachments;
 
+  // Absender: möglichst das gemeinsame Postfach aus den Einstellungen, damit
+  // Workflow-Mails nicht von wechselnden Personen kommen. Klappt das nicht
+  // (fehlende „Senden als"-Berechtigung), geht es über das eigene Postfach –
+  // eine Nachricht, die ankommt, ist besser als gar keine.
+  const absender = (typeof getMailSender === 'function') ? getMailSender() : '';
+  if (absender) {
+    try {
+      await _post(`${SP.graphBase}/users/${encodeURIComponent(absender)}/sendMail`, token,
+        { message, saveToSentItems: true });
+      return true;
+    } catch (e) {
+      console.warn(`[sp] Versand über ${absender} nicht möglich (${e.message}) – nutze das eigene Postfach.`);
+    }
+  }
   await _post(`${SP.graphBase}/me/sendMail`, token, { message, saveToSentItems: true });
   return true;
 }

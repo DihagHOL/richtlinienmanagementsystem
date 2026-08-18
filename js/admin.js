@@ -780,7 +780,9 @@ function renderPolicyEditor() {
       ${(typeof canWriteTab === 'function' && !canWriteTab('verwaltung'))
         ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff – Änderungen können nicht gespeichert werden.</span>
            <button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
-        : `${p.id ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>` : ''}
+        : `${p.id ? (darfGeloeschtWerden(p)
+             ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>`
+             : `<span class="field-hint" style="margin-right:auto" title="Ein Regelwerk mit Prüfung, Freigabe oder Kenntnisnahme wird archiviert, nicht gelöscht">🔒 Nur archivierbar</span>`) : ''}
            ${p.id && p.status === 'Archiviert'
              ? `<button class="btn btn-outline btn-sm" onclick="reaktivierePolicy('${p.id}')" title="Zurück in den Entwurfsstatus holen">↩ Reaktivieren</button>`
              : (p.id && p.status === 'Veröffentlicht'
@@ -1224,11 +1226,58 @@ async function savePolicy(newStatus) {
   }
 }
 
+/* ── Löschen vs. Archivieren ──
+   Ein veröffentlichtes Regelwerk trägt Kenntnisnahmen, Prüf- und Freigabe-
+   entscheidungen. Löscht man es, bleiben die Bestätigungen als verwaiste
+   Einträge zurück und im Audit klafft ein Loch – die Kette „wer hat was wann
+   bestätigt" endet im Nichts. Deshalb ist Löschen nur erlaubt, solange nichts
+   davon existiert; danach führt der Weg über „Archivieren". */
+
+/** Darf dieses Regelwerk gelöscht werden – oder muss es archiviert werden? */
+function darfGeloeschtWerden(p) {
+  if (!p || !p.id) return true;                       // noch nicht gespeichert
+  if (p.typ === 'Konzept') return true;               // Konzepte hängen an keinem Nachweis
+  if (p.status !== 'Entwurf') return false;           // ab der Prüfung zählt der Vorgang
+  if ((p.konformitaet || []).length || (p.freigaben || []).length) return false;
+  if (p.veroeffentlichtAm) return false;
+  const acks = (State.acks || []).some(a => String(a.richtlinieId) === String(p.id));
+  return !acks;
+}
+
 function deletePolicyConfirm(id) {
   const p = State.policies.find(x => x.id === id);
+  if (!darfGeloeschtWerden(p)) {
+    const gruende = [];
+    if (p.status !== 'Entwurf') gruende.push(`Status <b>${esc(p.status)}</b>`);
+    if ((p.konformitaet || []).length) gruende.push(`${(p.konformitaet || []).length} Prüfentscheidung(en)`);
+    if ((p.freigaben || []).length) gruende.push(`${(p.freigaben || []).length} Freigabe(n)`);
+    const acks = (State.acks || []).filter(a => String(a.richtlinieId) === String(p.id)).length;
+    if (acks) gruende.push(`${acks} Kenntnisnahme(n)`);
+    openModal(`
+      <div class="modal-header"><h3>Löschen nicht möglich</h3>
+        <button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
+      <div class="modal-body">
+        <div class="pl-warnung"><b>„${esc(p.title || '')}" trägt bereits einen Nachweis.</b>
+          Würde es gelöscht, blieben Bestätigungen ohne zugehöriges Regelwerk zurück –
+          im Audit eine Lücke, die sich nicht mehr schließen lässt.</div>
+        ${gruende.length ? `<p style="margin:14px 0 0;font-size:.87rem;line-height:1.7">Vorhanden:
+          ${gruende.join(' · ')}</p>` : ''}
+        <p style="margin:14px 0 0;line-height:1.6"><b>Archivieren</b> ist der richtige Weg: Das Regelwerk
+        verschwindet aus „Meine Regelwerke", bleibt aber mit seiner ganzen Historie erhalten und lässt
+        sich jederzeit reaktivieren.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="renderPolicyEditor()">Zurück</button>
+        ${p.status === 'Veröffentlicht'
+          ? `<button class="btn btn-primary" onclick="archivierePolicy('${esc(id)}')">📦 Archivieren</button>`
+          : ''}
+      </div>`);
+    return;
+  }
   openModal(`
-    <div class="modal-header"><h3>Richtlinie löschen</h3><button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
-    <div class="modal-body"><p style="font-size:.9rem;line-height:1.5">„${esc(p?.title || '')}" wirklich löschen? Bereits erfasste Bestätigungen bleiben in der Liste erhalten.</p></div>
+    <div class="modal-header"><h3>Regelwerk löschen</h3><button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
+    <div class="modal-body"><p style="font-size:.9rem;line-height:1.5">„${esc(p?.title || '')}" wirklich löschen?
+      Es ist ein Entwurf ohne Prüfung, Freigabe oder Kenntnisnahme – es geht kein Nachweis verloren.</p></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="renderPolicyEditor()">Abbrechen</button>
       <button class="btn btn-danger" onclick="doDeletePolicy('${id}')">Endgültig löschen</button>
@@ -1236,6 +1285,11 @@ function deletePolicyConfirm(id) {
 }
 
 async function doDeletePolicy(id) {
+  const p = State.policies.find(x => String(x.id) === String(id));
+  if (!darfGeloeschtWerden(p)) {   // zweite Schranke: auch ein direkter Aufruf greift nicht durch
+    toast('Dieses Regelwerk trägt einen Nachweis und kann nur archiviert werden.', 'error');
+    return;
+  }
   try {
     await spDeletePolicy(id);
     await reloadData();

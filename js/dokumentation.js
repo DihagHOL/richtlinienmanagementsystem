@@ -145,7 +145,8 @@ function _dokuSections() {
         <li style="${li}"><b>„+ Neues Regelwerk"</b> – fragt zuerst, ob es sich um ein <b>komplett neues</b> Regelwerk handelt. Wenn ja, muss zuerst ein <b>Konzept an die Geschäftsleitung</b> (siehe „Regelwerk-Konzepte"). „Direkt anlegen" ist nur für <b>bestehende</b> Dokumente / die Migration gedacht. Im selben Dialog liegt der Link zur <b>Muster-Vorlage „Erstellung von Konzernregelungen"</b>.</li>
         <li style="${li}"><b>„💡 Regelwerk-Konzept"</b> – schlägt ein neues Regelwerk vor, ohne es schon zu schreiben.</li>
         <li style="${li}"><b>„⬆ Importieren"</b> – mehrere Word-/PDF-Dateien per Drag &amp; Drop auf einmal als Entwürfe anlegen (Titel aus dem Dateinamen).</li>
-      </ul>
+              <li style="${li}"><b>Löschen nur ohne Nachweis:</b> Ein Regelwerk lässt sich nur löschen, solange es Entwurf ist und weder Prüfentscheidung noch Freigabe noch Kenntnisnahme trägt. Danach bietet die App <b>Archivieren</b> an – sonst blieben Bestätigungen ohne zugehöriges Regelwerk zurück.</li>
+</ul>
       <div style="${h3}">Finden: Suche und Filter</div>
       <p style="margin:0 0 8px;line-height:1.55">Die <b>Suche</b> durchsucht nicht nur den Titel, sondern auch Beschreibung, Kategorie, Typ, Standorte, Version, Dokumentname, Zielgruppen und Normbezug. Daneben filtern drei Auswahlfelder nach <b>Status</b>, <b>Typ</b> (Dokumentart) und <b>Standort</b>. Ein Regelwerk mit Geltungsbereich „Alle Standorte" erscheint dabei bei jedem Standort.</p>
       <div style="${h3}">Der Editor im Überblick</div>
@@ -377,6 +378,7 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>Rollen:</b> Admins, Genehmiger, Prüfer, Geschäftsleitung, KI-Gremium, ISMS-Verantwortliche und Vorschlags-Empfänger.</li>
         <li style="${li}"><b>Genehmigungs-Schwellen:</b> „konform/freigegeben, wenn alle zustimmen" oder „einer reicht" (global; je Regelwerk überschreibbar).</li>
+        <li style="${li}"><b>Absender-Postfach:</b> Workflow-Mails gehen aus einem gemeinsamen Postfach (Standard <code>pruefer@dihag.com</code>) statt von wechselnden Personen. Fehlt die „Senden als"-Berechtigung, verschickt die App weiterhin über das Postfach der handelnden Person – es fällt also nichts aus.</li>
         <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger. Nachgefasst wird bei allen vier wartenden Etappen – <b>Konzeptprüfung</b> (Geschäftsleitung), <b>Konformitätsprüfung</b>, <b>Mitbestimmung</b> (KBR/Betriebsräte) und <b>Freigabe</b> – jeweils mit den Entscheidungs-Schaltflächen in der Mail.</li>
         <li style="${li}"><b>Mitbestimmung (KBR/BR):</b> Mailadresse des Konzernbetriebsrats und je Werk (SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA) für die Mitbestimmungsprüfung.</li>
         <li style="${li}"><b>Power Automate (Genehmigung ohne Portal):</b> je Etappe wählbar – <b>aus</b> (App verschickt die Mails) · <b>nur Freigabe (Geschäftsleitung)</b> · <b>Prüfung + Freigabe</b>. Für die per Power Automate gesteuerte Etappe verschickt die App keine eigene Mail (Details in <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>).</li>
