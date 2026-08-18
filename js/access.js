@@ -373,7 +373,10 @@ function initRoleNav() {
 
   // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist
   show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege);
+  // Corporate Governance steht als eigene Ebene über den Managementsystemen:
+  // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
+  show('nav-grp-governance',  v.governance);
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
-  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.governance || v.prozesse);
+  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse);
   show('nav-grp-verwaltung',  v.compliance || admin);
 }

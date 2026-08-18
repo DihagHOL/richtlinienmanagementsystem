@@ -1007,22 +1007,32 @@ async function _ismsCollectFolder(token, folderId, folderPath, out, onProgress, 
 /** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (mit vollen
  *  Metadaten). onProgress(partialList) → progressives Rendern. Wird der Ordner
  *  nicht gefunden, ganze Bibliothek als Fallback. */
+/**
+ * Dokumente des Managementsystems laden.
+ *
+ * Früher wurde nur der ISO-27001-Ordner geholt – das IMS umfasst aber auch
+ * 9001, 14001, 45001 und 50001. Ohne Einschränkung werden deshalb alle Ordner
+ * der obersten Ebene eingesammelt, einer nach dem anderen, damit die Liste
+ * schon während des Ladens wächst.
+ *
+ * @param {string} [folderName] nur diesen Ordner der obersten Ebene laden
+ */
 async function spGetIsmsDocs(folderName, onProgress) {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await _ismsLib(token);
-  const wantRe = /iso[\s_-]*27001/i;
-  let isoFolder = null;
+  let ordner = [];
   try {
     const root = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children?$select=id,name,folder&$top=400`, token);
-    isoFolder = (root.value || []).find(it => it.folder && (folderName ? it.name === folderName : wantRe.test(it.name || '')));
+    ordner = (root.value || []).filter(it => it.folder && (!folderName || it.name === folderName));
+    ordner.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
   } catch (e) { console.warn('[isms] Wurzel nicht lesbar:', e.message); }
 
   const out = [];
-  if (isoFolder) {
-    await _ismsCollectFolder(token, isoFolder.id, isoFolder.name, out, onProgress);
+  if (ordner.length) {
+    for (const f of ordner) await _ismsCollectFolder(token, f.id, f.name, out, onProgress);
   } else {
-    // Fallback: ganze Bibliothek (volle Felder), falls kein ISO-Ordner existiert
+    // Rückfall: ganze Bibliothek (volle Felder), falls es keine Ordner gibt
     let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
     while (url) {
       const resp = await _get(url, token);
@@ -1214,11 +1224,23 @@ async function spIsmsUploadVersion(driveItemId, bytes, contentType, comment) {
    Dokument hier von Legal überschrieben/neu erstellt und veröffentlicht.
 ═══════════════════════════════════════════════════ */
 
+/* Der Zielordner auf der Legal-Site hieß ursprünglich „Govenance" (ohne r).
+   Wird er umbenannt oder anders geschrieben, fand die App ihn nicht mehr und
+   der Reiter blieb leer. Deshalb: bekannte Schreibweisen als Kandidaten, und
+   wenn keine passt, wird in der Wurzel nach einem ähnlich heißenden Ordner
+   gesucht. */
 const GOV = {
   siteHost:   'dihag.sharepoint.com:/sites/ArbeitsplatzLegal',
-  folderPath: 'Entwurf_010_Corporate Govenance-Board',   // exakter Ordnername (Original-Schreibweise)
+  folderPath: 'Entwurf_010_Corporate Governance-Board',
+  folderKandidaten: [
+    'Entwurf_010_Corporate Governance-Board',
+    'Entwurf_010_Corporate Govenance-Board',
+  ],
 };
-const _gov = { siteId: null, driveId: null, driveName: null, driveWebUrl: null, folderId: null };
+
+/** Namen vergleichbar machen: Kleinschreibung, nur Buchstaben und Ziffern. */
+function _govNorm(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+const _gov = { siteId: null, driveId: null, driveName: null, driveWebUrl: null, folderId: null, folderName: '' };
 
 async function _govSiteId(token) {
   if (_gov.siteId) return _gov.siteId;
@@ -1236,13 +1258,26 @@ async function _govResolve(token) {
   const drive = list.find(d => /^(Freigegebene Dokumente|Shared Documents|Dokumente|Documents)$/i.test(d.name || '')) || list[0];
   if (!drive) throw new Error('Keine Dokumentbibliothek auf sites/ArbeitsplatzLegal gefunden.');
   _gov.driveId = drive.id; _gov.driveName = drive.name; _gov.driveWebUrl = drive.webUrl || '';
-  const enc = GOV.folderPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-  let folder;
-  try {
-    folder = await _get(`${SP.graphBase}/drives/${drive.id}/root:/${enc}?$select=id,name`, token);
-  } catch (e) {
-    throw new Error(`Ordner „${GOV.folderPath}" nicht gefunden (Bibliothek „${drive.name}").`);
+  let folder = null;
+  for (const kandidat of GOV.folderKandidaten) {
+    const enc = kandidat.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    try {
+      folder = await _get(`${SP.graphBase}/drives/${drive.id}/root:/${enc}?$select=id,name`, token);
+      _gov.folderName = kandidat;
+      break;
+    } catch (e) { /* nächste Schreibweise probieren */ }
   }
+  if (!folder) {
+    // Letzte Chance: in der Wurzel nach einem Ordner suchen, der so ähnlich heißt.
+    try {
+      const root = await _get(`${SP.graphBase}/drives/${drive.id}/root/children?$select=id,name,folder&$top=400`, token);
+      const ziel = _govNorm(GOV.folderKandidaten[0]);
+      const treffer = (root.value || []).find(it => it.folder && _govNorm(it.name) === ziel)
+        || (root.value || []).find(it => it.folder && /governanceboard/.test(_govNorm(it.name)));
+      if (treffer) { folder = treffer; _gov.folderName = treffer.name; }
+    } catch (e) { /* Wurzel nicht lesbar – gleich unten melden */ }
+  }
+  if (!folder) throw new Error(`Ordner „${GOV.folderPath}" nicht gefunden (Bibliothek „${drive.name}").`);
   _gov.folderId = folder.id;
 }
 
@@ -1251,7 +1286,8 @@ async function _govResolve(token) {
 function _govFileUrl(subPath, name) {
   const base = (_gov.driveWebUrl || '').replace(/\/+$/, '');
   if (!base || !name) return '';
-  const full = (GOV.folderPath + (subPath ? '/' + subPath : '')).split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  const wurzel = _gov.folderName || GOV.folderPath;   // die tatsächlich gefundene Schreibweise
+  const full = (wurzel + (subPath ? '/' + subPath : '')).split('/').filter(Boolean).map(encodeURIComponent).join('/');
   return base + '/' + full + '/' + encodeURIComponent(name);
 }
 

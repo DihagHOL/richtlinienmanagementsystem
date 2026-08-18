@@ -22,7 +22,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
-  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
+  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 

@@ -36,7 +36,7 @@ async function initIsmsDocs() {
   const mount = document.getElementById('isms-mount');
   if (!mount) return;
   if (_ismsDocs) { renderIsmsDocs(); return; }   // Cache-Treffer
-  mount.innerHTML = '<div class="doc-loading">Lade ISO-27001-Dokumente …</div>';
+  mount.innerHTML = '<div class="doc-loading">Lade IMS-Dokumente …</div>';
   try {
     // Spalten (Feld-Auflösung) + Bibliotheken (Diagnose) zuerst, dann Dokumente progressiv
     const [cols, drives] = await Promise.all([
@@ -51,13 +51,11 @@ async function initIsmsDocs() {
     _ismsLoading = true;
     const final = await spGetIsmsDocs(null, (partial) => {   // nach jeder Seite rendern
       _ismsDocs = partial.slice();
-      fillIsmsFolderFilter();
-      renderIsmsDocs();
+            renderIsmsDocs();
     });
     _ismsDocs = final;
     _ismsLoading = false;
-    fillIsmsFolderFilter();
-    renderIsmsDocs();
+        renderIsmsDocs();
   } catch (e) {
     _ismsLoading = false;
     mount.innerHTML = `<div class="col-warning" style="display:block">
@@ -97,16 +95,67 @@ async function selectIsmsLibrary(driveId) {
   }
 }
 
-function fillIsmsFolderFilter() {
-  const sel = document.getElementById('filter-isms-folder');
-  if (!sel) return;
-  // Es wird serverseitig nur der ISO-27001-Ordner geladen; das Dropdown bietet
-  // dessen Unterordner zur Eingrenzung (oder ist leer, wenn alles flach liegt).
-  const folders = [...new Set((_ismsDocs || []).map(d => d.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  const wrap = sel.closest('.search-box') ? sel : sel;   // (sel selbst)
-  sel.style.display = folders.length > 1 ? '' : 'none';   // bei nur einem Ordner ausblenden
-  sel.innerHTML = '<option value="">Alle (ISO 27001)</option>' +
-    folders.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+/* ═══════════════════════════════════════════════════
+   Ordner-Baum
+   ═══════════════════════════════════════════════════
+   Das IMS umfasst mehrere Normen – 9001, 14001, 45001, 50001, 27001 – die in
+   der Bibliothek je einen Ordner haben. Ein Dropdown zwingt dazu, die Struktur
+   zu kennen; der Baum zeigt sie. Aufgebaut wie beim Governance-Board, damit
+   beide Reiter sich gleich anfühlen (die CSS-Klassen sind dort entstanden). */
+
+let _ismsOrdnerOffen = new Set();   // aufgeklappte Pfade
+let _ismsOrdnerSel = '';            // gewählter Ordner ('' = alle)
+
+function ismsToggleFolder(pfad) {
+  if (_ismsOrdnerOffen.has(pfad)) _ismsOrdnerOffen.delete(pfad);
+  else _ismsOrdnerOffen.add(pfad);
+  renderIsmsDocs();
+}
+
+function ismsSelectFolder(pfad) {
+  _ismsOrdnerSel = (_ismsOrdnerSel === pfad) ? '' : pfad;
+  if (pfad) _ismsOrdnerOffen.add(pfad);       // Auswahl klappt den Zweig auf
+  renderIsmsDocs();
+}
+
+/** Ordnerbaum aus den Dokumentpfaden bauen (mit Zählern je Ebene). */
+function _ismsBuildTree(docs) {
+  const root = { name: 'Alle Normen', path: '', children: {}, count: 0 };
+  const ensure = (pfad) => {
+    let node = root, cur = '';
+    for (const teil of String(pfad || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + teil : teil;
+      node = (node.children[teil] = node.children[teil] || { name: teil, path: cur, children: {}, count: 0 });
+    }
+    return node;
+  };
+  for (const d of docs) {
+    ensure(d.folder || '');
+    root.count++;
+    let cur = '';
+    for (const teil of String(d.folder || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + teil : teil;
+      ensure(cur).count++;
+    }
+  }
+  return root;
+}
+
+function _ismsTreeNodeHtml(node, depth) {
+  const kids = Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const hatKinder = kids.length > 0;
+  const offen = node.path === '' || _ismsOrdnerOffen.has(node.path);
+  const gewaehlt = _ismsOrdnerSel === node.path;
+  const caret = hatKinder ? (offen ? '▾' : '▸') : '·';
+  const html = `<div class="gov-tree-node${gewaehlt ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px"
+      role="treeitem" tabindex="0" aria-selected="${gewaehlt}"
+      onclick="ismsSelectFolder('${esc(node.path)}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ismsSelectFolder('${esc(node.path)}')}">
+    <span class="gov-tree-caret"${hatKinder ? ` onclick="event.stopPropagation();ismsToggleFolder('${esc(node.path)}')"` : ''}>${caret}</span>
+    <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
+    <span class="gov-tree-count">${node.count}</span>
+  </div>`;
+  return html + ((hatKinder && offen) ? kids.map(k => _ismsTreeNodeHtml(k, depth + 1)).join('') : '');
 }
 
 /* ── Anzeige-/Bearbeitungsfelder (gewünscht): per Anzeige-Label auf die echten
@@ -206,14 +255,14 @@ function renderIsmsDocs() {
   const mount = document.getElementById('isms-mount');
   if (!mount) return;
   const q = (document.getElementById('search-isms')?.value || '').toLowerCase().trim();
-  const folder = document.getElementById('filter-isms-folder')?.value || '';
+  const folder = _ismsOrdnerSel;
   const standF = document.getElementById('filter-isms-stand')?.value || '';
   const all = _ismsDocs || [];
   const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
 
   // Während des (Hintergrund-)Ladens noch keine Diagnose zeigen
   if (!all.length && _ismsLoading) {
-    mount.innerHTML = '<div class="doc-loading">Lade ISO-27001-Dokumente …</div>';
+    mount.innerHTML = '<div class="doc-loading">Lade IMS-Dokumente …</div>';
     return;
   }
   // Leerzustand mit Diagnose: genutzte Bibliothek + manueller Wechsel.
@@ -249,11 +298,16 @@ function renderIsmsDocs() {
   });
 
   const linked = all.filter(d => _ismsLinkedPolicy(d)).length;
+  const bereich = folder ? `<b>${esc(folder)}</b>` : 'allen Normen';
   const sub = `<div class="view-desc" style="margin:0 0 12px">
-    <b>${rows.length}</b> Dokument(e) aus <b>ISO 27001</b>${linked ? ` · ${linked} mit Richtlinie verknüpft` : ''}
+    <b>${rows.length}</b> Dokument(e) aus ${bereich}${linked ? ` · ${linked} mit Regelwerk verknüpft` : ''}
     ${_ismsLoading ? ' · <span style="color:var(--c-primary)">lädt weiter …</span>' : ''} · Zeile anklicken zum Bearbeiten.</div>`;
 
-  if (!rows.length) { mount.innerHTML = sub + emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍'); return; }
+  const baum = `<aside class="gov-tree" role="tree" aria-label="Normen und Ordner des Managementsystems">
+    ${_ismsTreeNodeHtml(_ismsBuildTree(all), 0)}</aside>`;
+  const umrahmen = (inhalt) => `<div class="gov-layout">${baum}<div class="gov-docs">${sub}${inhalt}</div></div>`;
+
+  if (!rows.length) { mount.innerHTML = umrahmen(emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍')); return; }
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
   const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
@@ -262,7 +316,7 @@ function renderIsmsDocs() {
   const choiceCols = {};
   ISMS_FIELDS.forEach(f => { if (ISMS_WF_TABLE_KEYS.has(f.key)) return; const c = _ismsChoiceColFor(f); if (c) choiceCols[f.key] = c; });
 
-  mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
+  mount.innerHTML = umrahmen(`<div class="table-wrap"><table class="tbl">
     <thead><tr>
       <th style="width:30px"></th>
       ${th('name', 'Dokument')}
@@ -293,7 +347,7 @@ function renderIsmsDocs() {
           return `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`;
         }).join('')}
       </tr>`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div>`);
 }
 
 /* ── Editor (Metadaten + Datei-Aktionen) ── */

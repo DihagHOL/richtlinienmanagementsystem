@@ -43,7 +43,7 @@ const _DOKU_TOC = [
   ['abdeckung',     'ISMS-Abdeckung & SoA'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['risiken',       'Risiko-Register'],
-  ['ismsdocs',      'ISMS-Dokumente (ISO 27001)'],
+  ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['prozesse',      'Prozesse (BPMN 2.0)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
@@ -88,7 +88,7 @@ function _dokuSections() {
         ['Konformitätsprüfer', 'Prüfen Regelwerke fachlich auf Konformität (ISO 27001 / NIS2) und markieren „konform / nicht konform". Global oder pro Regelwerk hinterlegbar.'],
         ['Geschäftsleitung', 'Gibt die geprüften Regelwerke frei → Veröffentlichung. Global oder pro Regelwerk hinterlegbar.'],
         ['Genehmiger', 'App-interne Freigabeberechtigung (wie GL); sieht den Reiter „Freigaben".'],
-        ['Administration', 'Regelwerke &amp; ISMS-Dokumente verwalten, Health-Check, ISMS-Abdeckung, Fälligkeiten, Compliance-Auswertung, Einstellungen.'],
+        ['Administration', 'Regelwerke &amp; IMS-Dokumente verwalten, Health-Check, ISMS-Abdeckung, Fälligkeiten, Compliance-Auswertung, Einstellungen.'],
         ['ISMS-Verantwortliche / Vorschlags-Empfänger', 'Erhalten und bearbeiten die Änderungsvorschläge (Reiter „Vorschläge").'],
         ['KI-Gremium', 'Entscheidet über KI-Anträge im KI-Dashboard (leer = Genehmiger-Liste gilt).'],
       ])}`,
@@ -154,7 +154,7 @@ function _dokuSections() {
         <li style="${li}"><b>Titel, Beschreibung, Kategorie, Version</b> – neue Version ⇒ alle müssen erneut bestätigen.</li>
         <li style="${li}"><b>Typ (Dokumentart)</b> – Handbuch, Richtlinie, Konzernrichtlinie, Konzernfachregelung, Arbeits-/Prozessanweisung oder Leitfaden.</li>
         <li style="${li}"><b>Geltungsbereich (Standorte)</b> <b style="color:var(--c-primary)">– Pflichtangabe</b>: „Alle Standorte" (konzernweit) oder einzelne Werke: HOL, SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA. Ohne Angabe lässt sich nicht speichern.</li>
-        <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten). Ist bereits ein Dokument zugeordnet, stehen <b>„✏️ In Office bearbeiten"</b> (On-Premise Office) und <b>„🌐 Im Browser bearbeiten"</b> zur Verfügung – wie bei den ISMS-Dokumenten legt SharePoint beim Speichern automatisch eine neue Version an.</li>
+        <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten). Ist bereits ein Dokument zugeordnet, stehen <b>„✏️ In Office bearbeiten"</b> (On-Premise Office) und <b>„🌐 Im Browser bearbeiten"</b> zur Verfügung – wie bei den IMS-Dokumenten legt SharePoint beim Speichern automatisch eine neue Version an.</li>
         <li style="${li}"><b>Zielgruppe</b> – wer das Regelwerk sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
         <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Wiederholungspflicht</b>.</li>
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
@@ -308,8 +308,13 @@ function _dokuSections() {
       <div style="${hint}">📧 Der Erinnerungs-Cron mailt <b>überfällige Maßnahmen und Risiko-Reviews</b> automatisch an die Admins (mit Direktlink). Exporte: <b>🖨 Risikobericht</b> (Druck/PDF) und <b>⬇ CSV</b>. Tipp: Statt Löschen besser „Status: geschlossen" – so bleibt der Audit-Trail erhalten.</div>`,
       'ISO 27001 Klausel 6.1.2 (Risikobeurteilung), 6.1.3 (Risikobehandlung), 8.2/8.3 (Durchführung), A.5.2 (Verantwortlichkeiten); NIS2 Art. 21(1) (Risikomanagementmaßnahmen).'),
 
-    sec('ismsdocs', 'ISMS-Dokumente (ISO 27001)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Dokumente"</b> verwaltet die ISO-27001-Dokumente direkt auf der ISMS-Site.</p>
+    sec('ismsdocs', 'IMS-Dokumente (alle Normen)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>IMS-Dokumente</b> zeigt die Dokumente des
+      integrierten Managementsystems aus der ISMS-Site – <b>alle Normen</b>, nicht nur die
+      Informationssicherheit: ISO 9001, 14001, 45001, 50001 und 27001. Links steht ein
+      <b>Ordner-Baum</b>: Norm anklicken grenzt die Liste darauf ein (Unterordner inbegriffen),
+      nochmal klicken hebt die Eingrenzung auf. Die Zahl am Knoten ist die Anzahl der Dokumente.</p>
+            <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„IMS-Dokumente"</b> verwaltet die ISO-27001-Dokumente direkt auf der ISMS-Site.</p>
       <ul style="${ol}">
         <li style="${li}">Spalten <b>Bearbeitungsstand</b>, <b>Vertraulichkeit</b> (in der Liste umstellbar), <b>Auf Konformität geprüft von</b>, <b>Freigabe Geschäftsleitung</b>, <b>Zuletzt angefasst</b>.</li>
         <li style="${li}"><b>Status & Freigabe sind nur Anzeige</b> – sie werden über den Freigabeprozess gesetzt: Dokument per <b>„＋ Als Regelwerk übernehmen"</b> einbinden und im Reiter „Freigaben" prüfen/freigeben (Rückschreibung erfolgt automatisch).</li>
@@ -319,10 +324,10 @@ function _dokuSections() {
       'ISO 27001 Klausel 7.5 (Dokumentierte Information – Lenkung &amp; Versionierung), A.5.37 (Dokumentierte Betriebsabläufe), A.5.12/A.5.13 (Klassifizierung/Kennzeichnung).'),
 
     sec('governance', 'Governance-Board (Legal-Entwürfe)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Governance-Board"</b> zeigt die Entwürfe aus dem Legal-SharePoint (Corporate Governance-Board) – gleicher Zugriffsmechanismus wie bei den ISMS-Dokumenten.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Governance-Board"</b> zeigt die Entwürfe aus dem Legal-SharePoint (Corporate Governance-Board) – gleicher Zugriffsmechanismus wie bei den IMS-Dokumenten.</p>
       <ul style="${ol}">
         <li style="${li}">Im Governance-Board liegen <b>alle Entwürfe</b> der Konzernregelungen. Sobald ein Entwurf die interne <b>Konformitätsprüfung + Freigabe</b> hier im RMS durchlaufen hat, wird das Dokument dort von Legal überschrieben/neu erstellt und veröffentlicht.</li>
-        <li style="${li}"><b>„👁 Vorschau"</b>, <b>„✏️ In Office bearbeiten"</b> / <b>„🌐 Im Browser bearbeiten"</b> und <b>„🕘 Versionsverlauf"</b> wie bei ISMS-Dokumenten; <b>„↗ SharePoint"</b> öffnet den Ordner direkt.</li>
+        <li style="${li}"><b>„👁 Vorschau"</b>, <b>„✏️ In Office bearbeiten"</b> / <b>„🌐 Im Browser bearbeiten"</b> und <b>„🕘 Versionsverlauf"</b> wie bei IMS-Dokumenten; <b>„↗ SharePoint"</b> öffnet den Ordner direkt.</li>
         <li style="${li}"><b>„＋ Als Regelwerk übernehmen"</b> holt einen Entwurf in den Regelwerk-Workflow (Editor mit vorbefülltem Dokument) – der Start der Konformitätsprüfung/Freigabe.</li>
       </ul>
       <div style="${h3}">Navigation über die Ordnerstruktur</div>
@@ -432,7 +437,7 @@ function _dokuSections() {
         <li style="${li}"><b>Etwas wirkt nicht aktuell?</b> „↻ Aktualisieren" oben rechts.</li>
         <li style="${li}"><b>Eine Regelwerk ist nicht sichtbar?</b> Es ist evtl. noch nicht veröffentlicht oder Ihrer Rolle/Zielgruppe nicht zugeordnet.</li>
         <li style="${li}"><b>„Fehlende Spalten"-Warnung (Admin)?</b> In der SharePoint-Liste „Richtlinien" (technischer Listenname) fehlt eine Spalte (z. B. NormbezugJson, PruefKonfigJson, FreigabeKonfigJson). Anlegen als „Mehrere Zeilen Text", danach „↻ Aktualisieren".</li>
-        <li style="${li}"><b>Bearbeiten schlägt fehl?</b> Das Bearbeiten von ISMS-Dokumenten setzt SharePoint-Schreibrechte auf der ISMS-Site voraus (Anzeige geht trotzdem).</li>
+        <li style="${li}"><b>Bearbeiten schlägt fehl?</b> Das Bearbeiten von IMS-Dokumenten setzt SharePoint-Schreibrechte auf der ISMS-Site voraus (Anzeige geht trotzdem).</li>
         <li style="${li}"><b>Fehler bleibt bestehen?</b> Seite neu laden; sonst an IT/Compliance wenden.</li>
       </ul>`),
   ].join('');
