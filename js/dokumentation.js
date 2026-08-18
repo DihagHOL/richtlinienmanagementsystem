@@ -386,6 +386,10 @@ function _dokuSections() {
           und Link auf die Datei in SharePoint. Der Startdialog zeigt vorher, wer sie bekommt.</li>
         <li style="${li}"><b>Kennzeichnung:</b> Alles Angelegte trägt <code>[Probelauf]</code> im Titel.
           Weil das in den Daten steht, erscheint es automatisch im Betreff, im Mailtext und in jeder Ansicht.</li>
+        <li style="${li}"><b>Dokument:</b> Der Probelauf legt ein Beispiel-PDF in der Dokumentbibliothek
+          ab und hinterlegt es am Regelwerk. Dadurch hängt es an den Mails und ist über den
+          SharePoint-Link erreichbar – wie im Betrieb. Beim Aufräumen wird die Datei mitgelöscht.
+          Wer lieber eine eigene Datei zeigt, hängt sie im Editor ganz normal an.</li>
         <li style="${li}"><b>Aufräumen:</b> Jeder angelegte Eintrag wird mitgeschrieben; „🧹 Aufräumen" im
           Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement

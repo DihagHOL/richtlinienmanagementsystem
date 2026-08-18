@@ -18,7 +18,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 /* ── Umgebung: nur so viel Anwendung, wie probelauf.js und tour.js brauchen ── */
-const echt = { gespeichert: [], acks: [], geloescht: [], ackGeloescht: [] };
+const echt = { gespeichert: [], acks: [], geloescht: [], ackGeloescht: [], hochgeladen: [], dateiGeloescht: [] };
 let naechsteId = 100;
 
 const ctx = {
@@ -56,6 +56,13 @@ const ctx = {
   spSaveAcknowledgement: async (a) => { const id = a.id || 'a' + naechsteId++; echt.acks.push({ id, neu: !a.id }); return { id }; },
   spDeletePolicy: async (id) => { echt.geloescht.push(String(id)); },
   spDeleteAcknowledgement: async (id) => { echt.ackGeloescht.push(String(id)); },
+  spDeleteDriveItem: async (driveId, itemId) => { echt.dateiGeloescht.push(String(itemId)); },
+  spUploadPolicyDoc: async (name, bytes, typ) => {
+    echt.hochgeladen.push({ name, typ, bytes });
+    return { driveId: 'd1', itemId: 'f1', name, url: 'https://sp/' + name };
+  },
+  geltungsbereichLabel: (a) => (a || []).join(', '),
+  Uint8Array,
   reloadData: async () => {}, reloadAcks: async () => {},
 };
 ctx.window = ctx; ctx.globalThis = ctx;
@@ -100,8 +107,40 @@ ok(!echt.geloescht.includes('77'), 'Der vorhandene Eintrag „77" wird NICHT ang
 ok(echt.ackGeloescht.length === 1, 'Die angelegte Kenntnisnahme wird gelöscht');
 run('globalThis.__nach = probelaufAnzahl();');
 ok(ctx.__nach === 0, 'Danach ist die Spur leer');
+
 ok(/function spDeleteAcknowledgement/.test(lies('js/sharepoint.js')),
   'Die Datenschicht kann Kenntnisnahmen löschen');
+
+/* ── 4b) Das Dokument zum Regelwerk ──
+   Ohne Datei geht die Mail ohne Anhang raus – genau das war in der Erprobung das Problem. */
+run(`globalThis.__rw = { title: '[Probelauf] Regelwerk zur Nutzung von KI', regelwerkTyp: 'Konzernrichtlinie',
+       geltungsbereich: ['ALLE'], version: '1.0' };
+     globalThis.__dok = null;
+     probelaufDokument(globalThis.__rw).then(r => { globalThis.__dok = r; });`);
+await new Promise(r => setTimeout(r, 20));
+ok(ctx.__dok === true, 'Das Beispieldokument wird abgelegt');
+ok(echt.hochgeladen.length === 1, 'Es geht wirklich durch den Upload der Datenschicht');
+const datei = echt.hochgeladen[0];
+ok(datei.typ === 'application/pdf', 'Als PDF');
+ok(/\.pdf$/.test(datei.name), `Mit Dateiendung (${datei.name})`);
+const pdfText = Buffer.from(datei.bytes).toString('latin1');
+ok(pdfText.startsWith('%PDF-'), 'Gültiger PDF-Kopf');
+ok(pdfText.trimEnd().endsWith('%%EOF'), 'Sauber abgeschlossen');
+const xrefOff = Number(pdfText.slice(pdfText.lastIndexOf('startxref') + 9).trim().split(/\s/)[0]);
+ok(pdfText.slice(xrefOff, xrefOff + 4) === 'xref', 'Die Querverweistabelle stimmt');
+ok(pdfText.includes('Konzernrichtlinie'), 'Der Inhalt nennt die Dokumentart');
+ok(ctx.__rw.dokumentItemId === 'f1' && ctx.__rw.dokumentDriveId === 'd1',
+  'Die Datei ist am Regelwerk hinterlegt');
+ok(!!ctx.__rw.dokumentUrl, 'Und über SharePoint erreichbar');
+run('globalThis.__anz2 = probelaufAnzahl();');
+ok(ctx.__anz2 === 1, `Die Datei zählt zum Aufräumen dazu (ist ${ctx.__anz2})`);
+
+run('probelaufLoeschen();');
+await new Promise(r => setTimeout(r, 30));
+ok(echt.dateiGeloescht.includes('f1'), 'Aufräumen löscht die Datei wieder');
+ok(/function spDeleteDriveItem/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann Dateien löschen');
+ok(/probelaufDokument/.test(tour), 'Auch die Führung legt beim Vormachen ein Dokument ab');
+ok(/Dokument in der Bibliothek abgelegt/.test(quelle), 'Der Selbsttest prüft das Dokument');
 
 /* ── 5) Vor dem Start wird gesagt, was passiert ── */
 ok(/Das wird ein echter Vorgang/.test(quelle), 'Der Startdialog warnt deutlich');
@@ -199,6 +238,36 @@ ok(ctx.__wartet === false, 'Ein offener Schritt wartet');
 ok(ctx.__idxWartend === 1, 'Und bleibt stehen, solange nichts passiert');
 ok(ctx.__nachKlick === true, 'Nach der echten Aktion wird er als erledigt erkannt');
 run('tourEnde();');
+
+/* ── 10b) Angehaltene Führung: dort weitermachen, wo man aufgehört hat ──
+   In einer Vorführung will man zwischendurch etwas anderes zeigen. Das Schließen
+   der Sprechblase darf den Fortschritt deshalb nicht wegwerfen. */
+run(`_plAn = true; tourStandVergessen();
+     tourStart(0); _tourGehe(4); tourEnde();
+     globalThis.__stand = tourStand();
+     globalThis.__label = tourKnopfText();`);
+ok(ctx.__stand === 4, `Der Schritt bleibt gemerkt (ist ${ctx.__stand})`);
+ok(ctx.__label === '▶ Weiter bei Schritt 5', `Der Knopf bietet ihn an: „${ctx.__label}"`);
+
+run(`tourStart(); globalThis.__wieder = _tourIdx; tourEnde();`);
+ok(ctx.__wieder === 4, 'Ein Start ohne Angabe macht genau dort weiter');
+
+run(`tourStart(0); globalThis.__vonVorn = _tourIdx; tourEnde();`);
+ok(ctx.__vonVorn === 0, 'Mit ausdrücklicher Schrittnummer geht es trotzdem von vorn');
+
+run(`tourNeu(); globalThis.__neu = _tourIdx; tourEnde();`);
+ok(ctx.__neu === 0, '„Von vorn" beginnt wieder bei Schritt 1');
+
+run(`tourStart(0); _tourGehe(tourSchritte().length - 1); tourWeiter();
+     globalThis.__nachFertig = tourStand();`);
+ok(ctx.__nachFertig === 0, 'Nach „Fertig" ist der Stand verworfen');
+
+run(`tourStart(0); _tourGehe(3); tourEnde(); probelaufLoeschen();`);
+await new Promise(r => setTimeout(r, 30));
+run('globalThis.__nachAufraeumen = tourStand();');
+ok(ctx.__nachAufraeumen === 0, 'Aufräumen verwirft den Stand mit (der Vorgang ist ja weg)');
+ok(/function probelaufBannerAktualisieren/.test(quelle), 'Der Streifen wird beim Schließen nachgeführt');
+ok(/pl-tour-neu/.test(quelle), 'Es gibt einen Knopf, um von vorn zu beginnen');
 
 /* ── 11) Einbindung ── */
 const html = lies('index.html');

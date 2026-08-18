@@ -27,6 +27,28 @@ let _tourVorerf   = false;   // war der Schritt beim Betreten schon erfüllt?
 
 const TOUR_TAKT    = 350;    // ms zwischen zwei Prüfungen
 const TOUR_MINDEST = 700;    // ms, die ein Schritt mindestens stehen bleibt
+const TOUR_STAND   = 'rms_tour_stand';   // zuletzt erreichter Schritt
+
+/* Der Stand überlebt das Schließen der Sprechblase – und auch einen Seitenwechsel.
+   In einer Vorführung will man zwischendurch etwas anderes zeigen und danach
+   genau dort weitermachen, wo man aufgehört hat. */
+function _tourStandSpeichern() {
+  try { localStorage.setItem(TOUR_STAND, String(_tourIdx)); } catch (e) { /* egal */ }
+}
+function tourStand() {
+  try {
+    const n = parseInt(localStorage.getItem(TOUR_STAND), 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch (e) { return 0; }
+}
+function tourStandVergessen() {
+  try { localStorage.removeItem(TOUR_STAND); } catch (e) { /* egal */ }
+}
+/** Beschriftung für den Knopf im Streifen. */
+function tourKnopfText() {
+  const n = tourStand();
+  return n ? `▶ Weiter bei Schritt ${n + 1}` : '▶ Geführte Vorführung';
+}
 
 /* ═══════════════════════════════════════════════════
    Hilfen für die Schrittdefinitionen
@@ -143,13 +165,19 @@ function tourSchritte() {
       text: `Titel, Dokumentart, Geltungsbereich und Begründung sind übernommen. Häng jetzt das
              <b>Dokument</b> an (⬆ im Editor) und schick das Regelwerk mit
              „Zur Konformitätsprüfung →" weiter.`,
-      hinweis: 'Das Dokument geht als Anhang mit und wird zusätzlich in SharePoint verlinkt – daran entscheiden Prüfer und Betriebsrat.',
+      hinweis: 'Ohne Datei geht die Mail ohne Anhang raus. „Vormachen" legt ein Beispieldokument in der Bibliothek ab und hängt es an.',
       ziel: '.modal-footer .btn-primary',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Konformitätsprüfung'); },
-      vormachen: () => {
+      vormachen: async () => {
         const p = _tourRegelwerk();
         if (!p) return;
         openPolicyEditor(p.id);
+        // Beispieldokument wirklich ablegen – sonst ginge die Mail ohne Anhang raus.
+        if (typeof probelaufDokument === 'function' && !p.dokumentItemId
+            && typeof _editing !== 'undefined' && _editing) {
+          await probelaufDokument(_editing);
+          renderPolicyEditor();
+        }
         setTimeout(() => {
           if (typeof _editing !== 'undefined' && _editing) {
             _editing.kbrBetroffen = true;
@@ -255,9 +283,14 @@ function tourStart(idx) {
     return;
   }
   _tourListe = tourSchritte();
-  _tourGehe(Number(idx) || 0);
+  // Ohne ausdrückliche Schrittnummer beim letzten Stand weitermachen.
+  const ziel = (idx === undefined || idx === null) ? tourStand() : (Number(idx) || 0);
+  _tourGehe(ziel);
   if (!_tourTimer) _tourTimer = setInterval(_tourTakt, TOUR_TAKT);
 }
+
+/** Von vorn beginnen (verwirft den gemerkten Stand). */
+function tourNeu() { tourStandVergessen(); tourStart(0); }
 
 function _tourGehe(i) {
   if (!_tourListe) _tourListe = tourSchritte();
@@ -270,12 +303,13 @@ function _tourGehe(i) {
     try { _tourVorerf = !!s.erfuellt(_tourBasis); } catch (e) { _tourVorerf = false; }
   }
   _tourSeit = Date.now();
+  _tourStandSpeichern();
   _tourZeichne();
 }
 
 function tourWeiter() {
   if (!_tourListe) return;
-  if (_tourIdx >= _tourListe.length - 1) { tourEnde(); return; }
+  if (_tourIdx >= _tourListe.length - 1) { tourEnde(true); return; }   // durch = Stand verwerfen
   _tourGehe(_tourIdx + 1);
 }
 
@@ -287,11 +321,21 @@ function tourVormachen() {
   try { s.vormachen(); } catch (e) { toast('Konnte den Schritt nicht vormachen: ' + e.message, 'error'); }
 }
 
-function tourEnde() {
+/**
+ * Führung schließen.
+ * @param {boolean} abgeschlossen true = durchgelaufen (Stand verwerfen),
+ *   sonst nur angehalten – der Schritt bleibt gemerkt.
+ */
+function tourEnde(abgeschlossen) {
+  const stand = _tourIdx;
   if (_tourTimer) { clearInterval(_tourTimer); _tourTimer = null; }
   _tourIdx = -1; _tourListe = null; _tourBasis = null; _tourVorerf = false;
   document.querySelectorAll('.tour-mask, .tour-ring, .tour-tip').forEach(el => el.remove());
   document.body.classList.remove('tour-on');
+
+  if (abgeschlossen) tourStandVergessen();
+  else if (stand > 0) toast(`Angehalten bei Schritt ${stand + 1} – unten im Streifen geht es weiter.`);
+  if (typeof probelaufBannerAktualisieren === 'function') probelaufBannerAktualisieren();
 }
 
 /** Takt: Hervorhebung nachführen und prüfen, ob der Schritt erledigt ist. */

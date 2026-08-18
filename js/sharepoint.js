@@ -807,6 +807,13 @@ async function spSaveAcknowledgement(a) {
   );
 }
 
+/** Datei aus einer Dokumentbibliothek löschen (Probelauf-Aufräumen). */
+async function spDeleteDriveItem(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _del(`${SP.graphBase}/drives/${driveId}/items/${itemId}`, token);
+}
+
 /** Bestätigung löschen – gebraucht, um einen Probelauf rückstandsfrei zu entfernen. */
 async function spDeleteAcknowledgement(id) {
   const token = await acquireToken(SP.scopes);

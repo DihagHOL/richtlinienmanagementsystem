@@ -30,7 +30,7 @@ const PROBELAUF_PRAEFIX = '[Probelauf] ';
 const PROBELAUF_SPUR = 'rms_probelauf_spur';   // angelegte Einträge (zum Aufräumen)
 
 let _plAn = false;
-let _plSpur = { policies: [], acks: [] };
+let _plSpur = { policies: [], acks: [], dateien: [] };
 let _plEchtSavePolicy = null;
 let _plEchtSaveAck = null;
 
@@ -98,11 +98,12 @@ function probelaufStart() {
 }
 
 function probelaufBeenden() {
-  const offen = _plSpur.policies.length + _plSpur.acks.length;
+  const offen = probelaufAnzahl();
   const frage = offen
     ? `Probelauf beenden?\n\nEs sind ${offen} Einträge entstanden, die noch in den Listen stehen.\nDu kannst sie vorher über „Aufräumen" löschen.`
     : 'Probelauf beenden?';
   if (!confirm(frage)) return;
+  if (typeof tourStandVergessen === 'function') tourStandVergessen();
   location.href = location.pathname;
 }
 
@@ -188,18 +189,20 @@ function _plSpurSpeichern() {
 function _plSpurLaden() {
   try {
     const o = JSON.parse(localStorage.getItem(PROBELAUF_SPUR) || 'null');
-    if (o && Array.isArray(o.policies)) _plSpur = { policies: o.policies, acks: o.acks || [] };
+    if (o && Array.isArray(o.policies)) {
+      _plSpur = { policies: o.policies, acks: o.acks || [], dateien: o.dateien || [] };
+    }
   } catch (e) { /* frisch anfangen */ }
 }
 
 function _plSpurLeeren() {
-  _plSpur = { policies: [], acks: [] };
+  _plSpur = { policies: [], acks: [], dateien: [] };
   try { localStorage.removeItem(PROBELAUF_SPUR); } catch (e) { /* egal */ }
   _plBannerAktualisieren();
 }
 
 /** Wie viele Einträge hat dieser Probelauf angelegt? */
-function probelaufAnzahl() { return _plSpur.policies.length + _plSpur.acks.length; }
+function probelaufAnzahl() { return _plSpur.policies.length + _plSpur.acks.length + _plSpur.dateien.length; }
 
 /* ═══════════════════════════════════════════════════
    Aufräumen
@@ -225,6 +228,9 @@ function probelaufAufraeumen() {
         ${eintraege.map(p => `<li>${esc(p.title)} <span class="field-hint">(${esc(p.typ === 'Konzept' ? 'Konzept' : p.status)})</span></li>`).join('')}
       </ul>` : ''}
       ${_plSpur.acks.length ? `<p style="margin:0 0 12px;font-size:.86rem">${_plSpur.acks.length} Kenntnisnahme(n)</p>` : ''}
+      ${_plSpur.dateien.length ? `<ul style="margin:0 0 12px;padding-left:19px;font-size:.86rem;line-height:1.7">
+        ${_plSpur.dateien.map(d => `<li>📄 ${esc(d.name)} <span class="field-hint">(Dokumentbibliothek)</span></li>`).join('')}
+      </ul>` : ''}
       ${verwaist ? `<p class="field-hint" style="margin:0 0 12px">${verwaist} Eintrag/Einträge sind bereits nicht mehr vorhanden.</p>` : ''}
       <div class="pl-warnung">Versendete E-Mails bleiben in den Postfächern – die lassen sich nicht zurückholen.</div>
     </div>
@@ -244,7 +250,11 @@ async function probelaufLoeschen() {
   for (const id of _plSpur.acks.slice()) {
     try { await spDeleteAcknowledgement(id); weg++; } catch (e) { fehler++; console.warn('[probelauf]', e.message); }
   }
+  for (const d of _plSpur.dateien.slice()) {
+    try { await spDeleteDriveItem(d.driveId, d.itemId); weg++; } catch (e) { fehler++; console.warn('[probelauf]', e.message); }
+  }
   _plSpurLeeren();
+  if (typeof tourStandVergessen === 'function') tourStandVergessen();   // Vorgang ist weg
   try {
     State.loadedAt = 0;
     await reloadData();
@@ -254,6 +264,116 @@ async function probelaufLoeschen() {
   showSync(false);
   toast(fehler ? `${weg} gelöscht, ${fehler} nicht löschbar (siehe Konsole).` : `Aufgeräumt – ${weg} Einträge gelöscht ✓`,
     fehler ? 'error' : 'success');
+}
+
+/* ═══════════════════════════════════════════════════
+   Das Dokument zum Regelwerk
+   ═══════════════════════════════════════════════════
+   Ein Regelwerk ohne Datei erklärt die Lage nur halb: Prüfer, Betriebsrat und
+   Geschäftsleitung entscheiden anhand des Dokuments. Im Probelauf gibt es
+   deshalb ein echtes: Es wird als PDF erzeugt, in die Dokumentbibliothek
+   hochgeladen und am Regelwerk hinterlegt. Damit hängt es an den Mails UND ist
+   über den SharePoint-Link erreichbar – genau wie im Betrieb. Beim Aufräumen
+   wird die Datei wieder gelöscht. */
+
+/** Typografie und Umlaute auf das PDF-Zeichenset (WinAnsi) herunterbrechen. */
+function _plLatin(t) {
+  const karte = { '„': '"', '“': '"', '”': '"', '‘': "'", '’': "'",
+                  '–': '-', '—': '-', '→': '->', ' ': ' ' };
+  return String(t).split('').map(c => karte[c] || (c.charCodeAt(0) < 256 ? c : '')).join('');
+}
+
+/**
+ * Erzeugt ein kleines, gültiges PDF – ohne Bibliothek, damit der Probelauf
+ * überall läuft. Es lässt sich öffnen und drucken und zeigt, was im Betrieb an
+ * der Mail hängt.
+ */
+function _plPdfBauen(titel, zeilen) {
+  const BS = String.fromCharCode(92);   // Backslash und Zeilenumbruch ohne
+  const NL = String.fromCharCode(10);   // Escape-Sequenzen im Quelltext
+  const t = (x) => _plLatin(x).split(BS).join(BS + BS)
+    .split('(').join(BS + '(').split(')').join(BS + ')');
+
+  let y = 780;
+  const text = [`BT /F1 17 Tf 56 ${y} Td (${t(titel)}) Tj ET`];
+  y -= 34;
+  for (const z of zeilen) {
+    const fett = z.startsWith('#');
+    const zeile = fett ? z.slice(1) : z;
+    if (!zeile) { y -= 10; continue; }
+    text.push(`BT /${fett ? 'F1' : 'F2'} ${fett ? 12 : 11} Tf 56 ${y} Td (${t(zeile)}) Tj ET`);
+    y -= fett ? 22 : 17;
+  }
+  const inhalt = text.join(NL);
+
+  const objekte = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 5 0 R/F2 6 0 R>>>>/Contents 4 0 R>>',
+    `<</Length ${inhalt.length}>>stream${NL}${inhalt}${NL}endstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>',
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>',
+  ];
+  let pdf = '%PDF-1.4' + NL;
+  const stellen = [];
+  objekte.forEach((o, i) => { stellen.push(pdf.length); pdf += `${i + 1} 0 obj${o}endobj${NL}`; });
+  const xref = pdf.length;
+  pdf += `xref${NL}0 ${objekte.length + 1}${NL}0000000000 65535 f ${NL}`;
+  stellen.forEach(off => { pdf += String(off).padStart(10, '0') + ' 00000 n ' + NL; });
+  pdf += `trailer<</Size ${objekte.length + 1}/Root 1 0 R>>${NL}startxref${NL}${xref}${NL}%%EOF`;
+
+  const bytes = new Uint8Array(pdf.length);
+  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+  return bytes;
+}
+
+/** Inhalt des Beispieldokuments – bewusst als Regelwerksentwurf lesbar. */
+function _plPdfInhalt(p) {
+  return [
+    '#1. Zweck und Geltungsbereich',
+    'Dieses Dokument gehoert zu einem Probelauf des Regelwerk-Managements.',
+    'Es liegt kein echter Regelungsbedarf zugrunde.',
+    '',
+    `Titel: ${(p && p.title) || '-'}`,
+    `Dokumentart: ${(p && p.regelwerkTyp) || '-'}`,
+    `Geltungsbereich: ${(p && typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(p.geltungsbereich) : '-'}`,
+    `Version: ${(p && p.version) || '-'}`,
+    `Erstellt: ${new Date().toLocaleString('de-DE')}`,
+    '',
+    '#2. Warum haengt hier eine Datei?',
+    'Pruefer, Betriebsrat und Geschaeftsleitung entscheiden anhand des Dokuments.',
+    'Es haengt an der Mail und liegt zugleich in SharePoint - dort mit',
+    'Versionsverlauf und Kommentaren, immer im aktuellen Stand.',
+    '',
+    '#3. Naechster Schritt',
+    'Ueber die Schaltflaechen in der Mail wird direkt entschieden.',
+  ];
+}
+
+/**
+ * Beispieldokument erzeugen, in die Dokumentbibliothek legen und am Regelwerk
+ * hinterlegen. Danach hängt es an den Mails und ist über SharePoint erreichbar.
+ * @param {object} p Regelwerk (wird um die Dokumentfelder ergänzt)
+ * @returns true bei Erfolg
+ */
+async function probelaufDokument(p) {
+  if (!p) return false;
+  try {
+    const bytes = _plPdfBauen(_plLatin(p.title || 'Regelwerk'), _plPdfInhalt(p));
+    const name = (_plLatin(p.title || 'Regelwerk').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk') + '.pdf';
+    const res = await spUploadPolicyDoc(name, bytes, 'application/pdf');
+    p.dokumentName = res.name;
+    p.dokumentUrl = res.url;
+    p.dokumentDriveId = res.driveId;
+    p.dokumentItemId = res.itemId;
+    _plSpur.dateien.push({ driveId: res.driveId, itemId: res.itemId, name: res.name });
+    _plSpurSpeichern();
+    return true;
+  } catch (e) {
+    console.warn('[probelauf] Dokument-Upload:', e.message);
+    toast('Beispieldokument konnte nicht abgelegt werden: ' + e.message, 'error');
+    return false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -271,7 +391,9 @@ function _plBanner() {
     <span class="demo-banner-text">Echter Vorgang: echte Einträge, echte E-Mails.
       Alles trägt „${esc(PROBELAUF_PRAEFIX.trim())}" im Titel.</span>
     <span class="pl-zaehler" id="pl-zaehler" title="In diesem Probelauf angelegte Einträge">0 Einträge</span>
-    <button class="demo-banner-btn" onclick="tourStart()">▶ Geführte Vorführung</button>
+    <button class="demo-banner-btn" id="pl-tour-btn" onclick="tourStart()">▶ Geführte Vorführung</button>
+    <button class="demo-banner-btn" id="pl-tour-neu" onclick="tourNeu()" title="Vorführung von vorn beginnen"
+      style="display:none">↺</button>
     <button class="demo-banner-btn" onclick="probelaufSelbsttest()">✓ Selbsttest</button>
     <button class="demo-banner-btn" onclick="probelaufAufraeumen()">🧹 Aufräumen</button>
     <button class="demo-banner-btn" onclick="probelaufBeenden()">Beenden</button>`;
@@ -282,11 +404,24 @@ function _plBanner() {
 
 function _plBannerAktualisieren() {
   const el = document.getElementById('pl-zaehler');
-  if (!el) return;
-  const n = probelaufAnzahl();
-  el.textContent = n === 1 ? '1 Eintrag' : n + ' Einträge';
-  el.classList.toggle('pl-zaehler-voll', n > 0);
+  if (el) {
+    const n = probelaufAnzahl();
+    el.textContent = n === 1 ? '1 Eintrag' : n + ' Einträge';
+    el.classList.toggle('pl-zaehler-voll', n > 0);
+  }
+  // Angehaltene Führung: Der Knopf bietet an, genau dort weiterzumachen.
+  const btn = document.getElementById('pl-tour-btn');
+  const neu = document.getElementById('pl-tour-neu');
+  const stand = (typeof tourStand === 'function') ? tourStand() : 0;
+  if (btn) {
+    btn.textContent = (typeof tourKnopfText === 'function') ? tourKnopfText() : '▶ Geführte Vorführung';
+    btn.classList.toggle('demo-neu', stand > 0);
+  }
+  if (neu) neu.style.display = stand > 0 ? '' : 'none';
 }
+
+/** Von außen (tour.js) aufrufbar, wenn sich der Stand der Führung geändert hat. */
+function probelaufBannerAktualisieren() { _plBannerAktualisieren(); }
 
 /* ═══════════════════════════════════════════════════
    Selbsttest: die Kette einmal automatisch durchlaufen
@@ -346,6 +481,9 @@ async function probelaufSelbsttest() {
     rw.geltungsbereich = (kEing.geltungsbereich || []).slice();
     rw.status = 'Entwurf';
     rw.kbrBetroffen = true;
+    // Dokument wirklich ablegen – ohne Datei prüft der Test die Mailanhänge nicht mit.
+    const mitDok = await probelaufDokument(rw);
+    _plOk('Dokument in der Bibliothek abgelegt', mitDok, rw.dokumentName || '');
     const rwSaved = await spSavePolicy(rw);
     _plOk('Regelwerk-Entwurf angelegt', !!(rwSaved && rwSaved.id));
     await reloadData();
@@ -384,6 +522,8 @@ async function probelaufSelbsttest() {
       (fertig.historie || []).length + ' Einträge');
     _plOk('Geltungsbereich erhalten', (fertig.geltungsbereich || []).length > 0);
     _plOk('Dokumentart erhalten', !!fertig.regelwerkTyp);
+    _plOk('Dokument am Regelwerk hinterlegt', !!(fertig.dokumentItemId && fertig.dokumentUrl),
+      fertig.dokumentName || 'keine Datei');
     _plOk('Als Probelauf erkennbar', String(fertig.title || '').startsWith(PROBELAUF_PRAEFIX));
   } catch (e) {
     _plOk('Durchlauf ohne Fehler', false, e.message || String(e));
