@@ -138,6 +138,9 @@ function _dokuSections() {
       'ISO 27001 Klausel 9.1 (Überwachung, Messung, Analyse &amp; Bewertung), 9.3 (Managementbewertung – Eingaben).'),
 
     sec('verwalten', 'Regelwerke anlegen & verwalten', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Im Reiter <b>Regelwerk Dashboard</b> steht über der Liste
+      der Abschnitt <b>„So wird ein Regelwerk eingeführt"</b>: eingeklappt die sechs Stationen als Kette,
+      aufgeklappt je Station kurz beschrieben, was zu tun ist und wer entscheidet.</p>
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Regelwerk Dashboard"</b>. Oben stehen drei Wege, ein Regelwerk anzulegen:</p>
       <ul style="${ol}">
         <li style="${li}"><b>„+ Neues Regelwerk"</b> – fragt zuerst, ob es sich um ein <b>komplett neues</b> Regelwerk handelt. Wenn ja, muss zuerst ein <b>Konzept an die Geschäftsleitung</b> (siehe „Regelwerk-Konzepte"). „Direkt anlegen" ist nur für <b>bestehende</b> Dokumente / die Migration gedacht. Im selben Dialog liegt der Link zur <b>Muster-Vorlage „Erstellung von Konzernregelungen"</b>.</li>

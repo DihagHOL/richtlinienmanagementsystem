@@ -372,8 +372,8 @@ function initRoleNav() {
   show('nav-einstellungen', admin);
 
   // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist
-  show('nav-grp-uebersicht',  v.cockpit);
   show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege);
-  show('nav-grp-isms',        v.ismsdocs || v.abdeckung || v.risiken || v.governance || v.prozesse);
+  // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
+  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.governance || v.prozesse);
   show('nav-grp-verwaltung',  v.compliance || admin);
 }

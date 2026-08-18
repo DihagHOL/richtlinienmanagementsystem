@@ -45,6 +45,7 @@ const FEATURES = [
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
   { name: 'Reihenfolge Freigabe/MB', code: () => /function edSwapWorkflowOrder/.test(admin),         begriffe: ['Reihenfolge'] },
   { name: 'Geführter Rundgang',      code: () => /function startTutorial/.test(read('js/tutorial.js')), begriffe: ['Rundgang'] },
+  { name: 'Einführungs-Schritte',    code: () => /const RW_SCHRITTE/.test(admin),                     begriffe: ['So wird ein Regelwerk eingeführt'] },
   { name: 'Probelauf',               code: () => /function probelaufAktivieren/.test(read('js/probelauf.js')), begriffe: ['Probelauf', 'echten Vorgang', 'Aufräumen', 'Selbsttest'] },
   { name: 'Geführte Vorführung',     code: () => /function tourSchritte/.test(read('js/tour.js')),      begriffe: ['Geführte Vorführung', 'Vormachen'] },
 ];

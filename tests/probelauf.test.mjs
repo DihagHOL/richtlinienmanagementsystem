@@ -142,6 +142,25 @@ ok(/function spDeleteDriveItem/.test(lies('js/sharepoint.js')), 'Die Datenschich
 ok(/probelaufDokument/.test(tour), 'Auch die Führung legt beim Vormachen ein Dokument ab');
 ok(/Dokument in der Bibliothek abgelegt/.test(quelle), 'Der Selbsttest prüft das Dokument');
 
+/* ── 4c) Konzept-Anhang: die Skizze geht an die Geschäftsleitung mit ── */
+echt.hochgeladen.length = 0;
+run(`globalThis.__k = { title: '[Probelauf] Regelwerk zur Nutzung von KI', regelwerkTyp: 'Konzernrichtlinie',
+       kategorie: 'IT-Sicherheit', geltungsbereich: ['ALLE'],
+       konzept: { motivation: 'KI-Werkzeuge werden bereits genutzt.', skizze: 'Zulaessige Werkzeuge, Freigabewege.' } };
+     globalThis.__kdok = null;
+     probelaufDokument(globalThis.__k, 'konzept').then(r => { globalThis.__kdok = r; });`);
+await new Promise(r => setTimeout(r, 20));
+ok(ctx.__kdok === true, 'Auch das Konzept bekommt eine Datei');
+const kdatei = echt.hochgeladen[0];
+ok(/^Konzept-Skizze /.test(kdatei.name), `Sie heißt nach der Skizze (${kdatei.name})`);
+const kpdf = Buffer.from(kdatei.bytes).toString('latin1');
+ok(kpdf.includes('Konzept-Skizze'), 'Das PDF ist als Skizze überschrieben');
+ok(kpdf.includes('Muster'), 'Es nennt die Muster-Vorlage als Grundlage');
+ok(kpdf.includes('Motivation'), 'Die Frage „Warum?" steht drin');
+ok(ctx.__k.dokumentItemId === 'f1', 'Die Datei hängt am Konzept');
+ok(/probelaufDokument\(_kEditing, 'konzept'\)/.test(tour), 'Die Führung hängt sie beim Konzept an');
+run('_plSpurLeeren();');
+
 /* ── 5) Vor dem Start wird gesagt, was passiert ── */
 ok(/Das wird ein echter Vorgang/.test(quelle), 'Der Startdialog warnt deutlich');
 ok(/getPruefer/.test(quelle) && /getGeschaeftsleitung/.test(quelle) && /getKbrMail/.test(quelle),
@@ -278,6 +297,37 @@ ok(reihen.indexOf('tutorial') < reihen.indexOf('tour'), 'tour.js lädt nach tuto
 ok(reihen.indexOf('probelauf') < reihen.indexOf('anleitung'), 'probelauf.js lädt vor anleitung.js');
 const css = lies('css/style.css');
 ok(/\.pl-warnung\b/.test(css) && /\.tour-tip\b/.test(css), 'Die Formatierung ist vorhanden');
+
+/* ── 12) Navigation: Cockpit gehört ins ISMS ── */
+const html2 = lies('index.html');
+const navIdx = (t) => html2.indexOf(t);
+ok(navIdx('id="nav-cockpit"') > navIdx('id="nav-grp-isms"'),
+  'Das Cockpit steht in der ISMS-Gruppe');
+ok(navIdx('id="nav-cockpit"') < navIdx('id="nav-ismsdocs"'),
+  'Und dort an erster Stelle');
+ok(!html2.includes('nav-grp-uebersicht'), 'Die Gruppe „Übersicht" ist entfallen');
+ok(/ISMS-Cockpit/.test(html2), 'Der Reiter heißt ISMS-Cockpit');
+ok(/cockpit: 'ISMS-Cockpit'/.test(lies('js/app.js')), 'Auch der Seitentitel');
+ok(/v\.cockpit \|\| v\.ismsdocs/.test(lies('js/access.js')), 'Die Gruppen-Überschrift kennt das Cockpit');
+
+ok(/id="nav-kurse" style="display:none"/.test(html2), 'Der Kurse-Reiter ist ausgeblendet');
+ok(html2.includes('data-view="kurse"'), 'Die Ansicht selbst bleibt erreichbar');
+
+ok(navIdx('KI-Governance') > navIdx('id="nav-grp-isms"'), 'KI-Governance steht weiter unten');
+ok(navIdx('DIHAG-Apps') > navIdx('KI-Governance'), 'DIHAG-Apps darunter');
+ok(navIdx('DIHAG-Apps') < navIdx('nav-grp-verwaltung'), 'Beide über der Verwaltung');
+
+/* ── 13) Einführungs-Schritte im Regelwerk-Dashboard ── */
+const adm = lies('js/admin.js');
+ok(/const RW_SCHRITTE/.test(adm), 'Die Schritte sind hinterlegt');
+ok(/function renderRwSchritte/.test(adm), 'Und werden gerendert');
+ok(/renderRwSchritte\(\);/.test(adm), 'renderAdminList zeichnet sie mit');
+ok(/id="rw-schritte"/.test(html2), 'Das Dashboard hat den Platz dafür');
+for (const stufe of ['Konzept', 'Entwurf', 'Prüfung', 'Mitbestimmung', 'Freigabe', 'Veröffentlicht'])
+  ok(new RegExp("'" + stufe + "'").test(adm), `Schritt genannt: ${stufe}`);
+ok(/function rwSchritteToggle/.test(adm), 'Ein- und ausklappbar');
+ok(/rms_rw_schritte/.test(adm), 'Die Wahl wird gemerkt');
+ok(/\.rw-schritte\b/.test(lies('css/style.css')), 'Die Formatierung ist vorhanden');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

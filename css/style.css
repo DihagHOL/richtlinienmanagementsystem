@@ -551,3 +551,24 @@ body.demo-mode .main { padding-bottom: 64px; }
   .demo-banner-text { display: none; }
   .tour-tip { width: calc(100vw - 24px); }
 }
+
+/* ── Regelwerk-Dashboard: „So wird ein Regelwerk eingeführt" ── */
+.rw-schritte { border: 1px solid var(--c-border); border-radius: 11px; background: var(--c-surface); margin: 0 0 14px; overflow: hidden; }
+.rw-kopf { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: none; border: none;
+  cursor: pointer; font-family: inherit; font-size: .86rem; color: var(--c-text); text-align: left; flex-wrap: wrap; }
+.rw-kopf:hover { background: var(--c-bg); }
+.rw-caret { color: var(--c-muted); width: 11px; flex-shrink: 0; }
+.rw-kette { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-left: auto; }
+.rw-chip { font-size: .7rem; font-weight: 600; color: var(--c-muted); background: var(--c-bg);
+  border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.rw-chip b { color: var(--c-primary); margin-right: 3px; }
+.rw-pfeil { color: var(--c-faint); font-size: .7rem; }
+.rw-liste { margin: 0; padding: 2px 18px 6px 34px; border-top: 1px solid var(--c-border-2); }
+.rw-liste li { padding: 9px 0; border-bottom: 1px solid var(--c-border-2); }
+.rw-liste li:last-child { border-bottom: none; }
+.rw-zeile { display: flex; align-items: center; gap: 9px; font-size: .87rem; }
+.rw-wer { margin-left: auto; font-size: .7rem; font-weight: 700; color: var(--c-primary);
+  background: var(--c-primary-l); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.rw-text { font-size: .82rem; line-height: 1.6; color: var(--c-muted); margin-top: 3px; }
+.rw-fuss { padding: 9px 18px 12px; font-size: .78rem; color: var(--c-muted); border-top: 1px solid var(--c-border-2); }
+@media (max-width: 900px) { .rw-kette { display: none; } }

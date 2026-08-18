@@ -327,6 +327,49 @@ function _plPdfBauen(titel, zeilen) {
   return bytes;
 }
 
+/** Inhalt der Konzept-Skizze – am Aufbau der Muster-Vorlage orientiert. */
+function _plPdfInhaltKonzept(p) {
+  const ko = (p && p.konzept) || {};
+  return [
+    '#Konzept-Skizze (Muster)',
+    'Grundlage: Muster "Erstellung von Konzernregelungen".',
+    'Diese Datei gehoert zu einem Probelauf - kein echter Regelungsbedarf.',
+    '',
+    `Arbeitstitel: ${(p && p.title) || '-'}`,
+    `Dokumentart: ${(p && p.regelwerkTyp) || '-'}`,
+    `Geltungsbereich: ${(p && typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(p.geltungsbereich) : '-'}`,
+    `Kategorie: ${(p && p.kategorie) || '-'}`,
+    '',
+    '#1. Warum? - Motivation und Problem',
+    ...(_plUmbruch(ko.motivation || '-')),
+    '',
+    '#2. Wie koennte es aussehen? - Skizze',
+    ...(_plUmbruch(ko.skizze || '-')),
+    '',
+    '#3. Entscheidung der Geschaeftsleitung',
+    'Annehmen, Zurueckstellen oder Ablehnen - direkt aus der E-Mail.',
+    'Bei Annahme entsteht daraus automatisch ein Regelwerk-Entwurf.',
+  ];
+}
+
+/** Langen Text auf PDF-taugliche Zeilen umbrechen. */
+function _plUmbruch(text, breite) {
+  const max = breite || 78;
+  const zeilen = [];
+  for (const absatz of String(text || '').split(/\r?\n/)) {
+    let rest = absatz.trim();
+    if (!rest) { zeilen.push(''); continue; }
+    while (rest.length > max) {
+      let schnitt = rest.lastIndexOf(' ', max);
+      if (schnitt <= 0) schnitt = max;
+      zeilen.push(rest.slice(0, schnitt));
+      rest = rest.slice(schnitt + 1);
+    }
+    zeilen.push(rest);
+  }
+  return zeilen;
+}
+
 /** Inhalt des Beispieldokuments – bewusst als Regelwerksentwurf lesbar. */
 function _plPdfInhalt(p) {
   return [
@@ -351,16 +394,21 @@ function _plPdfInhalt(p) {
 }
 
 /**
- * Beispieldokument erzeugen, in die Dokumentbibliothek legen und am Regelwerk
+ * Beispieldokument erzeugen, in die Dokumentbibliothek legen und am Vorgang
  * hinterlegen. Danach hängt es an den Mails und ist über SharePoint erreichbar.
- * @param {object} p Regelwerk (wird um die Dokumentfelder ergänzt)
+ * @param {object} p Regelwerk oder Konzept (wird um die Dokumentfelder ergänzt)
+ * @param {string} [art] 'konzept' für die Skizze nach Muster-Vorlage
  * @returns true bei Erfolg
  */
-async function probelaufDokument(p) {
+async function probelaufDokument(p, art) {
   if (!p) return false;
+  const konzept = art === 'konzept';
   try {
-    const bytes = _plPdfBauen(_plLatin(p.title || 'Regelwerk'), _plPdfInhalt(p));
-    const name = (_plLatin(p.title || 'Regelwerk').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk') + '.pdf';
+    const titel = _plLatin(p.title || 'Regelwerk');
+    const bytes = _plPdfBauen(konzept ? 'Konzept-Skizze: ' + titel : titel,
+      konzept ? _plPdfInhaltKonzept(p) : _plPdfInhalt(p));
+    const rein = titel.replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk';
+    const name = (konzept ? 'Konzept-Skizze ' + rein : rein) + '.pdf';
     const res = await spUploadPolicyDoc(name, bytes, 'application/pdf');
     p.dokumentName = res.name;
     p.dokumentUrl = res.url;

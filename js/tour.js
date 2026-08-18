@@ -116,11 +116,12 @@ function tourSchritte() {
       symbol: '✍️',
       titel: 'Ausfüllen und einreichen',
       text: `Arbeitstitel, Dokumentart und Geltungsbereich sind Pflicht, dazu die Frage <i>Warum?</i>.
-             Dann unten „Zur GF-Prüfung einreichen".`,
+             Optional ein <b>Anhang</b> mit der Skizze. Dann unten „Zur GF-Prüfung einreichen".`,
+      hinweis: '„Vormachen" hängt eine Skizze nach der Muster-Vorlage an – sie geht mit der Mail an die Geschäftsleitung.',
       ziel: '.modal-footer .btn-primary',
       basis: () => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length,
       erfuellt: (b) => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length > b,
-      vormachen: () => {
+      vormachen: async () => {
         if (typeof _kEditing === 'undefined' || !_kEditing) return;
         _kEditing.title = _tourTitel();
         _kEditing.regelwerkTyp = TUT_BEISPIEL.typ;
@@ -131,6 +132,11 @@ function tourSchritte() {
           'KI-Werkzeuge werden bereits genutzt – ohne Regeln drohen Datenabfluss und Compliance-Risiken.';
         _kEditing.konzept.skizze =
           'Zulässige Werkzeuge, Umgang mit Geschäftsgeheimnissen, Kennzeichnung KI-erzeugter Inhalte, Freigabewege.';
+        // Anhang wie im Betrieb mitschicken: Die Geschäftsleitung entscheidet
+        // anhand der Skizze, nicht anhand des Formulars allein.
+        if (typeof probelaufDokument === 'function' && !_kEditing.dokumentItemId) {
+          await probelaufDokument(_kEditing, 'konzept');
+        }
         renderKonzeptEditor();
         setTimeout(() => saveKonzept(true), 400);
       },

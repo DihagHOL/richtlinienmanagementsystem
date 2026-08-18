@@ -204,7 +204,73 @@ function policyMatchesQuery(p, q) {
   return teile.join(' ').toLowerCase().includes(q);
 }
 
+/* ═══════════════════════════════════════════════════
+   Wie führt man ein Regelwerk ein?
+   ═══════════════════════════════════════════════════
+   Die Reihenfolge steht in der Dokumentation – nur liest die niemand, während
+   er gerade vor dem Dashboard sitzt. Deshalb hier eine Kurzfassung direkt über
+   der Liste: eingeklappt eine Zeile, aufgeklappt sechs Schritte mit dem, was
+   jeweils zu tun ist und wer entscheidet. Die Wahl merkt sich der Browser. */
+
+const RW_SCHRITTE = [
+  ['Konzept', 'Idee einreichen',
+   'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>. Die Geschäftsleitung entscheidet über Priorität und Umsetzung.',
+   'du'],
+  ['Entwurf', 'Ausarbeiten',
+   'Aus dem angenommenen Konzept entsteht ein Entwurf. Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen.',
+   'du'],
+  ['Prüfung', 'Konformität',
+   'Mit „Zur Konformitätsprüfung" geht das Regelwerk an die hinterlegten Prüfer. Sie entscheiden aus der E-Mail heraus; „nicht konform" verlangt eine Begründung.',
+   'Prüfer'],
+  ['Mitbestimmung', 'Betriebsrat',
+   'Ist die Mitbestimmung betroffen, geht es an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke. Die Reihenfolge zu „Freigabe" lässt sich je Regelwerk tauschen.',
+   'KBR / BR'],
+  ['Freigabe', 'Geschäftsleitung',
+   'Zum Schluss gibt die Geschäftsleitung frei. In der E-Mail steht, wer vorher bereits zugestimmt hat.',
+   'GL'],
+  ['Veröffentlicht', 'Kenntnisnahme',
+   'Das Regelwerk erscheint bei allen Mitarbeitenden der Zielgruppe. Erinnerungen laufen automatisch; die Quote und die Änderungshistorie sind der Nachweis fürs Audit.',
+   'alle'],
+];
+
+function rwSchritteOffen() {
+  try { return localStorage.getItem('rms_rw_schritte') === 'auf'; } catch (e) { return false; }
+}
+
+function rwSchritteToggle() {
+  try { localStorage.setItem('rms_rw_schritte', rwSchritteOffen() ? 'zu' : 'auf'); } catch (e) { /* egal */ }
+  renderRwSchritte();
+}
+
+function renderRwSchritte() {
+  const host = document.getElementById('rw-schritte');
+  if (!host) return;
+  const auf = rwSchritteOffen();
+  const kette = RW_SCHRITTE.map(([kurz], i) =>
+    `<span class="rw-chip"><b>${i + 1}</b> ${esc(kurz)}</span>`).join('<span class="rw-pfeil">→</span>');
+
+  host.innerHTML = `
+    <div class="rw-schritte${auf ? ' auf' : ''}">
+      <button class="rw-kopf" onclick="rwSchritteToggle()" aria-expanded="${auf}">
+        <span class="rw-caret">${auf ? '▾' : '▸'}</span>
+        <b>So wird ein Regelwerk eingeführt</b>
+        <span class="rw-kette">${kette}</span>
+      </button>
+      ${auf ? `<ol class="rw-liste">
+        ${RW_SCHRITTE.map(([kurz, was, text, wer]) => `
+          <li>
+            <div class="rw-zeile"><b>${esc(kurz)} – ${esc(was)}</b>
+              <span class="rw-wer">${esc(wer)}</span></div>
+            <div class="rw-text">${text}</div>
+          </li>`).join('')}
+      </ol>
+      <div class="rw-fuss">Ausführlich im Reiter <b>Dokumentation</b>; einen Durchlauf am Beispiel
+        zeigt der Rundgang unter <b>Anleitung</b>.</div>` : ''}
+    </div>`;
+}
+
 function renderAdminList() {
+  renderRwSchritte();
   const list = document.getElementById('list-admin');
   if (!list) return;
   // Nur-Lese-Zugriff (Reiter-Berechtigung): Anlegen ausblenden, Hinweis zeigen.
