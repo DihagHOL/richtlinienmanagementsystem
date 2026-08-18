@@ -138,7 +138,8 @@ function _dokuSections() {
 
     sec('verwalten', 'Regelwerke anlegen & verwalten', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Im Reiter <b>Regelwerk Dashboard</b> steht über der Liste
-      der Abschnitt <b>„So wird ein Regelwerk eingeführt"</b>: eingeklappt die sechs Stationen als Kette,
+      der Abschnitt <b>„So wird ein Regelwerk eingeführt"</b>: eingeklappt die sieben Stationen als Kette
+      (Konzept → Konzept-Entscheidung → Entwurf → Prüfung → Mitbestimmung → Freigabe → Veröffentlicht),
       aufgeklappt je Station kurz beschrieben, was zu tun ist und wer entscheidet.</p>
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Regelwerk Dashboard"</b>. Oben stehen drei Wege, ein Regelwerk anzulegen:</p>
       <ul style="${ol}">

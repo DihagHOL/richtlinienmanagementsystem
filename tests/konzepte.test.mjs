@@ -180,7 +180,11 @@ for (const datei of ['js/anleitung.js', 'js/dokumentation.js', 'js/admin.js']) {
 /* ── Einführungs-Schritte: Sie-Form ── */
 const adm2 = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
 const rollen = [...adm2.matchAll(/^\s+'(du|Sie|Prüfer|KBR \/ BR|GL|alle)'\],$/gm)].map(m => m[1]);
-ok(rollen.length >= 6, `Alle Zuständigkeiten gefunden (${rollen.length})`);
+ok(rollen.length === 7, `Sieben Stationen mit Zuständigkeit (${rollen.length})`);
+ok(rollen.join('|') === 'Sie|GL|Sie|Prüfer|KBR / BR|GL|alle',
+  `Die Zuständigkeiten stehen in der richtigen Reihenfolge (${rollen.join(' | ')})`);
+ok(/'Konzept-Entscheidung', 'Annehmen oder nicht'/.test(adm2),
+  'Die Entscheidung der Geschäftsleitung ist eine eigene Station');
 ok(!rollen.includes('du'), 'Keine Du-Form mehr bei den Zuständigkeiten');
 ok(rollen.filter(r => r === 'Sie').length === 2, 'Zweimal „Sie" (Konzept und Entwurf)');
 

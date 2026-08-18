@@ -214,10 +214,13 @@ function policyMatchesQuery(p, q) {
 
 const RW_SCHRITTE = [
   ['Konzept', 'Idee einreichen',
-   'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>. Die Geschäftsleitung entscheidet über Priorität und Umsetzung.',
+   'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>, dazu optional eine Skizze als Anhang. Einreichen geht an die Geschäftsleitung.',
    'Sie'],
+  ['Konzept-Entscheidung', 'Annehmen oder nicht',
+   'Die Geschäftsleitung entscheidet über Priorität und Umsetzung – <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> (mit Begründung), direkt aus der E-Mail. Bei Annahme entsteht automatisch ein Regelwerk-Entwurf; die einreichende Person wird informiert und entscheidet, wie es weitergeht.',
+   'GL'],
   ['Entwurf', 'Ausarbeiten',
-   'Aus dem angenommenen Konzept entsteht ein Entwurf. Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen.',
+   'Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen. Wer schon alles beisammen hat, überspringt das und gibt den Entwurf direkt weiter.',
    'Sie'],
   ['Prüfung', 'Konformität',
    'Mit „Zur Konformitätsprüfung" geht das Regelwerk an die hinterlegten Prüfer. Sie entscheiden aus der E-Mail heraus; „nicht konform" verlangt eine Begründung.',
@@ -229,9 +232,10 @@ const RW_SCHRITTE = [
    'Zum Schluss gibt die Geschäftsleitung frei. In der E-Mail steht, wer vorher bereits zugestimmt hat.',
    'GL'],
   ['Veröffentlicht', 'Kenntnisnahme',
-   'Das Regelwerk erscheint bei allen Mitarbeitenden der Zielgruppe. Erinnerungen laufen automatisch; die Quote und die Änderungshistorie sind der Nachweis fürs Audit.',
+   'Das Regelwerk erscheint bei allen Mitarbeitenden der Zielgruppe. Erinnerungen laufen automatisch; die Quote und die Änderungshistorie – vom Konzept an – sind der Nachweis fürs Audit.',
    'alle'],
 ];
+
 
 function rwSchritteOffen() {
   try { return localStorage.getItem('rms_rw_schritte') === 'auf'; } catch (e) { return false; }
