@@ -40,6 +40,9 @@ function probelaufAktiv() { return _plAn; }
 /** Soll nach der Anmeldung ein Probelauf gestartet werden? */
 function probelaufGewuenscht() { return /[?&]probelauf=1(&|$)/.test(location.search); }
 
+/** UPN der angemeldeten Person (für die Empfängerübersicht). */
+function _plIch() { return (typeof State !== 'undefined' && State.user) ? State.user.upn : ''; }
+
 /** Titel mit der Probelauf-Kennzeichnung versehen (doppelt schadet nicht). */
 function probelaufTitel(titel) {
   const t = String(titel || '').trim();
@@ -74,6 +77,8 @@ function probelaufStart() {
 
       <div style="font-weight:600;font-size:.84rem;margin:14px 0 6px">E-Mails gehen an</div>
       <table class="pl-tabelle">
+        <tr><td>Konzeptprüfung (Geschäftsleitung)</td><td>${esc(liste(gl))}</td></tr>
+        <tr><td>Entscheidung zum Konzept</td><td>${esc(_plIch() || '–')} <span class="field-hint">(einreichende Person)</span></td></tr>
         <tr><td>Konformitätsprüfung</td><td>${esc(liste(pruefer))}</td></tr>
         <tr><td>Mitbestimmung (KBR)</td><td>${esc(liste(kbr))}</td></tr>
         <tr><td>Freigabe (Geschäftsleitung)</td><td>${esc(liste(gl))}</td></tr>
@@ -327,6 +332,120 @@ function _plPdfBauen(titel, zeilen) {
   return bytes;
 }
 
+/* ── Word-Datei ohne Bibliothek ──
+   Ein PDF kann man ansehen, aber nicht weiterschreiben. Für das Konzept ist
+   genau das gewünscht: in SharePoint öffnen, direkt ergänzen, fertig. Eine
+   .docx ist ein ZIP mit drei XML-Teilen – das lässt sich von Hand erzeugen,
+   ohne eine Bibliothek einzubinden. */
+
+/** CRC-32 nach ZIP-Norm (Tabelle wird beim ersten Aufruf gebaut). */
+let _plCrcTab = null;
+function _plCrc32(bytes) {
+  if (!_plCrcTab) {
+    _plCrcTab = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      _plCrcTab[n] = c >>> 0;
+    }
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ _plCrcTab[(crc ^ bytes[i]) & 0xFF];
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+/**
+ * Minimales ZIP-Archiv, unkomprimiert („stored").
+ * @param {Array<{name:string, bytes:Uint8Array}>} teile
+ */
+function _plZip(teile) {
+  const enc = new TextEncoder();
+  const stuecke = [], zentral = [];
+  let versatz = 0;
+  const z16 = (n) => [n & 0xFF, (n >>> 8) & 0xFF];
+  const z32 = (n) => [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF];
+
+  for (const teil of teile) {
+    const name = enc.encode(teil.name);
+    const crc = _plCrc32(teil.bytes);
+    const kopf = [].concat(
+      z32(0x04034b50), z16(20), z16(0), z16(0), z16(0), z16(0),
+      z32(crc), z32(teil.bytes.length), z32(teil.bytes.length),
+      z16(name.length), z16(0));
+    stuecke.push(new Uint8Array(kopf), name, teil.bytes);
+    zentral.push({ name, crc, laenge: teil.bytes.length, versatz });
+    versatz += kopf.length + name.length + teil.bytes.length;
+  }
+
+  const start = versatz;
+  for (const z of zentral) {
+    const kopf = [].concat(
+      z32(0x02014b50), z16(20), z16(20), z16(0), z16(0), z16(0), z16(0),
+      z32(z.crc), z32(z.laenge), z32(z.laenge),
+      z16(z.name.length), z16(0), z16(0), z16(0), z16(0),
+      z32(0), z32(z.versatz));
+    stuecke.push(new Uint8Array(kopf), z.name);
+    versatz += kopf.length + z.name.length;
+  }
+  stuecke.push(new Uint8Array([].concat(
+    z32(0x06054b50), z16(0), z16(0), z16(zentral.length), z16(zentral.length),
+    z32(versatz - start), z32(start), z16(0))));
+
+  const raus = new Uint8Array(stuecke.reduce((n, t) => n + t.length, 0));
+  let i = 0;
+  for (const t of stuecke) { raus.set(t, i); i += t.length; }
+  return raus;
+}
+
+function _plXmlEsc(t) {
+  return String(t == null ? '' : t)
+    .split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;')
+    .split('"').join('&quot;');
+}
+
+/**
+ * Word-Dokument bauen. Zeilen mit führendem '#' werden zu Zwischenüberschriften.
+ * @returns Uint8Array (.docx)
+ */
+function _plDocxBauen(titel, zeilen) {
+  const enc = new TextEncoder();
+  const abs = (text, groesse, fett) =>
+    '<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r><w:rPr>'
+    + (fett ? '<w:b/>' : '') + '<w:sz w:val="' + groesse + '"/><w:szCs w:val="' + groesse + '"/>'
+    + '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>'
+    + '<w:t xml:space="preserve">' + _plXmlEsc(text) + '</w:t></w:r></w:p>';
+
+  const koerper = [abs(titel, 36, true)].concat(zeilen.map(z =>
+    !z ? '<w:p/>' : (z.startsWith('#') ? abs(z.slice(1), 26, true) : abs(z, 22, false)))).join('');
+
+  const dokument = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+    + koerper
+    + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+    + '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'
+    + '</w:body></w:document>';
+
+  const typen = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    + '<Default Extension="xml" ContentType="application/xml"/>'
+    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+    + '</Types>';
+
+  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+    + '</Relationships>';
+
+  return _plZip([
+    { name: '[Content_Types].xml', bytes: enc.encode(typen) },
+    { name: '_rels/.rels', bytes: enc.encode(rels) },
+    { name: 'word/document.xml', bytes: enc.encode(dokument) },
+  ]);
+}
+
+const DOCX_TYP = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 /** Inhalt der Konzept-Skizze – am Aufbau der Muster-Vorlage orientiert. */
 function _plPdfInhaltKonzept(p) {
   const ko = (p && p.konzept) || {};
@@ -404,12 +523,14 @@ async function probelaufDokument(p, art) {
   if (!p) return false;
   const konzept = art === 'konzept';
   try {
-    const titel = _plLatin(p.title || 'Regelwerk');
-    const bytes = _plPdfBauen(konzept ? 'Konzept-Skizze: ' + titel : titel,
-      konzept ? _plPdfInhaltKonzept(p) : _plPdfInhalt(p));
-    const rein = titel.replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk';
-    const name = (konzept ? 'Konzept-Skizze ' + rein : rein) + '.pdf';
-    const res = await spUploadPolicyDoc(name, bytes, 'application/pdf');
+    const rein = _plLatin(p.title || 'Regelwerk').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk';
+    // Konzept als Word: Es soll in SharePoint direkt weitergeschrieben werden.
+    // Das Regelwerk bleibt PDF – dort geht es ums Ansehen und Entscheiden.
+    const bytes = konzept
+      ? _plDocxBauen('Konzept-Skizze: ' + (p.title || ''), _plPdfInhaltKonzept(p))
+      : _plPdfBauen(_plLatin(p.title || 'Regelwerk'), _plPdfInhalt(p));
+    const name = konzept ? 'Konzept-Skizze ' + rein + '.docx' : rein + '.pdf';
+    const res = await spUploadPolicyDoc(name, bytes, konzept ? DOCX_TYP : 'application/pdf');
     p.dokumentName = res.name;
     p.dokumentUrl = res.url;
     p.dokumentDriveId = res.driveId;

@@ -118,9 +118,19 @@ ok(/await notifyKonzeptGF\(k\);\s*\n\s*konzeptVersandHinweis\(k\);/.test(kq),
   'Er kommt erst nach dem tatsächlichen Versand');
 
 /* ── Annahme: Entwurf speichern, Ersteller informieren, Weg wählen ── */
-ok(/function konzeptWeiche/.test(kq), 'Nach der Annahme kommt eine Weiche');
+ok(/function konzeptWeiche/.test(kq), 'Nach der Annahme kommt eine Bestätigung');
+ok(/Der Regelwerk-Entwurf ist angelegt/.test(kq), 'Sie sagt, dass der Entwurf gespeichert ist');
+ok(/Alles klar/.test(kq), 'Für die Geschäftsleitung reicht ein Schließen-Knopf');
+ok(/const selbst = ko\.antragstellerUpn/.test(kq),
+  'Die Wahl erscheint nur, wenn Entscheider und Konzept-Autor dieselbe Person sind');
+ok(/entscheidet, ob der Entwurf noch ausgearbeitet/.test(kq),
+  'Sonst steht dort, dass die einreichende Person entscheidet');
 ok(/Entwurf bearbeiten/.test(kq) && /Direkt zur Konformitätsprüfung/.test(kq),
-  'Sie bietet beide Wege an');
+  'Beide Wege sind benannt');
+ok(/Wie soll es weitergehen\?/.test(kq), 'Die Info-Mail stellt die Frage');
+ok(/ansicht=entwurf&aktion=pruefung/.test(kq),
+  'Und bietet den direkten Weg als Schaltfläche an');
+ok(/ansicht=entwurf"/.test(kq), 'Ebenso das Bearbeiten');
 ok(/async function konzeptDirektZurPruefung/.test(kq), 'Der direkte Weg ist umgesetzt');
 ok(/setStatus\(rwId, 'Konformitätsprüfung'/.test(kq), 'Er setzt den Status');
 ok(/notifyPruefer/.test(kq), 'Und benachrichtigt die Prüfer');
@@ -135,6 +145,13 @@ ok(/antragstellerUpn/.test(kq), 'Empfänger ist die einreichende Person');
 ok(/an\.toLowerCase\(\) === String\(mich\)\.toLowerCase\(\)/.test(kq),
   'Wer selbst entscheidet, schreibt sich nicht selbst an');
 ok(/Begründung/.test(kq), 'Die Begründung steht in der Mail');
+
+/* ── Deep-Link aus der Info-Mail ── */
+const appjs3 = fs.readFileSync(ROOT + '/js/app.js', 'utf8');
+ok(/ansicht === 'entwurf'/.test(appjs3), 'app.js kennt den Entwurfs-Deeplink');
+ok(/konzeptDirektZurPruefung\(deepId\)/.test(appjs3), 'Mit Aktion „pruefung" geht es direkt weiter');
+ok(/openPolicyEditor\(deepId\)/.test(appjs3), 'Ohne Aktion öffnet sich der Editor');
+ok(/canWriteTab\('verwaltung'\)/.test(appjs3), 'Ohne Schreibrecht passiert nichts');
 
 /* ── Startansicht ── */
 const appjs2 = fs.readFileSync(ROOT + '/js/app.js', 'utf8');

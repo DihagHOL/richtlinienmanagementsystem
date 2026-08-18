@@ -121,6 +121,22 @@ async function applyDeepLinkOrDefault() {
     await switchView('meine'); return;
   }
 
+  // Aus der Konzept-Entscheidung: direkt in den Entwurf – wahlweise gleich
+  // weiter in die Konformitätsprüfung.
+  if (ansicht === 'entwurf') {
+    const aktion = (params.get('aktion') || '').toLowerCase();
+    if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
+      await switchView('meine');
+      toast('Für die Bearbeitung fehlt dir der Zugriff auf das Regelwerk Dashboard.');
+      return;
+    }
+    if (typeof setAdminMode === 'function') setAdminMode('regelwerke');
+    await switchView('verwaltung');
+    if (aktion === 'pruefung' && typeof konzeptDirektZurPruefung === 'function') konzeptDirektZurPruefung(deepId);
+    else if (typeof openPolicyEditor === 'function') openPolicyEditor(deepId);
+    return;
+  }
+
   const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
                  || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
 

@@ -576,13 +576,19 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
 ═══════════════════════════════════════════════════ */
 
 /**
- * Der Entwurf ist gespeichert – offen ist nur, wie es weitergeht. Manche wollen
- * ihn erst ausarbeiten, andere haben schon alles beisammen und schicken ihn
- * direkt in die Konformitätsprüfung.
+ * Bestätigung für die Geschäftsleitung. Sie entscheidet über das Konzept – wie
+ * es mit dem Entwurf weitergeht, entscheidet die Person, die das Konzept
+ * geschrieben hat. Deshalb steht hier keine Weiche, sondern nur, was passiert
+ * ist und wer jetzt am Zug ist.
  */
 function konzeptWeiche(k, rwId) {
   const p = (State.policies || []).find(x => String(x.id) === String(rwId));
-  const hatDok = !!(p && p.dokumentName);
+  const ko = k.konzept || {};
+  const ich = State.user ? String(State.user.upn).toLowerCase() : '';
+  // Hat dieselbe Person eingereicht und entschieden, wäre eine Mail an sich
+  // selbst sinnlos – dann führt der Knopf direkt in den Entwurf.
+  const selbst = ko.antragstellerUpn && String(ko.antragstellerUpn).toLowerCase() === ich;
+
   openModal(`
     <div class="modal-header">
       <h3>Konzept angenommen</h3>
@@ -591,24 +597,19 @@ function konzeptWeiche(k, rwId) {
     <div class="modal-body">
       <div style="padding:11px 14px;border-radius:9px;background:#f0fdf4;border-left:3px solid var(--c-success)">
         <b>Der Regelwerk-Entwurf ist angelegt.</b> Titel, Dokumentart, Geltungsbereich und die
-        Begründung sind aus dem Konzept übernommen.
+        Begründung sind aus dem Konzept übernommen${p && p.dokumentName ? `, das Dokument <b>${esc(p.dokumentName)}</b> ist als Startdatei hinterlegt` : ''}.
       </div>
-      <p style="margin:14px 0 8px;line-height:1.6">Die einreichende Person
-      ${k.konzept && k.konzept.antragstellerName ? `(<b>${esc(k.konzept.antragstellerName)}</b>) ` : ''}wurde
-      per E-Mail informiert.</p>
-      <p style="margin:0 0 4px;font-weight:600;font-size:.86rem">Wie soll es weitergehen?</p>
-      <ul style="margin:0;padding-left:19px;font-size:.85rem;line-height:1.7;color:var(--c-muted)">
-        <li><b>Entwurf bearbeiten:</b> Dokument anhängen, Zielgruppe, Wissenstest und Mitbestimmung festlegen.</li>
-        <li><b>Direkt zur Konformitätsprüfung:</b> geht sofort an die hinterlegten Prüfer${hatDok ? ' – das Dokument hängt bereits' : ''}.</li>
-      </ul>
-      ${hatDok ? '' : `<div class="field-hint" style="margin-top:10px">Am Entwurf hängt noch kein Dokument –
-        ohne Datei geht die Mail an die Prüfer ohne Anhang raus.</div>`}
+      <p style="margin:14px 0 0;line-height:1.6">${selbst
+        ? 'Wie es weitergeht, entscheidest du: den Entwurf noch ausarbeiten oder ihn direkt in die Konformitätsprüfung geben.'
+        : `${ko.antragstellerName ? `<b>${esc(ko.antragstellerName)}</b> wurde` : 'Die einreichende Person wurde'}
+           per E-Mail informiert und entscheidet, ob der Entwurf noch ausgearbeitet oder direkt in die
+           Konformitätsprüfung gegeben wird.`}</p>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal();openPolicyFromKonzept('${esc(rwId)}')">
-        Entwurf bearbeiten</button>
-      <button class="btn btn-primary" onclick="closeModal();konzeptDirektZurPruefung('${esc(rwId)}')">
-        Direkt zur Konformitätsprüfung →</button>
+      ${selbst
+        ? `<button class="btn btn-outline" onclick="closeModal();konzeptDirektZurPruefung('${esc(rwId)}')">Direkt zur Konformitätsprüfung →</button>
+           <button class="btn btn-primary" onclick="closeModal();openPolicyFromKonzept('${esc(rwId)}')">Entwurf bearbeiten</button>`
+        : '<button class="btn btn-primary" onclick="closeModal()">Alles klar</button>'}
     </div>`);
 }
 
@@ -655,8 +656,18 @@ async function notifyKonzeptErsteller(k, entscheidung) {
       Entschieden von <b>${esc(e.vonName || e.von || 'Geschäftsleitung')}</b>${e.am && typeof fmtDate === 'function' ? ' am ' + esc(fmtDate(e.am)) : ''}.
       ${e.kommentar ? `<br>Begründung: „${esc(e.kommentar)}"` : ''}
     </div>
-    <p><a href="https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}"
-      style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Konzept öffnen →</a></p>
+    ${(entscheidung === 'angenommen' && ko.regelwerkId) ? `
+      <p style="margin:18px 0 6px"><b>Wie soll es weitergehen?</b></p>
+      <p>
+        <a href="https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf"
+          style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">Entwurf bearbeiten</a>
+        <a href="https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf&aktion=pruefung"
+          style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">Direkt zur Konformitätsprüfung</a>
+      </p>
+      <p style="color:#6b7280;font-size:13px;margin:0">Ausarbeiten heißt: Dokument ergänzen, Zielgruppe,
+      Wissenstest und Mitbestimmung festlegen.</p>`
+      : `<p><a href="https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}"
+          style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Konzept öffnen →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
   </div>`;
   try {

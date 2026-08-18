@@ -178,8 +178,8 @@ function _dokuSections() {
         <li style="${li}"><b>Konzept anlegen</b> (Button „💡 Regelwerk-Konzept"): Arbeitstitel, <b>Typ</b> und <b>Geltungsbereich</b> sind <b style="color:var(--c-primary)">Pflicht</b>, dazu Kategorie, Priorität, <b>Warum?</b> (Motivation) und optional <b>Wie könnte es aussehen?</b> (Skizze). Ein <b>Anhang</b> (Word/PDF, z. B. ein erster Entwurf) kann beigelegt werden – die Muster-Vorlage ist verlinkt.</li>
         <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons. Anschließend bestätigt ein Hinweis, <b>an wen</b> die Nachricht gegangen ist und was als Nächstes passiert.</li>
         <li style="${li}"><b>Entscheidung</b> – direkt aus der Mail oder in der App: <b>✓ Annehmen</b>, <b>⏸ Zurückstellen</b> (mit Notiz) oder <b>✗ Ablehnen</b> (Begründung ist Pflicht).</li>
-        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Anschließend wird gefragt, wie es weitergehen soll – <b>Entwurf bearbeiten</b> (Dokument, Zielgruppe, Wissenstest, Mitbestimmung ergänzen) oder <b>direkt zur Konformitätsprüfung</b>.</li>
-        <li style="${li}"><b>Rückmeldung an die einreichende Person:</b> Bei jeder Entscheidung – angenommen, zurückgestellt oder abgelehnt – geht automatisch eine Info-Mail an den Antragsteller, mit Entscheider, Datum und Begründung.</li>
+        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Die Geschäftsleitung bekommt nur die Bestätigung – sie muss nichts weiter veranlassen.</li>
+        <li style="${li}"><b>Rückmeldung an die einreichende Person:</b> Bei jeder Entscheidung – angenommen, zurückgestellt oder abgelehnt – geht automatisch eine Info-Mail an den Antragsteller, mit Entscheider, Datum und Begründung. Bei Annahme enthält sie die Frage <b>„Wie soll es weitergehen?"</b> mit zwei Schaltflächen: <b>Entwurf bearbeiten</b> (Dokument, Zielgruppe, Wissenstest, Mitbestimmung ergänzen) oder <b>direkt zur Konformitätsprüfung</b>. Diese Entscheidung liegt bewusst bei der Person, die das Konzept geschrieben hat.</li>
       </ol>
       <div style="${hint}">📬 Empfänger der Prüf-Mail ist die <b>Geschäftsleitung</b> aus <b>Einstellungen → „Geschäftsleitung"</b>. Nur diese Personen können über Konzepte entscheiden.</div>`,
       'ISO 27001 Klausel 6.2 (Ziele und Planung), 7.5.1 (Erstellung dokumentierter Information).'),
@@ -389,7 +389,8 @@ function _dokuSections() {
           und Link auf die Datei in SharePoint. Der Startdialog zeigt vorher, wer sie bekommt.</li>
         <li style="${li}"><b>Kennzeichnung:</b> Alles Angelegte trägt <code>[Probelauf]</code> im Titel.
           Weil das in den Daten steht, erscheint es automatisch im Betreff, im Mailtext und in jeder Ansicht.</li>
-        <li style="${li}"><b>Dokument:</b> Der Probelauf legt ein Beispiel-PDF in der Dokumentbibliothek
+        <li style="${li}"><b>Dokument:</b> Zum Konzept entsteht eine <b>Word-Datei</b> – sie lässt sich in
+          SharePoint direkt öffnen und weiterschreiben. Zum Regelwerk legt der Probelauf ein Beispiel-PDF in der Dokumentbibliothek
           ab und hinterlegt es am Regelwerk. Dadurch hängt es an den Mails und ist über den
           SharePoint-Link erreichbar – wie im Betrieb. Beim Aufräumen wird die Datei mitgelöscht.
           Wer lieber eine eigene Datei zeigt, hängt sie im Editor ganz normal an.</li>

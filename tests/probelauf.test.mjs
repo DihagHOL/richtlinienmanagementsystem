@@ -61,7 +61,7 @@ const ctx = {
     return { driveId: 'd1', itemId: 'f1', name, url: 'https://sp/' + name };
   },
   geltungsbereichLabel: (a) => (a || []).join(', '),
-  Uint8Array,
+  Uint8Array, Uint32Array, TextEncoder,
   reloadData: async () => {}, reloadAcks: async () => {},
 };
 ctx.window = ctx; ctx.globalThis = ctx;
@@ -158,12 +158,28 @@ ok(kpdf.includes('Muster'), 'Es nennt die Muster-Vorlage als Grundlage');
 ok(kpdf.includes('Motivation'), 'Die Frage „Warum?" steht drin');
 ok(ctx.__k.dokumentItemId === 'f1', 'Die Datei hängt am Konzept');
 ok(/probelaufDokument\(_kEditing, 'konzept'\)/.test(tour), 'Die Führung hängt sie beim Konzept an');
+
+/* Das Konzept kommt als Word-Datei – sie soll in SharePoint weitergeschrieben werden. */
+ok(/\.docx$/.test(kdatei.name), `Es ist eine Word-Datei (${kdatei.name})`);
+ok(kdatei.typ === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'Mit dem Inhaltstyp, den Office erwartet');
+const zipKopf = Buffer.from(kdatei.bytes.slice(0, 4)).toString('hex');
+ok(zipKopf === '504b0304', `Gültiger ZIP-Kopf (${zipKopf})`);
+const roh = Buffer.from(kdatei.bytes).toString('latin1');
+for (const teil of ['[Content_Types].xml', '_rels/.rels', 'word/document.xml'])
+  ok(roh.includes(teil), `Enthält ${teil}`);
+ok(roh.includes('wordprocessingml'), 'Es ist ein Word-Dokument, kein leeres Archiv');
+ok(/function _plZip/.test(quelle) && /function _plCrc32/.test(quelle),
+  'Das Archiv wird ohne Fremdbibliothek gebaut');
 run('_plSpurLeeren();');
 
 /* ── 5) Vor dem Start wird gesagt, was passiert ── */
 ok(/Das wird ein echter Vorgang/.test(quelle), 'Der Startdialog warnt deutlich');
 ok(/getPruefer/.test(quelle) && /getGeschaeftsleitung/.test(quelle) && /getKbrMail/.test(quelle),
   'Er nennt die tatsächlichen Empfänger der E-Mails');
+for (const etappe of ['Konzeptprüfung (Geschäftsleitung)', 'Entscheidung zum Konzept',
+  'Konformitätsprüfung', 'Mitbestimmung (KBR)', 'Freigabe (Geschäftsleitung)'])
+  ok(quelle.includes(etappe), `Etappe im Startdialog aufgeführt: ${etappe}`);
 ok(/nicht zurückholen/.test(quelle), 'Und sagt, dass versendete Mails bleiben');
 ok(/function probelaufAufraeumen/.test(quelle), 'Es gibt eine Aufräumfunktion');
 ok(/Endgültig löschen/.test(quelle), 'Gelöscht wird erst nach Rückfrage');
