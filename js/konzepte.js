@@ -381,9 +381,41 @@ async function konzeptSubmitGF(id) {
     await reloadData();
     _adminMode = 'konzepte';
     renderAdminList();
-    toast('Konzept zur GF-Prüfung eingereicht ✓', 'success');
-    notifyKonzeptGF(k);
+    await notifyKonzeptGF(k);
+    konzeptVersandHinweis(k);
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/**
+ * Nach dem Einreichen sichtbar machen, was tatsächlich passiert ist.
+ * Ein Toast ist nach drei Sekunden weg – gerade in einer Vorführung soll aber
+ * nachvollziehbar bleiben, dass die Mail zur Konzeptprüfung wirklich raus ist
+ * und an wen.
+ */
+function konzeptVersandHinweis(k) {
+  const gl = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
+  const anhang = k.dokumentName ? `<li>Anhang: <b>${esc(k.dokumentName)}</b></li>` : '';
+  openModal(`
+    <div class="modal-header">
+      <h3>Konzeptprüfung angefordert</h3>
+      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:11px 14px;border-radius:9px;background:#f0fdf4;border-left:3px solid var(--c-success)">
+        <b>Die E-Mail ist raus.</b> Die Geschäftsleitung kann direkt aus der Nachricht heraus entscheiden.
+      </div>
+      <ul style="margin:14px 0 0;padding-left:19px;font-size:.87rem;line-height:1.75">
+        <li>Konzept: <b>${esc(k.title)}</b></li>
+        <li>Empfänger: <b>${esc(gl.join(', ') || '– niemand hinterlegt –')}</b></li>
+        ${anhang}
+        <li>Schaltflächen in der Mail: <b>Annehmen</b> · <b>Zurückstellen</b> · <b>Ablehnen</b></li>
+      </ul>
+      <div class="field-hint" style="margin-top:12px">Solange nicht entschieden ist, steht das Konzept
+      im Dashboard unter <b>💡 Konzepte</b> mit dem Status „GF-Prüfung".</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal()">Alles klar</button>
+    </div>`);
 }
 
 async function konzeptDecide(id, decision) {
@@ -399,6 +431,7 @@ async function konzeptDecide(id, decision) {
     if (!grund) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
     k.konzept.entscheidung = _kEntsch('abgelehnt', grund);
     await _kPersist(k, 'Konzept abgelehnt.', 'error');
+    notifyKonzeptErsteller(k, 'abgelehnt');
     return;
   }
   if (decision === 'zurueckgestellt') {
@@ -406,6 +439,7 @@ async function konzeptDecide(id, decision) {
     if (res === null) return;
     k.konzept.entscheidung = _kEntsch('zurueckgestellt', res.trim());
     await _kPersist(k, 'Konzept zurückgestellt.');
+    notifyKonzeptErsteller(k, 'zurueckgestellt');
     return;
   }
 
@@ -437,7 +471,8 @@ async function konzeptDecide(id, decision) {
     await spSavePolicy(k);
     await reloadData();
     toast('Konzept angenommen – Regelwerk-Entwurf angelegt ✓', 'success');
-    if (rwId) openPolicyFromKonzept(rwId);
+    notifyKonzeptErsteller(k, 'angenommen');
+    if (rwId) konzeptWeiche(k, rwId);
     else { _adminMode = 'konzepte'; renderAdminList(); }
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
@@ -533,4 +568,98 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
       : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet das Konzept in der App und führt die Entscheidung nach kurzer Rückfrage aus (Ablehnen/Zurückstellen mit Begründung; Anmeldung nötig, nur Geschäftsleitung). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
   </div>`;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Nach der Annahme: bearbeiten oder gleich weiterschicken
+═══════════════════════════════════════════════════ */
+
+/**
+ * Der Entwurf ist gespeichert – offen ist nur, wie es weitergeht. Manche wollen
+ * ihn erst ausarbeiten, andere haben schon alles beisammen und schicken ihn
+ * direkt in die Konformitätsprüfung.
+ */
+function konzeptWeiche(k, rwId) {
+  const p = (State.policies || []).find(x => String(x.id) === String(rwId));
+  const hatDok = !!(p && p.dokumentName);
+  openModal(`
+    <div class="modal-header">
+      <h3>Konzept angenommen</h3>
+      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:11px 14px;border-radius:9px;background:#f0fdf4;border-left:3px solid var(--c-success)">
+        <b>Der Regelwerk-Entwurf ist angelegt.</b> Titel, Dokumentart, Geltungsbereich und die
+        Begründung sind aus dem Konzept übernommen.
+      </div>
+      <p style="margin:14px 0 8px;line-height:1.6">Die einreichende Person
+      ${k.konzept && k.konzept.antragstellerName ? `(<b>${esc(k.konzept.antragstellerName)}</b>) ` : ''}wurde
+      per E-Mail informiert.</p>
+      <p style="margin:0 0 4px;font-weight:600;font-size:.86rem">Wie soll es weitergehen?</p>
+      <ul style="margin:0;padding-left:19px;font-size:.85rem;line-height:1.7;color:var(--c-muted)">
+        <li><b>Entwurf bearbeiten:</b> Dokument anhängen, Zielgruppe, Wissenstest und Mitbestimmung festlegen.</li>
+        <li><b>Direkt zur Konformitätsprüfung:</b> geht sofort an die hinterlegten Prüfer${hatDok ? ' – das Dokument hängt bereits' : ''}.</li>
+      </ul>
+      ${hatDok ? '' : `<div class="field-hint" style="margin-top:10px">Am Entwurf hängt noch kein Dokument –
+        ohne Datei geht die Mail an die Prüfer ohne Anhang raus.</div>`}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal();openPolicyFromKonzept('${esc(rwId)}')">
+        Entwurf bearbeiten</button>
+      <button class="btn btn-primary" onclick="closeModal();konzeptDirektZurPruefung('${esc(rwId)}')">
+        Direkt zur Konformitätsprüfung →</button>
+    </div>`);
+}
+
+/** Den frisch entstandenen Entwurf ohne Umweg in die Konformitätsprüfung schicken. */
+async function konzeptDirektZurPruefung(rwId) {
+  const p = (State.policies || []).find(x => String(x.id) === String(rwId));
+  if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
+  try {
+    await setStatus(rwId, 'Konformitätsprüfung', 'Direkt aus dem angenommenen Konzept eingereicht');
+    await reloadData();
+    const frisch = (State.policies || []).find(x => String(x.id) === String(rwId));
+    if (typeof notifyPruefer === 'function') await notifyPruefer(frisch || p);
+    if (typeof mitbestimmungPflicht === 'function' && mitbestimmungPflicht(frisch || p)
+        && typeof notifyMitbestimmung === 'function') await notifyMitbestimmung(frisch || p);
+    _adminMode = 'regelwerke';
+    renderAdminList();
+    toast('In der Konformitätsprüfung – Prüfer benachrichtigt ✓', 'success');
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/**
+ * Die einreichende Person über die Entscheidung informieren.
+ * Wer ein Konzept einreicht, soll nicht im Dashboard nachsehen müssen, was
+ * daraus geworden ist.
+ */
+async function notifyKonzeptErsteller(k, entscheidung) {
+  const ko = k.konzept || {};
+  const an = ko.antragstellerUpn || '';
+  if (!an) return;                                  // niemand hinterlegt – nichts zu tun
+  const mich = State.user ? State.user.upn : '';
+  if (an.toLowerCase() === String(mich).toLowerCase()) return;   // sich selbst nicht anschreiben
+
+  const texte = {
+    angenommen: ['Konzept angenommen', 'Das Konzept wurde angenommen. Daraus ist ein Regelwerk-Entwurf entstanden, der jetzt ausgearbeitet und in die Konformitätsprüfung gegeben wird.', '#16a34a'],
+    zurueckgestellt: ['Konzept zurückgestellt', 'Das Konzept wurde vorerst zurückgestellt.', '#64748b'],
+    abgelehnt: ['Konzept abgelehnt', 'Das Konzept wurde abgelehnt.', '#dc2626'],
+  };
+  const [titel, text, farbe] = texte[entscheidung] || texte.angenommen;
+  const e = ko.entscheidung || {};
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p><b>${esc(titel)}: ${esc(k.title)}</b></p>
+    <p>${esc(text)}</p>
+    <div style="margin:14px 0;padding:10px 14px;border-left:3px solid ${farbe};background:#f8fafc;border-radius:0 8px 8px 0;font-size:14px">
+      Entschieden von <b>${esc(e.vonName || e.von || 'Geschäftsleitung')}</b>${e.am && typeof fmtDate === 'function' ? ' am ' + esc(fmtDate(e.am)) : ''}.
+      ${e.kommentar ? `<br>Begründung: „${esc(e.kommentar)}"` : ''}
+    </div>
+    <p><a href="https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}"
+      style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Konzept öffnen →</a></p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
+  </div>`;
+  try {
+    await spSendMail([an], `${titel}: ${k.title}`, html);
+  } catch (err) { console.warn('Ersteller-Info:', err.message); }
 }

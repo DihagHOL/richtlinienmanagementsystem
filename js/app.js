@@ -116,9 +116,9 @@ async function applyDeepLinkOrDefault() {
     if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit'].includes(ansicht) && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
-    // Startansicht: Cockpit für Berechtigte (Admins), sonst „Meine Richtlinien".
-    const start = (typeof canReadTab === 'function' && canReadTab('cockpit')) ? 'cockpit' : 'meine';
-    await switchView(start); return;
+    // Startansicht ist für alle „Meine Regelwerke" – auch Admins sehen zuerst
+    // das, was jede:r sieht. Das Cockpit ist einen Klick entfernt.
+    await switchView('meine'); return;
   }
 
   const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())

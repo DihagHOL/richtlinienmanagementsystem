@@ -75,7 +75,6 @@ function _dokuSections() {
     sec('start', 'Erste Schritte', 'all', `
       <ul style="${ol}">
         <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
-        <li style="${li}"><b>Geführter Rundgang:</b> Im Reiter <b>Anleitung</b> führt „▶ Rundgang starten" in acht Schritten durch den kompletten Weg eines Regelwerks – von der Idee bis zum Audit-Nachweis, an einem durchgehenden Beispiel. Es werden dabei keine Daten angelegt oder geändert.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt – das KI-Dashboard nutzt dieselbe Anmeldung.</li>
         <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
         <li style="${li}"><b>Was du siehst, hängt von deiner Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
@@ -177,9 +176,10 @@ function _dokuSections() {
       <div style="${h3}">Ablauf</div>
       <ol style="${ol}">
         <li style="${li}"><b>Konzept anlegen</b> (Button „💡 Regelwerk-Konzept"): Arbeitstitel, <b>Typ</b> und <b>Geltungsbereich</b> sind <b style="color:var(--c-primary)">Pflicht</b>, dazu Kategorie, Priorität, <b>Warum?</b> (Motivation) und optional <b>Wie könnte es aussehen?</b> (Skizze). Ein <b>Anhang</b> (Word/PDF, z. B. ein erster Entwurf) kann beigelegt werden – die Muster-Vorlage ist verlinkt.</li>
-        <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons.</li>
+        <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons. Anschließend bestätigt ein Hinweis, <b>an wen</b> die Nachricht gegangen ist und was als Nächstes passiert.</li>
         <li style="${li}"><b>Entscheidung</b> – direkt aus der Mail oder in der App: <b>✓ Annehmen</b>, <b>⏸ Zurückstellen</b> (mit Notiz) oder <b>✗ Ablehnen</b> (Begründung ist Pflicht).</li>
-        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Danach läuft der normale Weg über die Konformitätsprüfung.</li>
+        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Anschließend wird gefragt, wie es weitergehen soll – <b>Entwurf bearbeiten</b> (Dokument, Zielgruppe, Wissenstest, Mitbestimmung ergänzen) oder <b>direkt zur Konformitätsprüfung</b>.</li>
+        <li style="${li}"><b>Rückmeldung an die einreichende Person:</b> Bei jeder Entscheidung – angenommen, zurückgestellt oder abgelehnt – geht automatisch eine Info-Mail an den Antragsteller, mit Entscheider, Datum und Begründung.</li>
       </ol>
       <div style="${hint}">📬 Empfänger der Prüf-Mail ist die <b>Geschäftsleitung</b> aus <b>Einstellungen → „Geschäftsleitung"</b>. Nur diese Personen können über Konzepte entscheiden.</div>`,
       'ISO 27001 Klausel 6.2 (Ziele und Planung), 7.5.1 (Erstellung dokumentierter Information).'),
@@ -378,9 +378,9 @@ function _dokuSections() {
       'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
 
     sec('probelauf', 'Probelauf (Vorführung & Test)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Neben dem erklärenden <b>Rundgang</b> (Reiter „Anleitung")
-      gibt es den <b>Probelauf</b>: Er führt die komplette Kette an einem <b>echten Vorgang</b> vor –
-      nichts ist nachgebaut, nichts umgeleitet. Start über <b>Anleitung → „Probelauf starten"</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der <b>Probelauf</b> führt die komplette Kette an einem
+      <b>echten Vorgang</b> vor – nichts ist nachgebaut, nichts umgeleitet.
+      Start über <b>Anleitung → „Probelauf starten"</b>.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Echte Daten:</b> Es entstehen echte Einträge in den SharePoint-Listen und der
           normale Workflow läuft darüber. Sinnvoll, solange das System noch nicht ausgerollt ist.</li>

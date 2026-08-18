@@ -215,10 +215,10 @@ function policyMatchesQuery(p, q) {
 const RW_SCHRITTE = [
   ['Konzept', 'Idee einreichen',
    'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>. Die Geschäftsleitung entscheidet über Priorität und Umsetzung.',
-   'du'],
+   'Sie'],
   ['Entwurf', 'Ausarbeiten',
    'Aus dem angenommenen Konzept entsteht ein Entwurf. Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen.',
-   'du'],
+   'Sie'],
   ['Prüfung', 'Konformität',
    'Mit „Zur Konformitätsprüfung" geht das Regelwerk an die hinterlegten Prüfer. Sie entscheiden aus der E-Mail heraus; „nicht konform" verlangt eine Begründung.',
    'Prüfer'],
@@ -264,8 +264,7 @@ function renderRwSchritte() {
             <div class="rw-text">${text}</div>
           </li>`).join('')}
       </ol>
-      <div class="rw-fuss">Ausführlich im Reiter <b>Dokumentation</b>; einen Durchlauf am Beispiel
-        zeigt der Rundgang unter <b>Anleitung</b>.</div>` : ''}
+      <div class="rw-fuss">Ausführlich im Reiter <b>Dokumentation</b>.</div>` : ''}
     </div>`;
 }
 

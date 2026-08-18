@@ -108,5 +108,55 @@ ok(idx.includes('openKonzeptEditor()') && idx.includes('js/konzepte.js'), 'index
 const adm = fs.readFileSync(ROOT + '/js/admin.js','utf8');
 ok(adm.includes("_adminMode === 'konzepte'") && adm.includes('renderKonzeptCards(q') && adm.includes('_adminModeBar'), 'admin.js: Modus-Umschalter delegiert an Konzepte');
 
+/* ── Nach dem Einreichen: sichtbar machen, dass die Mail raus ist ── */
+const kq = fs.readFileSync(ROOT + '/js/konzepte.js', 'utf8');
+ok(/function konzeptVersandHinweis/.test(kq), 'Es gibt einen Versand-Hinweis');
+ok(/Die E-Mail ist raus/.test(kq), 'Er sagt klar, dass die Nachricht raus ist');
+ok(/Konzeptprüfung angefordert/.test(kq), 'Und wofür');
+ok(/getGeschaeftsleitung/.test(kq), 'Er nennt die Empfänger');
+ok(/await notifyKonzeptGF\(k\);\s*\n\s*konzeptVersandHinweis\(k\);/.test(kq),
+  'Er kommt erst nach dem tatsächlichen Versand');
+
+/* ── Annahme: Entwurf speichern, Ersteller informieren, Weg wählen ── */
+ok(/function konzeptWeiche/.test(kq), 'Nach der Annahme kommt eine Weiche');
+ok(/Entwurf bearbeiten/.test(kq) && /Direkt zur Konformitätsprüfung/.test(kq),
+  'Sie bietet beide Wege an');
+ok(/async function konzeptDirektZurPruefung/.test(kq), 'Der direkte Weg ist umgesetzt');
+ok(/setStatus\(rwId, 'Konformitätsprüfung'/.test(kq), 'Er setzt den Status');
+ok(/notifyPruefer/.test(kq), 'Und benachrichtigt die Prüfer');
+ok(/mitbestimmungPflicht/.test(kq) && /notifyMitbestimmung/.test(kq),
+  'Bei betroffener Mitbestimmung auch den Betriebsrat');
+
+ok(/async function notifyKonzeptErsteller/.test(kq), 'Die einreichende Person wird informiert');
+for (const fall of ['angenommen', 'zurueckgestellt', 'abgelehnt'])
+  ok(new RegExp("notifyKonzeptErsteller\\(k, '" + fall + "'\\)").test(kq),
+    `Auch bei „${fall}"`);
+ok(/antragstellerUpn/.test(kq), 'Empfänger ist die einreichende Person');
+ok(/an\.toLowerCase\(\) === String\(mich\)\.toLowerCase\(\)/.test(kq),
+  'Wer selbst entscheidet, schreibt sich nicht selbst an');
+ok(/Begründung/.test(kq), 'Die Begründung steht in der Mail');
+
+/* ── Startansicht ── */
+const appjs2 = fs.readFileSync(ROOT + '/js/app.js', 'utf8');
+ok(/await switchView\('meine'\); return;/.test(appjs2), 'Start ist immer „Meine Regelwerke"');
+ok(!/canReadTab\('cockpit'\) \? 'cockpit'/.test(appjs2), 'Kein Sondereinstieg mehr ins Cockpit');
+
+/* ── Rundgang ist entfernt ── */
+ok(!fs.existsSync(path.join(ROOT, 'js/tutorial.js')), 'tutorial.js ist weg');
+ok(!fs.existsSync(path.join(ROOT, 'rundgang.html')), 'Die eigenständige Rundgang-Seite ist weg');
+const idx2 = fs.readFileSync(ROOT + '/index.html', 'utf8');
+ok(!idx2.includes('tutorial.js'), 'index.html bindet sie nicht mehr ein');
+for (const datei of ['js/anleitung.js', 'js/dokumentation.js', 'js/admin.js']) {
+  const t = fs.readFileSync(path.join(ROOT, datei), 'utf8');
+  ok(!/Rundgang/.test(t), `Keine Rundgang-Erwähnung mehr in ${datei}`);
+}
+
+/* ── Einführungs-Schritte: Sie-Form ── */
+const adm2 = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
+const rollen = [...adm2.matchAll(/^\s+'(du|Sie|Prüfer|KBR \/ BR|GL|alle)'\],$/gm)].map(m => m[1]);
+ok(rollen.length >= 6, `Alle Zuständigkeiten gefunden (${rollen.length})`);
+ok(!rollen.includes('du'), 'Keine Du-Form mehr bei den Zuständigkeiten');
+ok(rollen.filter(r => r === 'Sie').length === 2, 'Zweimal „Sie" (Konzept und Entwurf)');
+
 console.log(`\n${fail? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

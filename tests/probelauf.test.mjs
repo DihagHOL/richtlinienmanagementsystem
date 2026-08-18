@@ -47,7 +47,6 @@ const ctx = {
   localStorage: (() => { const m = new Map();
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; })(),
   State: { user: { upn: 'chef@dihag.com', name: 'Test Chef' }, policies: [], konzepte: [], acks: [] },
-  TUT_BEISPIEL: { titel: 'Regelwerk zur Nutzung von KI', typ: 'Konzernrichtlinie' },
   getPruefer: () => ['pruefer@dihag.com'],
   getGeschaeftsleitung: () => ['gf@dihag.com'],
   getKbrMail: () => 'kbr@dihag.com',
@@ -293,7 +292,8 @@ const html = lies('index.html');
 const reihen = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(x => x[1]);
 for (const f of ['probelauf', 'tour']) ok(reihen.includes(f), `${f}.js ist eingebunden`);
 ok(!reihen.includes('demo'), 'demo.js ist nicht mehr eingebunden');
-ok(reihen.indexOf('tutorial') < reihen.indexOf('tour'), 'tour.js lädt nach tutorial.js (nutzt TUT_BEISPIEL)');
+ok(!reihen.includes('tutorial'), 'Der alte Rundgang ist nicht mehr eingebunden');
+ok(/const TOUR_BEISPIEL/.test(tour), 'Die Führung bringt ihr Beispiel selbst mit');
 ok(reihen.indexOf('probelauf') < reihen.indexOf('anleitung'), 'probelauf.js lädt vor anleitung.js');
 const css = lies('css/style.css');
 ok(/\.pl-warnung\b/.test(css) && /\.tour-tip\b/.test(css), 'Die Formatierung ist vorhanden');

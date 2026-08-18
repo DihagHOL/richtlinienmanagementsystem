@@ -1,11 +1,11 @@
 /**
  * Geführte Vorführung („echte Trigger")
  * =====================================
- * Anders als der erklärende Rundgang (tutorial.js) arbeitet diese Führung mit der
- * echten Oberfläche: Sie hebt das jeweils nächste Bedienelement hervor, lässt es
- * anklickbar und wartet, bis der Schritt **wirklich** ausgeführt wurde. Erst dann
- * geht es weiter. Es gibt keine nachgebauten Bildschirme – jeder Klick löst genau
- * das aus, was er im Betrieb auslöst.
+ * Die Führung arbeitet mit der echten Oberfläche: Sie hebt das jeweils nächste
+ * Bedienelement hervor, lässt es anklickbar und wartet, bis der Schritt
+ * **wirklich** ausgeführt wurde. Erst dann geht es weiter. Es gibt keine
+ * nachgebauten Bildschirme – jeder Klick löst genau das aus, was er im Betrieb
+ * auslöst.
  *
  * Die Führung läuft im Probelauf (probelauf.js): Es entsteht ein echter Vorgang
  * mit echten E-Mails. Alles trägt „[Probelauf]" im Titel und lässt sich hinterher
@@ -17,6 +17,12 @@
  * Betreten schon erfüllt ist, springt NICHT weiter: sonst rauschte die Führung
  * an Schritten vorbei, die man noch gar nicht gesehen hat.
  */
+
+/** Beispiel, das sich durch die ganze Führung zieht. */
+const TOUR_BEISPIEL = {
+  titel: 'Regelwerk zur Nutzung von KI',
+  typ: 'Konzernrichtlinie',
+};
 
 let _tourIdx      = -1;      // aktueller Schritt (-1 = aus)
 let _tourTimer    = null;    // Takt für Nachführen + Zustandsprüfung
@@ -70,7 +76,7 @@ function _tourDialog(teil) {
 
 /** Titel des Probelauf-Vorgangs – gekennzeichnet, damit er überall erkennbar ist. */
 function _tourTitel() {
-  return (typeof probelaufTitel === 'function') ? probelaufTitel(TUT_BEISPIEL.titel) : TUT_BEISPIEL.titel;
+  return (typeof probelaufTitel === 'function') ? probelaufTitel(TOUR_BEISPIEL.titel) : TOUR_BEISPIEL.titel;
 }
 function _tourRegelwerk() {
   return (State.policies || []).find(p => p.title === _tourTitel()) || null;
@@ -124,7 +130,7 @@ function tourSchritte() {
       vormachen: async () => {
         if (typeof _kEditing === 'undefined' || !_kEditing) return;
         _kEditing.title = _tourTitel();
-        _kEditing.regelwerkTyp = TUT_BEISPIEL.typ;
+        _kEditing.regelwerkTyp = TOUR_BEISPIEL.typ;
         _kEditing.kategorie = 'IT-Sicherheit';
         _kEditing.geltungsbereich = ['ALLE'];
         _kEditing.konzept.prioritaet = 'hoch';
