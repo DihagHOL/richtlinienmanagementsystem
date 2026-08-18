@@ -74,9 +74,10 @@ async function bootApp(account) {
     await loadRuntimeAccessConfig();
     State.myRoles = await getCurrentUserRoles();   // vor initRoleNav: Reiter-Rechte können an Rollen hängen
     initRoleNav();
-    // Vorführ-/Testmodus (?demo=1): erst nach der Anmeldung, nur für Freigeschaltete.
-    if (typeof demoGewuenscht === 'function' && demoGewuenscht()
-        && typeof demoAktivieren === 'function' && await demoAktivieren()) return;
+    // Probelauf (?probelauf=1): erst nach der Anmeldung, nur für Freigeschaltete.
+    // Er ersetzt nichts – die Anwendung läuft danach ganz normal weiter.
+    if (typeof probelaufGewuenscht === 'function' && probelaufGewuenscht()
+        && typeof probelaufAktivieren === 'function') await probelaufAktivieren();
     await applyDeepLinkOrDefault();   // lädt Daten + rendert (Mail-Deeplink oder Standard)
   } catch (e) {
     console.error(e);

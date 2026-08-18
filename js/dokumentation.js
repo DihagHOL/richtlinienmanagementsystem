@@ -50,7 +50,7 @@ const _DOKU_TOC = [
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
-  ['vorfuehrung',   'Vorführ- und Testmodus'],
+  ['probelauf',     'Probelauf (Vorführung & Test)'],
   ['glossar',       'Begriffe & Normbezug'],
   ['faq',           'Häufige Fragen & Hilfe'],
 ];
@@ -374,34 +374,28 @@ function _dokuSections() {
       </ul>`,
       'ISO 27001 Klausel 5.3 (Rollen, Verantwortlichkeiten &amp; Befugnisse), 7.4 (Kommunikation), A.5.2 (Rollen).'),
 
-    sec('vorfuehrung', 'Vorführ- und Testmodus', 'admin', `
+    sec('probelauf', 'Probelauf (Vorführung & Test)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Neben dem erklärenden <b>Rundgang</b> (Reiter „Anleitung")
-      gibt es eine <b>echte Vorführung</b>: dieselbe Anwendung, dieselben Schaltflächen, aber auf einer
-      erfundenen Datenbasis. Start über <b>Anleitung → „Vorführung starten"</b> oder <code>?demo=1</code>.</p>
+      gibt es den <b>Probelauf</b>: Er führt die komplette Kette an einem <b>echten Vorgang</b> vor –
+      nichts ist nachgebaut, nichts umgeleitet. Start über <b>Anleitung → „Probelauf starten"</b>.</p>
       <ul style="${ol}">
-        <li style="${li}"><b>Keine echten Daten:</b> Alle Regelwerke, Konzepte und Kenntnisnahmen liegen nur
-          im Arbeitsspeicher des Browsers. In den SharePoint-Listen wird nichts angelegt oder geändert –
-          nach dem Beenden ist alles wieder weg.</li>
-        <li style="${li}"><b>Echter Mailversand:</b> E-Mails gehen wirklich über Microsoft Graph raus –
-          aber ausschließlich an das eigene Postfach, mit Betreff-Kennzeichnung <code>[RMS-Vorführung]</code>
-          und einem Hinweis, wer sie im Echtbetrieb bekäme. Angesehen werden sie im normalen
-          <b>Outlook-Postfach</b>; die Anwendung baut dafür bewusst keine eigene Ansicht nach.
-          Abschaltbar über den Schalter im Hinweisstreifen.</li>
-        <li style="${li}"><b>Anhang und Fundstelle:</b> Die Mails tragen ein erzeugtes <b>PDF</b> zum Regelwerk
-          und verweisen zusätzlich auf die Datei <b>in SharePoint</b> – so wie im Betrieb. Prüfer,
-          Betriebsrat und Geschäftsleitung sehen damit genau das, was sie zum Entscheiden brauchen.</li>
-        <li style="${li}"><b>Entscheiden aus dem Postfach:</b> Die Schaltflächen in der Testmail führen
-          zurück in die Vorführung (nicht in den Echtbestand). Der Vorführstand überlebt den
-          Seitenwechsel dafür bis zu zwölf Stunden.</li>
+        <li style="${li}"><b>Echte Daten:</b> Es entstehen echte Einträge in den SharePoint-Listen und der
+          normale Workflow läuft darüber. Sinnvoll, solange das System noch nicht ausgerollt ist.</li>
+        <li style="${li}"><b>Echte E-Mails:</b> Die Nachrichten gehen über Microsoft Graph an die in den
+          Einstellungen hinterlegten Prüfer, Betriebsräte und Geschäftsleitung – mit Dokument im Anhang
+          und Link auf die Datei in SharePoint. Der Startdialog zeigt vorher, wer sie bekommt.</li>
+        <li style="${li}"><b>Kennzeichnung:</b> Alles Angelegte trägt <code>[Probelauf]</code> im Titel.
+          Weil das in den Daten steht, erscheint es automatisch im Betreff, im Mailtext und in jeder Ansicht.</li>
+        <li style="${li}"><b>Aufräumen:</b> Jeder angelegte Eintrag wird mitgeschrieben; „🧹 Aufräumen" im
+          Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
           hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
           Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>
         <li style="${li}"><b>Selbsttest:</b> spielt Konzept → Entwurf → Konformitätsprüfung → Mitbestimmung →
           Freigabe → Kenntnisnahme → Historie in einem Zug durch und zeigt einen Bericht mit allen
-          Prüfpunkten. Sinnvoll nach jeder Aktualisierung, um die Prozesskette und den Mailversand zu prüfen.</li>
+          Prüfpunkten. Sinnvoll nach jeder Aktualisierung.</li>
         <li style="${li}"><b>Nur für Freigeschaltete:</b> Administratoren immer, weitere Personen über
-          <b>Einstellungen → Vorführmodus</b>. Grund: Der Modus versendet echte E-Mails und zeigt den
-          vollen Funktionsumfang unabhängig von den sonstigen Reiter-Berechtigungen.</li>
+          <b>Einstellungen → Probelauf</b>. Grund: echte Einträge und echter Mailversand.</li>
       </ul>`,
       'ISO 27001 Klausel 7.2 (Kompetenz), 7.3 (Bewusstsein), 9.1 (Überwachung &amp; Messung).'),
 

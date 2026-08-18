@@ -35,21 +35,21 @@ function renderEinstellungen() {
       ${reiterRechteCard()}
 
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><h2>Vorführmodus (Demo &amp; Funktionsprüfung)</h2></div>
+        <div class="card-header"><h2>Probelauf (Vorführung &amp; Funktionsprüfung)</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">
-            Der Vorführmodus zeigt die Anwendung mit <b>erfundenen Daten</b>: Nichts wird in SharePoint
-            gespeichert. E-Mails werden aber <b>wirklich versendet</b> – gekennzeichnet und ausschließlich
-            an das Postfach der vorführenden Person. Damit eignet er sich für Präsentationen und als
-            Funktionsprüfung nach einer Aktualisierung.<br>
+            Der Probelauf durchläuft die komplette Kette als <b>echten Vorgang</b>: Es entstehen echte
+            Einträge in den Listen, und es gehen echte E-Mails an die hinterlegten Empfänger.
+            Alles Angelegte trägt <b>[Probelauf]</b> im Titel und kann anschließend auf einen Klick
+            wieder gelöscht werden.<br>
             <b>Admins sind immer freigeschaltet.</b> Hier zusätzliche Personen eintragen.
           </div>
-          <div id="cfg-demoUser"></div>
+          <div id="cfg-probelaufUser"></div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <input type="email" id="cfg-input-demoUser" placeholder="name@dihag.com"
+            <input type="email" id="cfg-input-probelaufUser" placeholder="name@dihag.com"
               style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
-              onkeydown="if(event.key==='Enter')cfgAdd('demoUser')">
-            <button class="btn btn-outline btn-sm" onclick="cfgAdd('demoUser')">+ Hinzufügen</button>
+              onkeydown="if(event.key==='Enter')cfgAdd('probelaufUser')">
+            <button class="btn btn-outline btn-sm" onclick="cfgAdd('probelaufUser')">+ Hinzufügen</button>
           </div>
         </div>
       </div>

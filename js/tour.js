@@ -7,8 +7,9 @@
  * geht es weiter. Es gibt keine nachgebauten Bildschirme – jeder Klick löst genau
  * das aus, was er im Betrieb auslöst.
  *
- * Damit das gefahrlos geht, läuft die Führung im Vorführmodus (demo.js):
- * erfundene Daten, echter Mailversand an das eigene Postfach.
+ * Die Führung läuft im Probelauf (probelauf.js): Es entsteht ein echter Vorgang
+ * mit echten E-Mails. Alles trägt „[Probelauf]" im Titel und lässt sich hinterher
+ * über „Aufräumen" wieder entfernen.
  *
  * Fortschritt wird nicht über abgefangene Klicks erkannt, sondern über den
  * tatsächlichen Zustand (`erfuellt`). Dadurch ist es egal, auf welchem Weg man
@@ -45,12 +46,15 @@ function _tourDialog(teil) {
   return !!(h && h.textContent.includes(teil));
 }
 
-/** Das in der Vorführung erzeugte Regelwerk bzw. Konzept (nach Titel). */
+/** Titel des Probelauf-Vorgangs – gekennzeichnet, damit er überall erkennbar ist. */
+function _tourTitel() {
+  return (typeof probelaufTitel === 'function') ? probelaufTitel(TUT_BEISPIEL.titel) : TUT_BEISPIEL.titel;
+}
 function _tourRegelwerk() {
-  return (State.policies || []).find(p => p.title === TUT_BEISPIEL.titel) || null;
+  return (State.policies || []).find(p => p.title === _tourTitel()) || null;
 }
 function _tourKonzept() {
-  return (State.konzepte || []).find(k => k.title === TUT_BEISPIEL.titel) || null;
+  return (State.konzepte || []).find(k => k.title === _tourTitel()) || null;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -62,10 +66,10 @@ function tourSchritte() {
     {
       symbol: '🎬',
       titel: 'Los geht es',
-      text: `Ab hier bedienst du die <b>echte Anwendung</b> – nur mit erfundenen Daten.
-             Jeder Schritt wartet, bis du ihn wirklich ausgeführt hast.
-             Wenn es schnell gehen soll, erledigt <b>Vormachen</b> den Schritt für dich.`,
-      hinweis: 'Nichts wird in SharePoint gespeichert. E-Mails gehen als Test an dein eigenes Postfach.',
+      text: `Ab hier entsteht ein <b>echter Vorgang</b>: echte Einträge, echte E-Mails an die
+             hinterlegten Empfänger. Jeder Schritt wartet, bis du ihn wirklich ausgeführt hast;
+             wenn es schnell gehen soll, erledigt <b>Vormachen</b> ihn für dich.`,
+      hinweis: 'Alles trägt „[Probelauf]" im Titel. Über „🧹 Aufräumen" im Streifen unten verschwindet der Vorgang wieder.',
       ziel: null, erfuellt: null,
     },
     {
@@ -96,7 +100,7 @@ function tourSchritte() {
       erfuellt: (b) => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length > b,
       vormachen: () => {
         if (typeof _kEditing === 'undefined' || !_kEditing) return;
-        _kEditing.title = TUT_BEISPIEL.titel;
+        _kEditing.title = _tourTitel();
         _kEditing.regelwerkTyp = TUT_BEISPIEL.typ;
         _kEditing.kategorie = 'IT-Sicherheit';
         _kEditing.geltungsbereich = ['ALLE'];
@@ -112,10 +116,10 @@ function tourSchritte() {
     {
       symbol: '✉️',
       titel: 'Die Mail im Postfach ansehen',
-      text: `Die Geschäftsleitung wurde benachrichtigt – die Testmail liegt jetzt in <b>deinem</b>
-             Outlook-Postfach. Wechsle kurz dorthin: Dort stehen die Entscheidungs-Schaltflächen,
-             der <b>Anhang</b> mit dem Dokument und der Link auf die Datei <b>in SharePoint</b>.`,
-      hinweis: 'Genau das bekommen Geschäftsführung, Prüfer und Betriebsrat im Betrieb zu sehen.',
+      text: `Die Geschäftsleitung ist benachrichtigt – die Nachricht ist wirklich raus. Wechsle kurz
+             ins Postfach: Dort stehen die Entscheidungs-Schaltflächen, der <b>Anhang</b> mit dem
+             Dokument und der Link auf die Datei <b>in SharePoint</b>.`,
+      hinweis: 'Das ist keine Nachbildung – genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
       ziel: null, erfuellt: null,
     },
     {
@@ -136,9 +140,10 @@ function tourSchritte() {
     {
       symbol: '📄',
       titel: 'Aus dem Konzept wird ein Entwurf',
-      text: `Titel, Dokumentart, Geltungsbereich und Begründung sind übernommen. Ergänze, was das
-             Regelwerk braucht – und schick es mit „Zur Konformitätsprüfung →" weiter.`,
-      hinweis: 'Prüfer und Betriebsrat bekommen das Dokument als Anhang und als SharePoint-Link.',
+      text: `Titel, Dokumentart, Geltungsbereich und Begründung sind übernommen. Häng jetzt das
+             <b>Dokument</b> an (⬆ im Editor) und schick das Regelwerk mit
+             „Zur Konformitätsprüfung →" weiter.`,
+      hinweis: 'Das Dokument geht als Anhang mit und wird zusätzlich in SharePoint verlinkt – daran entscheiden Prüfer und Betriebsrat.',
       ziel: '.modal-footer .btn-primary',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Konformitätsprüfung'); },
       vormachen: () => {
@@ -148,7 +153,11 @@ function tourSchritte() {
         setTimeout(() => {
           if (typeof _editing !== 'undefined' && _editing) {
             _editing.kbrBetroffen = true;
-            _editing.pruefKonfig = { pruefer: [State.user.upn], schwelle: 'einer' };
+            if (!(_editing.pruefKonfig && _editing.pruefKonfig.pruefer.length)
+                && typeof getPruefer === 'function' && !getPruefer().length) {
+              // Keine Prüfer hinterlegt? Dann wenigstens an die vorführende Person.
+              _editing.pruefKonfig = { pruefer: [State.user.upn], schwelle: 'einer' };
+            }
           }
           savePolicy('Konformitätsprüfung');
         }, 400);
@@ -228,7 +237,7 @@ function tourSchritte() {
       titel: 'Durchlauf abgeschlossen',
       text: `Vom Konzept über Prüfung und Mitbestimmung bis zu Freigabe, Kenntnisnahme und
              Audit-Nachweis – alles an einer Stelle und lückenlos protokolliert.`,
-      hinweis: 'Der Selbsttest im Streifen unten spielt genau das automatisch durch und berichtet je Prüfpunkt.',
+      hinweis: 'Jetzt aufräumen? „🧹 Aufräumen" im Streifen unten löscht genau die Einträge dieses Probelaufs wieder.',
       ziel: null, erfuellt: null,
     },
   ];
@@ -238,13 +247,11 @@ function tourSchritte() {
    Steuerung
 ═══════════════════════════════════════════════════ */
 
-/** Führung starten. Ohne Vorführmodus zuerst dorthin wechseln. */
+/** Führung starten. Ohne laufenden Probelauf zuerst dorthin. */
 function tourStart(idx) {
-  if (typeof demoAktiv !== 'function' || !demoAktiv()) {
-    const frage = 'Die geführte Vorführung läuft im Vorführmodus mit erfundenen Daten.'
-      + '\n\nJetzt dorthin wechseln? Die Seite wird neu geladen.';
-    if (!confirm(frage)) return;
-    location.href = location.pathname + '?demo=1&tour=1';
+  // Ohne laufenden Probelauf zuerst erklären, was dabei entsteht.
+  if (typeof probelaufAktiv !== 'function' || !probelaufAktiv()) {
+    if (typeof probelaufStart === 'function') probelaufStart();
     return;
   }
   _tourListe = tourSchritte();

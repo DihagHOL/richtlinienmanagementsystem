@@ -493,6 +493,17 @@ body.demo-mode .main { padding-bottom: 64px; }
 .demo-mail-head { background: var(--c-bg); border-radius: 9px; padding: 9px 13px; font-size: .78rem; line-height: 1.65; margin-bottom: 12px; }
 .demo-mail-body { border: 1px solid var(--c-border); border-radius: 9px; padding: 14px; background: #fff; overflow-x: auto; }
 
+/* ── Probelauf: Warnkasten, Empfängertabelle, Zähler ── */
+.pl-warnung { background: #fff7ed; border: 1px solid var(--c-warn); border-radius: 9px; padding: 11px 14px;
+  font-size: .86rem; line-height: 1.6; color: #7c2d12; }
+.pl-warnung b { color: #b45309; }
+.pl-tabelle { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.pl-tabelle td { padding: 6px 0; border-bottom: 1px solid var(--c-border-2); vertical-align: top; }
+.pl-tabelle td:first-child { width: 45%; color: var(--c-muted); padding-right: 12px; }
+.pl-zaehler { font-size: .76rem; font-weight: 700; color: #92400e; background: #ffedd5;
+  border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.pl-zaehler-voll { background: var(--c-warn); color: #fff; }
+
 /* ── Geführte Vorführung: Ausschnitt-Maske + Sprechblase ── */
 .tour-mask { position: fixed; background: rgba(15,23,42,.62); z-index: 300; pointer-events: auto;
   backdrop-filter: saturate(.7); }

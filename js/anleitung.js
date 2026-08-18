@@ -59,23 +59,22 @@ function anleitungHtml() {
       <button class="btn btn-primary" onclick="startTutorial(0)">▶ Rundgang starten</button>
     </div>
 
-    <!-- Einstieg: echte Vorführung (nur für Freigeschaltete) -->
-    ${(typeof darfDemo === 'function' && darfDemo()) ? `
+    <!-- Einstieg: Probelauf mit echtem Vorgang (nur für Freigeschaltete) -->
+    ${(typeof darfProbelauf === 'function' && darfProbelauf()) ? `
     <div style="background:#fff7ed;border:1px solid var(--c-warn);border-radius:14px;
       padding:18px 22px;margin:0 0 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <div style="font-size:1.8rem;line-height:1">🧪</div>
       <div style="flex:1;min-width:240px">
-        <div style="font-weight:800;color:#b45309;margin-bottom:3px">Vorführ- und Testmodus</div>
-        <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">Derselbe Ablauf, aber in der
-          <b>echten Anwendung</b>: Du klickst die richtigen Schaltflächen, der Ablauf reagiert wirklich.
-          Die Daten sind erfunden und erreichen SharePoint nicht. E-Mails gehen als gekennzeichnete
-          Testnachricht an dein eigenes Postfach – mit dem Dokument im Anhang und dem Link auf die
-          Datei in SharePoint, genau wie im Betrieb. Eignet sich auch als Funktionsprüfung nach einer
-          Aktualisierung.</div>
+        <div style="font-weight:800;color:#b45309;margin-bottom:3px">Probelauf – ein echter Vorgang</div>
+        <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">Derselbe Weg, aber nicht
+          nachgestellt: Der Probelauf legt einen <b>echten</b> Vorgang an und schickt <b>echte</b>
+          E-Mails an die hinterlegten Empfänger – mit Dokument im Anhang und Fundstelle in SharePoint.
+          So sieht man, was im Betrieb tatsächlich passiert, und prüft die Kette gleich mit.
+          Alles trägt <b>[Probelauf]</b> im Titel und lässt sich hinterher auf einen Klick wieder löschen.</div>
         <div class="field-hint" style="margin-top:5px">Nur für freigeschaltete Personen
-          (Einstellungen → Vorführmodus).</div>
+          (Einstellungen → Probelauf).</div>
       </div>
-      <button class="btn btn-outline" onclick="demoStart()">🧪 Vorführung starten</button>
+      <button class="btn btn-outline" onclick="probelaufStart()">🧪 Probelauf starten</button>
     </div>` : ''}
 
     ${_aCard(`

@@ -807,6 +807,14 @@ async function spSaveAcknowledgement(a) {
   );
 }
 
+/** Bestätigung löschen – gebraucht, um einen Probelauf rückstandsfrei zu entfernen. */
+async function spDeleteAcknowledgement(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items/${id}`, token);
+}
+
 /* ═══════════════════════════════════════════════════
    ISMS-Dokumente (Quelle, nur lesen)
 ═══════════════════════════════════════════════════ */
