@@ -99,7 +99,7 @@ async function applyDeepLinkOrDefault() {
     const aktion = (params.get('aktion') || '').toLowerCase();
     if (typeof canReadTab === 'function' && !canReadTab('verwaltung')) {
       await switchView('meine');
-      toast('Für die Konzept-Prüfung fehlt dir der Zugriff auf das Regelwerk-Dashboard.');
+      toast('Für die Konzept-Prüfung fehlt Ihnen der Zugriff auf das Regelwerk Dashboard.');
       return;
     }
     if (typeof handleKonzeptMailAction === 'function' || typeof renderKonzeptCards === 'function') _adminMode = 'konzepte';
@@ -127,7 +127,7 @@ async function applyDeepLinkOrDefault() {
     const aktion = (params.get('aktion') || '').toLowerCase();
     if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
       await switchView('meine');
-      toast('Für die Bearbeitung fehlt dir der Zugriff auf das Regelwerk Dashboard.');
+      toast('Für die Bearbeitung fehlt Ihnen der Zugriff auf das Regelwerk Dashboard.');
       return;
     }
     if (typeof setAdminMode === 'function') setAdminMode('regelwerke');
@@ -141,7 +141,7 @@ async function applyDeepLinkOrDefault() {
                  || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
 
   if (ansicht === 'freigaben' || (ansicht === '' && canReview)) {
-    if (!canReview) { await switchView('meine'); toast('Diese Richtlinie liegt im Freigabe-Prozess – du bist dafür nicht berechtigt.'); return; }
+    if (!canReview) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
     await switchView('freigaben');
     if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     const aktion = (params.get('aktion') || '').toLowerCase();
@@ -149,7 +149,7 @@ async function applyDeepLinkOrDefault() {
   } else {
     await switchView('meine');
     if (State.policies.find(p => p.id === deepId)) openDetail(deepId);
-    else toast('Die verlinkte Richtlinie ist für dich aktuell nicht sichtbar.');
+    else toast('Das verlinkte Regelwerk ist für Sie aktuell nicht sichtbar.');
   }
 }
 
@@ -554,7 +554,7 @@ async function sendCertificate(policyId) {
   const when = (a && (a.abgeschlossenAm || a.gelesenAm)) || new Date().toISOString();
   try {
     const ok = await spSendMail(State.user.upn, `Teilnahmenachweis: ${p.title}`, certificateHtml(p, a, when));
-    if (ok) toast('Nachweis per Mail an dich gesendet ✓', 'success');
+    if (ok) toast('Nachweis per Mail an Sie gesendet ✓', 'success');
   } catch (e) {
     toast('Mail-Versand fehlgeschlagen: ' + e.message, 'error');
   }

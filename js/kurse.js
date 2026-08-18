@@ -94,7 +94,7 @@ function openCourse(id) {
         <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${memberBadge(st)}</div></div>
         <div class="ic-tags"><span class="ic-tag">Version ${esc(p.version)}</span>${p.quizErforderlich ? '<span class="ic-tag">📝 Wissenstest</span>' : ''}</div>
       </div>`;
-    }).join('') : emptyState('Keine für dich sichtbaren Richtlinien in diesem Kurs.')}</div>`;
+    }).join('') : emptyState('Keine für Sie sichtbaren Regelwerke in diesem Kurs.')}</div>`;
 }
 
 /* ── Admin: Kurs-Editor ── */
@@ -172,5 +172,5 @@ function renderKurseSetupHint() {
     <b>🎓 Kurse (Beta)</b> ist noch nicht eingerichtet. Lege dafür in SharePoint (Site <code>sites/IT</code>) eine Liste
     <b>„Kurse"</b> an mit den Spalten: <b>Beschreibung</b> (Mehrere Zeilen Text),
     <b>RichtlinienIds</b> (Mehrere Zeilen Text), <b>Status</b> (Auswahl: Entwurf / Veröffentlicht).
-    Danach kannst du hier Kurse anlegen.</div>`;
+    Danach können Sie hier Kurse anlegen.</div>`;
 }

@@ -467,7 +467,7 @@ async function renderFolderPicker() {
     : `<span class="field-hint">Bitte zuerst eine Bibliothek öffnen.</span>`;
   const versionShortcut = (_editing && _editing.dokumentDriveId && _editing.dokumentItemId)
     ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-         <span class="field-hint" style="flex:1">Es ist bereits ein Dokument zugeordnet (<b>${esc(_editing.dokumentName || '')}</b>). Du kannst die Datei als <b>neue Version</b> am bisherigen Speicherort ablegen — dann bleibt der Versionsverlauf erhalten.</span>
+         <span class="field-hint" style="flex:1">Es ist bereits ein Dokument zugeordnet (<b>${esc(_editing.dokumentName || '')}</b>). Sie können die Datei als <b>neue Version</b> am bisherigen Speicherort ablegen — dann bleibt der Versionsverlauf erhalten.</span>
          <button class="btn btn-success btn-sm" onclick="doUploadAsVersion()">↻ Als neue Version</button></div>`
     : '';
   body.innerHTML = `${versionShortcut}<div class="dp-crumbs">${crumbs}</div>
@@ -1031,7 +1031,7 @@ function renderPruefKonfigInner() {
   const global = (typeof getPruefer === 'function') ? getPruefer() : [];
   const gSchwelle = (typeof getKonformSchwelle === 'function') ? getKonformSchwelle() : 'alle';
   return `
-    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globalen</b> Prüfer/Schwelle aus den Einstellungen gelten. Trägst du hier Prüfer ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
+    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globalen</b> Prüfer/Schwelle aus den Einstellungen gelten. Tragen Sie hier Prüfer ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
     <div class="form-grid">
       <div class="form-group full">
         <label>Prüfer (E-Mails, kommagetrennt)</label>
@@ -1069,7 +1069,7 @@ function renderFreigabeKonfigInner() {
   const global = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
   const gSchwelle = (typeof getFreigabeSchwelle === 'function') ? getFreigabeSchwelle() : 'einer';
   return `
-    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globale</b> Geschäftsleitung/Schwelle aus den Einstellungen gilt. Trägst du hier Freigeber ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
+    <div class="field-hint" style="margin-bottom:8px">Leer lassen = die <b>globale</b> Geschäftsleitung/Schwelle aus den Einstellungen gilt. Tragen Sie hier Freigeber ein, gelten für dieses Regelwerk <b>ausschließlich diese</b>.</div>
     <div class="form-grid">
       <div class="form-group full">
         <label>Freigeber (E-Mails, kommagetrennt)</label>

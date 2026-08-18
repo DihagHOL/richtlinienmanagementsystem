@@ -121,8 +121,8 @@ ok(/await notifyKonzeptGF\(k\);\s*\n\s*konzeptVersandHinweis\(k\);/.test(kq),
 ok(/function konzeptWeiche/.test(kq), 'Nach der Annahme kommt eine Bestätigung');
 ok(/Der Regelwerk-Entwurf ist angelegt/.test(kq), 'Sie sagt, dass der Entwurf gespeichert ist');
 ok(/Alles klar/.test(kq), 'Für die Geschäftsleitung reicht ein Schließen-Knopf');
-ok(/const selbst = ko\.antragstellerUpn/.test(kq),
-  'Die Wahl erscheint nur, wenn Entscheider und Konzept-Autor dieselbe Person sind');
+ok(!/Direkt zur Konformitätsprüfung →<\/button>/.test(kq.slice(kq.indexOf('function konzeptWeiche'), kq.indexOf('function konzeptWeiche') + 2200)),
+  'Der Dialog der Geschäftsleitung enthält keine Weiche mehr');
 ok(/entscheidet, ob der Entwurf noch ausgearbeitet/.test(kq),
   'Sonst steht dort, dass die einreichende Person entscheidet');
 ok(/Entwurf bearbeiten/.test(kq) && /Direkt zur Konformitätsprüfung/.test(kq),
@@ -142,8 +142,8 @@ for (const fall of ['angenommen', 'zurueckgestellt', 'abgelehnt'])
   ok(new RegExp("notifyKonzeptErsteller\\(k, '" + fall + "'\\)").test(kq),
     `Auch bei „${fall}"`);
 ok(/antragstellerUpn/.test(kq), 'Empfänger ist die einreichende Person');
-ok(/an\.toLowerCase\(\) === String\(mich\)\.toLowerCase\(\)/.test(kq),
-  'Wer selbst entscheidet, schreibt sich nicht selbst an');
+ok(!/sich selbst nicht anschreiben/.test(kq),
+  'Die Info-Mail geht auch dann raus, wenn dieselbe Person entschieden hat');
 ok(/Begründung/.test(kq), 'Die Begründung steht in der Mail');
 
 /* ── Deep-Link aus der Info-Mail ── */

@@ -95,8 +95,8 @@ function tourSchritte() {
       symbol: '🎬',
       titel: 'Los geht es',
       text: `Ab hier entsteht ein <b>echter Vorgang</b>: echte Einträge, echte E-Mails an die
-             hinterlegten Empfänger. Jeder Schritt wartet, bis du ihn wirklich ausgeführt hast;
-             wenn es schnell gehen soll, erledigt <b>Vormachen</b> ihn für dich.`,
+             hinterlegten Empfänger. Jeder Schritt wartet, bis Sie ihn wirklich ausgeführt haben;
+             wenn es schnell gehen soll, erledigt <b>Vormachen</b> ihn für Sie.`,
       hinweis: 'Alles trägt „[Probelauf]" im Titel. Über „🧹 Aufräumen" im Streifen unten verschwindet der Vorgang wieder.',
       ziel: null, erfuellt: null,
     },
@@ -120,13 +120,17 @@ function tourSchritte() {
     },
     {
       symbol: '✍️',
-      titel: 'Ausfüllen und einreichen',
+      titel: 'Konzept ausfüllen',
       text: `Arbeitstitel, Dokumentart und Geltungsbereich sind Pflicht, dazu die Frage <i>Warum?</i>.
-             Optional ein <b>Anhang</b> mit der Skizze. Dann unten „Zur GF-Prüfung einreichen".`,
-      hinweis: '„Vormachen" hängt eine Skizze nach der Muster-Vorlage an – sie geht mit der Mail an die Geschäftsleitung.',
-      ziel: '.modal-footer .btn-primary',
-      basis: () => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length,
-      erfuellt: (b) => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length > b,
+             Dazu die Skizze als <b>Anhang</b> – daran liest die Geschäftsleitung, worum es geht.`,
+      hinweis: '„Vormachen" füllt das Formular aus und legt eine Skizze nach der Muster-Vorlage an.',
+      ziel: '.modal-body',
+      erfuellt: () => {
+        if (typeof _kEditing === 'undefined' || !_kEditing) return false;
+        const ko = _kEditing.konzept || {};
+        return !!(_kEditing.title && _kEditing.regelwerkTyp
+          && (_kEditing.geltungsbereich || []).length && ko.motivation);
+      },
       vormachen: async () => {
         if (typeof _kEditing === 'undefined' || !_kEditing) return;
         _kEditing.title = _tourTitel();
@@ -138,14 +142,23 @@ function tourSchritte() {
           'KI-Werkzeuge werden bereits genutzt – ohne Regeln drohen Datenabfluss und Compliance-Risiken.';
         _kEditing.konzept.skizze =
           'Zulässige Werkzeuge, Umgang mit Geschäftsgeheimnissen, Kennzeichnung KI-erzeugter Inhalte, Freigabewege.';
-        // Anhang wie im Betrieb mitschicken: Die Geschäftsleitung entscheidet
-        // anhand der Skizze, nicht anhand des Formulars allein.
+        // Anhang wie im Betrieb: Die Geschäftsleitung entscheidet anhand der Skizze.
         if (typeof probelaufDokument === 'function' && !_kEditing.dokumentItemId) {
           await probelaufDokument(_kEditing, 'konzept');
         }
         renderKonzeptEditor();
-        setTimeout(() => saveKonzept(true), 400);
       },
+    },
+    {
+      symbol: '📤',
+      titel: 'Zur GF-Prüfung einreichen',
+      text: `Jetzt unten auf „Zur GF-Prüfung einreichen". Damit geht die Nachricht an die
+             Geschäftsleitung – mit allen Angaben, dem Anhang und den Entscheidungs-Schaltflächen.`,
+      hinweis: 'Solange nicht entschieden ist, steht das Konzept im Dashboard mit dem Status „GF-Prüfung".',
+      ziel: '.modal-footer .btn-primary',
+      basis: () => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length,
+      erfuellt: (b) => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length > b,
+      vormachen: () => saveKonzept(true),
     },
     {
       symbol: '✉️',
@@ -406,7 +419,7 @@ function _tourZeichne() {
   const anteil = Math.round((_tourIdx / (n - 1)) * 100);
   const wartet = typeof s.erfuellt === 'function' && !_tourVorerf;
   const status = wartet
-    ? '<span class="tour-wartet"><i></i> wartet auf dich</span>'
+    ? '<span class="tour-wartet"><i></i> wartet auf Sie</span>'
     : (typeof s.erfuellt === 'function' ? '<span class="tour-ok">✓ erledigt</span>' : '');
 
   tip.className = 'tour-tip' + (s.ziel ? '' : ' tour-tip-mitte');

@@ -77,7 +77,7 @@ function _dokuSections() {
         <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt – das KI-Dashboard nutzt dieselbe Anmeldung.</li>
         <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
-        <li style="${li}"><b>Was du siehst, hängt von deiner Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
+        <li style="${li}"><b>Was sichtbar ist, hängt von der Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
         <li style="${li}"><b>„↻ Aktualisieren"</b> (oben rechts) lädt frische Daten, falls etwas nicht aktuell wirkt.</li>
       </ul>
       <div style="${hint}">💡 Diese Dokumentation ist die Langfassung. Für den 3-Minuten-Schnellstart gibt es den Reiter <b>„Anleitung"</b>.</div>`),
@@ -101,7 +101,7 @@ function _dokuSections() {
         <li style="${li}">Eine Regelwerk anklicken → das Dokument wird angezeigt.</li>
         <li style="${li}"><b>Kenntnisnahme:</b> lesen, „Ich habe gelesen und verstanden" ankreuzen, <b>„Kenntnisnahme bestätigen"</b>. Das Häkchen wird erst nach kurzer Lesezeit bzw. nach „In SharePoint öffnen" aktiv.</li>
         <li style="${li}"><b>Wissenstest</b> (falls erforderlich): „Wissenstest starten" → Fragen beantworten. Nicht bestanden? Einfach erneut versuchen.</li>
-        <li style="${li}"><b>Teilnahmenachweis</b> kann per Mail an dich selbst gesendet werden.</li>
+        <li style="${li}"><b>Teilnahmenachweis</b> kann per Mail an die eigene Adresse gesendet werden.</li>
       </ol>
       <div style="${hint}">ℹ️ Manche Regelwerke müssen <b>regelmäßig</b> erneut bestätigt werden (z. B. jährlich) und erscheinen dann automatisch wieder als „offen". Auch eine <b>neue Version</b> setzt die Bestätigung zurück.</div>`,
       'ISO 27001 Klausel 7.3 (Bewusstsein), A.6.3 (Informationssicherheitsbewusstsein &amp; -schulung), A.5.1 (Regelwerke); NIS2 Art. 21(2g) (Cyberhygiene &amp; Schulung).'),
@@ -109,7 +109,7 @@ function _dokuSections() {
     sec('vorschlag', 'Änderung vorschlagen', 'all', `
       <p style="margin:0;line-height:1.55">Fehler oder Verbesserung entdeckt? In der geöffneten Regelwerk oben rechts auf <b>„✏️ Änderung vorschlagen"</b>, kurz <b>was</b> und <b>warum</b> beschreiben, absenden.</p>
       <ul style="${ol}">
-        <li style="${li}">Der Vorschlag enthält einen <b>Direktlink zum Dokument</b> und geht per Mail an die Verantwortlichen; du erhältst eine <b>Kopie</b>.</li>
+        <li style="${li}">Der Vorschlag enthält einen <b>Direktlink zum Dokument</b> und geht per Mail an die Verantwortlichen; Sie erhalten eine <b>Kopie</b>.</li>
         <li style="${li}">Unter <b>„Weitere Empfänger"</b> lassen sich zusätzliche interne Adressen ergänzen.</li>
         <li style="${li}">Alle Vorschläge landen im Reiter <b>„Vorschläge"</b> zur Nachverfolgung.</li>
       </ul>`),
@@ -178,7 +178,7 @@ function _dokuSections() {
         <li style="${li}"><b>Konzept anlegen</b> (Button „💡 Regelwerk-Konzept"): Arbeitstitel, <b>Typ</b> und <b>Geltungsbereich</b> sind <b style="color:var(--c-primary)">Pflicht</b>, dazu Kategorie, Priorität, <b>Warum?</b> (Motivation) und optional <b>Wie könnte es aussehen?</b> (Skizze). Ein <b>Anhang</b> (Word/PDF, z. B. ein erster Entwurf) kann beigelegt werden – die Muster-Vorlage ist verlinkt.</li>
         <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons. Anschließend bestätigt ein Hinweis, <b>an wen</b> die Nachricht gegangen ist und was als Nächstes passiert.</li>
         <li style="${li}"><b>Entscheidung</b> – direkt aus der Mail oder in der App: <b>✓ Annehmen</b>, <b>⏸ Zurückstellen</b> (mit Notiz) oder <b>✗ Ablehnen</b> (Begründung ist Pflicht).</li>
-        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Die Geschäftsleitung bekommt nur die Bestätigung – sie muss nichts weiter veranlassen.</li>
+        <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Die Geschäftsleitung bekommt nur die Bestätigung, dass der Entwurf angelegt ist – sie muss nichts weiter veranlassen.</li>
         <li style="${li}"><b>Rückmeldung an die einreichende Person:</b> Bei jeder Entscheidung – angenommen, zurückgestellt oder abgelehnt – geht automatisch eine Info-Mail an den Antragsteller, mit Entscheider, Datum und Begründung. Bei Annahme enthält sie die Frage <b>„Wie soll es weitergehen?"</b> mit zwei Schaltflächen: <b>Entwurf bearbeiten</b> (Dokument, Zielgruppe, Wissenstest, Mitbestimmung ergänzen) oder <b>direkt zur Konformitätsprüfung</b>. Diese Entscheidung liegt bewusst bei der Person, die das Konzept geschrieben hat.</li>
       </ol>
       <div style="${hint}">📬 Empfänger der Prüf-Mail ist die <b>Geschäftsleitung</b> aus <b>Einstellungen → „Geschäftsleitung"</b>. Nur diese Personen können über Konzepte entscheiden.</div>`,
@@ -186,7 +186,7 @@ function _dokuSections() {
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
       <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
-      <p style="margin:0 0 8px;line-height:1.5">Oben umschaltbar: <b>👤 Mir zugewiesen</b> (nur Vorgänge, für die du zuständiger Prüfer/Freigeber bist – deine To-dos) oder <b>🗂 Alle Vorgänge</b> (Gesamtübersicht aller laufenden Freigaben). Standard ist „Mir zugewiesen", sobald es etwas für dich gibt. Die Abschnitte (Konformitätsprüfung · Mitbestimmung · Freigabe) lassen sich per Klick auf die Überschrift <b>ein-/ausklappen</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.5">Oben umschaltbar: <b>👤 Mir zugewiesen</b> (nur Vorgänge, für die Sie zuständiger Prüfer/Freigeber sind – Ihre To-dos) oder <b>🗂 Alle Vorgänge</b> (Gesamtübersicht aller laufenden Freigaben). Standard ist „Mir zugewiesen", sobald es etwas für Sie gibt. Die Abschnitte (Konformitätsprüfung · Mitbestimmung · Freigabe) lassen sich per Klick auf die Überschrift <b>ein-/ausklappen</b>.</p>
       <div style="${h3}">Die Status einer Regelwerk</div>
       ${tbl([
         ['Entwurf', 'In Bearbeitung durch die Administration; noch nicht im Prüf-/Freigabeprozess.'],
@@ -421,7 +421,7 @@ function _dokuSections() {
     sec('faq', 'Häufige Fragen & Hilfe', 'all', `
       <ul style="${ol}">
         <li style="${li}"><b>Etwas wirkt nicht aktuell?</b> „↻ Aktualisieren" oben rechts.</li>
-        <li style="${li}"><b>Eine Regelwerk ist nicht sichtbar?</b> Sie ist evtl. noch nicht veröffentlicht oder deiner Rolle/Zielgruppe nicht zugeordnet.</li>
+        <li style="${li}"><b>Eine Regelwerk ist nicht sichtbar?</b> Es ist evtl. noch nicht veröffentlicht oder Ihrer Rolle/Zielgruppe nicht zugeordnet.</li>
         <li style="${li}"><b>„Fehlende Spalten"-Warnung (Admin)?</b> In der SharePoint-Liste „Richtlinien" (technischer Listenname) fehlt eine Spalte (z. B. NormbezugJson, PruefKonfigJson, FreigabeKonfigJson). Anlegen als „Mehrere Zeilen Text", danach „↻ Aktualisieren".</li>
         <li style="${li}"><b>Bearbeiten schlägt fehl?</b> Das Bearbeiten von ISMS-Dokumenten setzt SharePoint-Schreibrechte auf der ISMS-Site voraus (Anzeige geht trotzdem).</li>
         <li style="${li}"><b>Fehler bleibt bestehen?</b> Seite neu laden; sonst an IT/Compliance wenden.</li>
@@ -454,7 +454,7 @@ function dokumentationHtml() {
       <h2 style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">Dokumentation &amp; Benutzerhandbuch
         <button class="btn btn-outline btn-sm" onclick="dokuPrint()" title="Als PDF drucken">🖨 Drucken / PDF</button>
       </h2>
-      <p class="view-desc">Vollständige Anleitung zum Regelwerk-Management – von der Kenntnisnahme bis zu Konformitätsprüfung, Freigabe, ISMS-Abdeckung und Fälligkeiten. Welche Abschnitte für dich relevant sind, zeigen die farbigen Rollen-Marker. Kurzfassung: Reiter <a href="#" onclick="event.preventDefault();switchView('anleitung')" style="color:var(--c-primary);font-weight:600">„Anleitung"</a>.</p>
+      <p class="view-desc">Vollständige Anleitung zum Regelwerk-Management – von der Kenntnisnahme bis zu Konformitätsprüfung, Freigabe, ISMS-Abdeckung und Fälligkeiten. Welche Abschnitte für Sie relevant sind, zeigen die farbigen Rollen-Marker. Kurzfassung: Reiter <a href="#" onclick="event.preventDefault();switchView('anleitung')" style="color:var(--c-primary);font-weight:600">„Anleitung"</a>.</p>
     </div>
     <div class="doku-grid">
       <nav class="doku-toc">

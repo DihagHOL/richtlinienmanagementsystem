@@ -42,8 +42,8 @@ function anleitungHtml() {
     <div class="view-header" style="margin-bottom:18px">
       <h2>Anleitung &amp; Kurz-Schulung</h2>
       <p class="view-desc">In wenigen Minuten erklärt, wie das Regelwerk-Management und das
-        integrierte KI-Dashboard genutzt werden. Such dir den Abschnitt, der zu deiner Rolle passt –
-        welche Bereiche du siehst, hängt von deinen Rechten ab.</p>
+        integrierte KI-Dashboard genutzt werden. Suchen Sie sich den Abschnitt, der zu Ihrer Rolle passt –
+        welche Bereiche sichtbar sind, hängt von Ihren Rechten ab.</p>
     </div>
 
     <!-- Einstieg: Probelauf mit echtem Vorgang (nur für Freigeschaltete) -->
@@ -82,7 +82,7 @@ function anleitungHtml() {
     ${_aCard(`
       <h2 style="${h2}">1. Regelwerke lesen &amp; bestätigen ${_aBadge('Für alle', 'all')}</h2>
       <ol style="padding-left:20px;margin:10px 0 0;color:var(--c-text)">
-        <li style="${liStyle}">Reiter <b>„Meine Regelwerke“</b> öffnen – oben siehst du deine Quote
+        <li style="${liStyle}">Reiter <b>„Meine Regelwerke“</b> öffnen – oben sehen Sie Ihre Quote
           (zugewiesen / offen / abgeschlossen).</li>
         <li style="${liStyle}">Eine Regelwerk anklicken → das Dokument wird angezeigt.</li>
         <li style="${liStyle}"><b>Kenntnisnahme:</b> kurz lesen, dann „Ich habe gelesen und verstanden“
@@ -90,7 +90,7 @@ function anleitungHtml() {
           bzw. nach „In SharePoint öffnen“ aktiv.)</li>
         <li style="${liStyle}"><b>Wissenstest</b> (falls erforderlich): „Wissenstest starten“ →
           Fragen beantworten. Nicht bestanden? Einfach erneut versuchen.</li>
-        <li style="${liStyle}">Zum Schluss kannst du dir einen <b>Teilnahmenachweis per Mail</b> an dich
+        <li style="${liStyle}">Zum Schluss können Sie sich einen <b>Teilnahmenachweis per Mail</b> an sich
           selbst senden.</li>
       </ol>
       <div style="margin-top:12px;font-size:.85rem;color:var(--c-muted)">
@@ -101,7 +101,7 @@ function anleitungHtml() {
       <p style="margin:0;line-height:1.55;color:var(--c-text)">Fehler oder Verbesserung entdeckt?
         In der geöffneten Regelwerk oben rechts auf <b>„✏️ Änderung vorschlagen“</b> klicken,
         kurz <b>was</b> und <b>warum</b> beschreiben, absenden. Der Vorschlag enthält einen
-        <b>Direktlink zum Dokument</b>, geht per Mail an die Verantwortlichen (du bekommst eine
+        <b>Direktlink zum Dokument</b>, geht per Mail an die Verantwortlichen (Sie bekommen eine
         <b>Kopie</b>) und landet im Reiter <b>„Vorschläge“</b> zur Nachverfolgung. Im Dialog können
         unter <b>„Weitere Empfänger“</b> zusätzliche interne Adressen ergänzt werden.</p>
 
@@ -113,14 +113,14 @@ function anleitungHtml() {
     ${_aCard(`
       <h2 style="${h2}">2. KI-Systeme beantragen (KI-Dashboard) ${_aBadge('Für alle', 'all')}</h2>
       <p style="margin:8px 0 10px;line-height:1.55;color:var(--c-text)">Über <b>„KI-Dashboard“</b>
-        (linke Leiste) kommst du in den KI-Governance-Bereich. Jeder kann einen Antrag stellen, wenn
+        (linke Leiste) gelangen Sie in den KI-Governance-Bereich. Jeder kann einen Antrag stellen, wenn
         ein neues KI-System eingesetzt werden soll.</p>
       <ol style="padding-left:20px;margin:0;color:var(--c-text)">
         <li style="${liStyle}"><b>„Neuer Antrag“</b> → Formular gemäß KI-Regelwerk (CO-10-01) ausfüllen.
           KI-Regelwerk und Verhaltenskodex sind oben direkt verlinkt.</li>
         <li style="${liStyle}">Absenden → das KI-Koordinierungsgremium wird automatisch informiert.</li>
         <li style="${liStyle}">Status jederzeit unter <b>„Anträge“</b>. Bei einer Rückfrage des Gremiums
-          kannst du dort direkt antworten.</li>
+          können Sie dort direkt antworten.</li>
       </ol>`)}
 
     <!-- 3. Gremium / Genehmiger -->

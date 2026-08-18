@@ -444,7 +444,7 @@ async function konzeptDecide(id, decision) {
   }
 
   // decision === 'angenommen'
-  const ok = await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das du anschließend mit einem Dokument versiehst und in die Konformitätsprüfung schickst.',
+  const ok = await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das anschließend mit einem Dokument versehen und in die Konformitätsprüfung gegeben wird.',
     { title: 'Konzept annehmen', okLabel: 'Annehmen & Regelwerk anlegen' });
   if (!ok) return;
   try {
@@ -584,11 +584,6 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
 function konzeptWeiche(k, rwId) {
   const p = (State.policies || []).find(x => String(x.id) === String(rwId));
   const ko = k.konzept || {};
-  const ich = State.user ? String(State.user.upn).toLowerCase() : '';
-  // Hat dieselbe Person eingereicht und entschieden, wäre eine Mail an sich
-  // selbst sinnlos – dann führt der Knopf direkt in den Entwurf.
-  const selbst = ko.antragstellerUpn && String(ko.antragstellerUpn).toLowerCase() === ich;
-
   openModal(`
     <div class="modal-header">
       <h3>Konzept angenommen</h3>
@@ -599,17 +594,13 @@ function konzeptWeiche(k, rwId) {
         <b>Der Regelwerk-Entwurf ist angelegt.</b> Titel, Dokumentart, Geltungsbereich und die
         Begründung sind aus dem Konzept übernommen${p && p.dokumentName ? `, das Dokument <b>${esc(p.dokumentName)}</b> ist als Startdatei hinterlegt` : ''}.
       </div>
-      <p style="margin:14px 0 0;line-height:1.6">${selbst
-        ? 'Wie es weitergeht, entscheidest du: den Entwurf noch ausarbeiten oder ihn direkt in die Konformitätsprüfung geben.'
-        : `${ko.antragstellerName ? `<b>${esc(ko.antragstellerName)}</b> wurde` : 'Die einreichende Person wurde'}
-           per E-Mail informiert und entscheidet, ob der Entwurf noch ausgearbeitet oder direkt in die
-           Konformitätsprüfung gegeben wird.`}</p>
+      <p style="margin:14px 0 0;line-height:1.6">
+        ${ko.antragstellerName ? `<b>${esc(ko.antragstellerName)}</b> wurde` : 'Die einreichende Person wurde'}
+        per E-Mail informiert und entscheidet, ob der Entwurf noch ausgearbeitet oder direkt in die
+        Konformitätsprüfung gegeben wird.</p>
     </div>
     <div class="modal-footer">
-      ${selbst
-        ? `<button class="btn btn-outline" onclick="closeModal();konzeptDirektZurPruefung('${esc(rwId)}')">Direkt zur Konformitätsprüfung →</button>
-           <button class="btn btn-primary" onclick="closeModal();openPolicyFromKonzept('${esc(rwId)}')">Entwurf bearbeiten</button>`
-        : '<button class="btn btn-primary" onclick="closeModal()">Alles klar</button>'}
+      <button class="btn btn-primary" onclick="closeModal()">Alles klar</button>
     </div>`);
 }
 
@@ -633,15 +624,14 @@ async function konzeptDirektZurPruefung(rwId) {
 /**
  * Die einreichende Person über die Entscheidung informieren.
  * Wer ein Konzept einreicht, soll nicht im Dashboard nachsehen müssen, was
- * daraus geworden ist.
+ * daraus geworden ist. Die Mail geht auch dann raus, wenn dieselbe Person
+ * entschieden hat – in ihr steckt die Frage, wie es mit dem Entwurf weitergeht,
+ * und die gehört zur einreichenden Person.
  */
 async function notifyKonzeptErsteller(k, entscheidung) {
   const ko = k.konzept || {};
   const an = ko.antragstellerUpn || '';
   if (!an) return;                                  // niemand hinterlegt – nichts zu tun
-  const mich = State.user ? State.user.upn : '';
-  if (an.toLowerCase() === String(mich).toLowerCase()) return;   // sich selbst nicht anschreiben
-
   const texte = {
     angenommen: ['Konzept angenommen', 'Das Konzept wurde angenommen. Daraus ist ein Regelwerk-Entwurf entstanden, der jetzt ausgearbeitet und in die Konformitätsprüfung gegeben wird.', '#16a34a'],
     zurueckgestellt: ['Konzept zurückgestellt', 'Das Konzept wurde vorerst zurückgestellt.', '#64748b'],

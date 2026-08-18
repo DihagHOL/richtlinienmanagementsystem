@@ -84,7 +84,7 @@ function renderEinstellungen() {
         <div class="card-header"><h2>Mitbestimmung (KBR / Betriebsräte)</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">
-            Mailadressen für die Mitbestimmungsprüfung. Markierst du im Richtlinien-Editor den
+            Mailadressen für die Mitbestimmungsprüfung. Markieren Sie im Regelwerk-Editor den
             <b>Konzernbetriebsrat</b> oder den <b>Betriebsrat eines Werks</b> als betroffen, geht die
             Richtlinie beim Einreichen zur Konformitätsprüfung automatisch (mit Dokument) an die hier
             hinterlegte Adresse. Adressen dürfen auf Gruppengesellschafts-Domains liegen (z. B. ewa-guss.de).
@@ -174,7 +174,7 @@ function renderEinstellungen() {
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Mitarbeiter-Rollen (manuell)</h2></div>
         <div class="card-body">
-          <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch — hier kannst du einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
+          <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch — hier können Sie einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
           <div id="cfg-userroles"></div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <input type="email" id="cfg-input-ur" placeholder="name@dihag.com"

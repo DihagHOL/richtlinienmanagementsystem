@@ -32,7 +32,7 @@ async function initGovernance() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       Governance-Board konnte nicht geladen werden: ${esc(e.message)}<br>
       Bitte prüfen, ob <code>sites/ArbeitsplatzLegal</code> erreichbar ist, der Ordner
-      „${esc(GOV.folderPath)}" existiert und dein Konto darauf Zugriff hat.</div>`;
+      „${esc(GOV.folderPath)}" existiert und Ihr Konto darauf Zugriff hat.</div>`;
   }
 }
 

@@ -63,7 +63,7 @@ async function initIsmsDocs() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       ISMS-Dokumente konnten nicht geladen werden: ${esc(e.message)}<br>
       Bitte prüfen, ob die ISMS-Site <code>sites/ISMS</code> erreichbar ist
-      und dein Konto darauf Zugriff hat.</div>`;
+      und Ihr Konto darauf Zugriff hat.</div>`;
   }
 }
 
@@ -996,7 +996,7 @@ async function sendProposal(keepOpen) {
       : (/\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr)
           ? '. Nicht in die Liste geschrieben – Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge").'
           : '. Nicht in die Liste geschrieben.');
-    toast((stored ? 'Vorschlag gesendet ✓ (Kopie an dich)' : 'Vorschlag per E-Mail gesendet ✓ (Kopie an dich)') + suffix
+    toast((stored ? 'Vorschlag gesendet ✓ (Kopie an Sie)' : 'Vorschlag per E-Mail gesendet ✓ (Kopie an Sie)') + suffix
       + (keepOpen ? ' – weiteren Vorschlag möglich.' : ''), 'success');
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');

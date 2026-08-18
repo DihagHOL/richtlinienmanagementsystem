@@ -25,7 +25,7 @@ async function pruefeFremdaenderung(p, aktion) {
   const wann = (typeof fmtDateTime === 'function') ? fmtDateTime(meta.modifiedAt) : meta.modifiedAt;
   const weiter = await uiConfirm(
     `Dieses Regelwerk wurde zwischenzeitlich${wer} geändert (${wann}). ` +
-    `Wenn du jetzt ${aktion || 'speicherst'}, überschreibst du diese Änderungen. ` +
+    `Wenn Sie jetzt ${aktion || 'speichern'}, überschreiben Sie diese Änderungen. ` +
     `Empfehlung: abbrechen, neu laden und die Änderungen ansehen.`,
     { title: 'Zwischenzeitlich geändert', okLabel: 'Trotzdem überschreiben', cancelLabel: 'Abbrechen', danger: true });
   if (!weiter) {
@@ -97,11 +97,11 @@ function renderFreigaben() {
   const freiList  = eigen ? meineFrei  : inFreigabe;
 
   const toggle = (istPruefer || istGL) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-    <button class="btn btn-sm ${eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('meine')" title="Nur Vorgänge, für die du zuständig bist">👤 Mir zugewiesen (${meineCount})</button>
+    <button class="btn btn-sm ${eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('meine')" title="Nur Vorgänge, für die Sie zuständig sind">👤 Mir zugewiesen (${meineCount})</button>
     <button class="btn btn-sm ${!eigen ? 'btn-primary' : 'btn-outline'}" onclick="setFreigabenScope('alle')" title="Alle laufenden Vorgänge (Gesamtübersicht)">🗂 Alle Vorgänge (${alleCount})</button>
   </div>` : '';
 
-  const leer = (was) => emptyState(eigen ? `Aktuell ist dir nichts ${was} zugewiesen.` : `Aktuell nichts ${was}.`, '✓');
+  const leer = (was) => emptyState(eigen ? `Aktuell ist Ihnen nichts ${was} zugewiesen.` : `Aktuell nichts ${was}.`, '✓');
 
   let html = prozess + toggle;
   if (istPruefer) {
@@ -116,7 +116,7 @@ function renderFreigaben() {
     html += secBlock('frei', '2 · Freigabe (Geschäftsleitung)', freiList.length,
       freiList.length ? freiList.map(p => freigabeCardHtml(p)).join('') : leer('zur Freigabe'));
   }
-  if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Du bist weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
+  if (!istPruefer && !istGL) html += `<div class="col-warning" style="display:block">Sie sind weder als Prüfer noch als Geschäftsleitung hinterlegt (Einstellungen).</div>`;
   list.innerHTML = html;
 }
 
@@ -138,7 +138,7 @@ function setFreigabenScope(s) {
 /** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
 function focusPolicyCard(id) {
   const el = document.getElementById('fg-' + id);
-  if (!el) { toast('Diese Richtlinie ist gerade nicht in deiner Freigabe-Liste (evtl. schon bearbeitet oder veröffentlicht).'); return; }
+  if (!el) { toast('Dieses Regelwerk ist gerade nicht in Ihrer Freigabe-Liste (evtl. schon bearbeitet oder veröffentlicht).'); return; }
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   el.classList.add('fg-highlight');
   setTimeout(() => el.classList.remove('fg-highlight'), 4500);
@@ -198,7 +198,7 @@ function pruefCardHtml(p) {
       <div style="flex:1"></div>
       ${kannPruefen ? `
         <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Nicht konform</button>
-        <button class="btn btn-success btn-sm" onclick="markKonform('${p.id}',true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (du)' : 'Konform'}</button>` : ''}
+        <button class="btn btn-success btn-sm" onclick="markKonform('${p.id}',true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (Sie)' : 'Konform'}</button>` : ''}
     </div>
   </div>`;
 }
@@ -240,7 +240,7 @@ function freigabeCardHtml(p) {
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
-      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (du)' : '✓ Freigeben'}</button>` : ''}
+      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (Sie)' : '✓ Freigeben'}</button>` : ''}
     </div>
   </div>`;
 }

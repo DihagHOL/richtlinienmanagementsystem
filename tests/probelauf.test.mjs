@@ -226,11 +226,11 @@ ok(/legt einen echten Vorgang an und versendet echte/.test(quelle), 'Der Selbstt
 /* ── 9) Schritte der geführten Vorführung ── */
 run('globalThis.__s = tourSchritte();');
 const schritte = ctx.__s;
-ok(schritte.length >= 12, `Mindestens zwölf Schritte (ist ${schritte.length})`);
+ok(schritte.length >= 14, `Mindestens vierzehn Schritte (ist ${schritte.length})`);
 ok(schritte.every(s => s.titel && s.text && s.symbol), 'Jeder Schritt hat Titel, Text und Symbol');
 const titel = schritte.map(s => s.titel).join(' | ');
-for (const wort of ['Dashboard', 'Konzept', 'Postfach', 'Entwurf', 'Konformitätsprüfung',
-  'Mitbestimmung', 'Freigabe', 'Kenntnisnahme', 'Audit'])
+for (const wort of ['Dashboard', 'Konzept ausfüllen', 'GF-Prüfung einreichen', 'Postfach', 'Entwurf',
+  'Konformitätsprüfung', 'Mitbestimmung', 'Freigabe', 'Kenntnisnahme', 'Audit'])
   ok(titel.includes(wort), `Die Vorführung deckt ab: ${wort}`);
 const alle = schritte.map(s => s.text + ' ' + (s.hinweis || '')).join(' ');
 ok(/echter Vorgang/.test(alle), 'Sie sagt gleich zu Beginn, dass es echt ist');
@@ -238,7 +238,13 @@ ok(/Aufräumen/.test(alle), 'Und weist auf das Aufräumen hin');
 ok(/Dokument/.test(alle), 'Das Dokument kommt vor');
 
 const mit = schritte.filter(s => typeof s.erfuellt === 'function');
-ok(mit.length >= 9, `Die meisten Schritte warten auf eine echte Aktion (${mit.length})`);
+ok(mit.length >= 11, `Die meisten Schritte warten auf eine echte Aktion (${mit.length})`);
+// Ausfüllen und Einreichen sind zwei getrennt entscheidbare Schritte
+const iAus = schritte.findIndex(x => /ausfüllen/i.test(x.titel));
+const iEin = schritte.findIndex(x => /einreichen/i.test(x.titel));
+ok(iAus >= 0 && iEin === iAus + 1, 'Ausfüllen und Einreichen sind zwei aufeinanderfolgende Schritte');
+ok(typeof schritte[iAus].erfuellt === 'function' && typeof schritte[iEin].erfuellt === 'function',
+  'Beide warten je für sich auf die Ausführung');
 let geworfen = 0;
 for (const s of mit) { try { s.erfuellt(0); } catch (e) { geworfen++; } }
 ok(geworfen === 0, 'Keine Bedingung wirft bei leerem Zustand');

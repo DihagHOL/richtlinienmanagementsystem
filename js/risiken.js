@@ -87,14 +87,14 @@ async function initRisiken() {
       <b>Risiko-Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Risiken" liegt bewusst auf der <b>ISMS-Site</b>
         <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
-        ersten Zugriff automatisch an – dafür braucht dein Konto dort das Recht, Listen zu erstellen.</div>
+        ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
         <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Risiken</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
       <div style="margin-top:8px;line-height:1.9">${colList}</div>
       <div style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">
         Interne Namen exakt übernehmen (Groß-/Kleinschreibung, keine Umlaute). „Mehrere Zeilen Text" = einfacher Text.
-        Alternativ: ein Admin gibt deinem Konto auf der ISMS-Site das Recht „Listen erstellen" – dann legt die App die Liste selbst an.</div>
+        Alternativ: ein Admin gibt Ihrem Konto auf der ISMS-Site das Recht „Listen erstellen" – dann legt die App die Liste selbst an.</div>
     </div>`;
     return;
   }
