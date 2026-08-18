@@ -140,7 +140,10 @@ function _dokuSections() {
       <p style="margin:0 0 8px;line-height:1.55">Im Reiter <b>Regelwerk Dashboard</b> steht über der Liste
       der Abschnitt <b>„So wird ein Regelwerk eingeführt"</b>: eingeklappt die sieben Stationen als Kette
       (Konzept → Konzept-Entscheidung → Entwurf → Prüfung → Mitbestimmung → Freigabe → Veröffentlicht),
-      aufgeklappt je Station kurz beschrieben, was zu tun ist und wer entscheidet.</p>
+      aufgeklappt je Station kurz beschrieben, was zu tun ist und wer entscheidet. Zwei Besonderheiten
+      sind dort markiert: Die <b>Mitbestimmung</b> ist gestrichelt dargestellt, weil sie nur stattfindet,
+      wenn im Editor ein Betriebsrat als betroffen angekreuzt ist; das Zeichen <b>⇄</b> zwischen
+      Mitbestimmung und Freigabe steht dafür, dass sich deren Reihenfolge je Regelwerk umstellen lässt.</p>
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Regelwerk Dashboard"</b>. Oben stehen drei Wege, ein Regelwerk anzulegen:</p>
       <ul style="${ol}">
         <li style="${li}"><b>„+ Neues Regelwerk"</b> – fragt zuerst, ob es sich um ein <b>komplett neues</b> Regelwerk handelt. Wenn ja, muss zuerst ein <b>Konzept an die Geschäftsleitung</b> (siehe „Regelwerk-Konzepte"). „Direkt anlegen" ist nur für <b>bestehende</b> Dokumente / die Migration gedacht. Im selben Dialog liegt der Link zur <b>Muster-Vorlage „Erstellung von Konzernregelungen"</b>.</li>

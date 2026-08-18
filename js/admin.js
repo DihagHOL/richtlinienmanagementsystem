@@ -212,30 +212,42 @@ function policyMatchesQuery(p, q) {
    der Liste: eingeklappt eine Zeile, aufgeklappt sechs Schritte mit dem, was
    jeweils zu tun ist und wer entscheidet. Die Wahl merkt sich der Browser. */
 
+/* Die Stationen als Objekte: Zwei Eigenheiten des Ablaufs lassen sich sonst
+   nicht abbilden – die Mitbestimmung findet nur statt, wenn der Betriebsrat
+   wirklich zu beteiligen ist, und ihre Reihenfolge zur Freigabe ist je
+   Regelwerk umstellbar. Beides stand bisher nur im Fließtext. */
 const RW_SCHRITTE = [
-  ['Konzept', 'Idee einreichen',
-   'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>, dazu optional eine Skizze als Anhang. Einreichen geht an die Geschäftsleitung.',
-   'Sie'],
-  ['Konzept-Entscheidung', 'Annehmen oder nicht',
-   'Die Geschäftsleitung entscheidet über Priorität und Umsetzung – <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> (mit Begründung), direkt aus der E-Mail. Bei Annahme entsteht automatisch ein Regelwerk-Entwurf; die einreichende Person wird informiert und entscheidet, wie es weitergeht.',
-   'GL'],
-  ['Entwurf', 'Ausarbeiten',
-   'Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen. Wer schon alles beisammen hat, überspringt das und gibt den Entwurf direkt weiter.',
-   'Sie'],
-  ['Prüfung', 'Konformität',
-   'Mit „Zur Konformitätsprüfung" geht das Regelwerk an die hinterlegten Prüfer. Sie entscheiden aus der E-Mail heraus; „nicht konform" verlangt eine Begründung.',
-   'Prüfer'],
-  ['Mitbestimmung', 'Betriebsrat',
-   'Ist die Mitbestimmung betroffen, geht es an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke. Die Reihenfolge zu „Freigabe" lässt sich je Regelwerk tauschen.',
-   'KBR / BR'],
-  ['Freigabe', 'Geschäftsleitung',
-   'Zum Schluss gibt die Geschäftsleitung frei. In der E-Mail steht, wer vorher bereits zugestimmt hat.',
-   'GL'],
-  ['Veröffentlicht', 'Kenntnisnahme',
-   'Das Regelwerk erscheint bei allen Mitarbeitenden der Zielgruppe. Erinnerungen laufen automatisch; die Quote und die Änderungshistorie – vom Konzept an – sind der Nachweis fürs Audit.',
-   'alle'],
+  {
+    kurz: 'Konzept', was: 'Idee einreichen', wer: 'Sie',
+    text: 'Neue Regelwerke starten als Konzept: Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>, dazu optional eine Skizze als Anhang. Einreichen geht an die Geschäftsleitung.',
+  },
+  {
+    kurz: 'Konzept-Entscheidung', was: 'Annehmen oder nicht', wer: 'GL',
+    text: 'Die Geschäftsleitung entscheidet über Priorität und Umsetzung – <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> (mit Begründung), direkt aus der E-Mail. Bei Annahme entsteht automatisch ein Regelwerk-Entwurf; die einreichende Person wird informiert und entscheidet, wie es weitergeht.',
+  },
+  {
+    kurz: 'Entwurf', was: 'Ausarbeiten', wer: 'Sie',
+    text: 'Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen. Wer schon alles beisammen hat, überspringt das und gibt den Entwurf direkt weiter.',
+  },
+  {
+    kurz: 'Prüfung', was: 'Konformität', wer: 'Prüfer',
+    text: 'Mit „Zur Konformitätsprüfung" geht das Regelwerk an die hinterlegten Prüfer. Sie entscheiden aus der E-Mail heraus; „nicht konform" verlangt eine Begründung.',
+  },
+  {
+    kurz: 'Mitbestimmung', was: 'Betriebsrat', wer: 'KBR / BR',
+    bedingt: true, tauschbar: true,
+    text: 'Diese Station gibt es <b>nur, wenn die Mitbestimmung betroffen ist</b>. Ob das so ist, legen Sie im Editor des Regelwerks fest: Konzernbetriebsrat und/oder Betriebsräte einzelner Werke ankreuzen. Ist nichts angekreuzt, entfällt der Schritt und es geht direkt zur Freigabe.',
+  },
+  {
+    kurz: 'Freigabe', was: 'Geschäftsleitung', wer: 'GL',
+    tauschbar: true,
+    text: 'Zum Schluss gibt die Geschäftsleitung frei. In der E-Mail steht, wer vorher bereits zugestimmt hat.',
+  },
+  {
+    kurz: 'Veröffentlicht', was: 'Kenntnisnahme', wer: 'Zielgruppe',
+    text: 'Das Regelwerk erscheint <b>nur bei den ausgewählten Mitarbeitenden</b> – bestimmt durch Zielgruppe (Rollen/Abteilungen) und Geltungsbereich (Standorte). Erinnerungen laufen automatisch; die Quote und die Änderungshistorie – vom Konzept an – sind der Nachweis fürs Audit.',
+  },
 ];
-
 
 function rwSchritteOffen() {
   try { return localStorage.getItem('rms_rw_schritte') === 'auf'; } catch (e) { return false; }
@@ -250,8 +262,18 @@ function renderRwSchritte() {
   const host = document.getElementById('rw-schritte');
   if (!host) return;
   const auf = rwSchritteOffen();
-  const kette = RW_SCHRITTE.map(([kurz], i) =>
-    `<span class="rw-chip"><b>${i + 1}</b> ${esc(kurz)}</span>`).join('<span class="rw-pfeil">→</span>');
+
+  // Kette: bedingte Station gestrichelt, tauschbare Nachbarn mit ⇄ statt →
+  const kette = RW_SCHRITTE.map((s, i) => {
+    const trenner = i === 0 ? '' : (RW_SCHRITTE[i - 1].tauschbar && s.tauschbar
+      ? '<span class="rw-pfeil" title="Reihenfolge je Regelwerk umstellbar">⇄</span>'
+      : '<span class="rw-pfeil">→</span>');
+    return trenner + `<span class="rw-chip${s.bedingt ? ' rw-chip-bedingt' : ''}"
+      title="${s.bedingt ? 'Nur wenn die Mitbestimmung betroffen ist' : esc(s.was)}"><b>${i + 1}</b> ${esc(s.kurz)}</span>`;
+  }).join('');
+
+  const marke = (text, art) =>
+    `<span class="rw-marke rw-marke-${art}">${text}</span>`;
 
   host.innerHTML = `
     <div class="rw-schritte${auf ? ' auf' : ''}">
@@ -261,14 +283,19 @@ function renderRwSchritte() {
         <span class="rw-kette">${kette}</span>
       </button>
       ${auf ? `<ol class="rw-liste">
-        ${RW_SCHRITTE.map(([kurz, was, text, wer]) => `
+        ${RW_SCHRITTE.map(s => `
           <li>
-            <div class="rw-zeile"><b>${esc(kurz)} – ${esc(was)}</b>
-              <span class="rw-wer">${esc(wer)}</span></div>
-            <div class="rw-text">${text}</div>
+            <div class="rw-zeile"><b>${esc(s.kurz)} – ${esc(s.was)}</b>
+              ${s.bedingt ? marke('nur wenn betroffen', 'bedingt') : ''}
+              ${s.tauschbar ? marke('⇄ Reihenfolge umstellbar', 'tausch') : ''}
+              <span class="rw-wer">${esc(s.wer)}</span></div>
+            <div class="rw-text">${s.text}</div>
           </li>`).join('')}
       </ol>
-      <div class="rw-fuss">Ausführlich im Reiter <b>Dokumentation</b>.</div>` : ''}
+      <div class="rw-fuss">
+        <b>⇄</b> Mitbestimmung und Freigabe lassen sich je Regelwerk tauschen – im Editor unter
+        „Freigabe/Mitbestimmung". <b>Gestrichelt</b> = Station findet nur statt, wenn ein Betriebsrat
+        zu beteiligen ist. Ausführlich im Reiter <b>Dokumentation</b>.</div>` : ''}
     </div>`;
 }
 

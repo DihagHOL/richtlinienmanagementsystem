@@ -177,16 +177,34 @@ for (const datei of ['js/anleitung.js', 'js/dokumentation.js', 'js/admin.js']) {
   ok(!/Rundgang/.test(t), `Keine Rundgang-Erwähnung mehr in ${datei}`);
 }
 
-/* ── Einführungs-Schritte: Sie-Form ── */
+/* ── Einführungs-Schritte im Dashboard ── */
 const adm2 = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
-const rollen = [...adm2.matchAll(/^\s+'(du|Sie|Prüfer|KBR \/ BR|GL|alle)'\],$/gm)].map(m => m[1]);
-ok(rollen.length === 7, `Sieben Stationen mit Zuständigkeit (${rollen.length})`);
-ok(rollen.join('|') === 'Sie|GL|Sie|Prüfer|KBR / BR|GL|alle',
-  `Die Zuständigkeiten stehen in der richtigen Reihenfolge (${rollen.join(' | ')})`);
-ok(/'Konzept-Entscheidung', 'Annehmen oder nicht'/.test(adm2),
-  'Die Entscheidung der Geschäftsleitung ist eine eigene Station');
-ok(!rollen.includes('du'), 'Keine Du-Form mehr bei den Zuständigkeiten');
-ok(rollen.filter(r => r === 'Sie').length === 2, 'Zweimal „Sie" (Konzept und Entwurf)');
+const stationen = [...adm2.matchAll(/kurz: '([^']+)', was: '([^']+)', wer: '([^']+)'/g)]
+  .map(m => ({ kurz: m[1], was: m[2], wer: m[3] }));
+ok(stationen.length === 7, `Sieben Stationen (${stationen.length})`);
+ok(stationen.map(s => s.kurz).join(' → ') ===
+  'Konzept → Konzept-Entscheidung → Entwurf → Prüfung → Mitbestimmung → Freigabe → Veröffentlicht',
+  'In der richtigen Reihenfolge');
+ok(stationen.map(s => s.wer).join('|') === 'Sie|GL|Sie|Prüfer|KBR / BR|GL|Zielgruppe',
+  `Zuständigkeiten stimmen (${stationen.map(s => s.wer).join(' | ')})`);
+ok(!stationen.some(s => s.wer === 'du'), 'Keine Du-Form bei den Zuständigkeiten');
+ok(stationen[6].wer === 'Zielgruppe',
+  'Veröffentlicht betrifft die ausgewählte Zielgruppe, nicht pauschal „alle"');
+ok(/nur bei den ausgewählten Mitarbeitenden/.test(adm2), 'Das steht auch im Text');
+
+/* Mitbestimmung ist bedingt, Reihenfolge zur Freigabe umstellbar */
+ok(/kurz: 'Mitbestimmung'[\s\S]{0,120}bedingt: true/.test(adm2), 'Mitbestimmung ist als bedingt markiert');
+ok(/kurz: 'Mitbestimmung'[\s\S]{0,120}tauschbar: true/.test(adm2), 'Und als tauschbar');
+ok(/kurz: 'Freigabe'[\s\S]{0,120}tauschbar: true/.test(adm2), 'Die Freigabe ebenso');
+ok((adm2.match(/bedingt: true/g) || []).length === 1, 'Nur diese eine Station ist bedingt');
+ok(/rw-chip-bedingt/.test(adm2), 'Bedingte Stationen werden gestrichelt dargestellt');
+ok(/Reihenfolge je Regelwerk umstellbar/.test(adm2), 'Der Tausch-Pfeil trägt eine Erklärung');
+ok(/nur, wenn die Mitbestimmung betroffen ist/.test(adm2),
+  'Der Text sagt, wovon die Station abhängt');
+ok(/Konzernbetriebsrat und\/oder Betriebsräte einzelner Werke ankreuzen/.test(adm2),
+  'Und wo man das festlegt');
+ok(/\.rw-marke-bedingt/.test(fs.readFileSync(ROOT + '/css/style.css', 'utf8')),
+  'Die Marken sind formatiert');
 
 console.log(`\n${fail? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

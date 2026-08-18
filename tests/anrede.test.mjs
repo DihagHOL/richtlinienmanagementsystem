@@ -41,7 +41,7 @@ const proben = [
   ['js/freigaben.js', /Sie sind weder als Prüfer/, 'Der Hinweis in den Freigaben siezt'],
   ['js/anleitung.js', /Suchen Sie sich den Abschnitt/, 'Die Anleitung siezt'],
   ['js/app.js', /Nachweis per Mail an Sie gesendet/, 'Die Meldungen siezen'],
-  ['js/admin.js', /'Sie'\],/, 'Die Zuständigkeiten im Dashboard stehen auf „Sie"'],
+  ['js/admin.js', /wer: 'Sie'/, 'Die Zuständigkeiten im Dashboard stehen auf „Sie"'],
 ];
 for (const [datei, muster, text] of proben)
   ok(muster.test(fs.readFileSync(path.join(ROOT, datei), 'utf8')), text);
