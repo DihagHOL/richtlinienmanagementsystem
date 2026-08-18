@@ -193,6 +193,11 @@ function _dokuSections() {
 
     sec('freigabe', 'Konformitätsprüfung & Freigabe', 'review', `
       <p style="margin:0 0 8px;line-height:1.5">Ablauf: <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b> Alles im Reiter <b>„Freigaben"</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.5">Jede Workflow-Mail enthält den Block
+      <b>„Bereits freigegeben (zur Info)"</b>: Er listet alle bisherigen Zustimmungen –
+      beginnend mit der <b>Konzeptfreigabe (GL)</b>, dann Konformitätsprüfung, Mitbestimmung und
+      zuletzt die <b>Freigabe des Regelwerks (GL)</b>. Wer als Nächstes entscheidet, sieht damit ohne
+      Rückfrage, wer den Vorgang schon mitgetragen hat.</p>
       <p style="margin:0 0 8px;line-height:1.5">Oben umschaltbar: <b>👤 Mir zugewiesen</b> (nur Vorgänge, für die Sie zuständiger Prüfer/Freigeber sind – Ihre To-dos) oder <b>🗂 Alle Vorgänge</b> (Gesamtübersicht aller laufenden Freigaben). Standard ist „Mir zugewiesen", sobald es etwas für Sie gibt. Die Abschnitte (Konformitätsprüfung · Mitbestimmung · Freigabe) lassen sich per Klick auf die Überschrift <b>ein-/ausklappen</b>.</p>
       <div style="${h3}">Die Status einer Regelwerk</div>
       ${tbl([

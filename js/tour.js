@@ -60,7 +60,14 @@ function tourKnopfText() {
    Hilfen für die Schrittdefinitionen
 ═══════════════════════════════════════════════════ */
 
-function _tourEl(sel) { try { return document.querySelector(sel); } catch (e) { return null; } }
+/** Ziel eines Schritts auflösen. `ziel` darf ein Selektor oder eine Funktion sein,
+ *  die einen Selektor liefert – nötig für Karten, deren Id erst zur Laufzeit feststeht. */
+function _tourEl(ziel) {
+  try {
+    const sel = (typeof ziel === 'function') ? ziel() : ziel;
+    return sel ? document.querySelector(sel) : null;
+  } catch (e) { return null; }
+}
 
 /** Ist die genannte Ansicht gerade offen? */
 function _tourAnsicht(view) {
@@ -83,6 +90,24 @@ function _tourRegelwerk() {
 }
 function _tourKonzept() {
   return (State.konzepte || []).find(k => k.title === _tourTitel()) || null;
+}
+
+/**
+ * Freigaben-Reiter für einen Schritt vorbereiten: den passenden Abschnitt
+ * aufklappen und die Karte des Vorgangs ansteuern. Ohne das müsste man in einer
+ * Vorführung erst selbst suchen, welcher der drei Abschnitte gemeint ist.
+ */
+function _tourFreigabenAbschnitt(key) {
+  const p = _tourRegelwerk();
+  if (!p) return;
+  if (typeof fgOpenSection === 'function') fgOpenSection(key);
+  if (typeof focusPolicyCard === 'function') focusPolicyCard(p.id);
+}
+
+/** Selektor auf die Karte des Vorgangs im Freigaben-Reiter. */
+function _tourKarteSel(inner) {
+  const p = _tourRegelwerk();
+  return p ? `#fg-${p.id}${inner ? ' ' + inner : ''}` : null;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -228,10 +253,12 @@ function tourSchritte() {
     {
       symbol: '✅',
       titel: 'Konformitätsprüfung entscheiden',
-      text: `Setzen Sie das Regelwerk auf <b>Konform</b>. „Nicht konform" verlangt immer eine
-             Begründung – so bleibt nachvollziehbar, warum etwas zurückging.`,
+      text: `Die Karte des Vorgangs ist aufgeklappt und hervorgehoben. Setzen Sie das Regelwerk auf
+             <b>Konform</b>. „Nicht konform" verlangt immer eine Begründung – so bleibt
+             nachvollziehbar, warum etwas zurückging.`,
       hinweis: 'Im Betrieb entscheiden die hinterlegten Prüfer, wahlweise direkt aus der E-Mail.',
-      ziel: '#view-freigaben .btn-success',
+      beim: () => _tourFreigabenAbschnitt('pruef'),
+      ziel: () => _tourKarteSel('.btn-success'),
       basis: () => { const p = _tourRegelwerk(); return p ? (p.konformitaet || []).length : 0; },
       erfuellt: (b) => { const p = _tourRegelwerk(); return !!(p && (p.konformitaet || []).length > (b || 0)); },
       vormachen: () => { const p = _tourRegelwerk(); if (p) markKonform(p.id, true); },
@@ -242,7 +269,8 @@ function tourSchritte() {
       text: `Ist die Mitbestimmung betroffen, geht es an den Konzernbetriebsrat bzw. die
              Betriebsräte der gewählten Werke – mit demselben Dokument.`,
       hinweis: 'Diese Stufe ist der Grund für den stufenweisen Rollout.',
-      ziel: '#view-freigaben',
+      beim: () => _tourFreigabenAbschnitt('mb'),
+      ziel: () => _tourKarteSel('.btn-success'),
       erfuellt: () => {
         const p = _tourRegelwerk();
         return !p || !mitbestimmungPflicht(p) || mitbestimmungBestaetigt(p);
@@ -257,7 +285,8 @@ function tourSchritte() {
       titel: 'Freigabe durch die Geschäftsleitung',
       text: `In der Freigabe-Karte steht, wer vorher schon zugestimmt hat.
              Mit der Freigabe wird das Regelwerk veröffentlicht.`,
-      ziel: '#view-freigaben',
+      beim: () => _tourFreigabenAbschnitt('frei'),
+      ziel: () => _tourKarteSel('.btn-success'),
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Veröffentlicht'); },
       vormachen: () => { const p = _tourRegelwerk(); if (p) markFreigabe(p.id); },
     },
@@ -329,6 +358,8 @@ function _tourGehe(i) {
   if (!_tourListe) _tourListe = tourSchritte();
   _tourIdx = Math.max(0, Math.min(_tourListe.length - 1, i));
   const s = _tourListe[_tourIdx];
+  // Vorbereitung: den passenden Abschnitt aufklappen, die Karte ansteuern …
+  if (typeof s.beim === 'function') { try { s.beim(); } catch (e) { console.warn('[tour]', e.message); } }
   _tourBasis = (typeof s.basis === 'function') ? s.basis() : null;
   // Schon erledigt? Dann trotzdem stehen bleiben und den Weiter-Knopf anbieten.
   _tourVorerf = false;

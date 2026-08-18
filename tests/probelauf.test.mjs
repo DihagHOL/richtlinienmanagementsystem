@@ -318,6 +318,27 @@ ok(ctx.__nachAufraeumen === 0, 'Aufräumen verwirft den Stand mit (der Vorgang i
 ok(/function probelaufBannerAktualisieren/.test(quelle), 'Der Streifen wird beim Schließen nachgeführt');
 ok(/pl-tour-neu/.test(quelle), 'Es gibt einen Knopf, um von vorn zu beginnen');
 
+/* ── 10c) Die Führung steuert im Freigaben-Reiter den richtigen Abschnitt an ── */
+ok(/function _tourFreigabenAbschnitt/.test(tour), 'Es gibt eine Vorbereitung je Abschnitt');
+ok(/beim: \(\) => _tourFreigabenAbschnitt\('pruef'\)/.test(tour), 'Konformitätsprüfung klappt „pruef" auf');
+ok(/beim: \(\) => _tourFreigabenAbschnitt\('mb'\)/.test(tour), 'Mitbestimmung klappt „mb" auf');
+ok(/beim: \(\) => _tourFreigabenAbschnitt\('frei'\)/.test(tour), 'Freigabe klappt „frei" auf');
+ok(/focusPolicyCard\(p\.id\)/.test(tour), 'Die Karte des Vorgangs wird angesteuert');
+ok((tour.match(/ziel: \(\) => _tourKarteSel\('\.btn-success'\)/g) || []).length === 3,
+  'Alle drei Entscheidungsschritte zielen auf die Schaltfläche dieser Karte');
+ok(/typeof s\.beim === 'function'/.test(tour), 'Der Einstiegs-Hook wird beim Schrittwechsel ausgeführt');
+ok(/typeof ziel === 'function'/.test(tour), 'Ziele dürfen zur Laufzeit berechnet werden');
+
+const fg2 = lies('js/freigaben.js');
+ok(/function fgOpenSection/.test(fg2), 'Ein Abschnitt lässt sich gezielt aufklappen');
+ok(/if \(!el && _freigabenScope !== 'alle'\)/.test(fg2),
+  'Steht der Vorgang unter „Alle Vorgänge", wird dorthin gewechselt statt zu meckern');
+
+/* Konzeptfreigabe von der Freigabe des Regelwerks unterscheiden */
+ok(/Konzeptfreigabe \(GL\)/.test(fg2), 'Die Konzeptfreigabe steht in „Bereits freigegeben"');
+ok(/Freigabe des Regelwerks \(GL\)/.test(fg2), 'Die spätere Freigabe heißt eindeutig anders');
+ok(/aktion === 'Konzept freigegeben'/.test(fg2), 'Quelle ist der Historien-Eintrag');
+
 /* ── 11) Einbindung ── */
 const html = lies('index.html');
 const reihen = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(x => x[1]);

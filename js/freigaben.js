@@ -129,6 +129,11 @@ function fgToggleSection(key) {
   if (caret) caret.textContent = _fgSecOpen[key] ? '▾' : '▸';
 }
 
+/** Abschnitt gezielt aufklappen (ohne Umschalten) – für Deep-Links und die Führung. */
+function fgOpenSection(key) {
+  if (_fgSecOpen[key] === false) fgToggleSection(key);
+}
+
 /** Umschalten zwischen „mir zugewiesen" und „alle Vorgänge" im Freigaben-Reiter. */
 function setFreigabenScope(s) {
   _freigabenScope = (s === 'alle') ? 'alle' : 'meine';
@@ -137,7 +142,13 @@ function setFreigabenScope(s) {
 
 /** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
 function focusPolicyCard(id) {
-  const el = document.getElementById('fg-' + id);
+  let el = document.getElementById('fg-' + id);
+  // Steht der Vorgang unter „Alle Vorgänge" statt „Mir zugewiesen"? Dann dorthin
+  // wechseln, statt zu behaupten, es gäbe ihn nicht.
+  if (!el && _freigabenScope !== 'alle') {
+    setFreigabenScope('alle');
+    el = document.getElementById('fg-' + id);
+  }
   if (!el) { toast('Dieses Regelwerk ist gerade nicht in Ihrer Freigabe-Liste (evtl. schon bearbeitet oder veröffentlicht).'); return; }
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   el.classList.add('fg-highlight');
@@ -478,12 +489,17 @@ async function notifyMitbestimmung(p) {
 function _wfApprovalsHtml(p) {
   const d = (iso) => (typeof fmtDate === 'function' && iso) ? ' – ' + fmtDate(iso) : '';
   const rows = [];
+  // Die Freigabe des Konzepts ist die erste Zustimmung im Ablauf – sie gehört
+  // in diese Übersicht, aber klar unterscheidbar von der späteren Freigabe des
+  // fertigen Regelwerks. Quelle ist die Änderungshistorie.
+  const konz = (p.historie || []).find(h => h.aktion === 'Konzept freigegeben');
+  if (konz) rows.push(`✓ Konzeptfreigabe (GL): <b>${esc(konz.name || konz.upn)}</b>${d(konz.datum)}`);
   (p.konformitaet || []).filter(v => v.entscheidung === 'konform').forEach(v =>
     rows.push(`✓ Konformitätsprüfung: <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
   if (p.mitbestimmung && p.mitbestimmung.konform)
     rows.push(`✓ Mitbestimmung: <b>${esc(p.mitbestimmung.name || p.mitbestimmung.upn)}</b>${d(p.mitbestimmung.datum)}`);
   (p.freigaben || []).forEach(v =>
-    rows.push(`✓ Freigabe (GL): <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
+    rows.push(`✓ Freigabe des Regelwerks (GL): <b>${esc(v.name || v.upn)}</b>${d(v.datum)}`));
   if (!rows.length) return '';
   return `<div style="margin:14px 0;padding:10px 14px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 8px 8px 0;font-size:13px;color:#14532d">
     <b>Bereits freigegeben (zur Info):</b><br>${rows.join('<br>')}</div>`;
