@@ -23,7 +23,7 @@ const html = lies('index.html');
 const fn = sp.slice(sp.indexOf('Dokumente des Managementsystems laden'), sp.indexOf('async function spGetIsmsItemFields'));
 ok(!/iso\[\\s_-\]\*27001/i.test(fn) && !/wantRe/.test(fn), 'Kein fester ISO-27001-Filter mehr');
 ok(/ordner = \(root\.value \|\| \[\]\)\.filter\(it => it\.folder/.test(fn), 'Alle Ordner der obersten Ebene');
-ok(/for \(const f of ordner\) await _ismsCollectFolder/.test(fn), 'Jeder davon wird eingesammelt');
+ok(/_parallel\(ordner\.map\(f => \(\) => _ismsCollectFolder/.test(fn), 'Jeder davon wird eingesammelt – gleichzeitig');
 ok(/localeCompare\(b\.name \|\| '', 'de'\)/.test(fn), 'In verständlicher Reihenfolge');
 ok(/@param \{string\} \[folderName\]/.test(fn), 'Eine Einschränkung auf einen Ordner bleibt möglich');
 

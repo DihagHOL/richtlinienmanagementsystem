@@ -23,7 +23,13 @@ async function initGovernance() {
   try {
     _govDocs = [];
     _govLoading = true;
-    const final = await spGetGovDocs((partial) => { _govDocs = partial.slice(); renderGovernanceDocs(); });
+    let zeichnenGeplant = 0;   // Zwischenstände gebündelt zeichnen (siehe ismsdocs.js)
+    const final = await spGetGovDocs((partial) => {
+      _govDocs = partial.slice();
+      if (zeichnenGeplant) return;
+      zeichnenGeplant = setTimeout(() => { zeichnenGeplant = 0; renderGovernanceDocs(); }, 250);
+    });
+    if (zeichnenGeplant) clearTimeout(zeichnenGeplant);
     _govDocs = final;
     _govLoading = false;
     renderGovernanceDocs();

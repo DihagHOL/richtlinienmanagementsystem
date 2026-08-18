@@ -49,13 +49,19 @@ async function initIsmsDocs() {
     if ((_ismsCols || []).some(c => c.type === 'person')) _ensureIsmsMembers();   // Owner-Auswahl vorladen
     _ismsDocs = [];
     _ismsLoading = true;
-    const final = await spGetIsmsDocs(null, (partial) => {   // nach jeder Seite rendern
+    // Zwischenstände zeigen, aber gebündelt: Jede geladene Seite neu zu zeichnen
+    // hieß, die ganze Tabelle samt Baum wieder aufzubauen – bei vielen Ordnern
+    // kostet das mehr Zeit als das Laden selbst.
+    let zeichnenGeplant = 0;
+    const final = await spGetIsmsDocs(null, (partial) => {
       _ismsDocs = partial.slice();
-            renderIsmsDocs();
+      if (zeichnenGeplant) return;
+      zeichnenGeplant = setTimeout(() => { zeichnenGeplant = 0; renderIsmsDocs(); }, 250);
     });
+    if (zeichnenGeplant) clearTimeout(zeichnenGeplant);
     _ismsDocs = final;
     _ismsLoading = false;
-        renderIsmsDocs();
+    renderIsmsDocs();
   } catch (e) {
     _ismsLoading = false;
     mount.innerHTML = `<div class="col-warning" style="display:block">

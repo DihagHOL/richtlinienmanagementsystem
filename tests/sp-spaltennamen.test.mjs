@@ -48,7 +48,8 @@ ok(sctx.__fb === 'Typ2', 'Fallback: ohne Spalteninfo bleibt erwarteter Name „T
 const shp = fs.readFileSync(ROOT + '/js/sharepoint.js','utf8');
 ok(/const actual = _policyFieldName\(k\);/.test(shp), 'spSavePolicy: Schreib-Keys → interne Namen aufgelöst');
 ok(/if \(!all\.Typ2\)\s*delete all\.Typ2;/.test(shp), 'spSavePolicy: Typ2-Omit auf all-Ebene (Regelwerke)');
-ok(/_sp\.policyColumns = \(cols\.value/.test(shp), 'spInit füllt _sp.policyColumns');
+ok(/_sp\.policyColumns = \(pol\.value/.test(shp), '_spSpaltenLaden füllt _sp.policyColumns');
+ok(/_spSpaltenLaden\(token\);/.test(shp), 'und spInit stößt das an');
 
 console.log(`\n${fail? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

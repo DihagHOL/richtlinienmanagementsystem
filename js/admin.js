@@ -299,6 +299,15 @@ function renderRwSchritte() {
     </div>`;
 }
 
+/* Die Spaltenliste kommt beim Start nebenher (sharepoint.js). Trifft sie erst
+   ein, wenn das Dashboard schon offen ist, wird einmal neu gezeichnet – sonst
+   fehlte die Warnung über fehlende SharePoint-Spalten. */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('rms-spalten-geladen', () => {
+    if (document.getElementById('view-verwaltung')?.classList.contains('active')) renderAdminList();
+  });
+}
+
 function renderAdminList() {
   renderRwSchritte();
   const list = document.getElementById('list-admin');

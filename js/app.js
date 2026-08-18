@@ -71,9 +71,17 @@ async function bootApp(account) {
   State.user = { upn: account.username, name: account.name || account.username };
   try {
     await spInit();
+    // Regelwerke, Bestätigungen und die eigene Abteilung hängen weder an der
+    // Konfiguration noch an den Rollen. Sie laufen deshalb schon los, während
+    // beides noch ermittelt wird – das spart beim Start eine ganze Runde.
+    // Fehler werden hier bewusst verschluckt: Bleibt State.loaded aus, lädt die
+    // Startansicht gleich noch einmal und zeigt die Meldung an gewohnter Stelle.
+    const daten = reloadData({ rendern: false }).catch(() => {});
+    if (typeof spGetMyDepartment === 'function') spGetMyDepartment().catch(() => '');
     await loadRuntimeAccessConfig();
     State.myRoles = await getCurrentUserRoles();   // vor initRoleNav: Reiter-Rechte können an Rollen hängen
     initRoleNav();
+    await daten;
     // Probelauf (?probelauf=1): erst nach der Anmeldung, nur für Freigeschaltete.
     // Er ersetzt nichts – die Anwendung läuft danach ganz normal weiter.
     if (typeof probelaufGewuenscht === 'function' && probelaufGewuenscht()
@@ -153,7 +161,10 @@ async function applyDeepLinkOrDefault() {
   }
 }
 
-async function reloadData() {
+/** Regelwerke und eigene Bestätigungen holen.
+ *  @param {{rendern?: boolean}} [opt] rendern:false lädt nur (Vorab-Laden beim Start). */
+async function reloadData(opt) {
+  const rendern = !opt || opt.rendern !== false;
   const [policies, acks] = await Promise.all([
     spGetPolicies(),
     spGetAcknowledgements(State.user.upn),
@@ -164,7 +175,7 @@ async function reloadData() {
   State.acks = acks;
   State.loaded = true;
   State.loadedAt = Date.now();
-  renderMeine();
+  if (rendern) renderMeine();
 }
 
 async function reloadAcks() {

@@ -44,6 +44,8 @@ const _sp = {
   policyFields: new Set(['Title']),
   policyColumns: [],   // [{name, displayName}] – für Auflösung interner Namen (SharePoint benennt interne Namen bei Umbenennung NICHT um)
   ackFields: new Set(['Title']),
+  spaltenPromise: null,   // Spalten-Abfrage laeuft neben dem Datenladen (siehe _spSpaltenLaden)
+  spaltenFertig: false,   // erst dann taugt die Fehlende-Spalten-Warnung
   ready: false,
 };
 
@@ -131,6 +133,7 @@ function _policyFieldName(expected) {
  * solange das Sammelfeld `DatenJson` fehlt – mit ihm sind sie entbehrlich.
  */
 function spMissingPolicyColumns() {
+  if (!_sp.spaltenFertig && !_sp.policyColumns.length) return [];   // noch unbekannt – nichts behaupten
   const fehlt = POLICY_COLUMNS.filter(c => !_policyHasColumn(c.name));
   if (!_policyHasColumn('DatenJson')) {
     fehlt.push(...POLICY_OPTIONAL_COLUMNS.filter(c => !_policyHasColumn(c.name)));
@@ -201,6 +204,7 @@ const ACK_COLUMNS = [
 
 /** Welche erwarteten Spalten fehlen in der Liste „Bestaetigungen"? */
 function spMissingAckColumns() {
+  if (!_sp.spaltenFertig && _sp.ackFields.size <= 1) return [];   // noch unbekannt – nichts behaupten
   return ACK_COLUMNS.filter(c => !_sp.ackFields.has(c.name));
 }
 
@@ -208,43 +212,121 @@ function spMissingAckColumns() {
    Initialisierung
 ═══════════════════════════════════════════════════ */
 
+/* Die Ermittlung von Site-, Listen- und Bibliotheks-IDs kostete sechs Anfragen
+   nacheinander – und das doppelt: Regelwerke und Bestätigungen werden parallel
+   geladen, beide riefen spInit() auf, bevor `ready` stand. Jetzt teilen sich
+   alle Aufrufer einen Lauf, die voneinander unabhängigen Abfragen laufen
+   gleichzeitig, und die IDs überdauern im Browser: Sie ändern sich nur, wenn
+   jemand eine Liste neu anlegt – dann meldet Graph 404 und die App ermittelt
+   sie einmal neu (_spNeuErmitteln). */
+const SP_ID_CACHE = 'rms_sp_ids_v1';
+const SP_ID_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function _spCacheLesen() {
+  try {
+    const c = JSON.parse(localStorage.getItem(SP_ID_CACHE) || 'null');
+    if (!c || c.host !== SP.appSiteHost) return null;         // andere Site → nicht verwendbar
+    if (!c.appSiteId || !c.policyListId || !c.ackListId) return null;
+    if (Date.now() - (c.zeit || 0) > SP_ID_CACHE_TTL) return null;
+    return c;
+  } catch (e) { return null; }
+}
+
+function _spCacheSchreiben() {
+  try {
+    localStorage.setItem(SP_ID_CACHE, JSON.stringify({
+      host: SP.appSiteHost, zeit: Date.now(), appSiteId: _sp.appSiteId,
+      policyListId: _sp.policyListId, ackListId: _sp.ackListId, appDriveId: _sp.appDriveId,
+    }));
+  } catch (e) { /* privater Modus o. ä. – dann eben ohne Cache */ }
+}
+
+/** Gespeicherte IDs verwerfen; der nächste Zugriff ermittelt sie neu. */
+function spInvalidateInit() {
+  _sp.ready = false; _sp.appSiteId = null; _sp.policyListId = null;
+  _sp.ackListId = null; _sp.appDriveId = null; _sp.spaltenPromise = null;
+  try { localStorage.removeItem(SP_ID_CACHE); } catch (e) {}
+}
+
+/** Eine Abfrage wiederholen, falls sie an veralteten IDs gescheitert ist. */
+async function _spNeuErmitteln(fehler, nochmal) {
+  if (!/\(40[04]\)|itemNotFound|nicht gefunden/i.test(fehler && fehler.message || '')) throw fehler;
+  console.warn('[sp] Gespeicherte IDs passen nicht mehr – ermittle neu.');
+  spInvalidateInit();
+  return nochmal();
+}
+
+let _spInitLaeuft = null;
+
 async function spInit() {
   if (_sp.ready) return;
+  if (!_spInitLaeuft) _spInitLaeuft = _spInitDurchfuehren().finally(() => { _spInitLaeuft = null; });
+  return _spInitLaeuft;
+}
+
+async function _spInitDurchfuehren() {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Kein Token – Anmeldung erforderlich.');
+
+  const cache = _spCacheLesen();
+  if (cache) {
+    _sp.appSiteId  = cache.appSiteId;  _sp.policyListId = cache.policyListId;
+    _sp.ackListId  = cache.ackListId;  _sp.appDriveId   = cache.appDriveId;
+    _sp.ready = true;
+    _spSpaltenLaden(token);
+    return;
+  }
 
   // App-Site
   const site = await _get(`${SP.graphBase}/sites/${SP.appSiteHost}`, token);
   _sp.appSiteId = site.id;
 
-  // Listen
-  _sp.policyListId = await _findListId(token, SP.policyList);
-  _sp.ackListId    = await _findListId(token, SP.ackList);
-
-  // Dokumentbibliothek (für access-config.json)
-  const drives = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token);
+  // Listen und Dokumentbibliothek hängen nur an der Site-ID → gemeinsam holen.
+  const [policyListId, ackListId, drives] = await Promise.all([
+    _findListId(token, SP.policyList),
+    _findListId(token, SP.ackList),
+    _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token),
+  ]);
+  _sp.policyListId = policyListId;
+  _sp.ackListId    = ackListId;
   const docDrive = (drives.value || []).find(d =>
     ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
   ) || drives.value?.[0];
   if (docDrive) _sp.appDriveId = docDrive.id;
 
-  // Spalten beider Listen (nur vorhandene Felder schreiben → keine 400er)
-  try {
-    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/columns`, token);
-    _sp.policyColumns = (cols.value || []).map(c => ({ name: c.name, displayName: c.displayName || c.name }));
-    (cols.value || []).forEach(c => _sp.policyFields.add(c.name));
-  } catch (e) {
-    console.warn('[sp] Spalten der Richtlinien-Liste nicht lesbar:', e.message);
-  }
-  try {
-    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`, token);
-    (cols.value || []).forEach(c => _sp.ackFields.add(c.name));
-  } catch (e) {
-    console.warn('[sp] Spalten der Bestaetigungen-Liste nicht lesbar:', e.message);
-  }
-
-
   _sp.ready = true;
+  _spCacheSchreiben();
+  _spSpaltenLaden(token);
+}
+
+/** Spalten beider Listen (nur vorhandene Felder schreiben → keine 400er).
+ *  Lädt neben den Daten; wer schreibt, wartet vorher über _spSpalten() darauf. */
+function _spSpaltenLaden(token) {
+  if (_sp.spaltenPromise) return _sp.spaltenPromise;
+  const holen = (listId, was) => _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/columns`, token)
+    .catch(e => { console.warn(`[sp] Spalten der ${was}-Liste nicht lesbar:`, e.message); return null; });
+  _sp.spaltenPromise = (async () => {
+    const [pol, ack] = await Promise.all([
+      holen(_sp.policyListId, 'Richtlinien'),
+      holen(_sp.ackListId, 'Bestaetigungen'),
+    ]);
+    if (pol) {
+      _sp.policyColumns = (pol.value || []).map(c => ({ name: c.name, displayName: c.displayName || c.name }));
+      (pol.value || []).forEach(c => _sp.policyFields.add(c.name));
+    }
+    if (ack) (ack.value || []).forEach(c => _sp.ackFields.add(c.name));
+    _sp.spaltenFertig = true;
+    // Die Spaltenwarnung im Dashboard hängt daran – sie darf nicht auf einem
+    // Zwischenstand stehenbleiben, falls der Reiter schon offen ist.
+    try { document.dispatchEvent(new CustomEvent('rms-spalten-geladen')); } catch (e) {}
+  })();
+  return _sp.spaltenPromise;
+}
+
+/** Vor dem Schreiben: sicherstellen, dass die Spaltenliste vorliegt. */
+async function _spSpalten() {
+  await spInit();
+  if (_sp.spaltenPromise) { try { await _sp.spaltenPromise; } catch (e) { /* Warnung steht schon im Log */ } }
 }
 
 async function _findListId(token, displayName) {
@@ -383,14 +465,20 @@ async function spUpdateProposal(id, fields) {
    Richtlinien
 ═══════════════════════════════════════════════════ */
 
-async function spGetPolicies() {
+async function spGetPolicies(_zweiterVersuch) {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await spInit();
-  const items = await _getAll(
-    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items` +
-    `?$expand=fields&$top=500`, token
-  );
+  let items;
+  try {
+    items = await _getAll(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items` +
+      `?$expand=fields&$top=500`, token
+    );
+  } catch (e) {
+    if (_zweiterVersuch) throw e;
+    return _spNeuErmitteln(e, () => spGetPolicies(true));
+  }
   return items.map(_mapPolicy)
     .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 }
@@ -482,7 +570,7 @@ function _linkVal(v) { return (v && typeof v === 'object') ? (v.Url || '') : (v 
 async function spSavePolicy(p) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
-  await spInit();
+  await _spSpalten();   // gesendet wird nur, was es in der Liste gibt
 
   const all = {
     Title:               (p.title || '').slice(0, 255),
@@ -682,7 +770,7 @@ async function spGetDocVersions(driveId, itemId) {
  * lehnt Graph die Abfrage ab; dann greift der bisherige Weg als Rückfall, damit
  * nichts stehen bleibt. Sobald der Index existiert, ist die Abfrage schlank.
  */
-async function spGetAcknowledgements(filterUpn) {
+async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await spInit();
@@ -700,7 +788,13 @@ async function spGetAcknowledgements(filterUpn) {
     }
   }
 
-  const alle = await _getAll(`${basis}?$expand=fields&$top=500`, token, 20000);
+  let alle;
+  try {
+    alle = await _getAll(`${basis}?$expand=fields&$top=500`, token, 20000);
+  } catch (e) {
+    if (_zweiterVersuch) throw e;
+    return _spNeuErmitteln(e, () => spGetAcknowledgements(filterUpn, true));
+  }
   const out = alle.map(_mapAck);
   return filterUpn
     ? out.filter(a => a.benutzerUpn.toLowerCase() === String(filterUpn).toLowerCase())
@@ -730,7 +824,7 @@ function _mapAck(item) {
 async function spSaveAcknowledgement(a) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
-  await spInit();
+  await _spSpalten();   // gesendet wird nur, was es in der Liste gibt
 
   const all = {
     Title:              `${a.benutzerUpn}|${a.richtlinieId}|${a.version}`.slice(0, 255),
@@ -998,10 +1092,10 @@ async function _ismsCollectFolder(token, folderId, folderPath, out, onProgress, 
     url = resp['@odata.nextLink'] || null;
   }
   // Unterordner erst nach den Dateien der aktuellen Ebene (Dateien erscheinen früher)
-  for (const sf of subfolders) {
-    await _ismsCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  await _parallel(subfolders.map(sf => async () => {
     if (out.length >= cap) return;
-  }
+    await _ismsCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  }));
 }
 
 /** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (mit vollen
@@ -1030,7 +1124,11 @@ async function spGetIsmsDocs(folderName, onProgress) {
 
   const out = [];
   if (ordner.length) {
-    for (const f of ordner) await _ismsCollectFolder(token, f.id, f.name, out, onProgress);
+    await _parallel(ordner.map(f => () => _ismsCollectFolder(token, f.id, f.name, out, onProgress)));
+    // Gleichzeitig geladen heißt: durcheinander angekommen. Für eine stabile
+    // Grundreihenfolge (die Tabelle sortiert danach nach Wunsch weiter).
+    out.sort((a, b) => (a.folder || '').localeCompare(b.folder || '', 'de')
+                    || (a.name || '').localeCompare(b.name || '', 'de'));
   } else {
     // Rückfall: ganze Bibliothek (volle Felder), falls es keine Ordner gibt
     let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
@@ -1320,10 +1418,10 @@ async function _govCollectFolder(token, folderId, subPath, out, onProgress, cap 
     if (onProgress) onProgress(out);
     url = resp['@odata.nextLink'] || null;
   }
-  for (const sf of subfolders) {
-    await _govCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  await _parallel(subfolders.map(sf => async () => {
     if (out.length >= cap) return;
-  }
+    await _govCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  }));
 }
 
 /** Alle Entwurfsdateien im Governance-Board-Ordner (rekursiv). onProgress(partialList). */
@@ -1423,11 +1521,15 @@ async function spGetMembers() {
 }
 
 /** Azure-AD-Abteilung des angemeldeten Users (für die automatische Rollen-Zuordnung). */
+let _meineAbteilung = null;   // Antwort gilt für die ganze Sitzung
+
 async function spGetMyDepartment() {
+  if (_meineAbteilung !== null) return _meineAbteilung;
   const token = await acquireToken(SP.scopes);
   if (!token) return '';
   const me = await _get(`${SP.graphBase}/me?$select=department,jobTitle`, token);
-  return me.department || '';
+  _meineAbteilung = me.department || '';
+  return _meineAbteilung;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2009,6 +2111,21 @@ async function _get(url, token) {
   const resp = await _fetchRetry(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
   if (!resp.ok) throw new Error(`Graph GET (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
   return resp.json();
+}
+
+/**
+ * Mehrere Abfragen gleichzeitig abarbeiten, aber nicht alle auf einmal.
+ * Ordner nacheinander zu holen kostete pro Ordner eine volle Wartezeit; alle
+ * gleichzeitig quittiert Graph mit 429. Vier parallel ist der Punkt, an dem es
+ * deutlich schneller wird, ohne gedrosselt zu werden.
+ * @param {Array<() => Promise<any>>} aufgaben
+ */
+async function _parallel(aufgaben, gleichzeitig = 4) {
+  const rest = aufgaben.slice();
+  const laeufer = Array.from({ length: Math.min(gleichzeitig, rest.length) }, async () => {
+    while (rest.length) await rest.shift()();
+  });
+  await Promise.all(laeufer);
 }
 
 /** Alle Seiten einer Graph-Collection laden (folgt @odata.nextLink, cap gegen Endlosschleifen). */
