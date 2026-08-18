@@ -131,7 +131,7 @@ vm.runInContext("globalThis.__c2 = renderKonzeptCards('zzz', '');", kctx);
 ok(kctx.__c2.includes('Keine Treffer') && kctx.__c2.includes('icon="🔍"'), 'Konzept-Karten: Filter-Leerzustand');
 
 // ---- Keine Browser-Popups mehr ----
-const files = ['admin','konzepte','kurse','prozesse','reifegrad','risiken','soa','app','ismsdocs','governance','proposals'];
+const files = ['admin','konzepte','prozesse','reifegrad','risiken','soa','app','ismsdocs','governance','proposals'];
 let popups = [];
 for (const f of files) {
   const src = fs.readFileSync(`${ROOT}/js/${f}.js`,'utf8');
@@ -141,7 +141,7 @@ for (const f of files) {
 ok(popups.length === 0, 'Keine Browser-confirm/prompt/alert mehr: ' + (popups.join(' | ') || 'sauber'));
 
 // awaits korrekt gesetzt
-const chk = [['freigaben','uiPrompt'],['kurse','uiConfirm'],['prozesse','uiConfirm'],['reifegrad','uiConfirm'],['risiken','uiConfirm'],['soa','uiConfirm']];
+const chk = [['freigaben','uiPrompt'],['prozesse','uiConfirm'],['reifegrad','uiConfirm'],['risiken','uiConfirm'],['soa','uiConfirm']];
 for (const [f, fn] of chk) {
   const src = fs.readFileSync(`${ROOT}/js/${f}.js`,'utf8');
   const calls = [...src.matchAll(new RegExp('(await\\s+)?' + fn + '\\s*\\(', 'g'))];

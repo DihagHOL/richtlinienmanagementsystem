@@ -136,6 +136,8 @@ function probelaufKeinZugriff() {
 /**
  * Probelauf einschalten: Zugriff prüfen, Buchführung anhängen, Streifen zeigen.
  * Die Datenschicht bleibt unangetastet – es wird nichts ersetzt, nur mitgezählt.
+ * Die Anwendung läuft danach ganz normal weiter; der Rückgabewert sagt nur, ob
+ * der Modus wirklich aktiv ist.
  * @returns true, wenn der Probelauf läuft
  */
 async function probelaufAktivieren() {
@@ -150,7 +152,7 @@ async function probelaufAktivieren() {
   if (/[?&]tour=1(&|$)/.test(location.search) && typeof tourStart === 'function') {
     setTimeout(() => tourStart(), 600);
   }
-  return false;   // false = normale Startansicht weiterlaufen lassen (kein Sonderweg)
+  return true;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -587,24 +589,34 @@ async function probelaufSelbsttest() {
     await reloadData();
     const kEing = (State.konzepte || []).find(x => x.title === titel);
     _plOk('Konzept eingereicht', !!(kEing && kEing.konzept && kEing.konzept.eingereichtAm));
-    _plOk('Mail an die Geschäftsleitung', (typeof getGeschaeftsleitung === 'function') && getGeschaeftsleitung().length > 0,
+    _plOk('Mail zur Konzeptprüfung an die Geschäftsleitung',
+      (typeof getGeschaeftsleitung === 'function') && getGeschaeftsleitung().length > 0,
       (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung().join(', ') : '');
 
-    // 2) Regelwerk-Entwurf aus dem Konzept
-    const rw = newPolicy();
-    rw.title = titel;
-    rw.kategorie = kEing.kategorie;
-    rw.regelwerkTyp = kEing.regelwerkTyp;
-    rw.geltungsbereich = (kEing.geltungsbereich || []).slice();
-    rw.status = 'Entwurf';
-    rw.kbrBetroffen = true;
-    // Dokument wirklich ablegen – ohne Datei prüft der Test die Mailanhänge nicht mit.
-    const mitDok = await probelaufDokument(rw);
-    _plOk('Dokument in der Bibliothek abgelegt', mitDok, rw.dokumentName || '');
-    const rwSaved = await spSavePolicy(rw);
-    _plOk('Regelwerk-Entwurf angelegt', !!(rwSaved && rwSaved.id));
+    // 2) Annahme über den ECHTEN Weg – dieselbe Funktion, die die
+    //    Geschäftsleitung auslöst, nur ohne die Rückfrage-Dialoge.
+    rwId = await konzeptDecide(kEing.id, 'angenommen', { ohneRueckfrage: true });
     await reloadData();
-    rwId = rwSaved.id;
+    _plOk('Konzept angenommen (echter Weg)', !!rwId);
+    if (!rwId) return _plBericht(titel);
+
+    const entstanden = _plPolicy(rwId);
+    _plOk('Regelwerk-Entwurf automatisch entstanden', entstanden.status === 'Entwurf');
+    _plOk('Titel, Dokumentart und Geltungsbereich übernommen',
+      entstanden.title === titel && entstanden.regelwerkTyp === kEing.regelwerkTyp
+      && (entstanden.geltungsbereich || []).length > 0);
+    _plOk('Konzept-Freigabe steht in der Historie',
+      (entstanden.historie || []).some(h => h.aktion === 'Konzept freigegeben'));
+    _plOk('Verweis vom Konzept auf das Regelwerk',
+      ((State.konzepte || []).find(x => x.id === kEing.id) || {}).konzept?.regelwerkId === rwId);
+
+    // Dokument und Mitbestimmung ergänzen – wie beim Ausarbeiten im Editor
+    const entwurf = JSON.parse(JSON.stringify(entstanden));
+    entwurf.kbrBetroffen = true;
+    const mitDok = await probelaufDokument(entwurf);
+    _plOk('Dokument in der Bibliothek abgelegt', mitDok, entwurf.dokumentName || '');
+    await spSavePolicy(entwurf);
+    await reloadData();
 
     // 3) Konformitätsprüfung
     await setStatus(rwId, 'Konformitätsprüfung', 'Selbsttest (Probelauf)');

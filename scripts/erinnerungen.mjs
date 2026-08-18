@@ -124,8 +124,14 @@ async function loadPolicies(siteId, listId) {
   return out;
 }
 
-async function sendMail(toList, subject, html, attachments = []) {
-  const recipients = [...new Set(toList.filter(inDomain).map(lc))];
+/**
+ * @param {string[]} [extraErlaubt] Adressen, die trotz fremder Domain zugestellt
+ *   werden dürfen – die Betriebsrats-Adressen liegen auf Gruppengesellschafts-
+ *   Domains (z. B. ewa-guss.de) und sind von Admins gepflegt, also vertrauenswürdig.
+ */
+async function sendMail(toList, subject, html, attachments = [], extraErlaubt = []) {
+  const erlaubt = new Set(extraErlaubt.map(lc));
+  const recipients = [...new Set(toList.filter((u) => inDomain(u) || erlaubt.has(lc(u))).map(lc))];
   if (!recipients.length) { console.log(`   ⚠ keine gültigen Empfänger (Domain ${ALLOWED_DOMAIN}) – übersprungen`); return false; }
   const mitAnhang = attachments && attachments.length ? ' (mit Anhang)' : '';
   if (DRY_RUN) { console.log(`   [DRY_RUN] würde senden an: ${recipients.join(', ')}${mitAnhang}`); return true; }
@@ -203,16 +209,28 @@ function policyLink(id, aktion) {
   return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben${aktion ? '&aktion=' + aktion : ''}`;
 }
 
+/** Konzepte liegen nicht im Freigaben-Reiter, sondern im Regelwerk-Dashboard. */
+function konzeptLink(id, aktion) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}konzept=${encodeURIComponent(id)}${aktion ? '&aktion=' + aktion : ''}`;
+}
+
 const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 
 function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
-  const link = policyLink(id);
-  const actions = phase === 'Freigabe'
-    ? _btn(policyLink(id, 'freigeben'), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
-    : _btn(policyLink(id, 'konform'), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform'), '#dc2626', '✗ Nicht konform');
+  const konzept = phase === 'Konzeptprüfung';
+  const link = konzept ? konzeptLink(id) : policyLink(id);
+  const actions = konzept
+    ? _btn(konzeptLink(id, 'annehmen'), '#16a34a', '✓ Annehmen → Regelwerk')
+      + _btn(konzeptLink(id, 'zurueckstellen'), '#64748b', '⏸ Zurückstellen')
+      + _btn(konzeptLink(id, 'ablehnen'), '#dc2626', '✗ Ablehnen')
+    : phase === 'Freigabe'
+      ? _btn(policyLink(id, 'freigeben'), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
+      : _btn(policyLink(id, 'konform'), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform'), '#dc2626', '✗ Nicht konform');
+  const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
-    <p>für die Richtlinie <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
+    <p>für ${gegenstand} <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
        steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
     <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
     <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
@@ -220,7 +238,7 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     ${eskaliert ? `<p style="color:#b45309"><b>Eskalation:</b> Diese Erinnerung geht aufgrund der Verzögerung zusätzlich an den Ersatz-Empfänger.</p>` : ''}
     <p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p>
     <p>${actions}</p>
-    <p style="color:#6b7280;font-size:12px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).
+    <p style="color:#6b7280;font-size:12px">Der Button öffnet den Vorgang in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).
        Oder <a href="${esc(link)}" style="color:#1a56db">nur ansehen &amp; bearbeiten</a>.<br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
   </div>`;
 }
@@ -242,6 +260,8 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
   const eskalationAb = posInt(cfg.eskalationAbTagen, ESKALATION_AB_ENV || 14);
   const pruefer = (cfg.pruefer || []).filter(Boolean);
   const gl = (cfg.geschaeftsleitung || []).filter(Boolean);
+  const kbrMail = (cfg.kbrMail || '').trim();
+  const brMails = (cfg.brMails && typeof cfg.brMails === 'object') ? cfg.brMails : {};
   const eskalationMail = cfg.eskalationMail || '';
   console.log(`Absender: ${SENDER} · Prüfer: ${pruefer.length} · GL: ${gl.length} · Taktung: erst nach ${erste}d, dann alle ${alle}d · Eskalation ab ${eskalationAb}d → ${eskalationMail || '–'}`);
 
@@ -253,11 +273,35 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     const f = it.fields || {};
     const status = f.Status || '';
     const title = f.Title || '(ohne Titel)';
-    const ref = f.PruefungSeit || it.lastModifiedDateTime || '';
+    let ref = f.PruefungSeit || it.lastModifiedDateTime || '';
+    if ((f.Typ2 || '') === 'Konzept') {
+      try { ref = (JSON.parse(f.KonzeptJson || '{}') || {}).eingereichtAm || ref; } catch { /* Standard */ }
+    }
     const tage = daysSince(ref);
 
     let phase = '', roleRecipients = [], voted = [];
-    if (status === 'Konformitätsprüfung' || status === 'InReview') {
+    // Konzepte: liegen bei der Geschäftsleitung, solange keine Entscheidung
+    // gefallen ist. Sie tragen keinen Status, sondern stecken in KonzeptJson –
+    // ohne diesen Zweig wurde die erste Etappe des Ablaufs nie erinnert.
+    if ((f.Typ2 || '') === 'Konzept') {
+      let ko = {};
+      try { ko = JSON.parse(f.KonzeptJson || '{}') || {}; } catch { ko = {}; }
+      const entschieden = ko.entscheidung && ko.entscheidung.status;
+      if (!ko.eingereichtAm || entschieden) continue;      // Entwurf oder erledigt
+      phase = 'Konzeptprüfung';
+      roleRecipients = gl;
+      voted = [];
+    } else if (status === 'Mitbestimmung') {
+      // Beim Betriebsrat: KBR und/oder die Betriebsräte der betroffenen Werke.
+      let mb = {};
+      try { mb = JSON.parse(f.MitbestimmungJson || '{}') || {}; } catch { mb = {}; }
+      if (mb.bestaetigung && mb.bestaetigung.konform) continue;   // schon bestätigt
+      const werke = Array.isArray(mb.werke) ? mb.werke : [];
+      phase = 'Mitbestimmung';
+      roleRecipients = [mb.kbrBetroffen ? kbrMail : '', ...werke.map((w) => brMails[w] || '')]
+        .filter(Boolean);
+      voted = [];
+    } else if (status === 'Konformitätsprüfung' || status === 'InReview') {
       phase = 'Konformitätsprüfung';
       // Pro-Richtlinie-Prüfer haben Vorrang; sonst die globale Prüferliste.
       let ownPruefer = [];
@@ -287,8 +331,11 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
     console.log(`   doc-Felder: driveId=${f.DokumentDriveId ? 'ja' : 'nein'}, itemId=${f.DokumentItemId ? 'ja' : 'nein'}, url=${docUrl ? 'ja' : 'nein'}, name=${f.DokumentName || '-'}`);
     const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName, docUrl);
     console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}${att ? ' (+Anhang)' : ''}`);
+    // Bei der Mitbestimmung sind die Empfänger admin-gepflegte BR-Adressen –
+    // sie dürfen auch auf Gruppengesellschafts-Domains liegen.
     const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
-      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : []);
+      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : [],
+      phase === 'Mitbestimmung' ? roleRecipients : []);
     if (ok) sent++;
   }
 

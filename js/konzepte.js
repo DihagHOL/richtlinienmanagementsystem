@@ -418,7 +418,15 @@ function konzeptVersandHinweis(k) {
     </div>`);
 }
 
-async function konzeptDecide(id, decision) {
+/**
+ * Entscheidung der Geschäftsleitung über ein Konzept.
+ * @param {string} id Konzept-Id
+ * @param {string} decision 'angenommen' | 'zurueckgestellt' | 'abgelehnt'
+ * @param {object} [opts] { ohneRueckfrage: true } – für den Selbsttest: dieselbe
+ *   Funktion ohne Dialoge, damit die Automatik dahinter wirklich geprüft wird.
+ * @returns bei Annahme die Id des entstandenen Regelwerks
+ */
+async function konzeptDecide(id, decision, opts) {
   if (typeof isCurrentUserGeschaeftsleitung === 'function' && !isCurrentUserGeschaeftsleitung()) {
     toast('Nur die Geschäftsleitung kann über Konzepte entscheiden.', 'error'); return;
   }
@@ -445,7 +453,10 @@ async function konzeptDecide(id, decision) {
 
   // decision === 'angenommen'
   const ko = k.konzept || {};
-  const ok = await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das anschließend mit einem Dokument versehen und in die Konformitätsprüfung gegeben wird.',
+  // Der Selbsttest durchläuft dieselbe Funktion, nur ohne die Rückfrage –
+  // sonst prüfte er die Automatik dahinter gar nicht.
+  const ohneRueckfrage = !!(opts && opts.ohneRueckfrage);
+  const ok = ohneRueckfrage || await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das anschließend mit einem Dokument versehen und in die Konformitätsprüfung gegeben wird.',
     { title: 'Konzept annehmen', okLabel: 'Annehmen & Regelwerk anlegen' });
   if (!ok) return;
   try {
@@ -484,8 +495,9 @@ async function konzeptDecide(id, decision) {
     await reloadData();
     toast('Konzept angenommen – Regelwerk-Entwurf angelegt ✓', 'success');
     notifyKonzeptErsteller(k, 'angenommen');
-    if (rwId) konzeptWeiche(k, rwId);
+    if (rwId && !ohneRueckfrage) konzeptWeiche(k, rwId);
     else { _adminMode = 'konzepte'; renderAdminList(); }
+    return rwId;
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 

@@ -34,7 +34,6 @@ const _DOKU_TOC = [
   ['rollen',        'Rollen im System'],
   ['lesen',         'Regelwerke lesen & bestätigen'],
   ['vorschlag',     'Änderung vorschlagen'],
-  ['kurse',         'Kurse'],
   ['ki',            'KI-Systeme beantragen'],
   ['cockpit',       'Cockpit (Admin-Startseite)'],
   ['verwalten',     'Regelwerke anlegen & verwalten'],
@@ -77,7 +76,7 @@ function _dokuSections() {
         <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt – das KI-Dashboard nutzt dieselbe Anmeldung.</li>
         <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
-        <li style="${li}"><b>Was sichtbar ist, hängt von der Rolle ab:</b> Alle sehen „Meine Regelwerke", „Kurse", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
+        <li style="${li}"><b>Was sichtbar ist, hängt von der Rolle ab:</b> Alle sehen „Meine Regelwerke", „Anleitung/Dokumentation" und das KI-Dashboard. Verwaltungs-, Freigabe- und Auswertungs-Reiter erscheinen nur für berechtigte Personen.</li>
         <li style="${li}"><b>„↻ Aktualisieren"</b> (oben rechts) lädt frische Daten, falls etwas nicht aktuell wirkt.</li>
       </ul>
       <div style="${hint}">💡 Diese Dokumentation ist die Langfassung. Für den 3-Minuten-Schnellstart gibt es den Reiter <b>„Anleitung"</b>.</div>`),
@@ -113,9 +112,6 @@ function _dokuSections() {
         <li style="${li}">Unter <b>„Weitere Empfänger"</b> lassen sich zusätzliche interne Adressen ergänzen.</li>
         <li style="${li}">Alle Vorschläge landen im Reiter <b>„Vorschläge"</b> zur Nachverfolgung.</li>
       </ul>`),
-
-    sec('kurse', 'Kurse', 'all', `
-      <p style="margin:0;line-height:1.55">Unter <b>„Kurse"</b> (Beta) sind mehrere Regelwerke zu Lernpaketen gebündelt – nacheinander lesen und bestätigen. Optional.</p>`),
 
     sec('ki', 'KI-Systeme beantragen (KI-Dashboard)', 'all', `
       <p style="margin:0 0 8px;line-height:1.55">Über <b>„KI-Dashboard"</b> (linke Leiste) in den KI-Governance-Bereich. Jede:r kann einen Antrag stellen, wenn ein neues KI-System eingesetzt werden soll.</p>
@@ -342,7 +338,7 @@ function _dokuSections() {
         <li style="${li}">Je Prozess wählbar, welche <b>Regelwerke</b> er umsetzt; die Verknüpfung wird in der BPMN-Datei mitgespeichert und auf den Karten angezeigt.</li>
       </ul>
       <div style="${h3}">📋 Standard-Prozesse</div>
-      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>14 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, Kurs/Schulung, KI-Antrag, Dokument-Health-Check, ISMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>13 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, KI-Antrag, Dokument-Health-Check, ISMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
       <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: bereits vorhandene Prozesse werden übersprungen, angelegt wird erst nach Bestätigung. Die Diagramme sind saubere <b>Startvorlagen</b> mit Aufgaben und Entscheidungs-Gateways – danach frei anpassbar.</div>
       <div style="${h3}">„Aus Regelwerk" – so entsteht der Entwurf</div>
       <ul style="${ol}">
@@ -381,7 +377,7 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>Rollen:</b> Admins, Genehmiger, Prüfer, Geschäftsleitung, KI-Gremium, ISMS-Verantwortliche und Vorschlags-Empfänger.</li>
         <li style="${li}"><b>Genehmigungs-Schwellen:</b> „konform/freigegeben, wenn alle zustimmen" oder „einer reicht" (global; je Regelwerk überschreibbar).</li>
-        <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger.</li>
+        <li style="${li}"><b>Erinnerungen:</b> aktiv/aus, Absender-Postfach, Taktung, Eskalation, Ersatz-Empfänger. Nachgefasst wird bei allen vier wartenden Etappen – <b>Konzeptprüfung</b> (Geschäftsleitung), <b>Konformitätsprüfung</b>, <b>Mitbestimmung</b> (KBR/Betriebsräte) und <b>Freigabe</b> – jeweils mit den Entscheidungs-Schaltflächen in der Mail.</li>
         <li style="${li}"><b>Mitbestimmung (KBR/BR):</b> Mailadresse des Konzernbetriebsrats und je Werk (SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA) für die Mitbestimmungsprüfung.</li>
         <li style="${li}"><b>Power Automate (Genehmigung ohne Portal):</b> je Etappe wählbar – <b>aus</b> (App verschickt die Mails) · <b>nur Freigabe (Geschäftsleitung)</b> · <b>Prüfung + Freigabe</b>. Für die per Power Automate gesteuerte Etappe verschickt die App keine eigene Mail (Details in <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>).</li>
         <li style="${li}"><b>C-Level-Bericht:</b> Empfängeradresse(n) für den Management-Bericht aus dem Audit Report.</li>

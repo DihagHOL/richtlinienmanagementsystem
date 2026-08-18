@@ -21,7 +21,7 @@ const State = {
 const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
-  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', kurse: 'Kurse',
+  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
   cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'ISMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
@@ -224,7 +224,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'kurse', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken', 'prozesse'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken', 'prozesse'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -255,7 +255,6 @@ async function switchView(view) {
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();
   if (view === 'compliance'   && typeof initCompliance === 'function')    initCompliance();
   if (view === 'einstellungen'&& typeof renderEinstellungen === 'function') renderEinstellungen();
-  if (view === 'kurse'        && typeof initKurse === 'function')         initKurse();
   if (view === 'anleitung'    && typeof initAnleitung === 'function')     initAnleitung();
   if (view === 'dokumentation'&& typeof initDokumentation === 'function') initDokumentation();
 }

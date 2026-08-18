@@ -219,11 +219,18 @@ ok(/Dokument in SharePoint öffnen/.test(lies('js/konzepte.js')), 'Auch die Konz
 
 /* ── 8) Selbsttest ── */
 ok(/async function probelaufSelbsttest/.test(quelle), 'Es gibt einen Selbsttest');
-for (const stufe of ['Konzept anlegen', 'Konzept eingereicht', 'Status Konformitätsprüfung',
-  'Konformität bestätigt', 'Freigegeben und veröffentlicht', 'Kenntnisnahme gespeichert',
-  'Änderungshistorie geschrieben', 'Als Probelauf erkennbar'])
+for (const stufe of ['Konzept anlegen', 'Konzept eingereicht', 'Konzept angenommen (echter Weg)',
+  'Regelwerk-Entwurf automatisch entstanden', 'Konzept-Freigabe steht in der Historie',
+  'Status Konformitätsprüfung', 'Konformität bestätigt', 'Freigegeben und veröffentlicht',
+  'Kenntnisnahme gespeichert', 'Änderungshistorie geschrieben', 'Als Probelauf erkennbar'])
   ok(quelle.includes(stufe), `Selbsttest prüft: ${stufe}`);
 ok(/legt einen echten Vorgang an und versendet echte/.test(quelle), 'Der Selbsttest fragt vorher nach');
+ok(/konzeptDecide\(kEing\.id, 'angenommen', \{ ohneRueckfrage: true \}\)/.test(quelle),
+  'Er nimmt das Konzept über die echte Funktion an, statt den Entwurf selbst zu bauen');
+ok(!/const rw = newPolicy\(\)/.test(quelle), 'Kein nachgebauter Entwurf mehr im Selbsttest');
+const kq2 = lies('js/konzepte.js');
+ok(/opts && opts\.ohneRueckfrage/.test(kq2), 'konzeptDecide kann die Dialoge überspringen');
+ok(/return rwId;/.test(kq2), 'Und gibt die Id des entstandenen Regelwerks zurück');
 
 /* ── 9) Schritte der geführten Vorführung ── */
 run('globalThis.__s = tourSchritte();');
@@ -362,8 +369,8 @@ ok(/ISMS-Cockpit/.test(html2), 'Der Reiter heißt ISMS-Cockpit');
 ok(/cockpit: 'ISMS-Cockpit'/.test(lies('js/app.js')), 'Auch der Seitentitel');
 ok(/v\.cockpit \|\| v\.ismsdocs/.test(lies('js/access.js')), 'Die Gruppen-Überschrift kennt das Cockpit');
 
-ok(/id="nav-kurse" style="display:none"/.test(html2), 'Der Kurse-Reiter ist ausgeblendet');
-ok(html2.includes('data-view="kurse"'), 'Die Ansicht selbst bleibt erreichbar');
+ok(!/kurse/i.test(html2), 'Kurse sind vollständig entfernt');
+ok(!fs.existsSync(path.join(ROOT, 'js/kurse.js')), 'kurse.js ist gelöscht');
 
 ok(navIdx('KI-Governance') > navIdx('id="nav-grp-isms"'), 'KI-Governance steht weiter unten');
 ok(navIdx('DIHAG-Apps') > navIdx('KI-Governance'), 'DIHAG-Apps darunter');

@@ -14,7 +14,6 @@ const expectGw = {
   'Kenntnisnahme & Wissenstest (RMS)': 3,
   'Änderungsvorschlag ISMS-Dokument (RMS)': 1,
   'Risiko-Management (RMS)': 1,
-  'Kurs / Schulung (RMS)': 1,
   'KI-System beantragen (RMS)': 1,
   'Dokument-Health-Check (RMS)': 1,
   'ISMS-Abdeckung & SoA (RMS)': 1,
@@ -25,7 +24,7 @@ const expectGw = {
   'Regelwerk außer Kraft setzen / Archivierung (RMS)': 1,
 };
 
-ok(Array.isArray(RMS_PROCESS_SEEDS) && RMS_PROCESS_SEEDS.length === 14, '14 Standard-Prozesse definiert');
+ok(Array.isArray(RMS_PROCESS_SEEDS) && RMS_PROCESS_SEEDS.length === 13, '13 Standard-Prozesse definiert');
 ok(RMS_PROCESS_SEEDS.every(s => /\(RMS\)$/.test(s.name)), 'Alle Namen mit „(RMS)“ gekennzeichnet');
 ok(new Set(RMS_PROCESS_SEEDS.map(s=>s.name)).size === RMS_PROCESS_SEEDS.length, 'Alle Prozessnamen eindeutig');
 
