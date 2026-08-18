@@ -179,6 +179,9 @@ function _dokuSections() {
         <li style="${li}"><b>Zur GF-Prüfung einreichen</b> – die Geschäftsleitung erhält eine Mail mit allen Angaben, dem Anhang und drei Entscheidungs-Buttons. Anschließend bestätigt ein Hinweis, <b>an wen</b> die Nachricht gegangen ist und was als Nächstes passiert.</li>
         <li style="${li}"><b>Entscheidung</b> – direkt aus der Mail oder in der App: <b>✓ Annehmen</b>, <b>⏸ Zurückstellen</b> (mit Notiz) oder <b>✗ Ablehnen</b> (Begründung ist Pflicht).</li>
         <li style="${li}"><b>Bei Annahme</b> entsteht automatisch ein <b>Regelwerk-Entwurf</b>: Titel, Typ, Kategorie, Geltungsbereich und Motivation/Skizze werden übernommen, ein Anhang wird zum Startdokument. Die Geschäftsleitung bekommt nur die Bestätigung, dass der Entwurf angelegt ist – sie muss nichts weiter veranlassen.</li>
+        <li style="${li}"><b>In der Änderungshistorie</b> des entstandenen Regelwerks steht die Annahme des
+          Konzepts als erster Eintrag – mit entscheidender und einreichender Person. Der Weg ist damit
+          lückenlos vom Vorschlag bis zur Veröffentlichung belegt.</li>
         <li style="${li}"><b>Rückmeldung an die einreichende Person:</b> Bei jeder Entscheidung – angenommen, zurückgestellt oder abgelehnt – geht automatisch eine Info-Mail an den Antragsteller, mit Entscheider, Datum und Begründung. Bei Annahme enthält sie die Frage <b>„Wie soll es weitergehen?"</b> mit zwei Schaltflächen: <b>Entwurf bearbeiten</b> (Dokument, Zielgruppe, Wissenstest, Mitbestimmung ergänzen) oder <b>direkt zur Konformitätsprüfung</b>. Diese Entscheidung liegt bewusst bei der Person, die das Konzept geschrieben hat.</li>
       </ol>
       <div style="${hint}">📬 Empfänger der Prüf-Mail ist die <b>Geschäftsleitung</b> aus <b>Einstellungen → „Geschäftsleitung"</b>. Nur diese Personen können über Konzepte entscheiden.</div>`,
@@ -389,11 +392,11 @@ function _dokuSections() {
           und Link auf die Datei in SharePoint. Der Startdialog zeigt vorher, wer sie bekommt.</li>
         <li style="${li}"><b>Kennzeichnung:</b> Alles Angelegte trägt <code>[Probelauf]</code> im Titel.
           Weil das in den Daten steht, erscheint es automatisch im Betreff, im Mailtext und in jeder Ansicht.</li>
-        <li style="${li}"><b>Dokument:</b> Zum Konzept entsteht eine <b>Word-Datei</b> – sie lässt sich in
-          SharePoint direkt öffnen und weiterschreiben. Zum Regelwerk legt der Probelauf ein Beispiel-PDF in der Dokumentbibliothek
-          ab und hinterlegt es am Regelwerk. Dadurch hängt es an den Mails und ist über den
-          SharePoint-Link erreichbar – wie im Betrieb. Beim Aufräumen wird die Datei mitgelöscht.
-          Wer lieber eine eigene Datei zeigt, hängt sie im Editor ganz normal an.</li>
+        <li style="${li}"><b>Dokument:</b> Zum Konzept und zum Regelwerk entsteht je eine <b>Word-Datei</b>
+          in der Dokumentbibliothek – sie lässt sich in SharePoint direkt öffnen und weiterschreiben.
+          Dadurch hängt sie an den Mails und ist über den SharePoint-Link erreichbar, wie im Betrieb.
+          Beim Aufräumen wird die Datei mitgelöscht. Wer lieber eine eigene Datei zeigt, hängt sie im
+          Editor ganz normal an.</li>
         <li style="${li}"><b>Aufräumen:</b> Jeder angelegte Eintrag wird mitgeschrieben; „🧹 Aufräumen" im
           Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement

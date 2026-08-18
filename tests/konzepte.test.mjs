@@ -146,6 +146,15 @@ ok(!/sich selbst nicht anschreiben/.test(kq),
   'Die Info-Mail geht auch dann raus, wenn dieselbe Person entschieden hat');
 ok(/Begründung/.test(kq), 'Die Begründung steht in der Mail');
 
+/* ── Die Konzept-Entscheidung gehört in die Historie des Regelwerks ── */
+ok(/historieAdd\(rw, 'Konzept freigegeben'/.test(kq),
+  'Die Annahme des Konzepts wird in der Historie festgehalten');
+ok(/historieAdd\(rw, 'Angelegt'/.test(kq), 'Ebenso die Entstehung des Entwurfs');
+ok(/angenommen von \$\{e\.vonName/.test(kq), 'Mit der entscheidenden Person');
+ok(/Eingereicht von \$\{ko\.antragstellerName\}/.test(kq), 'Und der einreichenden');
+ok(kq.indexOf("historieAdd(rw, 'Konzept freigegeben'") < kq.indexOf('const savedRw = await spSavePolicy(rw)'),
+  'Die Einträge stehen vor dem Speichern – sonst gingen sie verloren');
+
 /* ── Deep-Link aus der Info-Mail ── */
 const appjs3 = fs.readFileSync(ROOT + '/js/app.js', 'utf8');
 ok(/ansicht === 'entwurf'/.test(appjs3), 'app.js kennt den Entwurfs-Deeplink');

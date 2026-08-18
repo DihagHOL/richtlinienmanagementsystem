@@ -272,65 +272,14 @@ async function probelaufLoeschen() {
 }
 
 /* ═══════════════════════════════════════════════════
-   Das Dokument zum Regelwerk
+   Das Dokument zum Vorgang
    ═══════════════════════════════════════════════════
    Ein Regelwerk ohne Datei erklärt die Lage nur halb: Prüfer, Betriebsrat und
    Geschäftsleitung entscheiden anhand des Dokuments. Im Probelauf gibt es
-   deshalb ein echtes: Es wird als PDF erzeugt, in die Dokumentbibliothek
-   hochgeladen und am Regelwerk hinterlegt. Damit hängt es an den Mails UND ist
-   über den SharePoint-Link erreichbar – genau wie im Betrieb. Beim Aufräumen
-   wird die Datei wieder gelöscht. */
-
-/** Typografie und Umlaute auf das PDF-Zeichenset (WinAnsi) herunterbrechen. */
-function _plLatin(t) {
-  const karte = { '„': '"', '“': '"', '”': '"', '‘': "'", '’': "'",
-                  '–': '-', '—': '-', '→': '->', ' ': ' ' };
-  return String(t).split('').map(c => karte[c] || (c.charCodeAt(0) < 256 ? c : '')).join('');
-}
-
-/**
- * Erzeugt ein kleines, gültiges PDF – ohne Bibliothek, damit der Probelauf
- * überall läuft. Es lässt sich öffnen und drucken und zeigt, was im Betrieb an
- * der Mail hängt.
- */
-function _plPdfBauen(titel, zeilen) {
-  const BS = String.fromCharCode(92);   // Backslash und Zeilenumbruch ohne
-  const NL = String.fromCharCode(10);   // Escape-Sequenzen im Quelltext
-  const t = (x) => _plLatin(x).split(BS).join(BS + BS)
-    .split('(').join(BS + '(').split(')').join(BS + ')');
-
-  let y = 780;
-  const text = [`BT /F1 17 Tf 56 ${y} Td (${t(titel)}) Tj ET`];
-  y -= 34;
-  for (const z of zeilen) {
-    const fett = z.startsWith('#');
-    const zeile = fett ? z.slice(1) : z;
-    if (!zeile) { y -= 10; continue; }
-    text.push(`BT /${fett ? 'F1' : 'F2'} ${fett ? 12 : 11} Tf 56 ${y} Td (${t(zeile)}) Tj ET`);
-    y -= fett ? 22 : 17;
-  }
-  const inhalt = text.join(NL);
-
-  const objekte = [
-    '<</Type/Catalog/Pages 2 0 R>>',
-    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
-    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 5 0 R/F2 6 0 R>>>>/Contents 4 0 R>>',
-    `<</Length ${inhalt.length}>>stream${NL}${inhalt}${NL}endstream`,
-    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>',
-    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>',
-  ];
-  let pdf = '%PDF-1.4' + NL;
-  const stellen = [];
-  objekte.forEach((o, i) => { stellen.push(pdf.length); pdf += `${i + 1} 0 obj${o}endobj${NL}`; });
-  const xref = pdf.length;
-  pdf += `xref${NL}0 ${objekte.length + 1}${NL}0000000000 65535 f ${NL}`;
-  stellen.forEach(off => { pdf += String(off).padStart(10, '0') + ' 00000 n ' + NL; });
-  pdf += `trailer<</Size ${objekte.length + 1}/Root 1 0 R>>${NL}startxref${NL}${xref}${NL}%%EOF`;
-
-  const bytes = new Uint8Array(pdf.length);
-  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
-  return bytes;
-}
+   deshalb ein echtes – als Word-Datei, damit sie sich in SharePoint direkt
+   weiterschreiben lässt. Sie hängt an den Mails UND ist über den
+   SharePoint-Link erreichbar, genau wie im Betrieb. Beim Aufräumen wird die
+   Datei wieder gelöscht. */
 
 /* ── Word-Datei ohne Bibliothek ──
    Ein PDF kann man ansehen, aber nicht weiterschreiben. Für das Konzept ist
@@ -447,12 +396,12 @@ function _plDocxBauen(titel, zeilen) {
 const DOCX_TYP = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 /** Inhalt der Konzept-Skizze – am Aufbau der Muster-Vorlage orientiert. */
-function _plPdfInhaltKonzept(p) {
+function _plInhaltKonzept(p) {
   const ko = (p && p.konzept) || {};
   return [
     '#Konzept-Skizze (Muster)',
-    'Grundlage: Muster "Erstellung von Konzernregelungen".',
-    'Diese Datei gehoert zu einem Probelauf - kein echter Regelungsbedarf.',
+    'Grundlage: Muster „Erstellung von Konzernregelungen".',
+    'Diese Datei gehört zu einem Probelauf – kein echter Regelungsbedarf.',
     '',
     `Arbeitstitel: ${(p && p.title) || '-'}`,
     `Dokumentart: ${(p && p.regelwerkTyp) || '-'}`,
@@ -465,8 +414,8 @@ function _plPdfInhaltKonzept(p) {
     '#2. Wie koennte es aussehen? - Skizze',
     ...(_plUmbruch(ko.skizze || '-')),
     '',
-    '#3. Entscheidung der Geschaeftsleitung',
-    'Annehmen, Zurueckstellen oder Ablehnen - direkt aus der E-Mail.',
+    '#3. Entscheidung der Geschäftsleitung',
+    'Annehmen, Zurückstellen oder Ablehnen – direkt aus der E-Mail.',
     'Bei Annahme entsteht daraus automatisch ein Regelwerk-Entwurf.',
   ];
 }
@@ -489,11 +438,11 @@ function _plUmbruch(text, breite) {
   return zeilen;
 }
 
-/** Inhalt des Beispieldokuments – bewusst als Regelwerksentwurf lesbar. */
-function _plPdfInhalt(p) {
+/** Inhalt des Regelwerk-Entwurfs – bewusst als Dokumententwurf lesbar. */
+function _plInhaltRegelwerk(p) {
   return [
     '#1. Zweck und Geltungsbereich',
-    'Dieses Dokument gehoert zu einem Probelauf des Regelwerk-Managements.',
+    'Dieses Dokument gehört zu einem Probelauf des Regelwerk-Managements.',
     'Es liegt kein echter Regelungsbedarf zugrunde.',
     '',
     `Titel: ${(p && p.title) || '-'}`,
@@ -502,13 +451,13 @@ function _plPdfInhalt(p) {
     `Version: ${(p && p.version) || '-'}`,
     `Erstellt: ${new Date().toLocaleString('de-DE')}`,
     '',
-    '#2. Warum haengt hier eine Datei?',
-    'Pruefer, Betriebsrat und Geschaeftsleitung entscheiden anhand des Dokuments.',
-    'Es haengt an der Mail und liegt zugleich in SharePoint - dort mit',
+    '#2. Warum hängt hier eine Datei?',
+    'Prüfer, Betriebsrat und Geschäftsleitung entscheiden anhand des Dokuments.',
+    'Es hängt an der Mail und liegt zugleich in SharePoint – dort mit',
     'Versionsverlauf und Kommentaren, immer im aktuellen Stand.',
     '',
-    '#3. Naechster Schritt',
-    'Ueber die Schaltflaechen in der Mail wird direkt entschieden.',
+    '#3. Nächster Schritt',
+    'Über die Schaltflächen in der Mail wird direkt entschieden.',
   ];
 }
 
@@ -523,14 +472,13 @@ async function probelaufDokument(p, art) {
   if (!p) return false;
   const konzept = art === 'konzept';
   try {
-    const rein = _plLatin(p.title || 'Regelwerk').replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'Regelwerk';
-    // Konzept als Word: Es soll in SharePoint direkt weitergeschrieben werden.
-    // Das Regelwerk bleibt PDF – dort geht es ums Ansehen und Entscheiden.
+    const titel = String(p.title || 'Regelwerk');
+    const rein = titel.replace(/[<>:"/\\|?*]/g, '').trim() || 'Regelwerk';
     const bytes = konzept
-      ? _plDocxBauen('Konzept-Skizze: ' + (p.title || ''), _plPdfInhaltKonzept(p))
-      : _plPdfBauen(_plLatin(p.title || 'Regelwerk'), _plPdfInhalt(p));
-    const name = konzept ? 'Konzept-Skizze ' + rein + '.docx' : rein + '.pdf';
-    const res = await spUploadPolicyDoc(name, bytes, konzept ? DOCX_TYP : 'application/pdf');
+      ? _plDocxBauen('Konzept-Skizze: ' + titel, _plInhaltKonzept(p))
+      : _plDocxBauen(titel, _plInhaltRegelwerk(p));
+    const name = (konzept ? 'Konzept-Skizze ' + rein : rein) + '.docx';
+    const res = await spUploadPolicyDoc(name, bytes, DOCX_TYP);
     p.dokumentName = res.name;
     p.dokumentUrl = res.url;
     p.dokumentDriveId = res.driveId;

@@ -444,6 +444,7 @@ async function konzeptDecide(id, decision) {
   }
 
   // decision === 'angenommen'
+  const ko = k.konzept || {};
   const ok = await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das anschließend mit einem Dokument versehen und in die Konformitätsprüfung gegeben wird.',
     { title: 'Konzept annehmen', okLabel: 'Annehmen & Regelwerk anlegen' });
   if (!ok) return;
@@ -462,6 +463,17 @@ async function konzeptDecide(id, decision) {
       rw.dokumentName = k.dokumentName || '';
       rw.dokumentDriveId = k.dokumentDriveId || '';
       rw.dokumentItemId = k.dokumentItemId || '';
+    }
+    // Die Entscheidung über das Konzept gehört in die Historie des Regelwerks –
+    // sie ist der erste Schritt seiner Entstehung und im Audit genauso relevant
+    // wie Prüfung und Freigabe.
+    if (typeof historieAdd === 'function') {
+      const e = _kEntsch('angenommen', '');
+      historieAdd(rw, 'Konzept freigegeben',
+        `Konzept „${k.title}" angenommen von ${e.vonName || e.von}.`
+        + (ko.antragstellerName ? ` Eingereicht von ${ko.antragstellerName}.` : '')
+        + (ko.prioritaet ? ` Priorität: ${konzeptPrioLabel(ko.prioritaet)}.` : ''));
+      historieAdd(rw, 'Angelegt', `Regelwerk-Entwurf aus dem Konzept „${k.title}" entstanden.`);
     }
     const savedRw = await spSavePolicy(rw);
     const rwId = (savedRw && savedRw.id) ? savedRw.id : '';

@@ -120,14 +120,16 @@ await new Promise(r => setTimeout(r, 20));
 ok(ctx.__dok === true, 'Das Beispieldokument wird abgelegt');
 ok(echt.hochgeladen.length === 1, 'Es geht wirklich durch den Upload der Datenschicht');
 const datei = echt.hochgeladen[0];
-ok(datei.typ === 'application/pdf', 'Als PDF');
-ok(/\.pdf$/.test(datei.name), `Mit Dateiendung (${datei.name})`);
-const pdfText = Buffer.from(datei.bytes).toString('latin1');
-ok(pdfText.startsWith('%PDF-'), 'Gültiger PDF-Kopf');
-ok(pdfText.trimEnd().endsWith('%%EOF'), 'Sauber abgeschlossen');
-const xrefOff = Number(pdfText.slice(pdfText.lastIndexOf('startxref') + 9).trim().split(/\s/)[0]);
-ok(pdfText.slice(xrefOff, xrefOff + 4) === 'xref', 'Die Querverweistabelle stimmt');
-ok(pdfText.includes('Konzernrichtlinie'), 'Der Inhalt nennt die Dokumentart');
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+ok(datei.typ === DOCX, 'Auch das Regelwerk kommt als Word-Datei');
+ok(/\.docx$/.test(datei.name), `Mit Dateiendung (${datei.name})`);
+const rohRw = Buffer.from(datei.bytes).toString('latin1');
+ok(rohRw.slice(0, 4) === 'PK' + String.fromCharCode(3, 4), 'Gültiger ZIP-Kopf');
+for (const teil of ['[Content_Types].xml', '_rels/.rels', 'word/document.xml'])
+  ok(rohRw.includes(teil), `Enthält ${teil}`);
+ok(!/%PDF-/.test(rohRw), 'Kein PDF mehr im Spiel');
+ok(!/application\/pdf/.test(quelle) && !/_plPdfBauen/.test(quelle),
+  'Der PDF-Erzeuger ist restlos entfernt');
 ok(ctx.__rw.dokumentItemId === 'f1' && ctx.__rw.dokumentDriveId === 'd1',
   'Die Datei ist am Regelwerk hinterlegt');
 ok(!!ctx.__rw.dokumentUrl, 'Und über SharePoint erreichbar');
@@ -226,7 +228,7 @@ ok(/legt einen echten Vorgang an und versendet echte/.test(quelle), 'Der Selbstt
 /* ── 9) Schritte der geführten Vorführung ── */
 run('globalThis.__s = tourSchritte();');
 const schritte = ctx.__s;
-ok(schritte.length >= 14, `Mindestens vierzehn Schritte (ist ${schritte.length})`);
+ok(schritte.length >= 15, `Mindestens fünfzehn Schritte (ist ${schritte.length})`);
 ok(schritte.every(s => s.titel && s.text && s.symbol), 'Jeder Schritt hat Titel, Text und Symbol');
 const titel = schritte.map(s => s.titel).join(' | ');
 for (const wort of ['Dashboard', 'Konzept ausfüllen', 'GF-Prüfung einreichen', 'Postfach', 'Entwurf',
@@ -243,6 +245,13 @@ ok(mit.length >= 11, `Die meisten Schritte warten auf eine echte Aktion (${mit.l
 const iAus = schritte.findIndex(x => /ausfüllen/i.test(x.titel));
 const iEin = schritte.findIndex(x => /einreichen/i.test(x.titel));
 ok(iAus >= 0 && iEin === iAus + 1, 'Ausfüllen und Einreichen sind zwei aufeinanderfolgende Schritte');
+const iTab = schritte.findIndex(x => /Freigaben-Reiter/.test(x.titel));
+const iKon = schritte.findIndex(x => /Konformitätsprüfung entscheiden/.test(x.titel));
+ok(iTab >= 0 && iKon === iTab + 1, 'Reiter öffnen und Entscheiden sind getrennt');
+ok(typeof schritte[iTab].erfuellt === 'function' && typeof schritte[iKon].erfuellt === 'function',
+  'Beide warten je für sich');
+ok(typeof schritte[iKon].basis === 'function',
+  'Die Entscheidung misst gegen den Stand beim Betreten – ein alter Eintrag zählt nicht');
 ok(typeof schritte[iAus].erfuellt === 'function' && typeof schritte[iEin].erfuellt === 'function',
   'Beide warten je für sich auf die Ausführung');
 let geworfen = 0;

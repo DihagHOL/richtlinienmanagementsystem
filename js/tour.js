@@ -218,15 +218,23 @@ function tourSchritte() {
     },
     {
       symbol: '🔍',
-      titel: 'Konformitätsprüfung',
-      text: `Der Reiter <b>Freigaben</b> sammelt alles, was auf eine Entscheidung wartet.
-             Öffne ihn und setze das Regelwerk auf „Konform".`,
+      titel: 'Freigaben-Reiter öffnen',
+      text: `Der Reiter <b>Freigaben</b> sammelt alles, was auf eine Entscheidung wartet –
+             getrennt nach Konformitätsprüfung, Mitbestimmung und Freigabe. Öffnen Sie ihn.`,
       ziel: '#nav-freigaben',
-      erfuellt: () => { const p = _tourRegelwerk(); return !!(p && (p.konformitaet || []).length); },
-      vormachen: () => {
-        const p = _tourRegelwerk();
-        if (p) switchView('freigaben').then(() => markKonform(p.id, true));
-      },
+      erfuellt: () => _tourAnsicht('freigaben'),
+      vormachen: () => switchView('freigaben'),
+    },
+    {
+      symbol: '✅',
+      titel: 'Konformitätsprüfung entscheiden',
+      text: `Setzen Sie das Regelwerk auf <b>Konform</b>. „Nicht konform" verlangt immer eine
+             Begründung – so bleibt nachvollziehbar, warum etwas zurückging.`,
+      hinweis: 'Im Betrieb entscheiden die hinterlegten Prüfer, wahlweise direkt aus der E-Mail.',
+      ziel: '#view-freigaben .btn-success',
+      basis: () => { const p = _tourRegelwerk(); return p ? (p.konformitaet || []).length : 0; },
+      erfuellt: (b) => { const p = _tourRegelwerk(); return !!(p && (p.konformitaet || []).length > (b || 0)); },
+      vormachen: () => { const p = _tourRegelwerk(); if (p) markKonform(p.id, true); },
     },
     {
       symbol: '🤝',
