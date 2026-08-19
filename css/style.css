@@ -577,3 +577,13 @@ body.demo-mode .main { padding-bottom: 64px; }
 .rw-text { font-size: .82rem; line-height: 1.6; color: var(--c-muted); margin-top: 3px; }
 .rw-fuss { padding: 9px 18px 12px; font-size: .78rem; color: var(--c-muted); border-top: 1px solid var(--c-border-2); }
 @media (max-width: 900px) { .rw-kette { display: none; } }
+
+/* ── Lernvideos in der Leseansicht ────────────────────────────────
+   Liegen unter der Dokumentvorschau, damit erst gelesen und dann geschaut
+   wird (das Lese-Gate hängt am Dokument, nicht am Video). */
+.lernvideo-wrap { grid-column: 1 / -1; border: 1px solid var(--c-border); border-radius: 12px; padding: 14px 16px; background: var(--c-surface, #fff); }
+.lernvideo-kopf { font-weight: 700; font-size: .92rem; margin-bottom: 12px; }
+.lernvideo + .lernvideo { margin-top: 16px; }
+.lernvideo-titel { font-size: .85rem; font-weight: 600; margin-bottom: 8px; }
+.lernvideo-rahmen { position: relative; padding-top: 56.25%; border-radius: 10px; overflow: hidden; background: #000; }
+.lernvideo-rahmen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }

@@ -409,11 +409,38 @@ async function openDetail(policyId) {
         </div>
         <div id="doc-frame-host"><div class="doc-loading">Vorschau wird geladen …</div></div>
       </div>
+      ${renderLernvideos(p)}
       <div id="ack-host">${renderAckCard(p, a, st)}</div>
     </div>`;
 
   loadPreview(p);
   if (st === 'open') startReadGate(10);   // Lese-Gate: Kenntnisnahme erst nach Lesen/Öffnen
+}
+
+/** Lernvideos zum Regelwerk (falls hinterlegt): abspielen, wo es geht, sonst verlinken. */
+function renderLernvideos(p) {
+  const vids = (p.videos || []).filter(v => v && String(v.url || '').trim());
+  if (!vids.length) return '';
+  const karten = vids.map((v, i) => {
+    const e = (typeof videoEinbettung === 'function') ? videoEinbettung(v.url) : null;
+    if (!e) return '';
+    const titel = esc(v.titel || `Video ${i + 1}`);
+    return e.art === 'einbetten'
+      ? `<div class="lernvideo">
+           <div class="lernvideo-titel">▶ ${titel}</div>
+           <div class="lernvideo-rahmen"><iframe src="${esc(e.src)}" title="${titel}"
+             allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+         </div>`
+      : `<div class="lernvideo">
+           <div class="lernvideo-titel">▶ ${titel}</div>
+           <a class="btn btn-outline btn-sm" href="${esc(e.src)}" target="_blank" rel="noopener">Video ansehen ↗</a>
+         </div>`;
+  }).join('');
+  if (!karten) return '';
+  return `<div class="lernvideo-wrap">
+      <div class="lernvideo-kopf">🎬 Lernvideo${vids.length > 1 ? 's' : ''} zum Regelwerk</div>
+      ${karten}
+    </div>`;
 }
 
 /* ── Lese-Gate (#6): Kenntnisnahme erst nach Mindest-Lesezeit oder Dokument-Öffnen ── */

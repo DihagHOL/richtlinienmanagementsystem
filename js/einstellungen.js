@@ -196,6 +196,37 @@ function _rollenBereichHtml() {
               <input type="email" value="${esc(_cfgEdit.eskalationMail || '')}" oninput="_cfgEdit.eskalationMail=this.value" placeholder="ersatz-pruefer@dihag.com"></div>
           </div>
           <div class="field-hint" style="margin-top:10px">Beispiel mit Standardwerten: erste Erinnerung nach <b>7</b> Tagen, danach alle <b>3</b> Tage; ab <b>14</b> Tagen zusätzlich an die Eskalations-Mail. Das Absender-Postfach muss ein lizenziertes Exchange-Postfach sein und die erlaubte Empfänger-Domain bestimmen.</div>
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--c-border)">
+            <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Offene Kenntnisnahmen (Mitarbeitende)</div>
+            <div class="field-hint" style="margin-bottom:10px">
+              Erinnert die <b>Mitarbeitenden</b> daran, dass ein veröffentlichtes Regelwerk noch zu lesen
+              und zu bestätigen ist (samt Wissenstest, falls gefordert). Gezählt wird ab Veröffentlichung;
+              jede Person bekommt <b>eine</b> Mail über <b>alle</b> ihre offenen Regelwerke, nicht eine je Regelwerk.
+              Betroffen ist nur, wer laut Zielgruppe gemeint ist – und nur solange die Bestätigung fehlt.
+            </div>
+            <div class="form-grid">
+              <div class="form-group"><label>Kenntnisnahme-Erinnerungen</label>
+                <select onchange="_cfgEdit.kenntnisErinnerungAktiv=(this.value==='ja')">
+                  <option value="ja" ${_cfgEdit.kenntnisErinnerungAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
+                  <option value="nein" ${_cfgEdit.kenntnisErinnerungAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+                </select></div>
+              <div class="form-group"><label>Erste Erinnerung nach (Tagen)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.kenntnisErsteNachTagen || 7)}" onchange="_cfgEdit.kenntnisErsteNachTagen=parseInt(this.value,10)||7"></div>
+              <div class="form-group"><label>Danach alle (Tagen)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.kenntnisDannAlleTage || 7)}" onchange="_cfgEdit.kenntnisDannAlleTage=parseInt(this.value,10)||7"></div>
+              <div class="form-group"><label>Eskalation ab (Tagen)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.kenntnisEskalationAbTagen || 21)}" onchange="_cfgEdit.kenntnisEskalationAbTagen=parseInt(this.value,10)||21"></div>
+              <div class="form-group full"><label>Eskalation an (leer = Eskalations-Mail oben)</label>
+                <input type="email" value="${esc(_cfgEdit.kenntnisEskalationMail || '')}" oninput="_cfgEdit.kenntnisEskalationMail=this.value" placeholder="ims@dihag.com"></div>
+            </div>
+            <div class="field-hint" style="margin-top:10px">
+              Die Eskalation ist eine <b>Sammelmeldung</b> an eine Stelle (nicht an Vorgesetzte): welches Regelwerk
+              wie lange offen ist und wer noch fehlt. Voraussetzung ist, dass das Cron-Konto die Mitarbeitenden
+              lesen darf (Graph-Anwendungsrecht <code>User.Read.All</code>) – sonst überspringt der Lauf diesen Teil
+              und schreibt es ins Protokoll.
+            </div>
+          </div>
         </div>
       </div>
 

@@ -39,7 +39,14 @@ const ACCESS_CONFIG_DEFAULT = {
   genehmigungPAScope: 'aus',
   genehmigungPA:    false,     // Legacy-Spiegel (true == PA aktiv); aus genehmigungPAScope abgeleitet
   // ── Erinnerungen (vom GitHub-Actions-Cron gelesen) ──
-  erinnerungenAktiv:        true,  // Erinnerungen senden ja/nein
+  erinnerungenAktiv:        true,
+  // Erinnerungen an die Mitarbeitenden (offene Kenntnisnahme). Bewusst träger
+  // getaktet als der Fach-Workflow: wöchentlich mahnen reicht, täglich nervt.
+  kenntnisErinnerungAktiv:  true,
+  kenntnisErsteNachTagen:   7,
+  kenntnisDannAlleTage:     7,
+  kenntnisEskalationAbTagen: 21,
+  kenntnisEskalationMail:   '',   // leer = Eskalations-Mail des Workflows  // Erinnerungen senden ja/nein
   mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
   erinnerungErsteNachTagen: 7,     // erste Erinnerung nach X Tagen
   erinnerungDannAlleTage:   3,     // danach alle Y Tage
@@ -93,6 +100,11 @@ async function loadRuntimeAccessConfig() {
         genehmigungPA:     cfg.genehmigungPA === true || cfg.genehmigungPAScope === 'gl' || cfg.genehmigungPAScope === 'alle',
         erinnerungenAktiv:        cfg.erinnerungenAktiv !== false,
         mailSender:               typeof cfg.mailSender === 'string' ? cfg.mailSender : '',
+        kenntnisErinnerungAktiv:   cfg.kenntnisErinnerungAktiv !== false,
+        kenntnisErsteNachTagen:    _posInt(cfg.kenntnisErsteNachTagen, 7),
+        kenntnisDannAlleTage:      _posInt(cfg.kenntnisDannAlleTage, 7),
+        kenntnisEskalationAbTagen: _posInt(cfg.kenntnisEskalationAbTagen, 21),
+        kenntnisEskalationMail:    typeof cfg.kenntnisEskalationMail === 'string' ? cfg.kenntnisEskalationMail : '',
         erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
         erinnerungDannAlleTage:   _posInt(cfg.erinnerungDannAlleTage, 3),
         eskalationAbTagen:        _posInt(cfg.eskalationAbTagen, 14),
@@ -126,6 +138,11 @@ function getAccessConfig() {
     genehmigungPA:     c.genehmigungPA === true || c.genehmigungPAScope === 'gl' || c.genehmigungPAScope === 'alle',
     erinnerungenAktiv:        c.erinnerungenAktiv !== false,
     mailSender:               c.mailSender || '',
+    kenntnisErinnerungAktiv:   c.kenntnisErinnerungAktiv !== false,
+    kenntnisErsteNachTagen:    _posInt(c.kenntnisErsteNachTagen, 7),
+    kenntnisDannAlleTage:      _posInt(c.kenntnisDannAlleTage, 7),
+    kenntnisEskalationAbTagen: _posInt(c.kenntnisEskalationAbTagen, 21),
+    kenntnisEskalationMail:    c.kenntnisEskalationMail || '',
     erinnerungErsteNachTagen: _posInt(c.erinnerungErsteNachTagen, 7),
     erinnerungDannAlleTage:   _posInt(c.erinnerungDannAlleTage, 3),
     eskalationAbTagen:        _posInt(c.eskalationAbTagen, 14),

@@ -93,6 +93,8 @@ const POLICY_EXT_FIELDS = [
   { feld: 'geltungsbereich',    spalte: 'GeltungsbereichJson', json: true,  leer: [] },
   { feld: 'historie',           spalte: 'HistorieJson',        json: true,  leer: [] },
   { feld: 'konzept',            spalte: 'KonzeptJson',         json: true,  leer: null },
+  // Lernvideos [{titel,url}] – nur im Sammelfeld, ohne eigene SharePoint-Spalte
+  { feld: 'videos',             spalte: '',                    json: true,  leer: [] },
 ];
 
 /** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,
@@ -184,6 +186,7 @@ function _readExtFields(f) {
   // Arrays/Objekte defensiv normalisieren (kaputte Daten dürfen die App nicht kippen)
   if (!Array.isArray(out.geltungsbereich)) out.geltungsbereich = [];
   if (!Array.isArray(out.historie)) out.historie = [];
+  if (!Array.isArray(out.videos)) out.videos = [];
   if (typeof out.regelwerkTyp !== 'string') out.regelwerkTyp = '';
   if (!out.konzept || typeof out.konzept !== 'object' || Array.isArray(out.konzept)) out.konzept = null;
   return out;

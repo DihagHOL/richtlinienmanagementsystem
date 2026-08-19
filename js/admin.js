@@ -68,7 +68,7 @@ function geltungsbereichLabel(arr) {
 /** Felder, deren Änderung protokolliert wird (Feld → Anzeigename). */
 const HISTORIE_FELDER = {
   title: 'Titel', beschreibung: 'Beschreibung', kategorie: 'Kategorie',
-  regelwerkTyp: 'Typ', version: 'Version', status: 'Status', pflicht: 'Pflichtlektüre',
+  regelwerkTyp: 'Dokumentenart', version: 'Version', status: 'Status', pflicht: 'Pflichtlektüre',
   dokumentName: 'Dokument', naechsteReview: 'Nächste Überprüfung',
   wiederholungMonate: 'Wiederholung (Monate)', quizErforderlich: 'Wissenstest',
   geltungsbereich: 'Geltungsbereich', zielgruppen: 'Zielgruppe',
@@ -674,7 +674,7 @@ function newPolicy() {
   return {
     id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
-    regelwerkTyp: '', geltungsbereich: [], historie: [],
+    regelwerkTyp: '', geltungsbereich: [], historie: [], videos: [],
     version: '1.0', status: 'Entwurf', pflicht: true,
     quizErforderlich: false, quizBestehenProzent: 80, quiz: [],
     zielgruppen: [], wiederholungMonate: 0, naechsteReview: '',
@@ -715,7 +715,7 @@ function renderPolicyEditor() {
           <textarea oninput="_editing.beschreibung=this.value" placeholder="Kurzbeschreibung / Geltungsbereich">${esc(p.beschreibung)}</textarea>
         </div>
         <div class="form-group">
-          <label>Typ (Dokumentart)</label>
+          <label>Dokumentenart <span class="req">*</span></label>
           <select onchange="_editing.regelwerkTyp=this.value">
             <option value="">– bitte wählen –</option>
             ${REGELWERK_TYPEN.map(t => `<option ${t === p.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
@@ -782,6 +782,7 @@ function renderPolicyEditor() {
       ${renderZielgruppenSection()}
       ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
       ${renderWorkflowSections()}
+      ${renderVideoEditorSection()}
       ${p.id ? renderHistorieSection(p) : ''}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
@@ -804,6 +805,69 @@ function renderPolicyEditor() {
     </div>`;
   // Re-Render ohne Scroll-Sprung (Ein-/Ausklappen, BR-Auswahl …)
   (typeof reopenModalKeepScroll === 'function' ? reopenModalKeepScroll : openModal)(body, true);
+}
+
+/* ── Lernvideos: Erklärvideo statt nur Dokument ──
+   Ein Video vor dem Wissenstest bringt mehr hängen als zwölf Seiten Fließtext.
+   Eingegeben wird der Einbetten-Code aus Stream/SharePoint oder eine Adresse;
+   videoEinbettung() (util.js) entscheidet, ob gespielt oder verlinkt wird. */
+
+function renderVideoEditorSection() {
+  return `
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-weight:700;font-size:.9rem">🎬 Lernvideos <span style="font-weight:400;color:var(--c-muted)">(optional)</span></div>
+        <button class="btn btn-ghost btn-sm" onclick="vidAdd()">+ Video</button>
+      </div>
+      <div class="field-hint" style="margin-bottom:10px">
+        Videos erscheinen bei den Mitarbeitenden direkt unter dem Dokument – vor dem Wissenstest.
+        Am einfachsten in Stream/SharePoint auf <b>Teilen → Einbetten</b> klicken und den Code hier
+        einfügen; die App holt sich die Adresse heraus. Eine normale Video-Adresse geht auch
+        (YouTube und Vimeo werden ebenfalls direkt abgespielt), sonst öffnet ein Knopf das Video
+        in einem neuen Tab. Rechte am Video vergibt SharePoint – wer es nicht sehen darf, sieht es
+        auch hier nicht.
+      </div>
+      <div id="vid-list">${renderVideoItems()}</div>
+    </div>`;
+}
+
+function renderVideoItems() {
+  const vids = _editing.videos || [];
+  if (!vids.length) return '<div class="field-hint" style="margin-bottom:10px">Noch kein Video hinterlegt.</div>';
+  return vids.map((v, i) => {
+    const e = (typeof videoEinbettung === 'function') ? videoEinbettung(v.url) : null;
+    const status = !String(v.url || '').trim()
+      ? '<span class="field-hint">Adresse oder Einbetten-Code einfügen</span>'
+      : e && e.art === 'einbetten'
+        ? '<span class="field-hint" style="color:var(--c-success,#16a34a)">▶ wird direkt in der Seite abgespielt</span>'
+        : e
+          ? '<span class="field-hint">↗ öffnet in einem neuen Tab (nicht einbettbar)</span>'
+          : '<span class="field-hint" style="color:#b45309">⚠ keine gültige Adresse erkannt</span>';
+    return `
+      <div class="qe-item">
+        <div class="qe-head">
+          <span class="t">Video ${i + 1}</span>
+          <button class="btn btn-ghost btn-sm" onclick="vidRemove(${i})">Entfernen</button>
+        </div>
+        <div class="form-group full" style="margin-bottom:8px">
+          <input type="text" value="${esc(v.titel || '')}" placeholder="Titel, z. B. Phishing in 3 Minuten"
+            oninput="vidSet(${i},'titel',this.value)">
+        </div>
+        <div class="form-group full" style="margin-bottom:6px">
+          <input type="text" value="${esc(v.url || '')}" placeholder="Adresse oder Einbetten-Code aus Stream/SharePoint"
+            oninput="vidSet(${i},'url',this.value)" onchange="vidRefresh()">
+        </div>
+        ${status}
+      </div>`;
+  }).join('');
+}
+
+function vidRefresh() { const el = document.getElementById('vid-list'); if (el) el.innerHTML = renderVideoItems(); }
+function vidAdd() { if (!Array.isArray(_editing.videos)) _editing.videos = []; _editing.videos.push({ titel: '', url: '' }); vidRefresh(); }
+function vidRemove(i) { (_editing.videos || []).splice(i, 1); vidRefresh(); }
+function vidSet(i, feld, wert) {
+  if (!Array.isArray(_editing.videos) || !_editing.videos[i]) return;
+  _editing.videos[i][feld] = wert;
 }
 
 function renderQuizEditorSection() {
@@ -1183,6 +1247,9 @@ async function savePolicy(newStatus) {
   }
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
+  // Die Dokumentenart steuert Nummernkreis, Ablage und Auswertung – ohne sie
+  // landet ein Regelwerk in keiner Systematik. Deshalb Pflicht.
+  if (!(p.regelwerkTyp || '').trim()) { toast('Bitte die Dokumentenart wählen (z. B. Richtlinie, Handbuch).', 'error'); return; }
   if (!p.dokumentItemId && !p.dokumentUrl) { toast('Bitte ein Dokument zuordnen.', 'error'); return; }
   if (!Array.isArray(p.geltungsbereich) || !p.geltungsbereich.length) {
     toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return;

@@ -59,9 +59,17 @@ ok(/Geltungsbereich \(Standorte\) <span class="req">\*<\/span>/.test(adm), 'Gelt
 ok(/Pflichtangabe/.test(adm), 'Hinweistext nennt die Pflicht');
 ok(/Typ \(Dokumentart\) <span class="req">\*<\/span>/.test(kjs), 'Konzept-Typ ist mit * gekennzeichnet');
 
-/* ── Regelwerk-Typ bleibt bewusst optional (Migration bestehender Dokumente) ── */
-const adminOnly = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
-ok(!/regelwerkTyp[^\n]{0,80}toast\(/.test(adminOnly), 'Regelwerk-Typ ist weiterhin optional (Direktanlage/Migration)');
+/* ── Dokumentenart ist Pflicht ──
+   Sie steuert Nummernkreis, Ablage und Auswertung; ohne sie fällt ein Regelwerk
+   aus jeder Systematik. Früher blieb sie optional, um Altbestand migrieren zu
+   können – eingeführt war zu dem Zeitpunkt noch nichts. */
+const adminOnly = fs.readFileSync(ROOT + '/js/admin.js', 'utf8').split('\r\n').join('\n');
+ok(/if \(!\(p\.regelwerkTyp \|\| ''\)\.trim\(\)\) \{ toast\(/.test(adminOnly),
+  'savePolicy verlangt die Dokumentenart');
+const posTyp = adminOnly.search(/Bitte die Dokumentenart wählen/);
+const posDok = adminOnly.search(/Bitte ein Dokument zuordnen/);
+ok(posTyp > -1 && posTyp < posDok, 'Sie wird direkt nach dem Titel geprüft');
+ok(/Dokumentenart <span class="req">\*<\/span>/.test(adminOnly), 'Und im Editor mit * gekennzeichnet');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

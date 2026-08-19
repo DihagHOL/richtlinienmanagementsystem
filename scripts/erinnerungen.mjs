@@ -21,6 +21,8 @@
  *   CONFIG_FOLDER (Richtlinienmanagement), APP_URL, ESKALATION_AB_TAGEN, DRY_RUN
  *
  * Benötigte Graph-APPLICATION-Rechte (Admin-Consent): Sites.Read.All, Mail.Send.
+ * Für die Erinnerung an offene Kenntnisnahmen zusätzlich User.Read.All (Zielgruppen
+ * auflösen). Fehlt das Recht, überspringt der Lauf nur diesen Teil.
  */
 
 const TENANT = need('AZURE_TENANT_ID');
@@ -243,6 +245,123 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
   </div>`;
 }
 
+/* ═══════════════════════════════════════════════════
+   Kenntnisnahmen der Mitarbeitenden
+   ═══════════════════════════════════════════════════
+   Der Cron erinnerte nur die Fachrollen (Prüfung, Mitbestimmung, Freigabe).
+   Wer ein veröffentlichtes Regelwerk lesen und bestätigen muss, hörte nach der
+   Veröffentlichungsmail nie wieder etwas davon – dabei hängt genau daran der
+   Nachweis. Jede Person bekommt eine Mail über alle ihre offenen Regelwerke,
+   nicht eine Mail je Regelwerk. */
+
+/** Aktive Mitarbeitende aus Entra. Braucht das Anwendungsrecht User.Read.All. */
+async function ladeMitarbeitende() {
+  const out = [];
+  let url = '/users?$select=displayName,userPrincipalName,mail,department,accountEnabled&$top=999';
+  while (url) {
+    const page = await gget(url);
+    for (const u of (page.value || [])) {
+      if (u.accountEnabled === false) continue;
+      const upn = String(u.userPrincipalName || u.mail || '').trim();
+      if (!upn.includes('@')) continue;
+      out.push({ upn, name: u.displayName || upn, abteilung: String(u.department || '').trim() });
+    }
+    url = page['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/** Bestätigungen als Nachschlagewerk: „regelwerkId|version|upn" → Eintrag. */
+async function ladeBestaetigungen(siteId) {
+  const lists = await gget(`/sites/${siteId}/lists?$filter=displayName eq 'Bestaetigungen'`);
+  const list = (lists.value || [])[0];
+  if (!list) return null;
+  const map = new Map();
+  let url = `/sites/${siteId}/lists/${list.id}/items?$expand=fields&$top=500`;
+  while (url) {
+    const page = await gget(url);
+    for (const it of (page.value || [])) {
+      const f = it.fields || {};
+      map.set(`${f.RichtlinieId}|${f.RichtlinienVersion}|${lc(f.BenutzerUPN)}`, {
+        gelesenAm: f.GelesenAm || '',
+        quizBestanden: f.QuizBestanden === true,
+        abgeschlossenAm: f.AbgeschlossenAm || '',
+      });
+    }
+    url = page['@odata.nextLink'] || null;
+  }
+  return map;
+}
+
+/** Rollen einer Person: AD-Abteilung plus manuelle Zuordnung aus der Konfiguration. */
+function rollenVon(user, userRoles) {
+  const manuell = (userRoles && (userRoles[lc(user.upn)] || userRoles[user.upn])) || [];
+  return [user.abteilung, ...(Array.isArray(manuell) ? manuell : [])]
+    .filter(Boolean).map((r) => lc(String(r).trim()));
+}
+
+/** Gilt das Regelwerk für diese Rollen? Leere Zielgruppe oder „ALLE" heißt: für alle. */
+function zielgruppeTrifft(zielgruppen, rollen) {
+  const zg = (Array.isArray(zielgruppen) ? zielgruppen : []).filter(Boolean);
+  if (!zg.length || zg.some((z) => lc(z) === 'alle')) return true;
+  const set = new Set((rollen || []).map(lc));
+  return zg.some((z) => set.has(lc(String(z).trim())));
+}
+
+/** Ist die Kenntnisnahme offen? Auch dann, wenn die Wiederholungsfrist abgelaufen ist. */
+function kenntnisOffen(ack, quizNoetig, wiederholungMonate) {
+  if (!ack || !ack.gelesenAm) return true;
+  if (quizNoetig && !ack.quizBestanden) return true;
+  const monate = Number(wiederholungMonate || 0);
+  if (monate > 0) {
+    const faellig = new Date(ack.abgeschlossenAm || ack.gelesenAm);
+    if (!isNaN(faellig)) {
+      faellig.setMonth(faellig.getMonth() + monate);
+      if (faellig.getTime() < Date.now()) return true;
+    }
+  }
+  return false;
+}
+
+/** Direktlink auf ein Regelwerk in der Leseansicht. */
+function regelwerkLink(id) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}`;
+}
+
+function kenntnisMailHtml(name, posten) {
+  const zeilen = posten.map((x) => `<li style="margin-bottom:6px">
+      <a href="${esc(regelwerkLink(x.id))}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(x.title)}</a>
+      <span style="color:#6b7280"> – seit ${x.tage} Tag(en) veröffentlicht${x.quizNoetig ? ', mit Wissenstest' : ''}</span></li>`).join('');
+  const eins = posten.length === 1;
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+    <p>Guten Tag ${esc(name)},</p>
+    <p>${eins ? 'ein Regelwerk wartet' : `${posten.length} Regelwerke warten`} noch auf Ihre Kenntnisnahme:</p>
+    <ul style="padding-left:18px">${zeilen}</ul>
+    <p>Bitte öffnen, lesen und die Kenntnisnahme bestätigen${posten.some((x) => x.quizNoetig) ? ' – bei Regelwerken mit Wissenstest zusätzlich den Test bestehen' : ''}.
+       Das dauert meist wenige Minuten.</p>
+    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=meine`, '#1a56db', 'Meine Regelwerke öffnen →')}</p>
+    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung des DIHAG Regelwerk-Managements.
+       Ist etwas bereits erledigt, kreuzt sich diese Mail nur mit Ihrer Bestätigung – dann bitte ignorieren.</p>
+  </div>`;
+}
+
+function kenntnisEskalationHtml(posten) {
+  const rows = posten.map((x) => `<tr>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.title)}</td>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;color:#b45309;font-weight:600">seit ${x.tage} Tagen</td>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${x.offen.length} offen</td></tr>
+    <tr><td colspan="3" style="padding:0 8px 8px;color:#6b7280;font-size:12px">${esc(x.offen.join(', '))}</td></tr>`).join('');
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+    <p><b>Offene Kenntnisnahmen – Eskalation</b></p>
+    <p>Bei folgenden Regelwerken fehlen Bestätigungen deutlich über die vorgesehene Frist hinaus:</p>
+    <table style="border-collapse:collapse;width:100%">${rows}</table>
+    <p style="margin-top:16px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=compliance`, '#1a56db', 'Audit Report öffnen →')}</p>
+    <p style="color:#6b7280;font-size:12px">Zweck ist der Nachweis der Unterweisung, keine Leistungskontrolle.
+       Automatische Nachricht des DIHAG Regelwerk-Managements.</p>
+  </div>`;
+}
+
 (async function main() {
   console.log(`Richtlinien-Erinnerungen · ${new Date().toISOString()} · DRY_RUN=${DRY_RUN}`);
   TOKEN = await getToken();
@@ -338,6 +457,73 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
       phase === 'Mitbestimmung' ? roleRecipients : []);
     if (ok) sent++;
   }
+
+  // ── Offene Kenntnisnahmen: Erinnerung an die Mitarbeitenden ──
+  try {
+    if (cfg.kenntnisErinnerungAktiv === false) {
+      console.log('Kenntnisnahme-Erinnerungen: in den App-Einstellungen abgeschaltet.');
+    } else {
+      const kErste = posInt(cfg.kenntnisErsteNachTagen, 7);
+      const kAlle = posInt(cfg.kenntnisDannAlleTage, 7);
+      const kEskAb = posInt(cfg.kenntnisEskalationAbTagen, 21);
+      const kEskMail = String(cfg.kenntnisEskalationMail || cfg.eskalationMail || '').trim();
+      const acks = await ladeBestaetigungen(siteId);
+      let users = [];
+      if (!acks) {
+        console.log('Kenntnisnahme: Liste „Bestaetigungen" nicht gefunden – übersprungen.');
+      } else {
+        try {
+          users = await ladeMitarbeitende();
+        } catch (e) {
+          console.log(`Kenntnisnahme: Mitarbeitende nicht lesbar (${e.message}). Dem App-Konto fehlt`
+            + ' vermutlich das Anwendungsrecht „User.Read.All" (Admin-Consent) – Teil übersprungen.');
+        }
+      }
+      if (acks && users.length) {
+        const userRoles = (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {};
+        const jeUser = new Map();     // upn → { upn, name, posten: [] }
+        const eskalation = [];        // { title, tage, offen: [Namen] }
+        for (const it of items) {
+          const f = it.fields || {};
+          if ((f.Status || '') !== 'Veröffentlicht') continue;
+          if (f.Pflicht === false) continue;            // freiwillige Lektüre wird nicht angemahnt
+          const tage = daysSince(f.VeroeffentlichtAm || it.lastModifiedDateTime || '');
+          const faellig = isDue(tage, kErste, kAlle);
+          const eskaliert = kEskAb > 0 && tage >= kEskAb && !!kEskMail;
+          if (!faellig && !eskaliert) continue;
+          const title = f.Title || '(ohne Titel)';
+          const version = f.Version1 || '1.0';
+          let zg = []; try { zg = JSON.parse(f.Zielgruppen || '[]'); } catch { zg = []; }
+          let fragen = 0; try { fragen = (JSON.parse(f.QuizJson || '[]') || []).length; } catch { fragen = 0; }
+          const quizNoetig = !!f.QuizErforderlich && fragen > 0;
+          const offeneNamen = [];
+          for (const u of users) {
+            if (!zielgruppeTrifft(zg, rollenVon(u, userRoles))) continue;
+            if (!kenntnisOffen(acks.get(`${it.id}|${version}|${lc(u.upn)}`), quizNoetig, f.WiederholungMonate)) continue;
+            offeneNamen.push(u.name);
+            if (!faellig) continue;                     // an diesem Tag nur für die Eskalation zählen
+            if (!jeUser.has(lc(u.upn))) jeUser.set(lc(u.upn), { upn: u.upn, name: u.name, posten: [] });
+            jeUser.get(lc(u.upn)).posten.push({ id: it.id, title, tage, quizNoetig });
+          }
+          if (eskaliert && offeneNamen.length) eskalation.push({ title, tage, offen: offeneNamen });
+          console.log(`• Kenntnisnahme „${title}" – ${tage}d, offen: ${offeneNamen.length}`);
+        }
+        for (const u of jeUser.values()) {
+          const betreff = u.posten.length === 1
+            ? `Bitte um Kenntnisnahme: ${u.posten[0].title}`
+            : `${u.posten.length} Regelwerke warten auf Ihre Kenntnisnahme`;
+          if (await sendMail([u.upn], betreff, kenntnisMailHtml(u.name, u.posten), [])) sent++;
+        }
+        console.log(`Kenntnisnahme: ${jeUser.size} Person(en) erinnert.`);
+        if (eskalation.length && kEskMail) {
+          eskalation.sort((a, b) => b.tage - a.tage);
+          if (await sendMail([kEskMail], `Offene Kenntnisnahmen: ${eskalation.length} Regelwerk(e) überfällig`,
+            kenntnisEskalationHtml(eskalation), [])) sent++;
+          console.log(`Kenntnisnahme-Eskalation: ${eskalation.length} Regelwerk(e) an ${kEskMail}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Kenntnisnahme-Erinnerungen übersprungen:', e.message); }
 
   // ── Review-Fälligkeiten (Wiedervorlage) als Sammel-Mail an die Admins (ISO 27001 A.5.1) ──
   try {

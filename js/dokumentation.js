@@ -33,6 +33,8 @@ const _DOKU_TOC = [
   ['start',         'Erste Schritte'],
   ['rollen',        'Rollen im System'],
   ['lesen',         'Regelwerke lesen & bestätigen'],
+  ['wissenstest',   'Wissenstest & Lernvideos'],
+  ['erinnerungen',  'Erinnerungen & Eskalation'],
   ['vorschlag',     'Änderung vorschlagen'],
   ['ki',            'KI-Systeme beantragen'],
   ['cockpit',       'Cockpit (Admin-Startseite)'],
@@ -105,6 +107,55 @@ function _dokuSections() {
       <div style="${hint}">ℹ️ Manche Regelwerke müssen <b>regelmäßig</b> erneut bestätigt werden (z. B. jährlich) und erscheinen dann automatisch wieder als „offen". Auch eine <b>neue Version</b> setzt die Bestätigung zurück.</div>`,
       'ISO 27001 Klausel 7.3 (Bewusstsein), A.6.3 (Informationssicherheitsbewusstsein &amp; -schulung), A.5.1 (Regelwerke); NIS2 Art. 21(2g) (Cyberhygiene &amp; Schulung).'),
 
+    sec('wissenstest', 'Wissenstest & Lernvideos', 'all', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Wissenstest weist nach, dass ein Regelwerk nicht nur geöffnet, sondern verstanden wurde. Er ist optional – die Administration entscheidet je Regelwerk.</p>
+      <h3 style="${h3}">So läuft er ab</h3>
+      <ol style="${ol}">
+        <li style="${li}"><b>Erst lesen, dann testen:</b> Der Test lässt sich erst starten, wenn die Kenntnisnahme bestätigt ist.</li>
+        <li style="${li}"><b>Fragen und Antworten werden bei jedem Versuch neu gemischt</b> – Auswendiglernen der Reihenfolge bringt nichts.</li>
+        <li style="${li}"><b>Alle Fragen beantworten</b>, dann absenden. Es zählt genau eine richtige Antwort je Frage.</li>
+        <li style="${li}"><b>Sofortige Auswertung:</b> Die richtige Antwort erscheint grün, eine falsch gewählte rot – der Test ist damit auch Lernmittel.</li>
+        <li style="${li}"><b>Bestehensgrenze</b> legt die Administration je Regelwerk fest (Standard 80&nbsp;% richtig).</li>
+        <li style="${li}"><b>Nicht bestanden?</b> Beliebig oft wiederholbar, ohne Sperrfrist. Ziel ist Verständnis, nicht Selektion.</li>
+      </ol>
+      <h3 style="${h3}">Was gespeichert wird</h3>
+      ${tbl([
+        ['Ergebnis', 'Das <b>beste</b> erreichte Ergebnis in Prozent (ein schlechterer Versuch verschlechtert es nicht).'],
+        ['Bestanden', 'Einmal bestanden bleibt bestanden – bis zur nächsten Version oder zur nächsten Wiederholung.'],
+        ['Versuche', 'Anzahl der Anläufe. Zweck ist die Nachweisführung, nicht die Bewertung von Personen.'],
+        ['Abschluss', 'Erst mit bestandenem Test gilt das Regelwerk als erledigt – vorher steht es als „gelesen, Test offen".'],
+      ])}
+      <h3 style="${h3}">Lernvideos</h3>
+      <ul style="${ol}">
+        <li style="${li}">Zu jedem Regelwerk können <b>Videos</b> hinterlegt werden – sie erscheinen direkt unter dem Dokument, vor dem Wissenstest.</li>
+        <li style="${li}">Videos aus <b>Stream/SharePoint</b> sowie YouTube und Vimeo werden <b>in der Seite abgespielt</b>; alles andere bekommt einen Knopf, der in einem neuen Tab öffnet.</li>
+        <li style="${li}">Die <b>Rechte am Video</b> vergibt SharePoint. Wer das Video dort nicht sehen darf, sieht es auch hier nicht.</li>
+      </ul>
+      <div style="${hint}">🎬 <b>Für die Administration:</b> Im Regelwerk-Editor unter <b>„🎬 Lernvideos"</b> Titel und Adresse eintragen. Am einfachsten in Stream/SharePoint auf <b>Teilen → Einbetten</b> klicken und den Code einfügen – die App holt sich die Adresse heraus und zeigt sofort an, ob abgespielt oder verlinkt wird. Fragen und Bestehensgrenze stehen im selben Editor unter <b>„Wissenstest"</b> (mindestens zwei Antwortoptionen je Frage, genau eine richtige).</div>`,
+      'ISO 27001 Klausel 7.2 (Kompetenz), 7.3 (Bewusstsein), A.6.3 (Schulung &amp; Sensibilisierung); NIS2 Art. 21(2g).'),
+
+    sec('erinnerungen', 'Erinnerungen & Eskalation', 'all', `
+      <p style="margin:0 0 8px;line-height:1.55">Nichts im Ablauf hängt davon ab, dass jemand die App zufällig öffnet: Ein zeitgesteuerter Lauf (werktäglich, ohne offenen Browser) fasst offene Punkte automatisch nach.</p>
+      <h3 style="${h3}">Was erinnert wird</h3>
+      ${tbl([
+        ['Offene Kenntnisnahme', 'An die <b>Mitarbeitenden</b>: Ein veröffentlichtes Pflicht-Regelwerk ist noch zu lesen und zu bestätigen (samt Wissenstest, falls gefordert). Jede Person erhält <b>eine</b> Mail über <b>alle</b> ihre offenen Regelwerke – nicht eine Mail je Regelwerk.'],
+        ['Konzeptprüfung', 'An die Geschäftsleitung: ein eingereichtes Konzept wartet auf Entscheidung.'],
+        ['Konformitätsprüfung', 'An die Prüfer, die noch nicht votiert haben (regelwerkseigene Prüfer haben Vorrang).'],
+        ['Mitbestimmung', 'An KBR und die Betriebsräte der betroffenen Werke.'],
+        ['Freigabe', 'An die Geschäftsleitung bzw. die je Regelwerk hinterlegten Freigebenden.'],
+        ['Wiedervorlage', 'Sammelmail an die Administration: welche Regelwerke zur Überprüfung anstehen.'],
+        ['Risiken', 'Sammelmail an die Administration: überfällige Maßnahmen und Risiko-Reviews.'],
+      ])}
+      <h3 style="${h3}">Taktung und Eskalation</h3>
+      <ul style="${ol}">
+        <li style="${li}"><b>Workflow-Schritte:</b> erste Erinnerung nach 7 Tagen, danach alle 3 Tage; ab 14 Tagen zusätzlich an den <b>Ersatz-Empfänger</b>.</li>
+        <li style="${li}"><b>Kenntnisnahmen:</b> bewusst träger – erste Erinnerung nach 7 Tagen, danach wöchentlich; ab 21 Tagen geht eine <b>Sammelmeldung</b> an die hinterlegte Stelle: welches Regelwerk wie lange offen ist und wer noch fehlt.</li>
+        <li style="${li}">Alle Werte sind in den <b>Einstellungen</b> änderbar, jede Erinnerungsart lässt sich einzeln <b>pausieren</b>.</li>
+        <li style="${li}">Erinnert wird nur, was <b>tatsächlich offen</b> ist – wer bestätigt hat, fällt sofort aus der Liste.</li>
+      </ul>
+      <div style="${hint}">🔐 <b>Zweckbindung:</b> Die Auswertung dient dem Nachweis der Unterweisung (ISO 27001 A.6.3), nicht der Leistungs- oder Verhaltenskontrolle. Die Eskalation geht an eine benannte Stelle – nicht automatisch an Vorgesetzte.</div>`,
+      'ISO 27001 Klausel 7.4 (Kommunikation), 9.1 (Überwachung), A.5.1, A.6.3; NIS2 Art. 21(2g).'),
+
     sec('vorschlag', 'Änderung vorschlagen', 'all', `
       <p style="margin:0;line-height:1.55">Fehler oder Verbesserung entdeckt? In der geöffneten Regelwerk oben rechts auf <b>„✏️ Änderung vorschlagen"</b>, kurz <b>was</b> und <b>warum</b> beschreiben, absenden.</p>
       <ul style="${ol}">
@@ -156,7 +207,7 @@ function _dokuSections() {
         <li style="${li}"><b>Geltungsbereich (Standorte)</b> <b style="color:var(--c-primary)">– Pflichtangabe</b>: „Alle Standorte" (konzernweit) oder einzelne Werke: HOL, SHB, WGC, SCH, EIS, DSO, ZAI, LEG, MEG, EWA. Ohne Angabe lässt sich nicht speichern.</li>
         <li style="${li}"><b>Dokument</b> aus der Bibliothek wählen oder hochladen (mit Zielordner-Wähler; Versionsverlauf bleibt erhalten). Ist bereits ein Dokument zugeordnet, stehen <b>„✏️ In Office bearbeiten"</b> (On-Premise Office) und <b>„🌐 Im Browser bearbeiten"</b> zur Verfügung – wie bei den IMS-Dokumenten legt SharePoint beim Speichern automatisch eine neue Version an.</li>
         <li style="${li}"><b>Zielgruppe</b> – wer das Regelwerk sehen/bestätigen muss (Rollen/Abteilungen oder „für alle").</li>
-        <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Wiederholungspflicht</b>.</li>
+        <li style="${li}"><b>Dokumentenart</b> (Pflichtangabe: Richtlinie, Handbuch …), <b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Lernvideos</b>, <b>Wiederholungspflicht</b>.</li>
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
         <li style="${li}"><b>Normbezug</b> – erscheint nur bei Kategorie <b>„ISO 27001"</b> oder <b>„NIS2"</b>: welche Controls/Artikel das Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
         <li style="${li}"><b>Freigabe-Workflow</b> (ausklappbare Abschnitte): eigene <b>Prüfer</b> bzw. <b>Freigeber</b> nur für dieses Regelwerk (leer = globale Einstellung) und die <b>Mitbestimmung</b> (KBR / Betriebsräte je Werk). Die Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> lässt sich mit ▲▼ pro Regelwerk tauschen.</li>

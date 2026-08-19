@@ -36,7 +36,8 @@ ok(JSON.stringify(actx.__T) === JSON.stringify(expected), 'REGELWERK_TYPEN = 6 g
 ok(actx.__np.regelwerkTyp === '', 'newPolicy().regelwerkTyp = leer');
 const adm = fs.readFileSync(ROOT+'/js/admin.js','utf8');
 ok(/_editing\.regelwerkTyp=this\.value/.test(adm), 'Regelwerk-Editor: Typ-Dropdown gebunden');
-ok(adm.includes('Typ (Dokumentart)'), 'Regelwerk-Editor: Label „Typ (Dokumentart)“');
+ok(adm.includes('Dokumentenart <span class="req">*</span>'),
+  'Regelwerk-Editor: „Dokumentenart" als Pflichtfeld gekennzeichnet');
 
 // ── C: konzepte.js Konzept-Editor ──
 const kctx = { console, esc, toast:()=>{}, canWriteTab:()=>true, REGELWERK_TYPEN: expected,
