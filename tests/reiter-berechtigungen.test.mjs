@@ -13,7 +13,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
-const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// Zeilenenden vereinheitlichen: Unter Windows liegt der Arbeitsstand als CRLF
+// vor, im Repository als LF – Zusicherungen über mehrere Zeilen sollen beides treffen.
+const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
 const acc = lies('js/access.js');
 const eins = lies('js/einstellungen.js');
