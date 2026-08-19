@@ -22,6 +22,7 @@ const ACCESS_CONFIG_DEFAULT = {
   // Reiter-Berechtigungen (zusätzlich zu den Standard-Rollenrechten, rein additiv):
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
+  gruppenNamen: {},   // Objekt-ID → Anzeigename der Sicherheitsgruppe (nur zur Anzeige)
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
   brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
@@ -76,6 +77,7 @@ async function loadRuntimeAccessConfig() {
         roles:      Array.isArray(cfg.roles) && cfg.roles.length ? cfg.roles : null,
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
+        gruppenNamen: (cfg.gruppenNamen && typeof cfg.gruppenNamen === 'object' && !Array.isArray(cfg.gruppenNamen)) ? cfg.gruppenNamen : {},
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
@@ -111,6 +113,7 @@ function getAccessConfig() {
     roles:      [...getCompanyRoles()],
     userRoles:  JSON.parse(JSON.stringify(c.userRoles || {})),
     reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
+    gruppenNamen: JSON.parse(JSON.stringify(c.gruppenNamen || {})),
     kbrMail:           c.kbrMail || '',
     brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
     clevelMail:        c.clevelMail || '',
@@ -283,17 +286,17 @@ function policyMatchesRoles(zielgruppen, roles) {
    haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
    (Berechtigungsvergabe = kein Privilege-Escalation). Gepflegt in access-config.json. */
 const GOVERNABLE_TABS = [
-  { view: 'cockpit',     label: 'Cockpit' },
-  { view: 'verwaltung',  label: 'Richtlinien Dashboard' },
-  { view: 'ismsdocs',    label: 'ISMS-Dokumente' },
-  { view: 'governance',  label: 'Governance-Board' },
-  { view: 'prozesse',    label: 'Prozesse (BPMN)' },
-  { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' },
-  { view: 'faelligkeit', label: 'Fälligkeiten' },
-  { view: 'risiken',     label: 'Risiko-Register' },
-  { view: 'vorschlaege', label: 'Vorschläge' },
-  { view: 'freigaben',   label: 'Freigaben' },
-  { view: 'compliance',  label: 'Audit Report' },
+  { view: 'cockpit',     label: 'Cockpit' , kurz: 'Cockpit' },
+  { view: 'verwaltung',  label: 'Regelwerk Dashboard', kurz: 'Dashboard' },
+  { view: 'ismsdocs',    label: 'IMS-Dokumente', kurz: 'IMS-Dok.' },
+  { view: 'governance',  label: 'Governance-Board' , kurz: 'Governance' },
+  { view: 'prozesse',    label: 'Prozesse (BPMN)' , kurz: 'Prozesse' },
+  { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
+  { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
+  { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },
+  { view: 'vorschlaege', label: 'Vorschläge' , kurz: 'Vorschläge' },
+  { view: 'freigaben',   label: 'Freigaben' , kurz: 'Freigaben' },
+  { view: 'compliance',  label: 'Audit Report' , kurz: 'Audit' },
 ];
 
 function _reiterRechte() { return _cfg().reiterRechte || {}; }
@@ -307,12 +310,38 @@ function getReiterRechte(view) {
   };
 }
 
-/** Liste (E-Mails ODER Rollennamen) gegen den aktuellen Nutzer/seine Rollen matchen. */
+/* Ein Eintrag in einer Reiter-Liste ist entweder eine E-Mail, ein Rollenname
+   oder – mit diesem Präfix – die Objekt-ID einer Sicherheitsgruppe. Die ID statt
+   des Namens, weil eine umbenannte Gruppe sonst still ihre Rechte verlöre. */
+const RECHT_GRUPPE = 'gruppe:';
+
+/** Ist der Eintrag eine Sicherheitsgruppe? */
+function istGruppenEintrag(x) { return String(x || '').toLowerCase().startsWith(RECHT_GRUPPE); }
+/** Objekt-ID aus einem Gruppen-Eintrag. */
+function gruppenIdVon(x) { return String(x || '').toLowerCase().slice(RECHT_GRUPPE.length); }
+/** Anzeigename einer Gruppe (beim Hinzufügen gemerkt; sonst die ID). */
+function gruppenName(id) { return (_cfg().gruppenNamen || {})[String(id).toLowerCase()] || id; }
+
+/** Gruppen-IDs des angemeldeten Kontos (in bootApp gesetzt). */
+function _currentGroupIds() {
+  const gs = (typeof State !== 'undefined' && Array.isArray(State.myGroups)) ? State.myGroups : [];
+  return new Set(gs.map(g => String(g && g.id || g).toLowerCase()));
+}
+
+/** Liste (E-Mails, Rollennamen ODER Sicherheitsgruppen) gegen den aktuellen Nutzer matchen. */
 function _matchesUserOrRole(list, upn, roles) {
   if (!Array.isArray(list) || !list.length) return false;
   const u = (upn || '').toLowerCase().trim();
   const rset = new Set((roles || []).map(r => String(r).toLowerCase().trim()));
-  return list.some(x => { const s = String(x).toLowerCase().trim(); return s === u || rset.has(s); });
+  let gset = null;   // Gruppen erst auflösen, wenn wirklich eine in der Liste steht
+  return list.some(x => {
+    const s = String(x).toLowerCase().trim();
+    if (s.startsWith(RECHT_GRUPPE)) {
+      if (!gset) gset = _currentGroupIds();
+      return gset.has(s.slice(RECHT_GRUPPE.length));
+    }
+    return s === u || rset.has(s);
+  });
 }
 
 /** Effektive Rollen des aktuellen Nutzers (synchron; aus State, in bootApp gesetzt). */

@@ -15,11 +15,62 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
    Verwaltung: Liste
 ═══════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════
+   Einstellungen: zwei Bereiche
+   ═══════════════════════════════════════════════════
+   Die Reiter-Berechtigungen bekommen einen eigenen Bereich. Als eine Karte
+   unter zwölf anderen ging der Überblick verloren, sobald mehr als eine
+   Handvoll Personen berechtigt war – und breit genug für eine Matrix war die
+   schmale Spalte auch nicht. Der Entwurf (_cfgEdit) überlebt den Wechsel,
+   ungespeicherte Änderungen gehen also nicht verloren. */
+
+let _cfgBereich = 'rollen';   // 'rollen' | 'reiter'
+
 function renderEinstellungen() {
   _cfgEdit = getAccessConfig();
+  _rrExtra = [];
+  _rrOffen = new Set();
+  _rrSuche = '';
+  _rrReiterFilter = '';
+  _cfgRenderBereich();
+}
+
+/** Bereich wechseln – ohne den Entwurf zu verlieren. */
+function cfgBereich(name) {
+  _cfgBereich = (name === 'reiter') ? 'reiter' : 'rollen';
+  _cfgRenderBereich();
+}
+
+function _cfgBereichLeiste() {
+  const seg = (m, label) => {
+    const on = _cfgBereich === m;
+    return `<button type="button" onclick="cfgBereich('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label}</button>`;
+  };
+  return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
+    ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}</div>`;
+}
+
+function _cfgRenderBereich() {
   const v = document.getElementById('view-einstellungen');
+  if (!v) return;
+  const reiter = _cfgBereich === 'reiter';
   v.innerHTML = `
-    <div style="max-width:680px">
+    <div style="max-width:${reiter ? '1100px' : '680px'}">
+      ${_cfgBereichLeiste()}
+      ${reiter ? _reiterBereichHtml() : _rollenBereichHtml()}
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
+      </div>
+    </div>`;
+  if (reiter) { rrRenderBody(); return; }
+  renderCfgLists();
+  renderRolesList();
+  renderUserRolesList();
+  loadAdDepartments();
+}
+
+function _rollenBereichHtml() {
+  return `
       <div class="col-warning" style="display:block">
         Einstellungen liegen in <code>access-config.json</code> in der Dokumentbibliothek.
         <b>Admins</b> verwalten Richtlinien & sehen Compliance, <b>Genehmiger</b> geben frei.
@@ -32,7 +83,6 @@ function renderEinstellungen() {
       ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard) – leer = Genehmiger-Liste gilt')}
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
-      ${reiterRechteCard()}
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Probelauf (Vorführung &amp; Funktionsprüfung)</h2></div>
@@ -183,17 +233,7 @@ function renderEinstellungen() {
             <button class="btn btn-outline btn-sm" onclick="urAddUser()">+ Mitarbeiter</button>
           </div>
         </div>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
-      </div>
-    </div>`;
-  renderCfgLists();
-  rrRenderBody();
-  renderRolesList();
-  renderUserRolesList();
-  loadAdDepartments();
+      </div>`;
 }
 
 function cfgAddRoleNamed(i) {
@@ -222,94 +262,345 @@ function roleCard(role, title) {
   </div>`;
 }
 
-/* ── Reiter-Berechtigungen: Checkbox-Matrix je Benutzer (E-Mail) ── */
-let _rrExtraUsers = [];   // hinzugefügte Benutzer, die (noch) kein Häkchen haben
+/* ═══════════════════════════════════════════════════
+   Reiter-Berechtigungen (Lesen / Schreiben)
+   ═══════════════════════════════════════════════════
+   Überblick zuerst: eine Zeile je Person oder Gruppe, ein Kürzel je Reiter
+   (– / L / S). Ein Klick auf eine Zelle schaltet weiter, ein Klick auf die
+   Zeile klappt die ausführliche Ansicht mit Beschriftungen auf.
 
-function reiterRechteCard() {
+   Freigaben gehen an eine Person (E-Mail) oder an eine Sicherheitsgruppe.
+   Gruppen stehen als „gruppe:<Objekt-ID>" in der Liste – die ID und nicht der
+   Name, weil eine umbenannte Gruppe sonst still ihre Rechte verlöre. Der Name
+   wird nur zur Anzeige unter `gruppenNamen` mitgeführt. */
+
+let _rrExtra = [];             // Träger ohne (noch) ein Recht – bleiben sichtbar
+let _rrOffen = new Set();      // ausgeklappte Zeilen
+let _rrSuche = '';
+let _rrReiterFilter = '';
+let _rrPickerOffen = false;
+
+const _rrFeldStil = 'border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit';
+
+function _reiterBereichHtml() {
   if (typeof GOVERNABLE_TABS === 'undefined') return '';
-  _rrExtraUsers = [];   // frischer Aufbau des Einstellungen-Reiters
-  return `<div class="card" style="margin-bottom:14px">
-    <div class="card-header"><h2>Reiter-Berechtigungen (Lesen / Schreiben)</h2></div>
-    <div class="card-body">
-      <div class="field-hint" style="margin-bottom:10px">
-        Zusätzlicher Zugriff auf einzelne Reiter je <b>Benutzer (E-Mail)</b> – einfach an-/abhaken.
-        <b>Additiv</b>: Standardrechte bleiben, <b>Admins</b> haben immer Zugriff. <b>Schreiben</b> schließt <b>Lesen</b> ein
-        (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
+  return `
+    <div class="col-warning" style="display:block">
+      <b>Zusätzlicher</b> Zugriff auf einzelne Reiter – für einzelne Personen <b>und für
+      Sicherheitsgruppen</b>. Additiv zu den Standardrechten: <b>Admins</b> haben immer Zugriff,
+      <b>Schreiben</b> schließt <b>Lesen</b> ein (nur Lesen = Reiter sichtbar, aber nicht
+      bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header"><h2>Wer darf welchen Reiter?</h2></div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <input type="search" id="rr-suche" placeholder="🔍 Person oder Gruppe suchen …"
+            value="${esc(_rrSuche)}" oninput="rrSuche(this.value)"
+            style="flex:1;min-width:220px;${_rrFeldStil}">
+          <select class="sort-select" onchange="rrReiterFilter(this.value)" aria-label="Nach Reiter filtern">
+            <option value="">Alle Reiter</option>
+            ${GOVERNABLE_TABS.map(t => `<option value="${t.view}"${_rrReiterFilter === t.view ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="rr-body"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <input type="email" id="rr-input-user" placeholder="name@dihag.com"
+            onkeydown="if(event.key==='Enter')rrAddUser()" style="flex:1;min-width:200px;${_rrFeldStil}">
+          <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Person</button>
+          <button class="btn btn-outline btn-sm" onclick="rrPicker()">👥 + Sicherheitsgruppe</button>
+        </div>
+        <div id="rr-picker" style="display:none;margin-top:12px;border:1px solid var(--c-border);border-radius:10px;padding:12px"></div>
+        <div class="field-hint" id="rr-gruppen-status" style="margin-top:12px">${_rrGruppenStatus()}</div>
       </div>
-      <div id="rr-body"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input type="email" id="rr-input-user" placeholder="name@dihag.com"
-          style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
-          onkeydown="if(event.key==='Enter')rrAddUser()">
-        <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Benutzer</button>
-      </div>
-    </div></div>`;
+    </div>`;
+}
+
+/** Hinweis, ob gruppenbasierte Freigaben überhaupt greifen können. */
+function _rrGruppenStatus() {
+  const lesbar = (typeof spGruppenLesbar === 'function') ? spGruppenLesbar() : null;
+  const n = ((typeof State !== 'undefined' && State.myGroups) || []).length;
+  if (lesbar === false) {
+    return '⚠ Die Gruppen-Mitgliedschaften Ihres Kontos konnten nicht gelesen werden – '
+      + 'gruppenbasierte Freigaben greifen dann nicht. Freigaben an einzelne Personen sind davon unberührt.';
+  }
+  if (lesbar === true) return `Gruppen-Auswertung aktiv – Ihr Konto gehört zu ${n} Gruppe(n).`;
+  return '';
+}
+
+/* ── Träger, Stufen, Filter (rein rechnend – ohne DOM) ── */
+
+/** Anzeigename einer Gruppe aus dem Entwurf. */
+function _rrGruppenName(id) {
+  return ((_cfgEdit && _cfgEdit.gruppenNamen) || {})[String(id).toLowerCase()] || id;
+}
+
+/** Alle Träger: was in den Listen steht plus frisch Hinzugefügtes. */
+function _rrEintraege() {
+  const set = new Set(_rrExtra);
+  for (const v of Object.values((_cfgEdit && _cfgEdit.reiterRechte) || {})) {
+    (v.lesen || []).forEach(x => set.add(String(x).toLowerCase()));
+    (v.schreiben || []).forEach(x => set.add(String(x).toLowerCase()));
+  }
+  return [...set]
+    .map(key => (typeof istGruppenEintrag === 'function' && istGruppenEintrag(key))
+      ? { key, art: 'gruppe', name: _rrGruppenName(gruppenIdVon(key)) }
+      : { key, art: 'person', name: key })
+    .sort((a, b) => (a.art === b.art)
+      ? String(a.name).localeCompare(String(b.name), 'de')
+      : (a.art === 'gruppe' ? -1 : 1));      // Gruppen zuerst: sie betreffen mehrere
+}
+
+/** Recht eines Trägers auf einem Reiter: '-' | 'L' | 'S'. */
+function _rrStufe(view, key) {
+  const e = (((_cfgEdit && _cfgEdit.reiterRechte) || {})[view]) || {};
+  const drin = (arr) => (arr || []).some(x => String(x).toLowerCase() === key);
+  if (drin(e.schreiben)) return 'S';
+  if (drin(e.lesen)) return 'L';
+  return '-';
+}
+
+/** Suche (Name/E-Mail) und Reiter-Filter anwenden. */
+function _rrGefiltert(eintraege, suche, reiter) {
+  const q = String(suche || '').toLowerCase().trim();
+  return (eintraege || []).filter(e => {
+    if (q && !String(e.name).toLowerCase().includes(q) && !String(e.key).toLowerCase().includes(q)) return false;
+    if (reiter && _rrStufe(reiter, e.key) === '-') return false;
+    return true;
+  });
+}
+
+/* ── Anzeige ── */
+
+function rrSuche(v) { _rrSuche = v || ''; rrRenderBody(); }
+function rrReiterFilter(v) { _rrReiterFilter = v || ''; rrRenderBody(); }
+function rrToggleOffen(key) {
+  if (_rrOffen.has(key)) _rrOffen.delete(key); else _rrOffen.add(key);
+  rrRenderBody();
 }
 
 function rrRenderBody() {
   const host = document.getElementById('rr-body');
   if (!host) return;
-  const users = _rrAllUsers();
-  if (!users.length) {
-    host.innerHTML = '<div class="field-hint">Noch keine Benutzer berechtigt – unten per E-Mail hinzufügen, dann Häkchen setzen.</div>';
+  const alle = _rrEintraege();
+  if (!alle.length) {
+    host.innerHTML = '<div class="field-hint">Noch niemand zusätzlich berechtigt – unten eine Person '
+      + 'oder eine Sicherheitsgruppe hinzufügen, dann in der Zeile die Reiter freigeben.</div>';
     return;
   }
-  const rr = _cfgEdit.reiterRechte || {};
-  const has = (view, kind, u) => ((rr[view] || {})[kind] || []).some(x => String(x).toLowerCase() === u);
-  host.innerHTML = users.map(u => `
-    <div style="border:1px solid var(--c-border);border-radius:10px;padding:10px 12px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span>👤</span><b style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(u)}</b>
-        <button class="btn btn-ghost btn-sm" onclick="rrRemoveUser('${esc(u)}')" title="Benutzer und alle seine Reiter-Rechte entfernen">✕ entfernen</button>
-      </div>
-      <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.83rem;width:100%">
-        <thead><tr style="text-align:left;color:var(--c-muted)">
-          <th style="padding:3px 8px">Reiter</th>
-          <th style="padding:3px 8px;text-align:center;width:80px">Lesen</th>
-          <th style="padding:3px 8px;text-align:center;width:80px">Schreiben</th></tr></thead>
-        <tbody>${GOVERNABLE_TABS.map(t => `<tr>
-          <td style="padding:3px 8px">${esc(t.label)}</td>
-          <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${has(t.view, 'lesen', u) ? 'checked' : ''} onchange="rrToggle('${t.view}','lesen','${esc(u)}',this.checked)"></td>
-          <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${has(t.view, 'schreiben', u) ? 'checked' : ''} onchange="rrToggle('${t.view}','schreiben','${esc(u)}',this.checked)"></td>
-        </tr>`).join('')}</tbody>
-      </table></div>
-    </div>`).join('');
+  const zeilen = _rrGefiltert(alle, _rrSuche, _rrReiterFilter);
+  const kopf = `<tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
+      <th style="padding:6px 8px;position:sticky;left:0;background:var(--c-bg);min-width:230px">Person / Gruppe</th>
+      ${GOVERNABLE_TABS.map(t => `<th title="${esc(t.label)}" style="padding:6px 4px;text-align:center;font-weight:600">${esc(t.kurz || t.label)}</th>`).join('')}
+      <th style="width:38px"></th></tr>`;
+
+  const zelle = (t, e) => {
+    const st = _rrStufe(t.view, e.key);
+    const farbe = st === 'S' ? 'background:var(--c-primary);color:#fff'
+      : st === 'L' ? 'background:#e3edf7;color:var(--c-primary)'
+      : 'color:var(--c-muted)';
+    const titel = `${e.name} · ${t.label}: ${st === 'S' ? 'Schreiben' : st === 'L' ? 'Lesen' : 'kein Zugriff'} (klicken zum Weiterschalten)`;
+    return `<td style="padding:3px 4px;text-align:center">
+      <button type="button" onclick="rrCycle('${t.view}','${esc(e.key)}')" title="${esc(titel)}"
+        style="border:1px solid var(--c-border);border-radius:6px;width:30px;height:26px;cursor:pointer;font:inherit;font-size:.75rem;font-weight:700;${farbe}">${st === '-' ? '–' : st}</button></td>`;
+  };
+
+  const detail = (e) => `<tr><td colspan="${GOVERNABLE_TABS.length + 2}" style="padding:0 8px 12px">
+      <div style="border:1px solid var(--c-border);border-radius:10px;padding:10px 12px;background:var(--c-bg-soft,transparent)">
+        <table style="border-collapse:collapse;font-size:.83rem;width:100%">
+          <thead><tr style="text-align:left;color:var(--c-muted)">
+            <th style="padding:3px 8px">Reiter</th>
+            <th style="padding:3px 8px;text-align:center;width:90px">Lesen</th>
+            <th style="padding:3px 8px;text-align:center;width:90px">Schreiben</th></tr></thead>
+          <tbody>${GOVERNABLE_TABS.map(t => {
+            const st = _rrStufe(t.view, e.key);
+            return `<tr>
+              <td style="padding:3px 8px">${esc(t.label)}</td>
+              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st !== '-' ? 'checked' : ''} onchange="rrToggle('${t.view}','lesen','${esc(e.key)}',this.checked)"></td>
+              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st === 'S' ? 'checked' : ''} onchange="rrToggle('${t.view}','schreiben','${esc(e.key)}',this.checked)"></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div></td></tr>`;
+
+  const koerper = zeilen.map(e => {
+    const offen = _rrOffen.has(e.key);
+    const anzahl = GOVERNABLE_TABS.filter(t => _rrStufe(t.view, e.key) !== '-').length;
+    const zusatz = e.art === 'gruppe' ? `<span class="field-hint" style="font-weight:400"> · Sicherheitsgruppe</span>` : '';
+    return `<tr>
+        <td style="padding:5px 8px;position:sticky;left:0;background:var(--c-bg)">
+          <div style="display:flex;align-items:center;gap:6px">
+            <button type="button" onclick="rrToggleOffen('${esc(e.key)}')" aria-expanded="${offen}"
+              title="Einzelne Reiter mit Beschriftung anzeigen"
+              style="border:0;background:none;cursor:pointer;font:inherit;color:var(--c-muted);padding:0 2px">${offen ? '▾' : '▸'}</button>
+            <span>${e.art === 'gruppe' ? '👥' : '👤'}</span>
+            <span style="min-width:0;overflow-wrap:anywhere"><b>${esc(e.name)}</b>${zusatz}
+              <span class="field-hint" style="font-weight:400"> · ${anzahl} Reiter</span></span>
+          </div></td>
+        ${GOVERNABLE_TABS.map(t => zelle(t, e)).join('')}
+        <td style="padding:5px 4px;text-align:right">
+          <button class="btn btn-ghost btn-sm" onclick="rrRemove('${esc(e.key)}')" title="Alle Reiter-Rechte dieses Eintrags entfernen">✕</button></td>
+      </tr>${offen ? detail(e) : ''}`;
+  }).join('');
+
+  const personen = alle.filter(e => e.art === 'person').length;
+  const gruppen = alle.length - personen;
+  const freigaben = alle.reduce((n, e) => n + GOVERNABLE_TABS.filter(t => _rrStufe(t.view, e.key) !== '-').length, 0);
+  const kopfzeile = `<div class="field-hint" style="margin-bottom:8px">
+      ${personen} Person(en), ${gruppen} Gruppe(n) · ${freigaben} Freigabe(n)
+      ${zeilen.length !== alle.length ? ` · <b>${zeilen.length}</b> passen zum Filter` : ''}
+      · <b>L</b> = Lesen, <b>S</b> = Schreiben</div>`;
+
+  host.innerHTML = kopfzeile + (zeilen.length
+    ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.83rem">
+         <thead>${kopf}</thead><tbody>${koerper}</tbody></table></div>`
+    : '<div class="field-hint">Keine Treffer für Suche/Filter.</div>');
+}
+
+/* ── Ändern ── */
+
+/** Stufe setzen; 'S' schließt 'L' ein. Der Eintrag bleibt sichtbar, auch wenn nichts mehr gesetzt ist. */
+function _rrSetzen(view, key, stufe) {
+  if (!_cfgEdit.reiterRechte) _cfgEdit.reiterRechte = {};
+  const e = _cfgEdit.reiterRechte[view] = _cfgEdit.reiterRechte[view] || { lesen: [], schreiben: [] };
+  const ohne = (arr) => (arr || []).filter(x => String(x).toLowerCase() !== key);
+  e.lesen = ohne(e.lesen);
+  e.schreiben = ohne(e.schreiben);
+  if (stufe === 'L') e.lesen.push(key);
+  if (stufe === 'S') { e.schreiben.push(key); e.lesen.push(key); }
+  if (!_rrExtra.includes(key)) _rrExtra.push(key);
+  rrRenderBody();
+}
+
+/** Zelle weiterschalten: kein Zugriff → Lesen → Schreiben → kein Zugriff. */
+function rrCycle(view, key) {
+  const jetzt = _rrStufe(view, key);
+  _rrSetzen(view, key, jetzt === '-' ? 'L' : jetzt === 'L' ? 'S' : '-');
+}
+
+function rrToggle(view, kind, key, on) {
+  const jetzt = _rrStufe(view, key);
+  let neu;
+  if (kind === 'schreiben') neu = on ? 'S' : (jetzt === 'S' ? 'L' : jetzt);
+  else neu = on ? (jetzt === 'S' ? 'S' : 'L') : '-';
+  _rrSetzen(view, key, neu);
+}
+
+function rrRemove(key) {
+  const lc = String(key).toLowerCase();
+  _rrExtra = _rrExtra.filter(x => x !== lc);
+  _rrOffen.delete(lc);
+  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
+    if (Array.isArray(v.lesen))     v.lesen     = v.lesen.filter(x => String(x).toLowerCase() !== lc);
+    if (Array.isArray(v.schreiben)) v.schreiben = v.schreiben.filter(x => String(x).toLowerCase() !== lc);
+  }
+  if (_cfgEdit.gruppenNamen && typeof istGruppenEintrag === 'function' && istGruppenEintrag(lc)) {
+    delete _cfgEdit.gruppenNamen[gruppenIdVon(lc)];
+  }
+  rrRenderBody();
 }
 
 function rrAddUser() {
   const inp = document.getElementById('rr-input-user');
   const val = (inp.value || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) { toast('Bitte gültige E-Mail eingeben.', 'error'); return; }
-  if (_rrAllUsers().includes(val)) { toast('Bereits vorhanden.', 'error'); return; }
-  _rrExtraUsers.push(val);
+  if (_rrEintraege().some(e => e.key === val)) { toast('Bereits vorhanden.', 'error'); return; }
+  _rrExtra.push(val);
+  _rrOffen.add(val);        // gleich aufgeklappt: die Rechte müssen ja noch gesetzt werden
   inp.value = '';
   rrRenderBody();
 }
 
-function rrRemoveUser(u) {
-  const lc = String(u).toLowerCase();
-  _rrExtraUsers = _rrExtraUsers.filter(x => x !== lc);
-  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
-    if (Array.isArray(v.lesen))     v.lesen     = v.lesen.filter(x => String(x).toLowerCase() !== lc);
-    if (Array.isArray(v.schreiben)) v.schreiben = v.schreiben.filter(x => String(x).toLowerCase() !== lc);
-  }
-  rrRenderBody();
+/* ── Sicherheitsgruppen auswählen ── */
+
+function rrPicker() {
+  _rrPickerOffen = !_rrPickerOffen;
+  const host = document.getElementById('rr-picker');
+  if (!host) return;
+  host.style.display = _rrPickerOffen ? '' : 'none';
+  if (!_rrPickerOffen) return;
+  host.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="search" id="rr-gruppe-suche" placeholder="Gruppenname (mind. 2 Zeichen)"
+        onkeydown="if(event.key==='Enter')rrGruppenSuche()" style="flex:1;min-width:200px;${_rrFeldStil}">
+      <button class="btn btn-outline btn-sm" onclick="rrGruppenSuche()">Suchen</button>
+    </div>
+    <div id="rr-gruppen-treffer" style="margin-top:10px"></div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:.83rem;color:var(--c-muted)">Gruppe direkt per Objekt-ID eintragen</summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <input type="text" id="rr-gruppe-id" placeholder="Objekt-ID (GUID aus Entra)" style="flex:1;min-width:240px;${_rrFeldStil}">
+        <input type="text" id="rr-gruppe-name" placeholder="Anzeigename" style="flex:1;min-width:160px;${_rrFeldStil}">
+        <button class="btn btn-outline btn-sm" onclick="rrAddGruppeManuell()">+ Übernehmen</button>
+      </div>
+      <div class="field-hint" style="margin-top:6px">Entra-Portal → Gruppen → Gruppe öffnen → „Objekt-ID".</div>
+    </details>`;
 }
 
-function rrToggle(view, kind, u, on) {
-  if (!_cfgEdit.reiterRechte) _cfgEdit.reiterRechte = {};
-  if (!_cfgEdit.reiterRechte[view]) _cfgEdit.reiterRechte[view] = { lesen: [], schreiben: [] };
-  const lc = String(u).toLowerCase();
-  const e = _cfgEdit.reiterRechte[view];
-  e[kind] = (e[kind] || []).filter(x => String(x).toLowerCase() !== lc);
-  if (on) e[kind].push(lc);
-  // Schreiben schließt Lesen ein → beim Anhaken von „Schreiben" auch „Lesen" sichtbar setzen.
-  if (kind === 'schreiben' && on && !e.lesen.some(x => String(x).toLowerCase() === lc)) {
-    e.lesen.push(lc);
-    rrRenderBody();
+async function rrGruppenSuche() {
+  const q = (document.getElementById('rr-gruppe-suche')?.value || '').trim();
+  const host = document.getElementById('rr-gruppen-treffer');
+  if (!host) return;
+  if (q.length < 2) { host.innerHTML = '<div class="field-hint">Bitte mindestens zwei Zeichen eingeben.</div>'; return; }
+  host.innerHTML = '<div class="doc-loading">Suche …</div>';
+  let treffer = [], hinweis = '';
+  try {
+    treffer = await spSearchGroups(q);
+  } catch (e) {
+    // Ohne Verzeichnis-Leserecht: wenigstens die eigenen Gruppen anbieten.
+    const eigen = ((typeof State !== 'undefined' && State.myGroups) || []);
+    treffer = eigen.filter(g => String(g.name || '').toLowerCase().includes(q.toLowerCase()));
+    hinweis = 'Dieses Konto darf das Verzeichnis nicht durchsuchen – gezeigt werden Ihre eigenen Gruppen. '
+      + 'Andere Gruppen unten per Objekt-ID eintragen.';
   }
-  // Beim Abhaken des letzten Häkchens bleibt der Benutzer bis zum Verlassen des Reiters sichtbar.
-  if (!on && !_rrAllUsers().includes(lc)) _rrExtraUsers.push(lc);
+  const schon = new Set(_rrEintraege().filter(e => e.art === 'gruppe').map(e => gruppenIdVon(e.key)));
+  host.innerHTML = (hinweis ? `<div class="field-hint" style="margin-bottom:8px">${esc(hinweis)}</div>` : '')
+    + (treffer.length
+      ? treffer.map(g => `<div class="dp-row" style="cursor:default">
+          <span class="ic">👥</span>
+          <span class="nm">${esc(g.name || g.id)}${g.mail ? ` <span class="field-hint">${esc(g.mail)}</span>` : ''}</span>
+          ${schon.has(g.id)
+            ? '<span class="status-badge sb-done">bereits berechtigt</span>'
+            : `<button class="btn btn-outline btn-sm" onclick="rrAddGruppe('${esc(g.id)}','${esc(g.name || g.id)}')">+ Übernehmen</button>`}
+        </div>`).join('')
+      : '<div class="field-hint">Keine Gruppe gefunden.</div>');
+}
+
+function rrAddGruppe(id, name) {
+  const gid = String(id || '').toLowerCase().trim();
+  if (!gid) return;
+  const key = RECHT_GRUPPE + gid;
+  if (!_cfgEdit.gruppenNamen) _cfgEdit.gruppenNamen = {};
+  _cfgEdit.gruppenNamen[gid] = name || gid;
+  if (_rrEintraege().some(e => e.key === key)) { toast('Bereits vorhanden.', 'error'); return; }
+  _rrExtra.push(key);
+  _rrOffen.add(key);
+  _rrPickerOffen = false;
+  const host = document.getElementById('rr-picker');
+  if (host) host.style.display = 'none';
+  rrRenderBody();
+  toast(`Gruppe „${name || gid}" hinzugefügt – Reiter freigeben und speichern.`, 'success');
+}
+
+function rrAddGruppeManuell() {
+  const id = (document.getElementById('rr-gruppe-id')?.value || '').trim().toLowerCase();
+  const name = (document.getElementById('rr-gruppe-name')?.value || '').trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+    toast('Bitte die Objekt-ID der Gruppe eingeben (GUID).', 'error'); return;
+  }
+  rrAddGruppe(id, name || id);
+}
+
+/** Namen von Gruppen, die nirgends mehr berechtigt sind, beim Speichern wegräumen. */
+function _rrGruppenNamenAufraeumen(cfg) {
+  if (!cfg || !cfg.gruppenNamen) return;
+  const benutzt = new Set();
+  for (const v of Object.values(cfg.reiterRechte || {})) {
+    [...(v.lesen || []), ...(v.schreiben || [])].forEach(x => {
+      if (typeof istGruppenEintrag === 'function' && istGruppenEintrag(x)) benutzt.add(gruppenIdVon(x));
+    });
+  }
+  for (const id of Object.keys(cfg.gruppenNamen)) if (!benutzt.has(id)) delete cfg.gruppenNamen[id];
 }
 
 /* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */
@@ -371,6 +662,7 @@ function cfgSetPAScope(v) {
 
 async function saveCfg() {
   try {
+    _rrGruppenNamenAufraeumen(_cfgEdit);
     await spSaveAccessConfig(_cfgEdit);
     setRuntimeConfig(JSON.parse(JSON.stringify(_cfgEdit)));
     initRoleNav();

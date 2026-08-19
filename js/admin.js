@@ -1807,16 +1807,6 @@ async function loadAdDepartments() {
   }
 }
 
-/** Alle Benutzer, die in irgendeiner Reiter-Liste stehen oder frisch hinzugefügt wurden (lowercase). */
-function _rrAllUsers() {
-  const set = new Set(_rrExtraUsers);
-  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
-    (v.lesen || []).forEach(u => set.add(String(u).toLowerCase()));
-    (v.schreiben || []).forEach(u => set.add(String(u).toLowerCase()));
-  }
-  return [...set].sort();
-}
-
 function renderCfgLists() {
   ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger', 'probelaufUser'].forEach(role => {
     const host = document.getElementById('cfg-' + role);

@@ -1533,6 +1533,74 @@ async function spGetMyDepartment() {
 }
 
 /* ═══════════════════════════════════════════════════
+   Sicherheitsgruppen (Entra ID)
+   ═══════════════════════════════════════════════════
+   Reiter-Freigaben können statt an einzelne Personen an eine Sicherheitsgruppe
+   gehen. Ausgewertet wird das beim angemeldeten Konto: Welche Gruppen-IDs hat
+   es? Dafür reichen die vorhandenen Berechtigungen – die eigenen Mitgliedschaften
+   darf jedes Konto lesen. Nur die Suche im Verzeichnis (für die Auswahl in den
+   Einstellungen) verlangt mehr; scheitert sie, bietet die Oberfläche die
+   eigenen Gruppen und die Eingabe per Objekt-ID an. */
+
+/* Dieselben Berechtigungen wie überall, ergänzt um User.Read (steht seit jeher
+   in der Anmeldung). Damit fragt niemand neu um Zustimmung – und schlägt der
+   Tokenantrag für diese Kombination doch fehl, tut es der gewohnte auch. */
+const _GRUPPEN_SCOPES = SP.scopes.concat(['https://graph.microsoft.com/User.Read']);
+
+async function _gruppenToken() {
+  try { return await acquireToken(_GRUPPEN_SCOPES); }
+  catch (e) { return await acquireToken(SP.scopes); }
+}
+let _meineGruppen = null;     // [{ id, name }] – einmal je Sitzung
+let _gruppenLesbar = null;    // null = noch nicht versucht
+
+/** Konnten die eigenen Gruppen gelesen werden? (für den Hinweis in den Einstellungen) */
+function spGruppenLesbar() { return _gruppenLesbar; }
+
+/** Sicherheitsgruppen des angemeldeten Kontos, verschachtelte eingeschlossen. */
+async function spGetMyGroups() {
+  if (_meineGruppen) return _meineGruppen;
+  const token = await _gruppenToken();
+  if (!token) return [];
+  const wege = [
+    `${SP.graphBase}/me/transitiveMemberOf/microsoft.graph.group?$select=id,displayName&$top=200`,
+    `${SP.graphBase}/me/memberOf/microsoft.graph.group?$select=id,displayName&$top=200`,
+  ];
+  let letzter = null;
+  for (const url of wege) {
+    try {
+      const roh = await _getAll(url, token, 500);
+      _meineGruppen = roh.map(g => ({ id: String(g.id || '').toLowerCase(), name: g.displayName || '' }))
+        .filter(g => g.id);
+      _gruppenLesbar = true;
+      return _meineGruppen;
+    } catch (e) { letzter = e; }
+  }
+  console.info('[sp] Gruppen-Mitgliedschaften nicht lesbar – gruppenbasierte Freigaben greifen nicht:',
+    letzter && letzter.message);
+  _gruppenLesbar = false;
+  _meineGruppen = [];
+  return _meineGruppen;
+}
+
+/** Gruppen im Verzeichnis suchen (Auswahl in den Einstellungen).
+ *  Wirft, wenn das Konto das Verzeichnis nicht durchsuchen darf – der Aufrufer
+ *  weicht dann auf die eigenen Gruppen aus. */
+async function spSearchGroups(text) {
+  const q = String(text || '').trim().replace(/'/g, "''");
+  if (q.length < 2) return [];
+  const token = await _gruppenToken();
+  if (!token) return [];
+  const filter = encodeURIComponent("startswith(displayName,'" + q + "')");
+  const r = await _get(`${SP.graphBase}/groups?$filter=${filter}`
+    + `&$select=id,displayName,mail,securityEnabled&$top=25`, token);
+  return (r.value || []).map(g => ({
+    id: String(g.id || '').toLowerCase(), name: g.displayName || '', mail: g.mail || '',
+    sicherheit: g.securityEnabled !== false,
+  }));
+}
+
+/* ═══════════════════════════════════════════════════
    Mail-Versand (Graph /me/sendMail, Scope Mail.Send)
 ═══════════════════════════════════════════════════ */
 
