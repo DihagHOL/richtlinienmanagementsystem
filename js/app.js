@@ -9,7 +9,7 @@
 const State = {
   user: null,        // { upn, name }
   myRoles: [],       // effektive Unternehmensrollen (AD-Abteilung + manuell)
-  myGroups: [],      // Sicherheitsgruppen des Kontos [{id,name}] – für gruppenbasierte Reiter-Freigaben
+  myGroups: [],      // Gruppen des Kontos [{id,name,art}] – für gruppenbasierte Reiter-Freigaben
   policies: [],      // alle Regelwerke (Admin sieht alle; Mitarbeiter-Filter clientseitig)
   konzepte: [],      // Regelwerk-Konzepte (Typ='Konzept'); getrennt von den Regelwerken gehalten
   acks: [],          // Bestätigungen des aktuellen Users
@@ -79,7 +79,7 @@ async function bootApp(account) {
     // Startansicht gleich noch einmal und zeigt die Meldung an gewohnter Stelle.
     const daten = reloadData({ rendern: false }).catch(() => {});
     if (typeof spGetMyDepartment === 'function') spGetMyDepartment().catch(() => '');
-    // Gruppen-Mitgliedschaften: Reiter-Freigaben können an Sicherheitsgruppen
+    // Gruppen-Mitgliedschaften: Reiter-Freigaben können an Gruppen
     // hängen, und gleich danach wird die Sichtbarkeit der Reiter berechnet.
     const gruppen = (typeof spGetMyGroups === 'function') ? spGetMyGroups().catch(() => []) : Promise.resolve([]);
     await loadRuntimeAccessConfig();

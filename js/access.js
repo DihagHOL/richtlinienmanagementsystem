@@ -22,7 +22,8 @@ const ACCESS_CONFIG_DEFAULT = {
   // Reiter-Berechtigungen (zusätzlich zu den Standard-Rollenrechten, rein additiv):
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
-  gruppenNamen: {},   // Objekt-ID → Anzeigename der Sicherheitsgruppe (nur zur Anzeige)
+  gruppenNamen: {},   // Objekt-ID → Anzeigename der Gruppe (nur zur Anzeige)
+  gruppenTypen: {},   // Objekt-ID → 'sicherheit' | 'verteiler' | 'm365' (nur zur Anzeige)
   govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
@@ -86,6 +87,7 @@ async function loadRuntimeAccessConfig() {
         userRoles:  (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {},
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
         gruppenNamen: (cfg.gruppenNamen && typeof cfg.gruppenNamen === 'object' && !Array.isArray(cfg.gruppenNamen)) ? cfg.gruppenNamen : {},
+        gruppenTypen: (cfg.gruppenTypen && typeof cfg.gruppenTypen === 'object' && !Array.isArray(cfg.gruppenTypen)) ? cfg.gruppenTypen : {},
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
@@ -129,6 +131,7 @@ function getAccessConfig() {
     userRoles:  JSON.parse(JSON.stringify(c.userRoles || {})),
     reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
     gruppenNamen: JSON.parse(JSON.stringify(c.gruppenNamen || {})),
+    gruppenTypen: JSON.parse(JSON.stringify(c.gruppenTypen || {})),
     kbrMail:           c.kbrMail || '',
     brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
     clevelMail:        c.clevelMail || '',
@@ -341,16 +344,28 @@ function getReiterRechte(view) {
 }
 
 /* Ein Eintrag in einer Reiter-Liste ist entweder eine E-Mail, ein Rollenname
-   oder – mit diesem Präfix – die Objekt-ID einer Sicherheitsgruppe. Die ID statt
-   des Namens, weil eine umbenannte Gruppe sonst still ihre Rechte verlöre. */
+   oder – mit diesem Präfix – die Objekt-ID einer Gruppe (Sicherheits-, Verteiler-
+   oder Microsoft-365-Gruppe; für die Auswertung sind sie gleichwertig). Die ID
+   statt des Namens, weil eine umbenannte Gruppe sonst still ihre Rechte verlöre. */
 const RECHT_GRUPPE = 'gruppe:';
 
-/** Ist der Eintrag eine Sicherheitsgruppe? */
+/** Ist der Eintrag eine Gruppe? */
 function istGruppenEintrag(x) { return String(x || '').toLowerCase().startsWith(RECHT_GRUPPE); }
 /** Objekt-ID aus einem Gruppen-Eintrag. */
 function gruppenIdVon(x) { return String(x || '').toLowerCase().slice(RECHT_GRUPPE.length); }
 /** Anzeigename einer Gruppe (beim Hinzufügen gemerkt; sonst die ID). */
 function gruppenName(id) { return (_cfg().gruppenNamen || {})[String(id).toLowerCase()] || id; }
+
+/** Art der Gruppe, soweit beim Hinzufügen bekannt ('' = unbekannt). */
+function gruppenArt(id) { return (_cfg().gruppenTypen || {})[String(id).toLowerCase()] || ''; }
+
+/** Beschriftung der Gruppenart. */
+const GRUPPEN_ARTEN = {
+  sicherheit: 'Sicherheitsgruppe',
+  verteiler:  'Verteilergruppe',
+  m365:       'Microsoft-365-Gruppe',
+};
+function gruppenArtLabel(art) { return GRUPPEN_ARTEN[art] || 'Gruppe'; }
 
 /** Gruppen-IDs des angemeldeten Kontos (in bootApp gesetzt). */
 function _currentGroupIds() {
@@ -358,7 +373,7 @@ function _currentGroupIds() {
   return new Set(gs.map(g => String(g && g.id || g).toLowerCase()));
 }
 
-/** Liste (E-Mails, Rollennamen ODER Sicherheitsgruppen) gegen den aktuellen Nutzer matchen. */
+/** Liste (E-Mails, Rollennamen ODER Gruppen) gegen den aktuellen Nutzer matchen. */
 function _matchesUserOrRole(list, upn, roles) {
   if (!Array.isArray(list) || !list.length) return false;
   const u = (upn || '').toLowerCase().trim();

@@ -1536,10 +1536,13 @@ async function spGetMyDepartment() {
 }
 
 /* ═══════════════════════════════════════════════════
-   Sicherheitsgruppen (Entra ID)
+   Gruppen (Entra ID)
    ═══════════════════════════════════════════════════
-   Reiter-Freigaben können statt an einzelne Personen an eine Sicherheitsgruppe
-   gehen. Ausgewertet wird das beim angemeldeten Konto: Welche Gruppen-IDs hat
+   Reiter-Freigaben können statt an einzelne Personen an eine Gruppe gehen –
+   Sicherheitsgruppe, Verteilergruppe oder Microsoft-365-Gruppe. Für die App ist
+   das dasselbe: Sie fragt nur, ob das angemeldete Konto Mitglied ist.
+   (Ausnahme sind dynamische Verteilerlisten aus Exchange – die gibt es nur dort
+   und nicht als Objekt im Verzeichnis, sie lassen sich also nicht berechtigen.) Ausgewertet wird das beim angemeldeten Konto: Welche Gruppen-IDs hat
    es? Dafür reichen die vorhandenen Berechtigungen – die eigenen Mitgliedschaften
    darf jedes Konto lesen. Nur die Suche im Verzeichnis (für die Auswahl in den
    Einstellungen) verlangt mehr; scheitert sie, bietet die Oberfläche die
@@ -1560,21 +1563,34 @@ let _gruppenLesbar = null;    // null = noch nicht versucht
 /** Konnten die eigenen Gruppen gelesen werden? (für den Hinweis in den Einstellungen) */
 function spGruppenLesbar() { return _gruppenLesbar; }
 
-/** Sicherheitsgruppen des angemeldeten Kontos, verschachtelte eingeschlossen. */
+/** Art der Gruppe – nur zur Anzeige; berechtigt werden alle gleich. */
+function gruppenArtVon(g) {
+  if (Array.isArray(g.groupTypes) && g.groupTypes.includes('Unified')) return 'm365';
+  if (g.securityEnabled) return 'sicherheit';
+  if (g.mailEnabled) return 'verteiler';
+  return 'sicherheit';
+}
+
+const _GRUPPEN_FELDER = 'id,displayName,mail,mailEnabled,securityEnabled,groupTypes';
+
+/** Gruppen des angemeldeten Kontos, verschachtelte eingeschlossen –
+ *  Sicherheits-, Verteiler- und Microsoft-365-Gruppen gleichermaßen. */
 async function spGetMyGroups() {
   if (_meineGruppen) return _meineGruppen;
   const token = await _gruppenToken();
   if (!token) return [];
   const wege = [
-    `${SP.graphBase}/me/transitiveMemberOf/microsoft.graph.group?$select=id,displayName&$top=200`,
-    `${SP.graphBase}/me/memberOf/microsoft.graph.group?$select=id,displayName&$top=200`,
+    `${SP.graphBase}/me/transitiveMemberOf/microsoft.graph.group?$select=${_GRUPPEN_FELDER}&$top=200`,
+    `${SP.graphBase}/me/memberOf/microsoft.graph.group?$select=${_GRUPPEN_FELDER}&$top=200`,
   ];
   let letzter = null;
   for (const url of wege) {
     try {
       const roh = await _getAll(url, token, 500);
-      _meineGruppen = roh.map(g => ({ id: String(g.id || '').toLowerCase(), name: g.displayName || '' }))
-        .filter(g => g.id);
+      _meineGruppen = roh.map(g => ({
+        id: String(g.id || '').toLowerCase(), name: g.displayName || '',
+        mail: g.mail || '', art: gruppenArtVon(g),
+      })).filter(g => g.id);
       _gruppenLesbar = true;
       return _meineGruppen;
     } catch (e) { letzter = e; }
@@ -1589,18 +1605,20 @@ async function spGetMyGroups() {
 /** Gruppen im Verzeichnis suchen (Auswahl in den Einstellungen).
  *  Wirft, wenn das Konto das Verzeichnis nicht durchsuchen darf – der Aufrufer
  *  weicht dann auf die eigenen Gruppen aus. */
+/** Gruppen im Verzeichnis suchen – über den Namen und über die Adresse, denn
+ *  Verteiler kennt man oft eher als „einkauf@…" denn unter ihrem Anzeigenamen. */
 async function spSearchGroups(text) {
   const q = String(text || '').trim().replace(/'/g, "''");
   if (q.length < 2) return [];
   const token = await _gruppenToken();
   if (!token) return [];
-  const filter = encodeURIComponent("startswith(displayName,'" + q + "')");
+  const filter = encodeURIComponent(`startswith(displayName,'${q}') or startswith(mail,'${q}')`);
   const r = await _get(`${SP.graphBase}/groups?$filter=${filter}`
-    + `&$select=id,displayName,mail,securityEnabled&$top=25`, token);
+    + `&$select=${_GRUPPEN_FELDER}&$top=25`, token);
   return (r.value || []).map(g => ({
     id: String(g.id || '').toLowerCase(), name: g.displayName || '', mail: g.mail || '',
-    sicherheit: g.securityEnabled !== false,
-  }));
+    art: gruppenArtVon(g),
+  })).sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }
 
 /* ═══════════════════════════════════════════════════

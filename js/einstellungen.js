@@ -301,7 +301,8 @@ function roleCard(role, title) {
    (– / L / S). Ein Klick auf eine Zelle schaltet weiter, ein Klick auf die
    Zeile klappt die ausführliche Ansicht mit Beschriftungen auf.
 
-   Freigaben gehen an eine Person (E-Mail) oder an eine Sicherheitsgruppe.
+   Freigaben gehen an eine Person (E-Mail) oder an eine Gruppe – Sicherheits-,
+   Verteiler- oder Microsoft-365-Gruppe.
    Gruppen stehen als „gruppe:<Objekt-ID>" in der Liste – die ID und nicht der
    Name, weil eine umbenannte Gruppe sonst still ihre Rechte verlöre. Der Name
    wird nur zur Anzeige unter `gruppenNamen` mitgeführt. */
@@ -319,7 +320,8 @@ function _reiterBereichHtml() {
   return `
     <div class="col-warning" style="display:block">
       <b>Zusätzlicher</b> Zugriff auf einzelne Reiter – für einzelne Personen <b>und für
-      Sicherheitsgruppen</b>. Additiv zu den Standardrechten: <b>Admins</b> haben immer Zugriff,
+      Gruppen</b> (Sicherheits-, Verteiler- und Microsoft-365-Gruppen). Additiv zu den
+      Standardrechten: <b>Admins</b> haben immer Zugriff,
       <b>Schreiben</b> schließt <b>Lesen</b> ein (nur Lesen = Reiter sichtbar, aber nicht
       bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
     </div>
@@ -340,7 +342,7 @@ function _reiterBereichHtml() {
           <input type="email" id="rr-input-user" placeholder="name@dihag.com"
             onkeydown="if(event.key==='Enter')rrAddUser()" style="flex:1;min-width:200px;${_rrFeldStil}">
           <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Person</button>
-          <button class="btn btn-outline btn-sm" onclick="rrPicker()">👥 + Sicherheitsgruppe</button>
+          <button class="btn btn-outline btn-sm" onclick="rrPicker()">👥 + Gruppe</button>
         </div>
         <div id="rr-picker" style="display:none;margin-top:12px;border:1px solid var(--c-border);border-radius:10px;padding:12px"></div>
         <div class="field-hint" id="rr-gruppen-status" style="margin-top:12px">${_rrGruppenStatus()}</div>
@@ -356,7 +358,11 @@ function _rrGruppenStatus() {
     return '⚠ Die Gruppen-Mitgliedschaften Ihres Kontos konnten nicht gelesen werden – '
       + 'gruppenbasierte Freigaben greifen dann nicht. Freigaben an einzelne Personen sind davon unberührt.';
   }
-  if (lesbar === true) return `Gruppen-Auswertung aktiv – Ihr Konto gehört zu ${n} Gruppe(n).`;
+  if (lesbar === true) {
+    return `Gruppen-Auswertung aktiv – Ihr Konto gehört zu ${n} Gruppe(n) `
+      + '(Sicherheits-, Verteiler- und Microsoft-365-Gruppen). Dynamische Verteilerlisten aus '
+      + 'Exchange lassen sich nicht berechtigen: Sie existieren nur dort, nicht im Verzeichnis.';
+  }
   return '';
 }
 
@@ -365,6 +371,12 @@ function _rrGruppenStatus() {
 /** Anzeigename einer Gruppe aus dem Entwurf. */
 function _rrGruppenName(id) {
   return ((_cfgEdit && _cfgEdit.gruppenNamen) || {})[String(id).toLowerCase()] || id;
+}
+
+/** Beschriftung der Gruppenart aus dem Entwurf (unbekannt → schlicht „Gruppe"). */
+function _rrGruppenArtLabel(id) {
+  const art = ((_cfgEdit && _cfgEdit.gruppenTypen) || {})[String(id).toLowerCase()] || '';
+  return (typeof gruppenArtLabel === 'function') ? gruppenArtLabel(art) : 'Gruppe';
 }
 
 /** Alle Träger: was in den Listen steht plus frisch Hinzugefügtes. */
@@ -417,7 +429,7 @@ function rrRenderBody() {
   const alle = _rrEintraege();
   if (!alle.length) {
     host.innerHTML = '<div class="field-hint">Noch niemand zusätzlich berechtigt – unten eine Person '
-      + 'oder eine Sicherheitsgruppe hinzufügen, dann in der Zeile die Reiter freigeben.</div>';
+      + 'oder eine Gruppe hinzufügen, dann in der Zeile die Reiter freigeben.</div>';
     return;
   }
   const zeilen = _rrGefiltert(alle, _rrSuche, _rrReiterFilter);
@@ -458,7 +470,8 @@ function rrRenderBody() {
   const koerper = zeilen.map(e => {
     const offen = _rrOffen.has(e.key);
     const anzahl = GOVERNABLE_TABS.filter(t => _rrStufe(t.view, e.key) !== '-').length;
-    const zusatz = e.art === 'gruppe' ? `<span class="field-hint" style="font-weight:400"> · Sicherheitsgruppe</span>` : '';
+    const zusatz = e.art === 'gruppe'
+      ? `<span class="field-hint" style="font-weight:400"> · ${esc(_rrGruppenArtLabel(gruppenIdVon(e.key)))}</span>` : '';
     return `<tr>
         <td style="padding:5px 8px;position:sticky;left:0;background:var(--c-bg)">
           <div style="display:flex;align-items:center;gap:6px">
@@ -526,8 +539,10 @@ function rrRemove(key) {
     if (Array.isArray(v.lesen))     v.lesen     = v.lesen.filter(x => String(x).toLowerCase() !== lc);
     if (Array.isArray(v.schreiben)) v.schreiben = v.schreiben.filter(x => String(x).toLowerCase() !== lc);
   }
-  if (_cfgEdit.gruppenNamen && typeof istGruppenEintrag === 'function' && istGruppenEintrag(lc)) {
-    delete _cfgEdit.gruppenNamen[gruppenIdVon(lc)];
+  if (typeof istGruppenEintrag === 'function' && istGruppenEintrag(lc)) {
+    const gid = gruppenIdVon(lc);
+    if (_cfgEdit.gruppenNamen) delete _cfgEdit.gruppenNamen[gid];
+    if (_cfgEdit.gruppenTypen) delete _cfgEdit.gruppenTypen[gid];
   }
   rrRenderBody();
 }
@@ -543,7 +558,7 @@ function rrAddUser() {
   rrRenderBody();
 }
 
-/* ── Sicherheitsgruppen auswählen ── */
+/* ── Gruppen auswählen ── */
 
 function rrPicker() {
   _rrPickerOffen = !_rrPickerOffen;
@@ -553,7 +568,7 @@ function rrPicker() {
   if (!_rrPickerOffen) return;
   host.innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input type="search" id="rr-gruppe-suche" placeholder="Gruppenname (mind. 2 Zeichen)"
+      <input type="search" id="rr-gruppe-suche" placeholder="Gruppenname oder Adresse (mind. 2 Zeichen)"
         onkeydown="if(event.key==='Enter')rrGruppenSuche()" style="flex:1;min-width:200px;${_rrFeldStil}">
       <button class="btn btn-outline btn-sm" onclick="rrGruppenSuche()">Suchen</button>
     </div>
@@ -563,6 +578,11 @@ function rrPicker() {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
         <input type="text" id="rr-gruppe-id" placeholder="Objekt-ID (GUID aus Entra)" style="flex:1;min-width:240px;${_rrFeldStil}">
         <input type="text" id="rr-gruppe-name" placeholder="Anzeigename" style="flex:1;min-width:160px;${_rrFeldStil}">
+        <select id="rr-gruppe-art" class="sort-select" aria-label="Art der Gruppe">
+          <option value="sicherheit">Sicherheitsgruppe</option>
+          <option value="verteiler">Verteilergruppe</option>
+          <option value="m365">Microsoft-365-Gruppe</option>
+        </select>
         <button class="btn btn-outline btn-sm" onclick="rrAddGruppeManuell()">+ Übernehmen</button>
       </div>
       <div class="field-hint" style="margin-top:6px">Entra-Portal → Gruppen → Gruppe öffnen → „Objekt-ID".</div>
@@ -586,24 +606,29 @@ async function rrGruppenSuche() {
       + 'Andere Gruppen unten per Objekt-ID eintragen.';
   }
   const schon = new Set(_rrEintraege().filter(e => e.art === 'gruppe').map(e => gruppenIdVon(e.key)));
+  const label = (art) => (typeof gruppenArtLabel === 'function') ? gruppenArtLabel(art) : 'Gruppe';
   host.innerHTML = (hinweis ? `<div class="field-hint" style="margin-bottom:8px">${esc(hinweis)}</div>` : '')
     + (treffer.length
       ? treffer.map(g => `<div class="dp-row" style="cursor:default">
-          <span class="ic">👥</span>
-          <span class="nm">${esc(g.name || g.id)}${g.mail ? ` <span class="field-hint">${esc(g.mail)}</span>` : ''}</span>
+          <span class="ic">${g.art === 'verteiler' ? '📧' : '👥'}</span>
+          <span class="nm">${esc(g.name || g.id)}
+            <span class="field-hint">${esc(label(g.art))}${g.mail ? ' · ' + esc(g.mail) : ''}</span></span>
           ${schon.has(g.id)
             ? '<span class="status-badge sb-done">bereits berechtigt</span>'
-            : `<button class="btn btn-outline btn-sm" onclick="rrAddGruppe('${esc(g.id)}','${esc(g.name || g.id)}')">+ Übernehmen</button>`}
+            : `<button class="btn btn-outline btn-sm"
+                onclick="rrAddGruppe('${esc(g.id)}','${esc(g.name || g.id)}','${esc(g.art || '')}')">+ Übernehmen</button>`}
         </div>`).join('')
-      : '<div class="field-hint">Keine Gruppe gefunden.</div>');
+      : '<div class="field-hint">Keine Gruppe gefunden – auch nicht unter dieser Adresse.</div>');
 }
 
-function rrAddGruppe(id, name) {
+function rrAddGruppe(id, name, art) {
   const gid = String(id || '').toLowerCase().trim();
   if (!gid) return;
   const key = RECHT_GRUPPE + gid;
   if (!_cfgEdit.gruppenNamen) _cfgEdit.gruppenNamen = {};
+  if (!_cfgEdit.gruppenTypen) _cfgEdit.gruppenTypen = {};
   _cfgEdit.gruppenNamen[gid] = name || gid;
+  if (art) _cfgEdit.gruppenTypen[gid] = art;
   if (_rrEintraege().some(e => e.key === key)) { toast('Bereits vorhanden.', 'error'); return; }
   _rrExtra.push(key);
   _rrOffen.add(key);
@@ -620,19 +645,22 @@ function rrAddGruppeManuell() {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
     toast('Bitte die Objekt-ID der Gruppe eingeben (GUID).', 'error'); return;
   }
-  rrAddGruppe(id, name || id);
+  rrAddGruppe(id, name || id, (document.getElementById('rr-gruppe-art')?.value || '').trim());
 }
 
-/** Namen von Gruppen, die nirgends mehr berechtigt sind, beim Speichern wegräumen. */
+/** Namen und Arten von Gruppen, die nirgends mehr berechtigt sind, beim Speichern wegräumen. */
 function _rrGruppenNamenAufraeumen(cfg) {
-  if (!cfg || !cfg.gruppenNamen) return;
+  if (!cfg) return;
   const benutzt = new Set();
   for (const v of Object.values(cfg.reiterRechte || {})) {
     [...(v.lesen || []), ...(v.schreiben || [])].forEach(x => {
       if (typeof istGruppenEintrag === 'function' && istGruppenEintrag(x)) benutzt.add(gruppenIdVon(x));
     });
   }
-  for (const id of Object.keys(cfg.gruppenNamen)) if (!benutzt.has(id)) delete cfg.gruppenNamen[id];
+  for (const feld of ['gruppenNamen', 'gruppenTypen']) {
+    if (!cfg[feld]) continue;
+    for (const id of Object.keys(cfg[feld])) if (!benutzt.has(id)) delete cfg[feld][id];
+  }
 }
 
 /* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */

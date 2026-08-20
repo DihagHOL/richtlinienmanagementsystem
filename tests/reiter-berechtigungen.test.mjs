@@ -1,9 +1,10 @@
 /**
- * Reiter-Berechtigungen: eigener Bereich, Überblick – und Sicherheitsgruppen.
+ * Reiter-Berechtigungen: eigener Bereich, Überblick – und Gruppen jeder Art.
  *
  * Bisher war die Rechtematrix eine Karte unter zwölf anderen, jede berechtigte
  * Person mit voll ausgeklappter Tabelle: ab einer Handvoll Leuten unübersichtlich,
- * ohne Suche, und Freigaben gingen nur an einzelne Personen.
+ * ohne Suche, und Freigaben gingen nur an einzelne Personen. Heute tragen auch
+ * Sicherheits-, Verteiler- und Microsoft-365-Gruppen eine Freigabe.
  */
 import fs from 'fs';
 import vm from 'vm';
@@ -63,7 +64,7 @@ ok(wert('istGruppenEintrag("gruppe:aaa-111")') === true && wert('istGruppenEintr
 ok(wert('gruppenIdVon("gruppe:AAA-111")') === 'aaa-111', 'Die Objekt-ID lässt sich herauslösen');
 ok(wert('gruppenName("aaa-111")') === 'IT-Sicherheit', 'Der Anzeigename kommt aus der Konfiguration');
 ok(wert('gruppenName("ccc-333")') === 'ccc-333', 'Ohne gepflegten Namen bleibt die ID stehen');
-ok(/Die ID statt\n\s+des Namens/.test(acc), 'Gespeichert wird die ID, nicht der Name (Umbenennen bricht nichts)');
+ok(/Die ID\n\s+statt des Namens/.test(acc), 'Gespeichert wird die ID, nicht der Name (Umbenennen bricht nichts)');
 
 /* ══ 2) Datenschicht: eigene Gruppen, Suche ══ */
 ok(/async function spGetMyGroups/.test(sp), 'Die eigenen Gruppen werden geladen');
@@ -173,7 +174,7 @@ ok(w2('_cfgEdit.gruppenNamen["aaa-111"]') === undefined, 'Und den gemerkten Grup
 ok(/id="rr-suche"/.test(eins) && /oninput="rrSuche\(this\.value\)"/.test(eins), 'Es gibt ein Suchfeld');
 ok(/onchange="rrReiterFilter\(this\.value\)"/.test(eins), 'Und einen Filter nach Reiter');
 ok(/aria-expanded="\$\{offen\}"/.test(eins), 'Die Ausklapp-Schalter sind ausgezeichnet');
-ok(/onclick="rrPicker\(\)"/.test(eins) && /👥 \+ Sicherheitsgruppe/.test(eins), 'Eine Gruppe lässt sich hinzufügen');
+ok(/onclick="rrPicker\(\)"/.test(eins) && /👥 \+ Gruppe/.test(eins), 'Eine Gruppe lässt sich hinzufügen');
 ok(/onclick="rrGruppenSuche\(\)"/.test(eins), 'Gruppen werden gesucht, nicht abgetippt');
 ok(/eigenen Gruppen/.test(eins), 'Darf das Konto das Verzeichnis nicht durchsuchen, kommen die eigenen Gruppen');
 ok(/\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}/.test(eins), 'Und notfalls die Objekt-ID – auf Format geprüft');
@@ -186,6 +187,68 @@ ok(tabs.every(t => t.kurz), 'Jeder Reiter hat ein Kürzel für die Spaltenköpfe
 ok(tabs.find(t => t.view === 'ismsdocs').label === 'IMS-Dokumente', 'Der IMS-Reiter heißt hier wie in der Navigation');
 ok(tabs.find(t => t.view === 'verwaltung').label === 'Regelwerk Dashboard', 'Ebenso das Regelwerk Dashboard');
 ok(!/_rrAllUsers/.test(lies('js/admin.js')) && !/_rrExtraUsers/.test(eins), 'Keine Reste der alten Umsetzung');
+
+/* ══ 7) Nicht nur Sicherheitsgruppen: auch Verteiler ══
+   Ein Verteiler wie „einkauf@dihag.com" ist im Verzeichnis eine Gruppe wie jede
+   andere; für die Berechtigung zählt allein die Mitgliedschaft. */
+const ctx3 = {
+  console, State: { myGroups: [] },
+  document: { getElementById: () => null, addEventListener: () => {} },
+  getAuthUser: () => ({ username: 'max@dihag.com' }),
+};
+ctx3.globalThis = ctx3;
+vm.createContext(ctx3);
+vm.runInContext(acc, ctx3);
+const w3 = (a) => vm.runInContext(a, ctx3);
+w3(`setRuntimeConfig({ admins: [], reiterRechte: {
+    risiken:   { lesen: ['gruppe:vvv-111'] },
+    abdeckung: { schreiben: ['gruppe:mmm-222'] } },
+  gruppenNamen: { 'vvv-111': 'Einkauf (Verteiler)', 'mmm-222': 'Projekt Nord' },
+  gruppenTypen: { 'vvv-111': 'verteiler', 'mmm-222': 'm365' } })`);
+w3("State.myGroups = [{ id: 'vvv-111', name: 'Einkauf (Verteiler)', art: 'verteiler' }]");
+ok(w3('canReadTab("risiken")') === true, 'Eine Verteilergruppe berechtigt genauso wie eine Sicherheitsgruppe');
+w3("State.myGroups = [{ id: 'mmm-222', name: 'Projekt Nord', art: 'm365' }]");
+ok(w3('canWriteTab("abdeckung")') === true, 'Eine Microsoft-365-Gruppe ebenso');
+ok(w3('gruppenArt("vvv-111")') === 'verteiler' && w3('gruppenArt("mmm-222")') === 'm365',
+  'Die Art wird zur Anzeige mitgeführt');
+ok(w3('gruppenArt("unbekannt")') === '' && w3('gruppenArtLabel("")') === 'Gruppe',
+  'Ohne bekannte Art heißt es schlicht „Gruppe"');
+ok(w3('gruppenArtLabel("verteiler")') === 'Verteilergruppe'
+  && w3('gruppenArtLabel("sicherheit")') === 'Sicherheitsgruppe'
+  && w3('gruppenArtLabel("m365")') === 'Microsoft-365-Gruppe', 'Die Beschriftungen stimmen');
+
+/* Erkennung der Art aus der Graph-Antwort */
+const ctx4 = { console };
+ctx4.globalThis = ctx4;
+vm.createContext(ctx4);
+vm.runInContext(sp.slice(sp.indexOf('function gruppenArtVon'), sp.indexOf('const _GRUPPEN_FELDER')), ctx4);
+const art = (g) => vm.runInContext('gruppenArtVon(' + JSON.stringify(g) + ')', ctx4);
+ok(art({ securityEnabled: true, mailEnabled: false }) === 'sicherheit', 'Sicherheitsgruppe erkannt');
+ok(art({ securityEnabled: false, mailEnabled: true }) === 'verteiler', 'Verteilergruppe erkannt');
+ok(art({ securityEnabled: true, mailEnabled: true }) === 'sicherheit',
+  'Eine E-Mail-fähige Sicherheitsgruppe bleibt Sicherheitsgruppe');
+ok(art({ securityEnabled: false, mailEnabled: true, groupTypes: ['Unified'] }) === 'm365',
+  'Microsoft-365-Gruppe erkannt');
+
+/* Suche und Mitgliedschaften holen die nötigen Felder */
+ok(/_GRUPPEN_FELDER = 'id,displayName,mail,mailEnabled,securityEnabled,groupTypes'/.test(sp),
+  'Graph liefert die Felder, aus denen sich die Art ergibt');
+ok(/startswith\(displayName,'\$\{q\}'\) or startswith\(mail,'\$\{q\}'\)/.test(sp),
+  'Gesucht wird über Name und Adresse – Verteiler kennt man oft nur als Adresse');
+ok(/transitiveMemberOf\/microsoft\.graph\.group\?\$select=\$\{_GRUPPEN_FELDER\}/.test(sp),
+  'Die eigenen Mitgliedschaften umfassen alle Gruppenarten');
+ok(/dynamische Verteilerlisten aus Exchange/.test(sp),
+  'Die eine Ausnahme steht im Quelltext: dynamische Verteiler gibt es nicht im Verzeichnis');
+
+/* Oberfläche */
+ok(/📧/.test(eins), 'Verteiler bekommen ein eigenes Symbol in der Trefferliste');
+ok(/rrAddGruppe\('\$\{esc\(g\.id\)\}','\$\{esc\(g\.name \|\| g\.id\)\}','\$\{esc\(g\.art \|\| ''\)\}'\)/.test(eins),
+  'Beim Übernehmen wandert die Art mit');
+ok(/id="rr-gruppe-art"/.test(eins), 'Auch bei der Eingabe per Objekt-ID lässt sich die Art wählen');
+ok(/gruppenTypen: \{\},/.test(acc), 'Die Zuordnung hat einen Platz in der Konfiguration');
+ok(/for \(const feld of \['gruppenNamen', 'gruppenTypen'\]\)/.test(eins),
+  'Beim Speichern werden beide Zuordnungen aufgeräumt');
+ok(/Dynamische Verteilerlisten aus /.test(eins), 'Und die Einstellungen sagen, was nicht geht');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
