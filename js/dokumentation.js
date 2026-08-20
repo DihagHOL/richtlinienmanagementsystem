@@ -47,6 +47,7 @@ const _DOKU_TOC = [
   ['risiken',       'Risiko-Register'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
+  ['govstruktur',   'Governance-Struktur (Matrix)'],
   ['prozesse',      'Prozesse (BPMN 2.0)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
@@ -384,6 +385,44 @@ function _dokuSections() {
       <div style="${h3}">Navigation über die Ordnerstruktur</div>
       <p style="margin:0 0 8px;line-height:1.55">Links steht der <b>Ordner-Baum</b> der Legal-Ablage: mit ▸/▾ auf- und zuklappen, je Ordner die Anzahl der Entwürfe (inklusive Unterordner). Ein Klick filtert die Liste rechts auf diesen Ordner <b>samt aller Unterordner</b>; die Suche wirkt zusätzlich.</p>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information), 5.2 (Politik) – gemeinsam mit der Konformitätsprüfung/Freigabe im RMS.'),
+
+    sec('govstruktur', 'Governance-Struktur (Matrix)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Bauplan des <b>Konzernregelwerks</b> auf einer Seite:
+        Welche Regelung gibt es in welcher Kategorie, auf welcher Verbindlichkeitsebene, wer verantwortet sie –
+        und wie weit ist sie?</p>
+      <h3 style="${h3}">Die beiden Achsen</h3>
+      <ul style="${ol}">
+        <li style="${li}"><b>Zeilen = Kategorien</b> des Konzernregelwerk-Fundaments: Allgemein, Recht/Steuern/
+          Datenschutz/Versicherungen, Compliance, Security/Cyber Security, Finanzen/ReWe/Controlling/Einkauf,
+          Nachhaltigkeit/Arbeitssicherheit &amp; Gesundheitsschutz, HR/Corporate Transformation/IT.</li>
+        <li style="${li}"><b>Spalten = Dokumentenart</b>, also die Verbindlichkeitsebene der Regelwerkspyramide.
+          Von oben nach unten nimmt die Verbindlichkeit ab.</li>
+      </ul>
+      ${tbl([
+        ['Handbuch', 'In sich abgeschlossenes Themengebiet (z. B. Code of Conduct).'],
+        ['Policy', 'Strategischer Rahmen: Was ist das Ziel, der Grundsatz?'],
+        ['Konzernrichtlinie', 'Operativer Rahmen: Wie handeln wir?'],
+        ['Konzernfachregelung', 'Fachgerechte Ausführung.'],
+        ['Arbeits-/Prozessanweisung', 'Handlungsanleitung, Schritt für Schritt.'],
+        ['Leitfaden', 'Handlungsempfehlungen.'],
+      ])}
+      <h3 style="${h3}">Was die Matrix zeigt</h3>
+      <ul style="${ol}">
+        <li style="${li}">Jede Regelung als <b>Kachel</b> mit Verantwortung und Stand:
+          <b>gültig</b> (grün, final abgelegt), <b>in Arbeit</b> (gelb, in Erarbeitung oder Prüfung),
+          <b>offen</b> (grau, noch nicht begonnen).</li>
+        <li style="${li}">Oben die <b>Kennzahlen</b> mit Fortschrittsbalken – ein Klick darauf filtert nach diesem Stand.</li>
+        <li style="${li}"><b>Suche</b> über Titel, Verantwortung und Kategorie, dazu ein Filter nach Verantwortlichen.</li>
+        <li style="${li}">Umschalter <b>„Nach Verantwortung"</b>: dieselben Daten je Person – wer hat wie viel offen?</li>
+        <li style="${li}">Liegt eine Regelung bereits als Regelwerk im RMS, führt <b>„→ im RMS"</b> direkt hin.</li>
+        <li style="${li}">Leere Ebenen bekommen keine Spalte: Was es nirgends gibt, verstopft die Ansicht nicht.</li>
+      </ul>
+      <div style="${hint}">📄 <b>Quelle:</b> die Zuständigkeiten-Mappe des Corporate-Governance-Boards
+        (<code>CGB_Organisation_Zuständigkeiten_Nomenklatur.xlsx</code>). Die Matrix ist eine <b>Momentaufnahme
+        der Planung</b>, kein Live-Bestand – der Stand steht über der Tabelle. Ändert sich die Mappe, wird der
+        Datenstand neu eingelesen. Leitbild, Unternehmenspolitik und die kollektivrechtlichen Regelungen (KBV/BV)
+        stehen aufklappbar darunter: gleiche Mappe, aber außerhalb der Regelwerkspyramide.</div>`,
+      'ISO 27001 Klausel 5.1 (Führung), 5.3 (Rollen &amp; Verantwortlichkeiten), A.5.1 (Regelwerke); DCGK.'),
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>

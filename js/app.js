@@ -23,7 +23,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
-  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
+  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse (BPMN)', abdeckung: 'ISMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
@@ -263,6 +263,7 @@ async function switchView(view) {
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
   if (view === 'governance'   && typeof initGovernance === 'function')    initGovernance();
+  if (view === 'govstruktur'  && typeof initGovStruktur === 'function')   initGovStruktur();
   if (view === 'abdeckung'    && typeof renderAbdeckung === 'function')   renderAbdeckung();
   if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
   if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();

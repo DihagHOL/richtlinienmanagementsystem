@@ -307,6 +307,7 @@ const GOVERNABLE_TABS = [
   { view: 'verwaltung',  label: 'Regelwerk Dashboard', kurz: 'Dashboard' },
   { view: 'ismsdocs',    label: 'IMS-Dokumente', kurz: 'IMS-Dok.' },
   { view: 'governance',  label: 'Governance-Board' , kurz: 'Governance' },
+  { view: 'govstruktur', label: 'Governance-Struktur', kurz: 'Gov-Struktur' },
   { view: 'prozesse',    label: 'Prozesse (BPMN)' , kurz: 'Prozesse' },
   { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
   { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
@@ -400,7 +401,7 @@ function initRoleNav() {
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
   // Sichtbarkeit je Reiter einmal berechnen (auch für die Gruppen-Überschriften)
   const v = {};
-  ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'prozesse', 'abdeckung',
+  ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
    'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance'].forEach(t => { v[t] = canReadTab(t); });
 
   // Einzelne Reiter
@@ -408,6 +409,7 @@ function initRoleNav() {
   show('nav-verwaltung',    v.verwaltung);
   show('nav-ismsdocs',      v.ismsdocs);
   show('nav-governance',    v.governance);
+  show('nav-govstruktur',     v.govstruktur);
   show('nav-prozesse',      v.prozesse);
   show('nav-abdeckung',     v.abdeckung);
   show('nav-faelligkeit',   v.faelligkeit);
@@ -421,7 +423,7 @@ function initRoleNav() {
   show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege);
   // Corporate Governance steht als eigene Ebene über den Managementsystemen:
   // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
-  show('nav-grp-governance',  v.governance);
+  show('nav-grp-governance',  v.governance || v.govstruktur);
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
   show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse);
   show('nav-grp-verwaltung',  v.compliance || admin);

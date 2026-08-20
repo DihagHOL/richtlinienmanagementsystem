@@ -81,7 +81,8 @@ ok(/IMS-Dokumente/.test(html) && !/ISMS-Dokumente/.test(html),
   'Der Reiter heißt IMS-Dokumente – er trägt alle Normen, nicht nur die Informationssicherheit');
 ok(/ismsdocs: 'IMS-Dokumente'/.test(lies('js/app.js')), 'Ebenso der Seitentitel');
 const acc = lies('js/access.js');
-ok(/show\('nav-grp-governance',\s+v\.governance\)/.test(acc), 'Die Gruppe erscheint mit dem Board');
+ok(/show\('nav-grp-governance',\s+v\.governance \|\| v\.govstruktur\)/.test(acc),
+  'Die Gruppe erscheint mit dem Board oder der Governance-Struktur');
 ok(!/v\.governance \|\| v\.prozesse|v\.governance \|\|/.test(acc.slice(acc.indexOf("show('nav-grp-isms'"), acc.indexOf("show('nav-grp-isms'") + 160)),
   'Und ist aus der IMS-Gruppe herausgelöst');
 
