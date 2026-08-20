@@ -560,6 +560,12 @@ function _wfDokumentHtml(p, attachmentName) {
    Ein Fehlklick lässt sich zurücknehmen (siehe freigabeZuruecknehmen) – auch das
    wird protokolliert. */
 
+/* Läuft gerade eine Entscheidung aus der Mail? Dann gehört der Weg ins Protokoll –
+   im Audit ist es ein Unterschied, ob jemand im Portal saß oder aus der Mail heraus
+   entschieden hat. */
+let _ekAusMail = false;
+function ekKanalHinweis() { return _ekAusMail ? '\nEntschieden per Ein-Klick aus der Benachrichtigungs-Mail.' : ''; }
+
 /** Neues Einmal-Token für eine Runde. */
 function neuerAktionToken(art) {
   let wert = '';
@@ -638,9 +644,12 @@ async function einKlickAktion(id, aktion, token) {
   const inVertretung = fuer ? `<div class="field-hint" style="margin-top:6px">in Vertretung für ${esc(fuer)}</div>` : '';
   _ekPanel(`<div class="doc-loading">Entscheidung wird gespeichert …</div>`);
 
-  if (aktion === 'freigeben') await markFreigabe(id);
-  else if (aktion === 'konform') await markKonform(id, true);
-  else await markKonform(id, false);
+  _ekAusMail = true;
+  try {
+    if (aktion === 'freigeben') await markFreigabe(id);
+    else if (aktion === 'konform') await markKonform(id, true);
+    else await markKonform(id, false);
+  } finally { _ekAusMail = false; }
 
   const danach = State.policies.find(x => x.id === id) || p;
   const fertig = aktion === 'freigeben'
@@ -667,6 +676,9 @@ async function freigabeZuruecknehmen(id) {
   p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
   p.status = 'Freigabe';
   p.veroeffentlichtAm = '';
+  // Neues Token: Der Link aus der alten Mail soll nach einer Rücknahme nicht
+  // einfach ein zweites Mal funktionieren.
+  p.aktionToken = neuerAktionToken('freigabe');
   p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
   historieAdd(p, 'Freigabe zurückgenommen',
     'Die eigene Freigabe wurde direkt nach der Entscheidung zurückgenommen; das Regelwerk ist wieder in der Freigabe.');

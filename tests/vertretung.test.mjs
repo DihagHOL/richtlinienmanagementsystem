@@ -165,5 +165,14 @@ ok(/function aktionToken\(f, art\)/.test(cron), 'Der Cron liest das Token aus de
 ok(/policyLink\(id, 'freigeben', token\)/.test(cron), 'Und hängt es an seine Erinnerungs-Links');
 ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe' : 'pruefung'\)/.test(cron), 'Passend zur Etappe');
 
+/* ── 8) Was die Entscheidung aus der Mail absichert ── */
+ok(/let _ekAusMail = false;/.test(fg) && /ekKanalHinweis\(\)/.test(fg),
+  'Im Protokoll steht, dass aus der Mail heraus entschieden wurde');
+ok(/_ekAusMail = true;[\s\S]{0,220}finally \{ _ekAusMail = false; \}/.test(fg),
+  'Das Kennzeichen gilt nur für die eine Entscheidung – auch bei einem Fehler');
+const zurueck = fg.slice(fg.indexOf('async function freigabeZuruecknehmen'));
+ok(/p\.aktionToken = neuerAktionToken\('freigabe'\)/.test(zurueck.slice(0, 1200)),
+  'Nach einer Rücknahme gilt ein neues Token – der alte Link ist tot');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
