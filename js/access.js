@@ -23,6 +23,7 @@ const ACCESS_CONFIG_DEFAULT = {
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
   gruppenNamen: {},   // Objekt-ID → Anzeigename der Sicherheitsgruppe (nur zur Anzeige)
+  govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
   brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
@@ -86,6 +87,7 @@ async function loadRuntimeAccessConfig() {
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
         gruppenNamen: (cfg.gruppenNamen && typeof cfg.gruppenNamen === 'object' && !Array.isArray(cfg.gruppenNamen)) ? cfg.gruppenNamen : {},
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
+        govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
         clevelMail:        typeof cfg.clevelMail === 'string' ? cfg.clevelMail : '',
@@ -120,6 +122,7 @@ function getAccessConfig() {
   return {
     ...JSON.parse(JSON.stringify(c)),   // alle Felder mitnehmen (inkl. ki* vom KI-Dashboard)
     probelaufUser: [...(c.probelaufUser || [])],
+    govStrukturKoepfe: [...(c.govStrukturKoepfe || [])],
     admins:     [...(c.admins || [])],
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
@@ -292,6 +295,15 @@ function policyMatchesRoles(zielgruppen, roles) {
   if (!Array.isArray(zielgruppen) || !zielgruppen.length || zielgruppen.includes(ZIELGRUPPE_ALLE)) return true;
   const set = new Set((roles || []).map(r => String(r).toLowerCase().trim()));
   return zielgruppen.some(z => set.has(String(z).toLowerCase().trim()));
+}
+
+/* Der Aufbau der Governance-Struktur – welche Zeilen und Spalten es gibt – ist
+   ein eigenes Recht: Regelungen pflegen dürfen mehrere, den Rahmen der Systematik
+   ändern soll nur, wer ihn verantwortet. Eine umbenannte Ebene betrifft schließlich
+   alles, was daran hängt. Admins dürfen es immer. */
+function darfGovStrukturKoepfe(upn) {
+  const u = upn || _currentUpn();
+  return isAdmin(u) || _has(_cfg().govStrukturKoepfe, u);
 }
 
 /* ═══════════════════════════════════════════════════

@@ -70,16 +70,26 @@ const GOV_STATUS = {
   offen:   { label: 'offen',     farbe: '#475569', flaeche: '#f1f5f9', rand: '#cbd5e1' },
 };
 
-/** Darf die angemeldete Person die Matrix ändern? */
+/** Darf die angemeldete Person Regelungen pflegen? */
 function gsDarfSchreiben() {
   return typeof canWriteTab !== 'function' || canWriteTab('govstruktur');
 }
 
+/** Darf sie darüber hinaus den Aufbau ändern – also Zeilen und Spalten?
+ *  Eigenes Recht: Eine umbenannte Ebene betrifft alles, was daran hängt. */
+function gsDarfStruktur() {
+  if (!gsDarfSchreiben()) return false;
+  return typeof darfGovStrukturKoepfe !== 'function' || darfGovStrukturKoepfe();
+}
+
 /** Startbestand aus dem Import der Mappe (tiefe Kopie – die Konstanten bleiben unberührt). */
 function gsStartbestand() {
+  const kopie = (x) => JSON.parse(JSON.stringify(x));
   return {
-    eintraege: JSON.parse(JSON.stringify(GOV_EINTRAEGE)),
-    weitere: JSON.parse(JSON.stringify(typeof GOV_WEITERE !== 'undefined' ? GOV_WEITERE : [])),
+    arten: kopie(GOV_ARTEN),
+    kategorien: kopie(GOV_KATEGORIEN),
+    eintraege: kopie(GOV_EINTRAEGE),
+    weitere: kopie(typeof GOV_WEITERE !== 'undefined' ? GOV_WEITERE : []),
     stand: GOV_STAND,
   };
 }
@@ -87,11 +97,34 @@ function gsStartbestand() {
 function gsEintraege() { return (_gsDaten && _gsDaten.eintraege) || []; }
 function gsWeitere()   { return (_gsDaten && _gsDaten.weitere) || []; }
 
-/** Kategorien: die bekannten plus alles, was inzwischen dazugekommen ist. */
+/** Spalten der Matrix. Auch die Ebenen sind gepflegte Daten, keine Konstanten:
+ *  Die Pyramide kann sich ändern, und dann soll niemand im Code nachziehen müssen. */
+function gsArten() {
+  const arten = (_gsDaten && Array.isArray(_gsDaten.arten) && _gsDaten.arten.length)
+    ? _gsDaten.arten : GOV_ARTEN;
+  // Was in Einträgen steht, aber in keiner Spalte, würde sonst unsichtbar –
+  // deshalb defensiv ergänzen (z. B. nach einem Import von Hand).
+  const out = arten.slice();
+  gsEintraege().forEach(e => {
+    if (e.art && !out.some(a => a.key === e.art)) out.push({ key: e.art, erklaerung: '' });
+  });
+  return out;
+}
+
+/** Zeilen der Matrix. */
 function gsKategorien() {
-  const out = [...GOV_KATEGORIEN];
+  const basis = (_gsDaten && Array.isArray(_gsDaten.kategorien) && _gsDaten.kategorien.length)
+    ? _gsDaten.kategorien : GOV_KATEGORIEN;
+  const out = [...basis];
   gsEintraege().forEach(e => { if (e.kategorie && !out.includes(e.kategorie)) out.push(e.kategorie); });
   return out;
+}
+
+/** Zeilen/Spalten im Arbeitsstand festschreiben (vor dem Ändern eines Kopfes). */
+function _gsKoepfeSichern() {
+  if (!_gsDaten) return;
+  if (!Array.isArray(_gsDaten.arten) || !_gsDaten.arten.length) _gsDaten.arten = JSON.parse(JSON.stringify(gsArten()));
+  if (!Array.isArray(_gsDaten.kategorien) || !_gsDaten.kategorien.length) _gsDaten.kategorien = gsKategorien();
 }
 
 /** Mehrere Verantwortliche stehen in der Mappe als „Muster/Muster/Muster" oder „A, B". */
@@ -146,10 +179,14 @@ async function initGovStruktur() {
     try {
       const gespeichert = (typeof spLoadGovStruktur === 'function') ? await spLoadGovStruktur() : null;
       if (gespeichert && gespeichert.daten && Array.isArray(gespeichert.daten.eintraege)) {
+        const d = gespeichert.daten;
         _gsDaten = {
-          eintraege: gespeichert.daten.eintraege,
-          weitere: Array.isArray(gespeichert.daten.weitere) ? gespeichert.daten.weitere : [],
-          stand: gespeichert.daten.stand || GOV_STAND,
+          // Ältere Fassungen kennen noch keine gepflegten Köpfe – dann gilt der Startbestand.
+          arten: (Array.isArray(d.arten) && d.arten.length) ? d.arten : JSON.parse(JSON.stringify(GOV_ARTEN)),
+          kategorien: (Array.isArray(d.kategorien) && d.kategorien.length) ? d.kategorien : [...GOV_KATEGORIEN],
+          eintraege: d.eintraege,
+          weitere: Array.isArray(d.weitere) ? d.weitere : [],
+          stand: d.stand || GOV_STAND,
         };
         _gsGeaendertAm = gespeichert.geaendertAm || '';
       } else {
@@ -214,6 +251,9 @@ function renderGovStruktur() {
       Das <b>Konzernregelwerk</b> als Matrix: <b>Kategorie</b> (Fundament) × <b>Dokumentenart</b>
       (Verbindlichkeitsebene). ${schreiben
         ? 'Kachel anklicken zum Bearbeiten, <b>+</b> in einer Zelle legt dort eine neue Regelung an.'
+          + (gsDarfStruktur()
+            ? ' Zeilen und Spalten lassen sich über ihre Köpfe umbenennen, verschieben und ergänzen.'
+            : ' Den <b>Aufbau</b> (Zeilen und Spalten) ändert nur, wer dafür eigens freigeschaltet ist.')
         : '👁 Nur-Lese-Zugriff – Änderungen sind gesperrt.'}
       Startbestand aus der Zuständigkeiten-Mappe des Corporate-Governance-Boards,
       <b>Stand ${esc((_gsDaten && _gsDaten.stand) || GOV_STAND)}</b>.
@@ -258,18 +298,45 @@ function gsKachel(e, schreiben) {
 }
 
 function gsMatrixHtml(rows, schreiben) {
+  const struktur = schreiben && gsDarfStruktur();
+  const alleArten = gsArten();
   // Beim Bearbeiten alle Ebenen zeigen – sonst käme man in eine leere Ebene nie hinein.
-  const arten = schreiben ? GOV_ARTEN : GOV_ARTEN.filter(a => gsEintraege().some(e => e.art === a.key));
+  const arten = schreiben ? alleArten : alleArten.filter(a => gsEintraege().some(e => e.art === a.key));
   const kategorien = gsKategorien();
+
+  const pfeil = (fn, i, richtung, zeichen, titel) => `<button class="gs-pfeil" onclick="event.stopPropagation();${fn}(${i},${richtung})"
+      title="${esc(titel)}">${zeichen}</button>`;
+
   const kopf = `<tr>
-      <th class="gs-ecke">Kategorie</th>
-      ${arten.map(a => `<th title="${esc(a.erklaerung)}">${esc(a.key)}
-        <span class="gs-n">${rows.filter(e => e.art === a.key).length}</span></th>`).join('')}
+      <th class="gs-ecke">Kategorie${struktur ? ' <span class="gs-hinweis">Kopf anklicken zum Umbenennen</span>' : ''}</th>
+      ${arten.map((a, i) => `<th title="${esc(a.erklaerung || a.key)}">
+        <div class="gs-kopf${struktur ? ' klickbar' : ''}"
+          ${struktur ? `onclick="gsEbeneBearbeiten(${i})" role="button" tabindex="0"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gsEbeneBearbeiten(${i})}"` : ''}>
+          <span class="gs-kopf-t">${esc(a.key)}</span>
+          <span class="gs-n">${rows.filter(e => e.art === a.key).length}</span>
+          ${struktur ? `<span class="gs-pfeile">
+            ${i > 0 ? pfeil('gsEbeneVerschieben', i, -1, '‹', 'Spalte nach links') : ''}
+            ${i < arten.length - 1 ? pfeil('gsEbeneVerschieben', i, 1, '›', 'Spalte nach rechts') : ''}
+          </span>` : ''}
+        </div></th>`).join('')}
+      ${struktur ? '<th class="gs-anhang"><button class="gs-plus" onclick="gsEbeneNeu()" title="Neue Ebene (Spalte) anlegen">+ Ebene</button></th>' : ''}
     </tr>`;
-  const koerper = kategorien.map(k => {
+
+  const koerper = kategorien.map((k, ki) => {
     const inZeile = rows.filter(e => e.kategorie === k);
     return `<tr>
-      <th class="gs-kat">${esc(k)}<span class="gs-n">${inZeile.length}</span></th>
+      <th class="gs-kat">
+        <div class="gs-kopf${struktur ? ' klickbar' : ''}"
+          ${struktur ? `onclick="gsKategorieBearbeiten(${ki})" role="button" tabindex="0"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gsKategorieBearbeiten(${ki})}"` : ''}>
+          <span class="gs-kopf-t">${esc(k)}</span>
+          <span class="gs-n">${inZeile.length}</span>
+          ${struktur ? `<span class="gs-pfeile">
+            ${ki > 0 ? pfeil('gsKategorieVerschieben', ki, -1, '‹', 'Zeile nach oben') : ''}
+            ${ki < kategorien.length - 1 ? pfeil('gsKategorieVerschieben', ki, 1, '›', 'Zeile nach unten') : ''}
+          </span>` : ''}
+        </div></th>
       ${arten.map(a => {
         const zellen = inZeile.filter(e => e.art === a.key);
         return `<td>${zellen.map(e => gsKachel(e, schreiben)).join('')
@@ -277,16 +344,24 @@ function gsMatrixHtml(rows, schreiben) {
           ${schreiben ? `<button class="gs-plus" onclick="gsNeu('${esc(k)}','${esc(a.key)}')"
             title="Neue Regelung in „${esc(k)}" als ${esc(a.key)}">+</button>` : ''}</td>`;
       }).join('')}
+      ${struktur ? '<td class="gs-anhang"></td>' : ''}
     </tr>`;
   }).join('');
-  return `<div class="gs-tabelle-wrap"><table class="gs-tabelle"><thead>${kopf}</thead><tbody>${koerper}</tbody></table></div>`;
+
+  const fuss = struktur
+    ? `<tr><th class="gs-kat"><button class="gs-plus" onclick="gsKategorieNeu()"
+         title="Neue Kategorie (Zeile) anlegen">+ Kategorie</button></th>
+       <td colspan="${arten.length + 1}"></td></tr>`
+    : '';
+  return `<div class="gs-tabelle-wrap"><table class="gs-tabelle">
+      <thead>${kopf}</thead><tbody>${koerper}${fuss}</tbody></table></div>`;
 }
 
 function gsLegendeHtml() {
   return `<details class="gs-legende">
     <summary>Was bedeuten die Dokumentenarten?</summary>
-    <table class="gs-legende-tbl"><tbody>${GOV_ARTEN.map(a =>
-      `<tr><td><b>${esc(a.key)}</b></td><td>${esc(a.erklaerung)}</td></tr>`).join('')}</tbody></table>
+    <table class="gs-legende-tbl"><tbody>${gsArten().map(a =>
+      `<tr><td><b>${esc(a.key)}</b></td><td>${esc(a.erklaerung || '')}</td></tr>`).join('')}</tbody></table>
     <div class="field-hint" style="margin-top:8px">Von oben nach unten nimmt die Verbindlichkeit ab:
       Ein Handbuch fasst ein Themengebiet abschließend, ein Leitfaden empfiehlt.</div>
   </details>`;
@@ -355,7 +430,7 @@ function gsDialog(entwurf, index) {
         <div class="form-group">
           <label>Dokumentenart <span class="req">*</span></label>
           <select id="gs-f-art" style="${_gsFeld}">
-            ${GOV_ARTEN.map(a => `<option value="${esc(a.key)}"${a.key === e.art ? ' selected' : ''}>${esc(a.key)}</option>`).join('')}
+            ${gsArten().map(a => `<option value="${esc(a.key)}"${a.key === e.art ? ' selected' : ''}>${esc(a.key)}</option>`).join('')}
           </select>
           <span class="field-hint">Bestimmt die Spalte – also die Verbindlichkeit.</span>
         </div>
@@ -402,7 +477,7 @@ async function gsUebernehmen() {
   };
   if (!e.titel) { toast('Bitte einen Titel angeben.', 'error'); return; }
   if (!e.kategorie) { toast('Bitte eine Kategorie wählen oder eintragen.', 'error'); return; }
-  if (!GOV_ARTEN.some(a => a.key === e.art)) { toast('Bitte eine Dokumentenart wählen.', 'error'); return; }
+  if (!gsArten().some(a => a.key === e.art)) { toast('Bitte eine Dokumentenart wählen.', 'error'); return; }
   // Leere Felder nicht mitschleppen – die Datei bleibt lesbar
   Object.keys(e).forEach(k => { if (!e[k]) delete e[k]; });
   e.status = e.status || 'offen';
@@ -505,6 +580,251 @@ async function gsWeitereLoeschen(i) {
   _gsEdit = null;
   renderGovStruktur();
   await gsSpeichern('Eintrag entfernt ✓');
+}
+
+/* ── Zeilen und Spalten bearbeiten ──
+   Auch die Beschriftungen sind Daten: Wird eine Ebene oder Kategorie umbenannt,
+   ziehen alle Regelungen mit, die daran hängen – sonst hinge die Hälfte der
+   Matrix plötzlich in einer Spalte, die es nicht mehr gibt. */
+
+function gsEbeneNeu() { gsEbeneDialog({ key: '', erklaerung: '' }, -1); }
+
+function gsEbeneBearbeiten(i) {
+  const a = gsArten()[i];
+  if (a) gsEbeneDialog({ ...a }, i);
+}
+
+function gsEbeneDialog(entwurf, index) {
+  if (!gsDarfStruktur()) return;
+  _gsEdit = { entwurf, index, ebene: true };
+  const anzahl = index >= 0 ? gsEintraege().filter(e => e.art === entwurf.key).length : 0;
+  openModal(`
+    <div class="modal-header">
+      <h3>${index < 0 ? 'Neue Ebene (Spalte)' : 'Ebene bearbeiten'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Bezeichnung <span class="req">*</span></label>
+          <input type="text" id="gs-e-key" value="${esc(entwurf.key || '')}" style="${_gsFeld}"
+            placeholder="z. B. Konzernrichtlinie">
+          ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Spalte – sie ziehen beim Umbenennen mit.</span>` : ''}
+        </div>
+        <div class="form-group full">
+          <label>Erklärung</label>
+          <input type="text" id="gs-e-erklaerung" value="${esc(entwurf.erklaerung || '')}" style="${_gsFeld}"
+            placeholder="Was regelt diese Ebene? Erscheint als Tooltip und in der Legende.">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${index >= 0 ? `<button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="gsEbeneLoeschen(${index})">Löschen</button>` : ''}
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="gsEbeneUebernehmen()">${index < 0 ? 'Anlegen' : 'Speichern'}</button>
+    </div>`, false, { label: 'Ebene bearbeiten' });
+}
+
+async function gsEbeneUebernehmen() {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  if (!_gsEdit) return;
+  const key = (document.getElementById('gs-e-key')?.value || '').trim();
+  const erklaerung = (document.getElementById('gs-e-erklaerung')?.value || '').trim();
+  if (!key) { toast('Bitte eine Bezeichnung angeben.', 'error'); return; }
+  _gsKoepfeSichern();
+  const i = _gsEdit.index;
+  const doppelt = _gsDaten.arten.some((a, j) => j !== i && a.key.toLowerCase() === key.toLowerCase());
+  if (doppelt) { toast('Diese Ebene gibt es schon.', 'error'); return; }
+  let meldung = 'Ebene angelegt ✓';
+  if (i < 0) {
+    _gsDaten.arten.push({ key, erklaerung });
+  } else {
+    const alt = _gsDaten.arten[i].key;
+    _gsDaten.arten[i] = { key, erklaerung };
+    if (alt !== key) _gsDaten.eintraege.forEach(e => { if (e.art === alt) e.art = key; });
+    meldung = 'Ebene gespeichert ✓';
+  }
+  closeModal();
+  _gsEdit = null;
+  renderGovStruktur();
+  await gsSpeichern(meldung);
+}
+
+async function gsEbeneLoeschen(i) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  _gsKoepfeSichern();
+  const a = _gsDaten.arten[i];
+  if (!a) return;
+  if (_gsDaten.arten.length <= 1) { toast('Mindestens eine Ebene muss bleiben.', 'error'); return; }
+  const betroffen = gsEintraege().filter(e => e.art === a.key);
+  if (!betroffen.length) {
+    if (!confirm(`Ebene „${a.key}" entfernen?`)) return;
+    _gsDaten.arten.splice(i, 1);
+    closeModal();
+    _gsEdit = null;
+    renderGovStruktur();
+    await gsSpeichern('Ebene entfernt ✓');
+    return;
+  }
+  // Nicht stillschweigend Regelungen mitlöschen – sie brauchen ein neues Zuhause.
+  gsUmziehenDialog({
+    titel: `Ebene „${a.key}" entfernen`,
+    text: `${betroffen.length} Regelung(en) stehen in dieser Spalte. Wohin sollen sie?`,
+    ziele: _gsDaten.arten.filter((x, j) => j !== i).map(x => x.key),
+    aktion: 'gsEbeneUmziehenUndLoeschen(' + i + ')',
+  });
+}
+
+async function gsEbeneUmziehenUndLoeschen(i) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  const ziel = (document.getElementById('gs-umzug-ziel')?.value || '').trim();
+  if (!ziel) return;
+  _gsKoepfeSichern();
+  const alt = _gsDaten.arten[i].key;
+  _gsDaten.eintraege.forEach(e => { if (e.art === alt) e.art = ziel; });
+  _gsDaten.arten.splice(i, 1);
+  closeModal();
+  _gsEdit = null;
+  renderGovStruktur();
+  await gsSpeichern(`Ebene entfernt, Regelungen nach „${ziel}" verschoben ✓`);
+}
+
+async function gsEbeneVerschieben(i, richtung) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  _gsKoepfeSichern();
+  const j = i + richtung;
+  if (j < 0 || j >= _gsDaten.arten.length) return;
+  const [a] = _gsDaten.arten.splice(i, 1);
+  _gsDaten.arten.splice(j, 0, a);
+  renderGovStruktur();
+  await gsSpeichern('Reihenfolge gespeichert ✓');
+}
+
+function gsKategorieNeu() { gsKategorieDialog('', -1); }
+
+function gsKategorieBearbeiten(i) {
+  const k = gsKategorien()[i];
+  if (k !== undefined) gsKategorieDialog(k, i);
+}
+
+function gsKategorieDialog(name, index) {
+  if (!gsDarfStruktur()) return;
+  _gsEdit = { entwurf: name, index, kategorie: true };
+  const anzahl = index >= 0 ? gsEintraege().filter(e => e.kategorie === name).length : 0;
+  openModal(`
+    <div class="modal-header">
+      <h3>${index < 0 ? 'Neue Kategorie (Zeile)' : 'Kategorie bearbeiten'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group full">
+        <label>Bezeichnung <span class="req">*</span></label>
+        <input type="text" id="gs-k-name" value="${esc(name || '')}" style="${_gsFeld}"
+          placeholder="z. B. Recht / Steuern / Datenschutz / Versicherungen">
+        ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Zeile – sie ziehen beim Umbenennen mit.</span>` : ''}
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${index >= 0 ? `<button class="btn btn-danger btn-sm" style="margin-right:auto" onclick="gsKategorieLoeschen(${index})">Löschen</button>` : ''}
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="gsKategorieUebernehmen()">${index < 0 ? 'Anlegen' : 'Speichern'}</button>
+    </div>`, false, { label: 'Kategorie bearbeiten' });
+}
+
+async function gsKategorieUebernehmen() {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  if (!_gsEdit) return;
+  const name = (document.getElementById('gs-k-name')?.value || '').trim();
+  if (!name) { toast('Bitte eine Bezeichnung angeben.', 'error'); return; }
+  _gsKoepfeSichern();
+  const i = _gsEdit.index;
+  if (_gsDaten.kategorien.some((k, j) => j !== i && k.toLowerCase() === name.toLowerCase())) {
+    toast('Diese Kategorie gibt es schon.', 'error'); return;
+  }
+  let meldung = 'Kategorie angelegt ✓';
+  if (i < 0) {
+    _gsDaten.kategorien.push(name);
+  } else {
+    const alt = _gsDaten.kategorien[i];
+    _gsDaten.kategorien[i] = name;
+    if (alt !== name) _gsDaten.eintraege.forEach(e => { if (e.kategorie === alt) e.kategorie = name; });
+    meldung = 'Kategorie gespeichert ✓';
+  }
+  closeModal();
+  _gsEdit = null;
+  renderGovStruktur();
+  await gsSpeichern(meldung);
+}
+
+async function gsKategorieLoeschen(i) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  _gsKoepfeSichern();
+  const k = _gsDaten.kategorien[i];
+  if (k === undefined) return;
+  if (_gsDaten.kategorien.length <= 1) { toast('Mindestens eine Kategorie muss bleiben.', 'error'); return; }
+  const betroffen = gsEintraege().filter(e => e.kategorie === k);
+  if (!betroffen.length) {
+    if (!confirm(`Kategorie „${k}" entfernen?`)) return;
+    _gsDaten.kategorien.splice(i, 1);
+    closeModal();
+    _gsEdit = null;
+    renderGovStruktur();
+    await gsSpeichern('Kategorie entfernt ✓');
+    return;
+  }
+  gsUmziehenDialog({
+    titel: `Kategorie „${k}" entfernen`,
+    text: `${betroffen.length} Regelung(en) stehen in dieser Zeile. Wohin sollen sie?`,
+    ziele: _gsDaten.kategorien.filter((x, j) => j !== i),
+    aktion: 'gsKategorieUmziehenUndLoeschen(' + i + ')',
+  });
+}
+
+async function gsKategorieUmziehenUndLoeschen(i) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  const ziel = (document.getElementById('gs-umzug-ziel')?.value || '').trim();
+  if (!ziel) return;
+  _gsKoepfeSichern();
+  const alt = _gsDaten.kategorien[i];
+  _gsDaten.eintraege.forEach(e => { if (e.kategorie === alt) e.kategorie = ziel; });
+  _gsDaten.kategorien.splice(i, 1);
+  closeModal();
+  _gsEdit = null;
+  renderGovStruktur();
+  await gsSpeichern(`Kategorie entfernt, Regelungen nach „${ziel}" verschoben ✓`);
+}
+
+async function gsKategorieVerschieben(i, richtung) {
+  if (!gsDarfStruktur()) { toast('Den Aufbau der Governance-Struktur darf nur ändern, wer dafür freigeschaltet ist.', 'error'); return; }
+  _gsKoepfeSichern();
+  const j = i + richtung;
+  if (j < 0 || j >= _gsDaten.kategorien.length) return;
+  const [k] = _gsDaten.kategorien.splice(i, 1);
+  _gsDaten.kategorien.splice(j, 0, k);
+  renderGovStruktur();
+  await gsSpeichern('Reihenfolge gespeichert ✓');
+}
+
+/** Rückfrage, wenn an einer Zeile/Spalte noch Regelungen hängen. */
+function gsUmziehenDialog({ titel, text, ziele, aktion }) {
+  openModal(`
+    <div class="modal-header">
+      <h3>${esc(titel)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0 0 10px;line-height:1.5">${esc(text)}</p>
+      <div class="form-group full">
+        <label>Verschieben nach</label>
+        <select id="gs-umzug-ziel" style="${_gsFeld}">
+          ${ziele.map(z => `<option value="${esc(z)}">${esc(z)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-danger" onclick="${aktion}">Verschieben und entfernen</button>
+    </div>`, false, { label: titel });
 }
 
 /** Verantwortungs-Filter neu befüllen (nach Änderungen können Namen dazukommen/wegfallen). */

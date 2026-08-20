@@ -1875,7 +1875,7 @@ async function loadAdDepartments() {
 }
 
 function renderCfgLists() {
-  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger', 'probelaufUser'].forEach(role => {
+  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger', 'probelaufUser', 'govStrukturKoepfe'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
     if (!host) return;
     const arr = _cfgEdit[role] || [];

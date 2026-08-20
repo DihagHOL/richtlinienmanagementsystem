@@ -83,6 +83,7 @@ function _rollenBereichHtml() {
       ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard) – leer = Genehmiger-Liste gilt')}
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
+      ${roleCard('govStrukturKoepfe', 'Governance-Struktur: Zeilen &amp; Spalten ändern (Aufbau der Systematik)')}
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Probelauf (Vorführung &amp; Funktionsprüfung)</h2></div>

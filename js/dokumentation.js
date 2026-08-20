@@ -413,7 +413,9 @@ function _dokuSections() {
           <b>offen</b> (grau, noch nicht begonnen).</li>
         <li style="${li}">Oben die <b>Kennzahlen</b> mit Fortschrittsbalken – ein Klick darauf filtert nach diesem Stand.</li>
         <li style="${li}"><b>Suche</b> über Titel, Verantwortung und Kategorie, dazu ein Filter nach Verantwortlichen.</li>
-        <li style="${li}"><b>Bearbeiten:</b> Kachel anklicken öffnet die Regelung (Titel, Kategorie, Ebene, Verantwortung, Stand, Dokument/Version/Datum); das <b>+</b> in einer Zelle legt dort eine neue an, mit Kategorie und Ebene schon vorbelegt. Gespeichert wird sofort – es gibt keinen extra Speichern-Knopf.</li>
+        <li style="${li}"><b>Regelungen bearbeiten:</b> Kachel anklicken öffnet die Regelung (Titel, Kategorie, Ebene, Verantwortung, Stand, Dokument/Version/Datum); das <b>+</b> in einer Zelle legt dort eine neue an, mit Kategorie und Ebene schon vorbelegt. Gespeichert wird sofort – es gibt keinen extra Speichern-Knopf.</li>
+        <li style="${li}"><b>Zeilen und Spalten bearbeiten:</b> Auch die Beschriftungen sind Daten. Ein Klick auf einen <b>Zeilen- oder Spaltenkopf</b> benennt ihn um (bei Ebenen zusätzlich die Erklärung), die Pfeile daneben verschieben ihn, <b>+ Ebene</b> und <b>+ Kategorie</b> legen neue an. Beim Umbenennen ziehen alle Regelungen mit, die daran hängen. Eine Zeile oder Spalte mit Inhalt wird nicht einfach gelöscht – die App fragt, wohin die Regelungen umziehen sollen.</li>
+        <li style="${li}"><b>Eigenes Recht für den Aufbau:</b> Regelungen pflegen darf, wer Schreibrecht auf den Reiter hat. Zeilen und Spalten ändern darf nur, wer in den Einstellungen unter <b>„Governance-Struktur: Zeilen &amp; Spalten ändern"</b> steht (Admins immer). Eine umbenannte Ebene betrifft schließlich alles, was daran hängt.</li>
         <li style="${li}">Liegt eine Regelung bereits als Regelwerk im RMS, führt <b>„→ im RMS"</b> direkt hin.</li>
         <li style="${li}">Leere Ebenen bekommen keine Spalte: Was es nirgends gibt, verstopft die Ansicht nicht.</li>
       </ul>

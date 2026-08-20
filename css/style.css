@@ -618,6 +618,16 @@ body.demo-mode .main { padding-bottom: 64px; }
 .gs-tabelle td:hover .gs-plus, .gs-plus:focus-visible { opacity: 1; border-color: var(--c-primary); color: var(--c-primary); }
 .gs-zeile.klickbar { cursor: pointer; border-radius: 6px; }
 .gs-zeile.klickbar:hover, .gs-zeile.klickbar:focus-visible { background: #f1f5f9; }
+.gs-kopf { display: flex; align-items: center; gap: 4px; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.gs-kopf-t { flex: 1; min-width: 0; }
+.gs-kopf.klickbar { cursor: pointer; }
+.gs-kopf.klickbar:hover, .gs-kopf.klickbar:focus-visible { background: #e2e8f0; outline: none; }
+.gs-pfeile { display: inline-flex; gap: 2px; opacity: 0; }
+.gs-kopf:hover .gs-pfeile, .gs-kopf:focus-within .gs-pfeile { opacity: 1; }
+.gs-pfeil { border: 1px solid var(--c-border); background: #fff; border-radius: 5px; width: 18px; height: 18px; line-height: 1; padding: 0; cursor: pointer; color: var(--c-muted); font: inherit; font-size: .8rem; }
+.gs-pfeil:hover { color: var(--c-primary); border-color: var(--c-primary); }
+.gs-hinweis { font-weight: 400; font-size: .68rem; color: var(--c-muted); display: block; }
+.gs-tabelle .gs-anhang { min-width: 96px; background: #f8fafc; }
 
 .gs-owner-liste { display: flex; flex-direction: column; gap: 4px; }
 .gs-zeile { display: flex; align-items: baseline; gap: 7px; font-size: .8rem; }

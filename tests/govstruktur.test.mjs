@@ -40,6 +40,7 @@ function umgebung(opt = {}) {
     toast: (m) => zustand.toasts.push(m),
     confirm: () => zustand.bestaetigen,
     canWriteTab: () => opt.schreiben !== false,
+    darfGovStrukturKoepfe: () => opt.struktur !== false,
     openModal: (html) => { zustand.modal = html; },
     closeModal: () => { zustand.modal = ''; },
     openDetail: () => {},
@@ -139,7 +140,8 @@ w('renderGovStruktur();');
 const matrix = felder['govstruktur-mount'].innerHTML;
 ok(/<table class="gs-tabelle">/.test(matrix), 'Die Matrix ist eine Tabelle');
 ok((matrix.match(/gs-kachel/g) || []).length === 70, 'Jede Regelung bekommt eine Kachel');
-ok((matrix.match(/<th class="gs-kat"/g) || []).length === 7, 'Eine Zeile je Kategorie');
+ok((matrix.match(/<th class="gs-kat"/g) || []).length === 8,
+  'Eine Zeile je Kategorie, dazu die Fußzeile zum Anlegen');
 ok(/gs-tabelle-wrap/.test(matrix), 'Die Tabelle scrollt in ihrem eigenen Rahmen');
 ok(/gs-balken/.test(matrix), 'Oben stehen Kennzahlen mit Fortschrittsbalken');
 ok(/→ im RMS/.test(matrix), 'Bereits vorhandene Regelwerke sind verlinkt');
@@ -153,8 +155,8 @@ ok(!/gs-modus|gsModus\(/.test(lies('index.html')), 'Auch der Umschalter in der W
 ok(!/gs-modus|gs-owner-karte/.test(lies('css/style.css')), 'Und die zugehörigen Stile');
 
 /* ── 7) Bearbeiten: anlegen, ändern, löschen ── */
-ok((matrix.match(/gs-plus/g) || []).length === 7 * w('GOV_ARTEN.length'),
-  'Beim Bearbeiten hat jede Zelle einen Plus-Knopf – auch in noch leeren Ebenen');
+ok((matrix.match(/gs-plus/g) || []).length === 7 * w('gsArten().length') + 2,
+  'Beim Bearbeiten hat jede Zelle einen Plus-Knopf – auch in noch leeren Ebenen – plus je einer für Zeile und Spalte');
 ok(/gsBearbeiten\(/.test(matrix) && /klickbar/.test(matrix), 'Und jede Kachel lässt sich anklicken');
 
 w("gsNeu('Compliance','Policy');");
@@ -220,6 +222,120 @@ await ctx.gsWeitereUebernehmen();
 ok(w('gsWeitere().length') === 10, 'Auch Leitbild, Unternehmenspolitik und KBV sind bearbeitbar');
 await ctx.gsWeitereLoeschen(9);
 ok(w('gsWeitere().length') === 9, 'Und wieder entfernbar');
+
+/* ── 8b) Zeilen und Spalten: benennen, ergänzen, verschieben, entfernen ── */
+const k = umgebung();
+await k.ctx.initGovStruktur();
+const kw = k.w, kel = k.el, kz = k.zustand;
+const setzK = (id, wert) => { kel(id).value = wert; };
+
+ok(kw('gsArten().length') === 7 && kw('gsKategorien().length') === 7,
+  'Zeilen und Spalten kommen aus dem Startbestand');
+
+kw('gsEbeneBearbeiten(2);');
+ok(/Ebene bearbeiten/.test(kz.modal) && /value="Konzernrichtlinie"/.test(kz.modal),
+  'Ein Klick auf den Spaltenkopf öffnet ihn');
+ok(/45 Regelung\(en\) stehen in dieser Spalte/.test(kz.modal), 'Und sagt, wie viel daran hängt');
+setzK('gs-e-key', 'Konzernvorgabe');
+setzK('gs-e-erklaerung', 'Operativer Rahmen: Wie handeln wir?');
+await k.ctx.gsEbeneUebernehmen();
+ok(kw('gsArten()[2].key') === 'Konzernvorgabe', 'Die Spalte heißt jetzt anders');
+ok(kw('gsEintraege().filter(e => e.art === "Konzernvorgabe").length') === 45,
+  'Und alle 45 Regelungen sind mitgezogen – keine hängt in einer Spalte, die es nicht mehr gibt');
+ok(kw('gsEintraege().some(e => e.art === "Konzernrichtlinie")') === false, 'Die alte Bezeichnung ist weg');
+ok(kz.gespeichert.at(-1).arten.length === 7, 'Die Spalten stehen mit in der gespeicherten Datei');
+
+kw('gsKategorieBearbeiten(1);');
+setzK('gs-k-name', 'Recht & Steuern');
+await k.ctx.gsKategorieUebernehmen();
+ok(kw('gsKategorien()[1]') === 'Recht & Steuern', 'Auch Zeilen lassen sich umbenennen');
+ok(kw('gsEintraege().filter(e => e.kategorie === "Recht & Steuern").length') === 17, 'Mit allen Regelungen daran');
+
+kw('gsEbeneNeu();');
+setzK('gs-e-key', 'Merkblatt');
+setzK('gs-e-erklaerung', 'Kurzinfo für den Aushang');
+await k.ctx.gsEbeneUebernehmen();
+ok(kw('gsArten().length') === 8 && kw('gsArten().at(-1).key') === 'Merkblatt', 'Eine neue Spalte kommt hinten dazu');
+kw('gsKategorieNeu();');
+setzK('gs-k-name', 'Fuhrpark');
+await k.ctx.gsKategorieUebernehmen();
+ok(kw('gsKategorien().length') === 8, 'Eine neue Zeile ebenso');
+ok(/Fuhrpark/.test(k.felder['govstruktur-mount'].innerHTML) && /Merkblatt/.test(k.felder['govstruktur-mount'].innerHTML),
+  'Beide erscheinen sofort in der Matrix');
+
+kw('gsEbeneNeu();');
+setzK('gs-e-key', 'merkblatt');
+await k.ctx.gsEbeneUebernehmen();
+ok(kw('gsArten().length') === 8 && kz.toasts.at(-1).includes('gibt es schon'),
+  'Zweimal dieselbe Spalte geht nicht (auch nicht anders geschrieben)');
+kw('gsKategorieNeu();');
+setzK('gs-k-name', '');
+await k.ctx.gsKategorieUebernehmen();
+ok(kw('gsKategorien().length') === 8 && kz.toasts.at(-1).includes('Bezeichnung'), 'Ohne Bezeichnung ebenfalls nicht');
+
+await k.ctx.gsEbeneVerschieben(7, -1);
+ok(kw('gsArten()[6].key') === 'Merkblatt', 'Spalten lassen sich verschieben');
+await k.ctx.gsKategorieVerschieben(7, -1);
+ok(kw('gsKategorien()[6]') === 'Fuhrpark', 'Zeilen auch');
+await k.ctx.gsEbeneVerschieben(0, -1);
+ok(kw('gsArten()[0].key') === 'Handbuch', 'Über den Rand hinaus passiert nichts');
+
+const vorherArten = kw('gsArten().length');
+await k.ctx.gsEbeneLoeschen(kw('gsArten().findIndex(a => a.key === "Merkblatt")'));
+ok(kw('gsArten().length') === vorherArten - 1, 'Eine leere Spalte lässt sich entfernen');
+await k.ctx.gsKategorieLoeschen(kw('gsKategorien().indexOf("Fuhrpark")'));
+ok(kw('gsKategorien().length') === 7, 'Eine leere Zeile ebenso');
+
+/* Volle Spalte: Regelungen müssen ein neues Zuhause bekommen, nicht verschwinden */
+const idxVoll = kw('gsArten().findIndex(a => a.key === "Konzernvorgabe")');
+await k.ctx.gsEbeneLoeschen(idxVoll);
+ok(/Verschieben und entfernen/.test(kz.modal) && /45 Regelung/.test(kz.modal),
+  'Eine belegte Spalte wird nicht einfach gelöscht – die Regelungen brauchen ein Ziel');
+ok(kw('gsArten().length') === 7, 'Bis dahin bleibt alles stehen');
+setzK('gs-umzug-ziel', 'Konzernfachregelung');
+await k.ctx.gsEbeneUmziehenUndLoeschen(idxVoll);
+ok(kw('gsArten().length') === 6, 'Nach dem Umzug ist die Spalte weg');
+ok(kw('gsEintraege().filter(e => e.art === "Konzernfachregelung").length') === 59,
+  'Und alle Regelungen stehen in der Zielspalte (45 + 14)');
+ok(kw('gsEintraege().length') === 70, 'Keine einzige ist dabei verloren gegangen');
+
+const einzeln = umgebung();
+await einzeln.ctx.initGovStruktur();
+einzeln.w('_gsDaten.arten = [{ key: "Nur eine", erklaerung: "" }]; _gsDaten.kategorien = ["Nur eine"];');
+await einzeln.ctx.gsEbeneLoeschen(0);
+await einzeln.ctx.gsKategorieLoeschen(0);
+ok(einzeln.w('_gsDaten.arten.length') === 1 && einzeln.w('_gsDaten.kategorien.length') === 1,
+  'Die letzte Zeile und die letzte Spalte lassen sich nicht entfernen');
+
+/* ── 8c) Der Aufbau ist ein eigenes Recht ── */
+const nurEintraege = umgebung({ struktur: false });
+await nurEintraege.ctx.initGovStruktur();
+const ohneStruktur = nurEintraege.felder['govstruktur-mount'].innerHTML;
+ok(nurEintraege.w('gsDarfSchreiben()') === true && nurEintraege.w('gsDarfStruktur()') === false,
+  'Regelungen pflegen und den Aufbau ändern sind zwei verschiedene Rechte');
+ok(/gsBearbeiten\(/.test(ohneStruktur) && /gs-plus/.test(ohneStruktur), 'Regelungen bleiben pflegbar');
+ok(!/gsEbeneBearbeiten|gsKategorieBearbeiten|gsEbeneNeu|gsKategorieNeu|gs-pfeil/.test(ohneStruktur),
+  'Aber die Köpfe tragen keine Bedienelemente');
+ok(/eigens freigeschaltet/.test(ohneStruktur), 'Und es steht dabei, woran das liegt');
+nurEintraege.w('gsEbeneBearbeiten(0); gsKategorieBearbeiten(0);');
+ok(nurEintraege.zustand.modal === '', 'Über die Tastatur öffnet sich auch nichts');
+await nurEintraege.ctx.gsEbeneUebernehmen();
+await nurEintraege.ctx.gsKategorieVerschieben(0, 1);
+ok(nurEintraege.zustand.gespeichert.length === 0, 'Und gespeichert wird nichts');
+ok(nurEintraege.zustand.toasts.some(t => /freigeschaltet/.test(t)), 'Der Grund steht in der Meldung');
+
+const acc2 = lies('js/access.js');
+ok(/function darfGovStrukturKoepfe/.test(acc2), 'Das Recht hat eine eigene Prüfung');
+ok(/isAdmin\(u\) \|\| _has\(_cfg\(\)\.govStrukturKoepfe, u\)/.test(acc2), 'Admins dürfen immer, sonst die gepflegte Liste');
+ok(/govStrukturKoepfe: \[\],/.test(acc2), 'Standard: niemand zusätzlich');
+ok(/roleCard\('govStrukturKoepfe'/.test(lies('js/einstellungen.js')), 'Gepflegt wird sie in den Einstellungen');
+ok(/'govStrukturKoepfe'/.test(lies('js/admin.js')), 'Und dort auch angezeigt');
+
+/* Ältere gespeicherte Fassungen kennen die Köpfe noch nicht */
+const alt2 = umgebung({ geladen: { daten: { eintraege: [{ kategorie: 'Compliance', art: 'Policy', titel: 'Alt', owner: '', status: 'offen' }] }, geaendertAm: 'z' } });
+await alt2.ctx.initGovStruktur();
+ok(alt2.w('gsArten().length') === 7 && alt2.w('gsKategorien().length') === 7,
+  'Eine Fassung ohne gepflegte Köpfe fällt auf den Startbestand zurück');
 
 /* ── 9) Gleichzeitigkeit ── */
 const c = umgebung({ meta: 'fremd' });
