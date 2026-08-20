@@ -122,5 +122,39 @@ vm.runInContext(`
 ok(sctx.__kurz.length === 200 && sctx.__kurz[0].aktion === 'A50', 'Kürzung behält die jüngsten 200 Einträge');
 ok(sctx.__MAX === 200, 'HISTORIE_MAX = 200');
 
+/* ── Freigabe per Klick in Outlook (Power Automate) ──
+   Der Flow schreibt nur „FreigegebenVon" und den Status in die Liste. Ohne
+   Ergänzung fehlte ausgerechnet der letzte Schritt in der Historie des
+   Regelwerks – im Audit Report stand er, im Regelwerk selbst nicht. */
+run(`globalThis.__ho = historieMitOutlookFreigabe({
+  historie: [{ datum: '2026-01-01T10:00:00Z', name: 'A', aktion: 'Angelegt' }],
+  freigaben: [], freigegebenVon: 'Frau Chefin', veroeffentlichtAm: '2026-02-02T09:00:00Z' })`);
+ok(ctx.__ho.length === 2 && /Outlook/.test(ctx.__ho[1].aktion),
+  'In Outlook erteilte Freigaben erscheinen in der Historie');
+ok(ctx.__ho[1].name === 'Frau Chefin' && ctx.__ho[1].datum === '2026-02-02T09:00:00Z',
+  'Mit Person und Veröffentlichungszeitpunkt');
+
+run(`globalThis.__ha = historieMitOutlookFreigabe({
+  historie: [], freigaben: [{ upn: 'x@dihag.com', datum: '2026-02-02T09:00:00Z' }],
+  freigegebenVon: 'Frau Chefin' })`);
+ok(ctx.__ha.length === 0, 'Wurde in der App freigegeben, wird nichts doppelt ergänzt');
+
+run(`globalThis.__hb = historieMitOutlookFreigabe({
+  historie: [{ datum: '2026-02-02T09:00:00Z', name: 'Frau Chefin', aktion: 'Freigabe erteilt' }],
+  freigaben: [], freigegebenVon: 'Frau Chefin' })`);
+ok(ctx.__hb.length === 1, 'Steht die Freigabe schon in der Historie, bleibt es dabei');
+
+run("globalThis.__hc = historieMitOutlookFreigabe({ historie: [], freigaben: [] })");
+ok(ctx.__hc.length === 0, 'Ohne Freigabe passiert nichts');
+ok(run('typeof renderHistorieSection') === 'function', 'Die Ansicht nutzt denselben Weg');
+
+const paDoku = fs.readFileSync(ROOT + '/docs/GENEHMIGUNG-POWER-AUTOMATE.md', 'utf8');
+ok(/Der kürzeste Weg/.test(paDoku), 'Die Anleitung beginnt mit dem kurzen Weg');
+ok(/A6a\. Freigabe als vollwertigen Datensatz schreiben/.test(paDoku),
+  'Und zeigt, wie der Flow FreigabeJson schreibt');
+ok(/Alternative: eigener HTTP-Trigger/.test(paDoku) && /Kein Identitätsnachweis/.test(paDoku),
+  'Der HTTP-Weg ist beschrieben – samt seinem Preis');
+ok(/Actionable Message/.test(paDoku) && /Kurzvergleich/.test(paDoku), 'Dazu der dritte Weg und ein Vergleich');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

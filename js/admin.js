@@ -112,8 +112,27 @@ function historieAdd(p, aktion, text) {
 }
 
 /** Historie im Editor – ausklappbarer, schreibgeschützter Abschnitt (neueste zuerst). */
+/** Historie eines Regelwerks – inklusive der Freigaben, die in Outlook erteilt wurden.
+ *  Der Power-Automate-Flow schreibt nur „FreigegebenVon" und den Status in die Liste;
+ *  ohne diese Ergänzung fehlte ausgerechnet der letzte Schritt in der Historie.
+ *  Rein anzeigend: In die Liste geschrieben wird dabei nichts. */
+function historieMitOutlookFreigabe(p) {
+  const h = Array.isArray(p && p.historie) ? p.historie.slice() : [];
+  if (!p || !p.freigegebenVon) return h;
+  if ((p.freigaben || []).length) return h;                       // in der App freigegeben
+  if (h.some(e => /freigabe/i.test(e.aktion || ''))) return h;    // schon protokolliert
+  h.push({
+    datum: p.veroeffentlichtAm || '',
+    name: p.freigegebenVon, upn: '',
+    aktion: 'Freigabe erteilt (Outlook / Power Automate)',
+    text: 'Per Genehmigungs-Mail in Outlook freigegeben. In der Liste steht dazu „Freigegeben von" '
+      + 'und der Veröffentlichungszeitpunkt; im Audit Report erscheint dasselbe Ereignis.',
+  });
+  return h;
+}
+
 function renderHistorieSection(p) {
-  const h = Array.isArray(p.historie) ? p.historie : [];
+  const h = historieMitOutlookFreigabe(p);
   const badge = _edBadge(h.length ? `${h.length} Einträge` : 'noch keine', h.length ? 'custom' : 'off');
   const inner = !h.length
     ? '<div class="field-hint">Noch keine Änderungen protokolliert. Ab jetzt wird jede Änderung mit Zeitpunkt und Person festgehalten.</div>'
