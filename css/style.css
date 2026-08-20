@@ -594,9 +594,6 @@ body.demo-mode .main { padding-bottom: 64px; }
 .gs-kz .n { font-size: 1.35rem; font-weight: 700; }
 .gs-kz .l { font-size: .74rem; color: var(--c-muted); }
 .gs-balken { flex: 1; min-width: 160px; height: 8px; border-radius: 999px; overflow: hidden; display: flex; background: #e2e8f0; }
-.gs-modus { display: inline-flex; border: 1px solid var(--c-border); border-radius: 9px; overflow: hidden; }
-.gs-modus button { border: 0; padding: 7px 14px; font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; background: transparent; color: var(--c-text); }
-.gs-modus button.an { background: var(--c-primary); color: #fff; }
 
 .gs-tabelle-wrap { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 12px; background: #fff; }
 .gs-tabelle { border-collapse: collapse; width: 100%; font-size: .82rem; }
@@ -613,11 +610,15 @@ body.demo-mode .main { padding-bottom: 64px; }
 .gs-kachel .o { color: #334155; }
 .gs-kachel .s { font-weight: 600; white-space: nowrap; }
 .gs-link { border: 0; background: none; padding: 2px 0 0; font: inherit; font-size: .72rem; font-weight: 600; color: var(--c-primary); cursor: pointer; }
+.gs-kachel.klickbar { cursor: pointer; }
+.gs-kachel.klickbar:hover, .gs-kachel.klickbar:focus-visible { filter: brightness(.97); outline: 2px solid var(--c-primary); outline-offset: 1px; }
+/* Der Plus-Knopf hält sich zurück, bis die Zelle gebraucht wird – sonst flimmert
+   die Matrix vor lauter Bedienelementen. */
+.gs-plus { display: block; width: 100%; border: 1px dashed var(--c-border); border-radius: 8px; background: none; color: var(--c-muted); cursor: pointer; font: inherit; font-size: .9rem; line-height: 1.4; padding: 2px 0; opacity: .35; }
+.gs-tabelle td:hover .gs-plus, .gs-plus:focus-visible { opacity: 1; border-color: var(--c-primary); color: var(--c-primary); }
+.gs-zeile.klickbar { cursor: pointer; border-radius: 6px; }
+.gs-zeile.klickbar:hover, .gs-zeile.klickbar:focus-visible { background: #f1f5f9; }
 
-.gs-owner-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
-.gs-owner-karte { border: 1px solid var(--c-border); border-radius: 12px; background: #fff; padding: 12px 14px; }
-.gs-owner-kopf { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.gs-pill { font-size: .7rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
 .gs-owner-liste { display: flex; flex-direction: column; gap: 4px; }
 .gs-zeile { display: flex; align-items: baseline; gap: 7px; font-size: .8rem; }
 .gs-punkt { width: 8px; height: 8px; border-radius: 999px; flex: none; }

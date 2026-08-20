@@ -3,8 +3,10 @@
  *
  * Das Konzernregelwerk stand bisher nur in einer Excel-Mappe und zwei Folien:
  * die Pyramide der Verbindlichkeitsebenen, das Fundament mit den Kategorien,
- * die Zuständigkeiten in der Mappe. Hier laufen die drei zusammen – Kategorie ×
- * Dokumentenart, mit Verantwortung und Stand.
+ * die Zuständigkeiten in der Mappe. Hier laufen die drei zusammen – und zwar
+ * als Arbeitsfläche: Die Matrix ist vollständig bearbeitbar, gespeichert wird
+ * in einer eigenen JSON-Datei neben der access-config. Die Konstanten in
+ * js/govstruktur.js sind nur noch der Startbestand aus dem Import der Mappe.
  */
 import fs from 'fs';
 import vm from 'vm';
@@ -17,39 +19,62 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
 const quelle = lies('js/govstruktur.js');
-const speicher = {};
-const el = (id) => (speicher[id] = speicher[id] || {
-  id, innerHTML: '', value: '', options: [], style: {},
-  classList: { toggle: () => {}, add: () => {}, remove: () => {} },
-});
-const ctx = {
-  console,
-  State: { policies: [{ id: '42', title: 'Informationssicherheit' }] },
-  document: { getElementById: el },
-  esc: (s) => String(s ?? ''),
-  emptyState: (t) => `<div class="empty">${t}</div>`,
-};
-ctx.globalThis = ctx;
-vm.createContext(ctx);
-vm.runInContext(quelle, ctx);
-const w = (a) => vm.runInContext(a, ctx);
 
-/* ── 1) Die Daten aus der Mappe ── */
-const eintraege = w('GOV_EINTRAEGE');
+/* Eine Umgebung, die nur so viel Browser nachstellt, wie die Ansicht braucht. */
+function umgebung(opt = {}) {
+  const felder = {};
+  const zustand = {
+    modal: '', toasts: [], gespeichert: [], meta: opt.meta || null,
+    geladen: opt.geladen || null, bestaetigen: opt.bestaetigen !== false,
+  };
+  const el = (id) => (felder[id] = felder[id] || {
+    id, innerHTML: '', value: '', options: [], style: {},
+    classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+  });
+  const ctx = {
+    console, JSON, Object, Array, Date, Set, Math, String, Number, Boolean,
+    State: { policies: [{ id: '42', title: 'Informationssicherheit' }], user: { upn: 'a@dihag.com' } },
+    document: { getElementById: el },
+    esc: (s) => String(s ?? ''),
+    emptyState: (t) => `<div class="empty">${t}</div>`,
+    toast: (m) => zustand.toasts.push(m),
+    confirm: () => zustand.bestaetigen,
+    canWriteTab: () => opt.schreiben !== false,
+    openModal: (html) => { zustand.modal = html; },
+    closeModal: () => { zustand.modal = ''; },
+    openDetail: () => {},
+    spLoadGovStruktur: async () => zustand.geladen,
+    spGovStrukturMeta: async () => zustand.meta,
+    spSaveGovStruktur: async (d) => {
+      zustand.gespeichert.push(JSON.parse(JSON.stringify(d)));
+      zustand.meta = 'zeit-' + zustand.gespeichert.length;
+      return zustand.meta;
+    },
+  };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(quelle, ctx);
+  return { ctx, felder, zustand, w: (a) => vm.runInContext(a, ctx), el };
+}
+
+const { ctx, felder, zustand, w, el } = umgebung();
+/** Ein Dialogfeld befüllen (die Elemente entstehen erst beim Zugriff). */
+const setz = (id, wert) => { el(id).value = wert; };
+
+/* ── 1) Die Daten aus der Mappe (Startbestand) ── */
+const seed = w('GOV_EINTRAEGE');
 const kategorien = w('GOV_KATEGORIEN');
 const arten = w('GOV_ARTEN').map(a => a.key);
-ok(eintraege.length === 70, `Alle Regelungen der Mappe sind übernommen (${eintraege.length})`);
+ok(seed.length === 70, `Alle Regelungen der Mappe sind übernommen (${seed.length})`);
 ok(kategorien.length === 7, 'Sieben Kategorien wie im Konzernregelwerk-Fundament');
-ok(eintraege.every(e => kategorien.includes(e.kategorie)), 'Jede Regelung hängt an einer bekannten Kategorie');
-ok(eintraege.every(e => arten.includes(e.art)), 'Und an einer Dokumentenart der Pyramide');
-ok(eintraege.every(e => e.titel && e.titel.trim()), 'Keine namenlose Regelung');
-ok(eintraege.every(e => ['gueltig', 'arbeit', 'offen'].includes(e.status)), 'Der Stand ist auf drei Werte normiert');
+ok(seed.every(e => kategorien.includes(e.kategorie)), 'Jede Regelung hängt an einer bekannten Kategorie');
+ok(seed.every(e => arten.includes(e.art)), 'Und an einer Dokumentenart der Pyramide');
+ok(seed.every(e => e.titel && e.titel.trim()), 'Keine namenlose Regelung');
+ok(seed.every(e => ['gueltig', 'arbeit', 'offen'].includes(e.status)), 'Der Stand ist auf drei Werte normiert');
 ok(/const GOV_STAND = "\d\d\.\d\d\.\d{4}"/.test(quelle), 'Der Stand der Mappe ist festgehalten');
-ok(/Momentaufnahme der Planung, kein Live-Bestand/.test(quelle),
-  'Und es steht dabei, dass es eine Momentaufnahme ist – kein Live-Bestand');
 
 /* ── 2) Stichproben gegen die Mappe ── */
-const finde = (t) => eintraege.find(e => e.titel.startsWith(t));
+const finde = (t) => seed.find(e => e.titel.startsWith(t));
 const pruef = (titel, art, kat, status, owner) => {
   const e = finde(titel);
   ok(!!e && e.art === art && e.kategorie.startsWith(kat) && e.status === status && e.owner.includes(owner),
@@ -74,25 +99,30 @@ ok(finde('Sicherheit und Gesundheit am Arbeitsplatz').art === 'Konzernrichtlinie
   'SGA ist eine Konzernrichtlinie, keine Fachregelung');
 ok(finde('Arbeitsmedizinische Vorsorge').art === 'Konzernfachregelung', 'Die Vorsorge dagegen schon');
 
-/* ── 3) Verantwortung ── */
+/* ── 3) Laden: gespeicherte Fassung schlägt den Startbestand ── */
+await ctx.initGovStruktur();
+ok(w('gsEintraege().length') === 70, 'Ohne gespeicherte Datei gilt der Startbestand');
+ok(zustand.gespeichert.length === 0, 'Reines Anschauen speichert nichts');
+
+const b = umgebung({ geladen: { daten: { eintraege: [{ kategorie: 'Compliance', art: 'Policy', titel: 'Nur eine', owner: 'X', status: 'offen' }], weitere: [], stand: '01.01.2027' }, geaendertAm: 'zeit-0' } });
+await b.ctx.initGovStruktur();
+ok(b.w('gsEintraege().length') === 1, 'Ist eine Fassung gespeichert, gilt sie – nicht der Startbestand');
+ok(b.w('_gsGeaendertAm') === 'zeit-0', 'Ihr Zeitstempel wird gemerkt');
+ok(/Stand 01\.01\.2027/.test(b.felder['govstruktur-mount'].innerHTML), 'Und ihr Stand steht über der Tabelle');
+
+/* ── 4) Verantwortung und Filter ── */
 ok(w('gsOwnerListe("Muster/Muster/Muster").length') === 3, 'Mehrfach-Verantwortung wird aufgeteilt (Schrägstrich)');
 ok(w('gsOwnerListe("Muster, Muster, Muster").length') === 3, 'Ebenso mit Komma');
 ok(w('gsOwnerListe("Muster /Muster")').join('|') === 'Muster|Muster', 'Leerzeichen werden abgeschnitten');
-ok(w('gsOwnerListe("")').length === 0, 'Ohne Angabe bleibt die Liste leer');
 const owner = w('gsAlleOwner()');
 ok(owner.length >= 18 && owner.includes('Muster') && owner.includes('Muster'), `Alle Verantwortlichen einzeln (${owner.length})`);
-
-/* ── 4) Filter ── */
 ok(w('gsGefiltert().length') === 70, 'Ohne Filter alles');
 w("gsStatusFilter('gueltig')");
-ok(w('gsGefiltert().every(e => e.status === "gueltig")') === true, 'Der Stand-Filter greift');
-ok(w('gsGefiltert().length') === 7, 'Sieben Regelungen sind final abgelegt');
-w("gsStatusFilter('')");
-w("gsOwnerFilter('Muster')");
+ok(w('gsGefiltert().length') === 7 && w('gsGefiltert().every(e => e.status === "gueltig")') === true,
+  'Der Stand-Filter greift (7 final abgelegt)');
+w("gsStatusFilter('')"); w("gsOwnerFilter('Muster')");
 ok(w('gsGefiltert().length') === 7, 'Der Verantwortungs-Filter greift');
-ok(w('gsGefiltert().every(e => e.owner.includes("Muster"))') === true, 'Und zeigt nur dessen Regelungen');
-w("gsOwnerFilter('')");
-w("gsSuche('kartell')");
+w("gsOwnerFilter('')"); w("gsSuche('kartell')");
 ok(w('gsGefiltert().length') === 1, 'Die Suche findet über den Titel');
 w("gsSuche('Muster')");
 ok(w('gsGefiltert().length') === 2, 'Und über die Verantwortung');
@@ -105,48 +135,159 @@ ok(w('gsPolicyTreffer("Kartellrecht")') === null, 'Was fehlt, wird nicht erfunde
 ok(w('gsPolicyTreffer("KI")') === null, 'Zu kurze Titel werden nicht blind verglichen');
 
 /* ── 6) Anzeige ── */
-w('initGovStruktur();');
-const matrix = speicher['govstruktur-mount'].innerHTML;
+w('renderGovStruktur();');
+const matrix = felder['govstruktur-mount'].innerHTML;
 ok(/<table class="gs-tabelle">/.test(matrix), 'Die Matrix ist eine Tabelle');
 ok((matrix.match(/gs-kachel/g) || []).length === 70, 'Jede Regelung bekommt eine Kachel');
 ok((matrix.match(/<th class="gs-kat"/g) || []).length === 7, 'Eine Zeile je Kategorie');
-ok(!/Arbeits-\/Prozessanweisung<\/th>|>Arbeits-\/Prozessanweisung\s/.test(matrix),
-  'Eine Ebene ohne einen einzigen Eintrag bekommt keine leere Spalte');
 ok(/gs-tabelle-wrap/.test(matrix), 'Die Tabelle scrollt in ihrem eigenen Rahmen');
-ok(/70/.test(matrix) && /gs-balken/.test(matrix), 'Oben stehen Kennzahlen mit Fortschrittsbalken');
-ok(/Stand 12\.08\.2026/.test(matrix), 'Und der Stand der Quelle');
+ok(/gs-balken/.test(matrix), 'Oben stehen Kennzahlen mit Fortschrittsbalken');
 ok(/→ im RMS/.test(matrix), 'Bereits vorhandene Regelwerke sind verlinkt');
 ok(/In sich abgeschlossenes Themengebiet/.test(matrix) && /Handlungsempfehlungen/.test(matrix),
   'Die Legende erklärt die Verbindlichkeitsebenen');
 ok(/Weitere Regelungsebenen/.test(matrix) && /KBV/.test(matrix),
   'Leitbild, Unternehmenspolitik und die KBV stehen separat – sie gehören nicht in die Pyramide');
+ok(!/gsModus|gs-modus|Nach Verantwortung/.test(quelle),
+  'Die Sicht „nach Verantwortung" ist raus – sie zeigte dieselben Daten ein zweites Mal');
+ok(!/gs-modus|gsModus\(/.test(lies('index.html')), 'Auch der Umschalter in der Werkzeugleiste');
+ok(!/gs-modus|gs-owner-karte/.test(lies('css/style.css')), 'Und die zugehörigen Stile');
 
-w("gsModus('owner');");
-const nachOwner = speicher['govstruktur-mount'].innerHTML;
-ok(/gs-owner-karte/.test(nachOwner), 'Die zweite Sicht gruppiert nach Verantwortung');
-ok((nachOwner.match(/gs-owner-karte/g) || []).length === owner.length, 'Je Person eine Karte');
-ok(/gs-pill/.test(nachOwner), 'Mit Verteilung nach Stand');
-w("gsModus('matrix');");
+/* ── 7) Bearbeiten: anlegen, ändern, löschen ── */
+ok((matrix.match(/gs-plus/g) || []).length === 7 * w('GOV_ARTEN.length'),
+  'Beim Bearbeiten hat jede Zelle einen Plus-Knopf – auch in noch leeren Ebenen');
+ok(/gsBearbeiten\(/.test(matrix) && /klickbar/.test(matrix), 'Und jede Kachel lässt sich anklicken');
 
-/* ── 7) Eingehängt ── */
+w("gsNeu('Compliance','Policy');");
+ok(/Neue Regelung/.test(zustand.modal), 'Der Plus-Knopf öffnet einen leeren Dialog');
+ok(/value="Compliance"/.test(zustand.modal) && /value="Policy" selected/.test(zustand.modal),
+  'Kategorie und Ebene sind aus der Zelle vorbelegt');
+setz('gs-f-titel', 'Umgang mit Geschenken');
+setz('gs-f-kategorie', 'Compliance');
+setz('gs-f-art', 'Policy');
+setz('gs-f-owner', 'Muster/Muster');
+setz('gs-f-status', 'arbeit');
+setz('gs-f-dokument', '');
+setz('gs-f-version', '');
+setz('gs-f-datum', '');
+await ctx.gsUebernehmen();
+ok(w('gsEintraege().length') === 71, 'Die neue Regelung steht in der Matrix');
+ok(zustand.gespeichert.length === 1 && zustand.gespeichert[0].eintraege.length === 71,
+  'Und wurde sofort gespeichert – kein extra Speichern-Knopf');
+ok(zustand.gespeichert[0].gespeichertVon === 'a@dihag.com' && !!zustand.gespeichert[0].gespeichertAm,
+  'Mit Zeitpunkt und Urheber in der Datei');
+ok(w('GOV_EINTRAEGE.length') === 70, 'Der Startbestand im Code bleibt unberührt');
+ok(w('gsAlleOwner()').includes('Muster'), 'Neue Verantwortliche tauchen im Filter auf');
+
+const neuIdx = w('gsEintraege().findIndex(e => e.titel === "Umgang mit Geschenken")');
+w(`gsBearbeiten(${neuIdx});`);
+ok(/Regelung bearbeiten/.test(zustand.modal) && /value="Umgang mit Geschenken"/.test(zustand.modal),
+  'Ein Klick auf die Kachel öffnet sie mit ihren Werten');
+setz('gs-f-status', 'gueltig');
+setz('gs-f-version', 'V1.0');
+await ctx.gsUebernehmen();
+ok(w(`gsEintraege()[${neuIdx}].status`) === 'gueltig' && w(`gsEintraege()[${neuIdx}].version`) === 'V1.0',
+  'Änderungen greifen');
+ok(zustand.gespeichert.length === 2, 'Und werden gespeichert');
+
+const vorher = w('gsEintraege().length');
+await ctx.gsLoeschen(neuIdx);
+ok(w('gsEintraege().length') === vorher - 1, 'Löschen entfernt die Regelung');
+ok(zustand.gespeichert.length === 3, 'Auch das wird gespeichert');
+
+setz('gs-f-titel', '');
+w("gsNeu('Compliance','Policy');");
+await ctx.gsUebernehmen();
+ok(zustand.toasts.some(t => /Titel/.test(t)) && w('gsEintraege().length') === 70,
+  'Ohne Titel wird nichts angelegt');
+
+/* Kategorie darf wachsen – das Fundament ist nicht in Stein gemeißelt */
+setz('gs-f-titel', 'Konzernrichtlinie Fuhrpark');
+setz('gs-f-kategorie', 'Fuhrpark');
+setz('gs-f-art', 'Konzernrichtlinie');
+setz('gs-f-owner', 'Muster');
+setz('gs-f-status', 'offen');
+await ctx.gsUebernehmen();
+ok(w('gsKategorien()').includes('Fuhrpark'), 'Eine neue Kategorie bekommt eine eigene Zeile');
+ok(/Fuhrpark/.test(felder['govstruktur-mount'].innerHTML), 'Und erscheint sofort in der Matrix');
+
+/* ── 8) Einträge außerhalb der Pyramide ── */
+w('gsWeitereNeu();');
+setz('gs-w-titel', 'KBV_Homeoffice');
+setz('gs-w-bereich', 'Kollektivrechtliche Regelungen');
+setz('gs-w-owner', 'Muster');
+setz('gs-w-status', 'arbeit');
+await ctx.gsWeitereUebernehmen();
+ok(w('gsWeitere().length') === 10, 'Auch Leitbild, Unternehmenspolitik und KBV sind bearbeitbar');
+await ctx.gsWeitereLoeschen(9);
+ok(w('gsWeitere().length') === 9, 'Und wieder entfernbar');
+
+/* ── 9) Gleichzeitigkeit ── */
+const c = umgebung({ meta: 'fremd' });
+await c.ctx.initGovStruktur();
+c.w("_gsGeaendertAm = 'meins';");
+c.zustand.bestaetigen = false;
+await c.ctx.gsSpeichern();
+ok(c.zustand.gespeichert.length === 0,
+  'Hat jemand anderes zwischenzeitlich gespeichert, wird nach Rückfrage abgebrochen');
+c.zustand.bestaetigen = true;
+await c.ctx.gsSpeichern();
+ok(c.zustand.gespeichert.length === 1, 'Wer ausdrücklich will, überschreibt');
+
+/* ── 10) Nur-Lese-Zugriff ── */
+const r = umgebung({ schreiben: false });
+await r.ctx.initGovStruktur();
+const nurLesen = r.felder['govstruktur-mount'].innerHTML;
+ok(r.w('gsDarfSchreiben()') === false, 'Ohne Schreibrecht darf nichts geändert werden');
+ok(!/gs-plus/.test(nurLesen) && !/gsBearbeiten\(/.test(nurLesen), 'Dann gibt es keine Bedienelemente zum Ändern');
+ok(/Nur-Lese-Zugriff/.test(nurLesen), 'Und es steht dabei, warum');
+const kopfzeile = nurLesen.slice(nurLesen.indexOf('<thead>'), nurLesen.indexOf('</thead>'));
+ok(!/Arbeits-\/Prozessanweisung/.test(kopfzeile) && /Konzernrichtlinie/.test(kopfzeile),
+  'Leere Ebenen bekommen beim Lesen keine Spalte (in der Legende stehen sie weiter)');
+r.w("gsBearbeiten(0);");
+ok(r.zustand.modal === '', 'Auch über die Tastatur öffnet sich kein Dialog');
+await r.ctx.gsSpeichern();
+ok(r.zustand.gespeichert.length === 0, 'Und gespeichert wird nichts');
+
+/* ── 11) Zurück auf den Startbestand ── */
+const z = umgebung({ geladen: { daten: { eintraege: [{ kategorie: 'Compliance', art: 'Policy', titel: 'Rest', owner: '', status: 'offen' }], weitere: [] }, geaendertAm: 'zeit-0' } });
+await z.ctx.initGovStruktur();
+await z.ctx.gsZuruecksetzen();
+ok(z.w('gsEintraege().length') === 70, 'Der Startbestand aus der Mappe lässt sich wiederherstellen');
+ok(z.zustand.gespeichert.length === 1, 'Und wird gespeichert');
+z.zustand.bestaetigen = false;
+z.w("_gsDaten.eintraege = [];");
+await z.ctx.gsZuruecksetzen();
+ok(z.zustand.gespeichert.length === 1, 'Ohne Bestätigung passiert nichts');
+
+/* ── 12) Speicherort ── */
+const shp = lies('js/sharepoint.js');
+ok(/const GOV_STRUKTUR_DATEI = 'governance-struktur\.json'/.test(shp),
+  'Gespeichert wird in einer eigenen JSON-Datei');
+ok(/\$\{SP\.configFolder\}\/\$\{GOV_STRUKTUR_DATEI\}/.test(shp), 'Neben der access-config – keine neue Liste');
+ok(/async function spLoadGovStruktur/.test(shp) && /async function spSaveGovStruktur/.test(shp), 'Laden und Speichern');
+ok(/async function spGovStrukturMeta/.test(shp), 'Dazu der Zeitstempel für den Gleichzeitigkeits-Schutz');
+ok(/return null;\s+\/\/ 404 = noch nie gespeichert/.test(shp), 'Fehlt die Datei, gilt der Startbestand');
+
+/* ── 13) Eingehängt ── */
 const html = lies('index.html');
 ok(/id="view-govstruktur"/.test(html), 'Die Ansicht existiert');
 ok(/data-view="govstruktur" id="nav-govstruktur"/.test(html), 'Der Reiter auch');
 ok(html.indexOf('id="nav-govstruktur"') > html.indexOf('id="nav-governance"'), 'Er steht unter dem Governance-Board');
 ok(html.indexOf('id="nav-govstruktur"') < html.indexOf('nav-grp-isms'), 'Und noch in der Gruppe Corporate Governance');
 ok(/<script src="js\/govstruktur\.js\?v=/.test(html), 'Das Skript ist eingebunden');
+ok(/onclick="gsZuruecksetzen\(\)"/.test(html), 'Der Startbestand ist über die Werkzeugleiste erreichbar');
 const app = lies('js/app.js');
 ok(/govstruktur: 'Governance-Struktur'/.test(app), 'Der Seitentitel stimmt');
 ok(/view === 'govstruktur'\s+&& typeof initGovStruktur === 'function'\)\s+initGovStruktur\(\)/.test(app),
-  'Beim Öffnen wird gezeichnet');
+  'Beim Öffnen wird geladen und gezeichnet');
 const acc = lies('js/access.js');
 ok(/\{ view: 'govstruktur', label: 'Governance-Struktur'/.test(acc), 'Der Reiter lässt sich einzeln freigeben');
 ok(/'governance', 'govstruktur'/.test(acc), 'Die Sichtbarkeit wird berechnet');
 ok(/show\('nav-govstruktur',\s+v\.govstruktur\)/.test(acc), 'Und gesetzt');
 
-/* ── 8) Nachvollziehbar und wiederholbar ── */
+/* ── 14) Nachvollziehbar und wiederholbar ── */
 ok(fs.existsSync(path.join(ROOT, 'scripts/govstruktur-import.py')),
-  'Es gibt ein Skript, das die Daten aus der Mappe neu einliest');
+  'Es gibt ein Skript, das den Startbestand aus der Mappe neu einliest');
 const imp = lies('scripts/govstruktur-import.py');
 ok(/Der Titel schlägt die Überschrift/.test(imp), 'Es hält fest, warum der Titel die Überschrift schlägt');
 ok(/ohne Verantwortung: Zwischenüberschrift/.test(imp), 'Und wie Zwischenüberschriften erkannt werden');
@@ -155,7 +296,6 @@ ok(/marke = /.test(imp) && /ansicht = alt\[alt\.index\(marke\):\]/.test(imp),
 const doku = lies('js/dokumentation.js');
 ok(/sec\('govstruktur', 'Governance-Struktur \(Matrix\)'/.test(doku), 'Die Dokumentation hat einen Abschnitt');
 ok(/\['govstruktur',\s+'Governance-Struktur \(Matrix\)'\]/.test(doku), 'Er steht im Inhaltsverzeichnis');
-ok(/Momentaufnahme\s*\n?\s*der Planung/.test(doku.replace(/<\/?b>/g, '')), 'Und sagt, dass es kein Live-Bestand ist');
 ok(/Governance-Struktur \(Matrix\)/.test(lies('docs/BENUTZERHANDBUCH.md')), 'Das Handbuch ebenfalls');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);

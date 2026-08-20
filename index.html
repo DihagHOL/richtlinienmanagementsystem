@@ -265,10 +265,8 @@
             <option value="">Alle Verantwortlichen</option>
           </select>
           <div class="toolbar-spacer"></div>
-          <div class="gs-modus">
-            <button type="button" id="gs-modus-matrix" onclick="gsModus('matrix')">Matrix</button>
-            <button type="button" id="gs-modus-owner" onclick="gsModus('owner')">Nach Verantwortung</button>
-          </div>
+          <button class="btn btn-sm btn-ghost" onclick="gsZuruecksetzen()"
+            title="Alle Änderungen verwerfen und den Startbestand aus der CGB-Mappe wiederherstellen">↺ Startbestand</button>
         </div>
         <div id="govstruktur-mount"></div>
       </section>

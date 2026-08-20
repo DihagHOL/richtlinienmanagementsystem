@@ -1871,6 +1871,65 @@ async function spSaveAccessConfig(config) {
 }
 
 /* ═══════════════════════════════════════════════════
+   governance-struktur.json (Konzernregelwerk-Matrix)
+   ═══════════════════════════════════════════════════
+   Die Matrix wird in der App gepflegt und liegt als JSON neben
+   access-config.json – keine neue Liste, keine neuen Spalten. Solange die Datei
+   fehlt, gilt der Startbestand aus dem Import der CGB-Mappe (js/govstruktur.js).
+   Gegen gegenseitiges Überschreiben merkt sich die App den Änderungszeitstempel
+   der Datei und prüft ihn vor dem Speichern. */
+
+const GOV_STRUKTUR_DATEI = 'governance-struktur.json';
+
+function _govStrukturPfad() {
+  return `${SP.configFolder}/${GOV_STRUKTUR_DATEI}`;
+}
+
+/** Gespeicherte Matrix laden. @returns {{daten:object, geaendertAm:string}|null} */
+async function spLoadGovStruktur() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_govStrukturPfad()}`;
+  let meta;
+  try {
+    meta = await _get(`${basis}?$select=lastModifiedDateTime`, token);
+  } catch (e) {
+    return null;      // 404 = noch nie gespeichert → Startbestand gilt
+  }
+  const resp = await fetch(`${basis}:/content`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (!resp.ok) return null;
+  return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/** Änderungszeitstempel der gespeicherten Datei (für den Gleichzeitigkeits-Schutz). */
+async function spGovStrukturMeta() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  try {
+    const meta = await _get(
+      `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_govStrukturPfad()}?$select=lastModifiedDateTime`, token);
+    return meta.lastModifiedDateTime || '';
+  } catch (e) { return null; }
+}
+
+/** Matrix speichern. @returns {string} neuer Änderungszeitstempel */
+async function spSaveGovStruktur(daten) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const json = JSON.stringify(daten, null, 2);
+  const item = await _uploadFile(token, _govStrukturPfad(), new TextEncoder().encode(json), 'application/json');
+  return (item && item.lastModifiedDateTime) || '';
+}
+
+/* ═══════════════════════════════════════════════════
    soa-config.json (Erklärung zur Anwendbarkeit, ISO 27001 6.1.3 d)
    Struktur: { controls: { "A.5.1": { anwendbar, begruendung, status } }, meta: {...} }
 ═══════════════════════════════════════════════════ */

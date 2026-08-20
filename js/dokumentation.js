@@ -413,7 +413,7 @@ function _dokuSections() {
           <b>offen</b> (grau, noch nicht begonnen).</li>
         <li style="${li}">Oben die <b>Kennzahlen</b> mit Fortschrittsbalken – ein Klick darauf filtert nach diesem Stand.</li>
         <li style="${li}"><b>Suche</b> über Titel, Verantwortung und Kategorie, dazu ein Filter nach Verantwortlichen.</li>
-        <li style="${li}">Umschalter <b>„Nach Verantwortung"</b>: dieselben Daten je Person – wer hat wie viel offen?</li>
+        <li style="${li}"><b>Bearbeiten:</b> Kachel anklicken öffnet die Regelung (Titel, Kategorie, Ebene, Verantwortung, Stand, Dokument/Version/Datum); das <b>+</b> in einer Zelle legt dort eine neue an, mit Kategorie und Ebene schon vorbelegt. Gespeichert wird sofort – es gibt keinen extra Speichern-Knopf.</li>
         <li style="${li}">Liegt eine Regelung bereits als Regelwerk im RMS, führt <b>„→ im RMS"</b> direkt hin.</li>
         <li style="${li}">Leere Ebenen bekommen keine Spalte: Was es nirgends gibt, verstopft die Ansicht nicht.</li>
       </ul>
