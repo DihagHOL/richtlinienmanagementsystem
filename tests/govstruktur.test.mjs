@@ -364,16 +364,89 @@ ok(r.zustand.modal === '', 'Auch über die Tastatur öffnet sich kein Dialog');
 await r.ctx.gsSpeichern();
 ok(r.zustand.gespeichert.length === 0, 'Und gespeichert wird nichts');
 
-/* ── 11) Zurück auf den Startbestand ── */
-const z = umgebung({ geladen: { daten: { eintraege: [{ kategorie: 'Compliance', art: 'Policy', titel: 'Rest', owner: '', status: 'offen' }], weitere: [] }, geaendertAm: 'zeit-0' } });
-await z.ctx.initGovStruktur();
-await z.ctx.gsZuruecksetzen();
-ok(z.w('gsEintraege().length') === 70, 'Der Startbestand aus der Mappe lässt sich wiederherstellen');
-ok(z.zustand.gespeichert.length === 1, 'Und wird gespeichert');
-z.zustand.bestaetigen = false;
-z.w("_gsDaten.eintraege = [];");
-await z.ctx.gsZuruecksetzen();
-ok(z.zustand.gespeichert.length === 1, 'Ohne Bestätigung passiert nichts');
+/* ── 11) Ziehen: Kachel in eine andere Zelle ── */
+const d = umgebung();
+await d.ctx.initGovStruktur();
+const dw = d.w;
+const idxKartell = dw('gsEintraege().findIndex(e => e.titel === "Kartellrecht")');
+const zielKat = dw('gsKategorien().indexOf("Compliance")');
+const zielArt = dw('gsArten().findIndex(a => a.key === "Policy")');
+const zieh = { dataTransfer: { effectAllowed: '', setData() {}, getData: () => String(idxKartell) },
+  preventDefault() {}, target: { classList: { add() {}, remove() {} } } };
+d.ctx.gsZiehStart(zieh, idxKartell);
+ok(dw('_gsZieht') === idxKartell, 'Beim Ziehen merkt sich die Matrix, welche Kachel unterwegs ist');
+await d.ctx.gsZiehAblegen(zieh, null, zielKat, zielArt);
+ok(dw(`gsEintraege()[${idxKartell}].kategorie`) === 'Compliance'
+  && dw(`gsEintraege()[${idxKartell}].art`) === 'Policy',
+  'Ablegen setzt Kategorie und Ebene auf die Zielzelle');
+ok(d.zustand.gespeichert.length === 1, 'Und speichert sofort');
+ok(dw('_gsZieht') === -1, 'Danach ist nichts mehr unterwegs');
+ok(dw('gsEintraege().length') === 70, 'Verschieben legt nichts an und löscht nichts');
+
+const vorherSpeicher = d.zustand.gespeichert.length;
+d.ctx.gsZiehStart(zieh, idxKartell);
+await d.ctx.gsZiehAblegen(zieh, null, zielKat, zielArt);
+ok(d.zustand.gespeichert.length === vorherSpeicher, 'In derselben Zelle abgelegt passiert nichts');
+
+const nurLesen2 = umgebung({ schreiben: false });
+await nurLesen2.ctx.initGovStruktur();
+ok(!/draggable="true"/.test(nurLesen2.felder['govstruktur-mount'].innerHTML),
+  'Ohne Schreibrecht ist keine Kachel greifbar');
+nurLesen2.ctx.gsZiehStart(zieh, 0);
+await nurLesen2.ctx.gsZiehAblegen(zieh, null, 0, 0);
+ok(nurLesen2.zustand.gespeichert.length === 0, 'Und Ablegen bewirkt nichts');
+ok(/draggable="true"/.test(d.felder['govstruktur-mount'].innerHTML)
+  && /ondrop="gsZiehAblegen\(event,this,\d+,\d+\)"/.test(d.felder['govstruktur-mount'].innerHTML),
+  'Mit Schreibrecht sind Kacheln greifbar und Zellen Ablageziele');
+
+/* ── 11b) Versionsverlauf: wer, wann, was ── */
+const h = dw('gsHistorie()');
+ok(h.length === 1 && /Kartellrecht/.test(h[0].was) && /Compliance \/ Policy/.test(h[0].was),
+  'Jede Änderung landet im Verlauf – mit dem, was passiert ist');
+ok(h[0].name === 'a@dihag.com' && !!h[0].am, 'Samt Urheber und Zeitpunkt');
+ok(/🕘 Zuletzt geändert/.test(d.felder['govstruktur-mount'].innerHTML), 'Oben steht die letzte Änderung');
+ok(/Versionsverlauf \(1\)/.test(d.felder['govstruktur-mount'].innerHTML), 'Mit Zugang zum ganzen Verlauf');
+d.ctx.gsVerlaufZeigen();
+ok(/Versionsverlauf/.test(d.zustand.modal) && /Kartellrecht/.test(d.zustand.modal),
+  'Der Verlauf listet die Änderungen auf');
+ok(/a@dihag\.com/.test(d.zustand.modal), 'Mit Namen');
+
+d.el('gs-f-titel').value = 'Neu erfunden';
+d.el('gs-f-kategorie').value = 'Compliance';
+d.el('gs-f-art').value = 'Policy';
+d.el('gs-f-owner').value = '';
+d.el('gs-f-status').value = 'offen';
+d.el('gs-f-dokument').value = ''; d.el('gs-f-version').value = ''; d.el('gs-f-datum').value = '';
+d.w('gsNeu(0,0);');
+await d.ctx.gsUebernehmen();
+ok(dw('gsHistorie()').length === 2 && /angelegt/.test(dw('gsHistorie()[0].was')),
+  'Auch Anlegen steht im Verlauf – neueste Änderung oben');
+d.w('gsEbeneBearbeiten(0);');
+d.el('gs-e-key').value = 'Kompendium';
+d.el('gs-e-erklaerung').value = '';
+await d.ctx.gsEbeneUebernehmen();
+ok(/umbenannt/.test(dw('gsHistorie()[0].was')), 'Umbenennen ebenso');
+ok(dw('gsHistorie().length') === 3 && dw('GS_VERLAUF_MAX') === 100,
+  'Der Verlauf wächst und ist auf 100 Einträge begrenzt');
+ok(d.zustand.gespeichert.at(-1).historie.length === 3, 'Er wird mitgespeichert');
+
+const laden = umgebung({ geladen: { daten: { eintraege: [], weitere: [],
+  historie: [{ am: '2026-08-20T08:00:00Z', upn: 'x@dihag.com', name: 'Frau Muster', was: 'Alles umgebaut' }] }, geaendertAm: 'z' } });
+await laden.ctx.initGovStruktur();
+ok(/Frau Muster/.test(laden.felder['govstruktur-mount'].innerHTML)
+  && /Alles umgebaut/.test(laden.felder['govstruktur-mount'].innerHTML),
+  'Ein gespeicherter Verlauf wird wieder angezeigt');
+ok(/20\.08\.2026/.test(laden.felder['govstruktur-mount'].innerHTML), 'Mit lesbarem Datum');
+
+/* ── 11c) Der Startbestand ist keine Schaltfläche mehr ── */
+ok(!/gsZuruecksetzen/.test(quelle), 'Das Wiederherstellen des Startbestands ist entfernt');
+ok(!/gsZuruecksetzen|↺ Startbestand/.test(lies('index.html')), 'Auch aus der Werkzeugleiste');
+
+/* ── 11d) Einordnung der weiteren Regelungsebenen ── */
+ok(/sind Bestandteile der Corporate Governance/.test(quelle)
+  && /nicht dem\s+Konzernwerk|nicht dem\s+Konzernregelwerk zuzuordnen/.test(quelle),
+  'Die weiteren Regelungsebenen sind als Bestandteil der Corporate Governance beschrieben');
+ok(!/gehören aber nicht in die Pyramide/.test(quelle), 'Die alte Formulierung ist weg');
 
 /* ── 12) Speicherort ── */
 const shp = lies('js/sharepoint.js');
@@ -391,7 +464,6 @@ ok(/data-view="govstruktur" id="nav-govstruktur"/.test(html), 'Der Reiter auch')
 ok(html.indexOf('id="nav-govstruktur"') > html.indexOf('id="nav-governance"'), 'Er steht unter dem Governance-Board');
 ok(html.indexOf('id="nav-govstruktur"') < html.indexOf('nav-grp-isms'), 'Und noch in der Gruppe Corporate Governance');
 ok(/<script src="js\/govstruktur\.js\?v=/.test(html), 'Das Skript ist eingebunden');
-ok(/onclick="gsZuruecksetzen\(\)"/.test(html), 'Der Startbestand ist über die Werkzeugleiste erreichbar');
 const app = lies('js/app.js');
 ok(/govstruktur: 'Governance-Struktur'/.test(app), 'Der Seitentitel stimmt');
 ok(/view === 'govstruktur'\s+&& typeof initGovStruktur === 'function'\)\s+initGovStruktur\(\)/.test(app),

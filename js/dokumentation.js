@@ -414,6 +414,8 @@ function _dokuSections() {
         <li style="${li}">Oben die <b>Kennzahlen</b> mit Fortschrittsbalken – ein Klick darauf filtert nach diesem Stand.</li>
         <li style="${li}"><b>Suche</b> über Titel, Verantwortung und Kategorie, dazu ein Filter nach Verantwortlichen.</li>
         <li style="${li}"><b>Regelungen bearbeiten:</b> Kachel anklicken öffnet die Regelung (Titel, Kategorie, Ebene, Verantwortung, Stand, Dokument/Version/Datum); das <b>+</b> in einer Zelle legt dort eine neue an, mit Kategorie und Ebene schon vorbelegt. Gespeichert wird sofort – es gibt keinen extra Speichern-Knopf.</li>
+        <li style="${li}"><b>Verschieben:</b> Eine Kachel lässt sich mit der Maus in eine andere Zelle <b>ziehen</b> – sie wechselt damit Kategorie und/oder Verbindlichkeitsebene. Über den Dialog geht es weiterhin auch.</li>
+        <li style="${li}"><b>Versionsverlauf:</b> Über der Matrix steht, <b>wer</b> zuletzt <b>was</b> geändert hat und <b>wann</b>. Ein Klick öffnet die Liste der letzten 100 Änderungen. Ältere Fassungen der Datei bewahrt SharePoint zusätzlich auf.</li>
         <li style="${li}"><b>Zeilen und Spalten bearbeiten:</b> Auch die Beschriftungen sind Daten. Ein Klick auf einen <b>Zeilen- oder Spaltenkopf</b> benennt ihn um (bei Ebenen zusätzlich die Erklärung), die Pfeile daneben verschieben ihn, <b>+ Ebene</b> und <b>+ Kategorie</b> legen neue an. Beim Umbenennen ziehen alle Regelungen mit, die daran hängen. Eine Zeile oder Spalte mit Inhalt wird nicht einfach gelöscht – die App fragt, wohin die Regelungen umziehen sollen.</li>
         <li style="${li}"><b>Eigenes Recht für den Aufbau:</b> Regelungen pflegen darf, wer Schreibrecht auf den Reiter hat. Zeilen und Spalten ändern darf nur, wer in den Einstellungen unter <b>„Governance-Struktur: Zeilen &amp; Spalten ändern"</b> steht (Admins immer). Eine umbenannte Ebene betrifft schließlich alles, was daran hängt.</li>
         <li style="${li}">Liegt eine Regelung bereits als Regelwerk im RMS, führt <b>„→ im RMS"</b> direkt hin.</li>
@@ -423,7 +425,9 @@ function _dokuSections() {
         (<code>CGB_Organisation_Zuständigkeiten_Nomenklatur.xlsx</code>). Die Matrix ist eine <b>Momentaufnahme
         der Planung</b>, kein Live-Bestand – der Stand steht über der Tabelle. Ändert sich die Mappe, wird der
         Datenstand neu eingelesen. Leitbild, Unternehmenspolitik und die kollektivrechtlichen Regelungen (KBV/BV)
-        stehen aufklappbar darunter: gleiche Mappe, aber außerhalb der Regelwerkspyramide.</div>`,
+        stehen aufklappbar darunter: Sie sind Bestandteile der Corporate Governance, aufgrund ihres
+        eigenständigen Charakters sowie ihrer normativen bzw. hierarchischen Stellung aber nicht dem
+        Konzernregelwerk zuzuordnen.</div>`,
       'ISO 27001 Klausel 5.1 (Führung), 5.3 (Rollen &amp; Verantwortlichkeiten), A.5.1 (Regelwerke); DCGK.'),
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `

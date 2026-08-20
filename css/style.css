@@ -628,6 +628,15 @@ body.demo-mode .main { padding-bottom: 64px; }
 .gs-pfeil:hover { color: var(--c-primary); border-color: var(--c-primary); }
 .gs-hinweis { font-weight: 400; font-size: .68rem; color: var(--c-muted); display: block; }
 .gs-tabelle .gs-anhang { min-width: 96px; background: #f8fafc; }
+.gs-kachel[draggable="true"] { cursor: grab; }
+.gs-kachel.zieht { opacity: .4; }
+.gs-tabelle td.ziel { outline: 2px dashed var(--c-primary); outline-offset: -3px; background: #eff6ff; }
+.gs-verlauf { font-size: .8rem; color: var(--c-muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gs-verlauf b { color: var(--c-text); font-weight: 600; }
+.gs-verlauf-tbl { border-collapse: collapse; width: 100%; font-size: .82rem; }
+.gs-verlauf-tbl td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--c-border); vertical-align: top; }
+.gs-verlauf-tbl .z { white-space: nowrap; color: var(--c-muted); }
+.gs-verlauf-tbl .w { white-space: nowrap; font-weight: 600; }
 
 .gs-owner-liste { display: flex; flex-direction: column; gap: 4px; }
 .gs-zeile { display: flex; align-items: baseline; gap: 7px; font-size: .8rem; }
