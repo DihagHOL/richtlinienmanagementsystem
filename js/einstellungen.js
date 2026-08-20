@@ -64,6 +64,7 @@ function _cfgRenderBereich() {
     </div>`;
   if (reiter) { rrRenderBody(); return; }
   renderCfgLists();
+  renderVertretungen();
   renderRolesList();
   renderUserRolesList();
   loadAdDepartments();
@@ -84,6 +85,29 @@ function _rollenBereichHtml() {
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
       ${roleCard('govStrukturKoepfe', 'Governance-Struktur: Zeilen &amp; Spalten ändern (Aufbau der Systematik)')}
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Vertretungen (Urlaub, Krankheit)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Solange der Zeitraum läuft, bekommt die <b>Vertretung alle Mails mit</b> und darf
+            entscheiden – prüfen, freigeben, Konzepte annehmen. Die vertretene Person bleibt
+            weiterhin zuständig und wird weiter angeschrieben. Im Protokoll steht dann ausdrücklich
+            <b>„in Vertretung für …"</b>. Ohne Datum gilt die Vertretung unbefristet; nur
+            <b>von</b> heißt „ab dann", nur <b>bis</b> heißt „bis dahin".
+          </div>
+          <div id="cfg-vertretungen"></div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <input type="email" id="cfg-vertr-person" placeholder="wird vertreten: name@dihag.com"
+              style="flex:1;min-width:200px;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+              onkeydown="if(event.key==='Enter')vertrAdd()">
+            <input type="email" id="cfg-vertr-vertreter" placeholder="Vertretung: name@dihag.com"
+              style="flex:1;min-width:200px;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
+              onkeydown="if(event.key==='Enter')vertrAdd()">
+            <button class="btn btn-outline btn-sm" onclick="vertrAdd()">+ Vertretung</button>
+          </div>
+        </div>
+      </div>
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Probelauf (Vorführung &amp; Funktionsprüfung)</h2></div>
@@ -661,6 +685,75 @@ function _rrGruppenNamenAufraeumen(cfg) {
     if (!cfg[feld]) continue;
     for (const id of Object.keys(cfg[feld])) if (!benutzt.has(id)) delete cfg[feld][id];
   }
+}
+
+/* ── Vertretungen ──
+   Der Grund, warum das hier und nicht in Power Automate steckt: Dort gibt es
+   keine Vertretung mit Zeitraum, ohne den halben Flow umzubauen. Hier ist es
+   eine Zeile Konfiguration – und die Auswertung (access.js) zieht sie überall
+   mit: Rollenprüfung, Mailversand, Protokoll. */
+
+function renderVertretungen() {
+  const host = document.getElementById('cfg-vertretungen');
+  if (!host) return;
+  const v = (_cfgEdit && _cfgEdit.vertretungen) || {};
+  const namen = Object.keys(v).sort();
+  if (!namen.length) {
+    host.innerHTML = '<div class="field-hint">Keine Vertretung hinterlegt.</div>';
+    return;
+  }
+  const heute = new Date().toISOString().slice(0, 10);
+  host.innerHTML = namen.map(upn => {
+    const e = v[upn] || {};
+    const laeuft = (typeof vertretungAktiv === 'function')
+      ? vertretungAktiv({ ...e, vertreter: e.vertreter || 'x' }) : true;
+    const stil = 'border:1px solid #d1d5db;border-radius:7px;padding:6px 9px;font-size:.83rem;font-family:inherit';
+    return `<div style="border:1px solid var(--c-border);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <span>👤</span><b style="overflow-wrap:anywhere">${esc(upn)}</b>
+        <span style="color:var(--c-muted)">wird vertreten von</span>
+        <b style="overflow-wrap:anywhere">${esc(e.vertreter || '–')}</b>
+        <span class="status-badge ${laeuft ? 'sb-done' : ''}" style="${laeuft ? '' : 'background:#f1f5f9;color:#475569'}">
+          ${laeuft ? 'läuft gerade' : 'nicht aktiv'}</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="vertrRemove('${esc(upn)}')">✕ entfernen</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:.8rem;color:var(--c-muted)">von
+          <input type="date" value="${esc((e.von || '').slice(0, 10))}" style="${stil}"
+            onchange="vertrSet('${esc(upn)}','von',this.value)"></label>
+        <label style="font-size:.8rem;color:var(--c-muted)">bis
+          <input type="date" value="${esc((e.bis || '').slice(0, 10))}" style="${stil}"
+            onchange="vertrSet('${esc(upn)}','bis',this.value)"></label>
+        <span class="field-hint">leer = unbefristet · heute ist ${esc(heute)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function vertrAdd() {
+  const mail = (id) => (document.getElementById(id)?.value || '').trim().toLowerCase();
+  const person = mail('cfg-vertr-person');
+  const vertreter = mail('cfg-vertr-vertreter');
+  const gueltig = (x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+  if (!gueltig(person) || !gueltig(vertreter)) { toast('Bitte zwei gültige E-Mail-Adressen eingeben.', 'error'); return; }
+  if (person === vertreter) { toast('Eine Person kann sich nicht selbst vertreten.', 'error'); return; }
+  if (!_cfgEdit.vertretungen) _cfgEdit.vertretungen = {};
+  _cfgEdit.vertretungen[person] = { vertreter, von: '', bis: '' };
+  const p1 = document.getElementById('cfg-vertr-person'); if (p1) p1.value = '';
+  const p2 = document.getElementById('cfg-vertr-vertreter'); if (p2) p2.value = '';
+  renderVertretungen();
+}
+
+function vertrRemove(upn) {
+  if (_cfgEdit.vertretungen) delete _cfgEdit.vertretungen[String(upn).toLowerCase()];
+  renderVertretungen();
+}
+
+function vertrSet(upn, feld, wert) {
+  const e = (_cfgEdit.vertretungen || {})[String(upn).toLowerCase()];
+  if (!e) return;
+  e[feld] = wert || '';
+  renderVertretungen();
 }
 
 /* Positionen im KI-Gremium (KI-Dashboard zeigt sie als Badge an den Genehmigern). */

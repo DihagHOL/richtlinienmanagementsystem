@@ -95,6 +95,8 @@ const POLICY_EXT_FIELDS = [
   { feld: 'konzept',            spalte: 'KonzeptJson',         json: true,  leer: null },
   // Lernvideos [{titel,url}] – nur im Sammelfeld, ohne eigene SharePoint-Spalte
   { feld: 'videos',             spalte: '',                    json: true,  leer: [] },
+  // Einmal-Token der laufenden Runde (Ein-Klick-Entscheidung aus der Mail)
+  { feld: 'aktionToken',        spalte: '',                    json: true,  leer: null },
 ];
 
 /** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,

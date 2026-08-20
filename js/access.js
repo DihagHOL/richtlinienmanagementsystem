@@ -25,6 +25,8 @@ const ACCESS_CONFIG_DEFAULT = {
   gruppenNamen: {},   // Objekt-ID → Anzeigename der Gruppe (nur zur Anzeige)
   gruppenTypen: {},   // Objekt-ID → 'sicherheit' | 'verteiler' | 'm365' (nur zur Anzeige)
   govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
+  // Vertretungen: { "chef@dihag.com": { vertreter, von, bis } } – von/bis optional (leer = unbefristet)
+  vertretungen: {},
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
   brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
@@ -90,6 +92,7 @@ async function loadRuntimeAccessConfig() {
         gruppenTypen: (cfg.gruppenTypen && typeof cfg.gruppenTypen === 'object' && !Array.isArray(cfg.gruppenTypen)) ? cfg.gruppenTypen : {},
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
+        vertretungen: (cfg.vertretungen && typeof cfg.vertretungen === 'object' && !Array.isArray(cfg.vertretungen)) ? cfg.vertretungen : {},
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
         clevelMail:        typeof cfg.clevelMail === 'string' ? cfg.clevelMail : '',
@@ -125,6 +128,7 @@ function getAccessConfig() {
     ...JSON.parse(JSON.stringify(c)),   // alle Felder mitnehmen (inkl. ki* vom KI-Dashboard)
     probelaufUser: [...(c.probelaufUser || [])],
     govStrukturKoepfe: [...(c.govStrukturKoepfe || [])],
+    vertretungen: JSON.parse(JSON.stringify(c.vertretungen || {})),
     admins:     [...(c.admins || [])],
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
@@ -158,9 +162,85 @@ function getAccessConfig() {
 /** Positive Ganzzahl mit Fallback. */
 function _posInt(v, def) { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : def; }
 
+/* ═══════════════════════════════════════════════════
+   Vertretung (Urlaub, Krankheit)
+   ═══════════════════════════════════════════════════
+   Ein Regelwerk soll nicht liegen bleiben, nur weil eine Person zwei Wochen weg
+   ist. Je Person lässt sich eine Vertretung mit Zeitraum hinterlegen: Solange er
+   läuft, bekommt die Vertretung die Mails mit, darf entscheiden – und im
+   Protokoll steht ausdrücklich „in Vertretung für", damit später niemand rätselt,
+   warum jemand freigegeben hat, der sonst nicht freigeben darf.
+
+   Ohne Zeitraum gilt die Vertretung dauerhaft; ein Datum allein grenzt nur nach
+   einer Seite ab (nur „von" = ab dann, nur „bis" = bis dahin). */
+
+function getVertretungen() {
+  const v = _cfg().vertretungen;
+  return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+}
+
+/** Läuft dieser Vertretungseintrag gerade? (Zeitraum inklusive beider Tage) */
+function vertretungAktiv(eintrag, jetzt) {
+  if (!eintrag || !eintrag.vertreter) return false;
+  const t = jetzt ? new Date(jetzt) : new Date();
+  if (isNaN(t)) return false;
+  const tag = t.toISOString().slice(0, 10);
+  const von = (eintrag.von || '').slice(0, 10);
+  const bis = (eintrag.bis || '').slice(0, 10);
+  if (von && tag < von) return false;
+  if (bis && tag > bis) return false;
+  return true;
+}
+
+/** Wer vertritt diese Person gerade? ('' = niemand) */
+function vertreterVon(upn, jetzt) {
+  const e = getVertretungen()[String(upn || '').toLowerCase()];
+  return vertretungAktiv(e, jetzt) ? String(e.vertreter || '').toLowerCase() : '';
+}
+
+/** Vertritt `vertreter` gerade die Person `fuer`? */
+function vertrittGerade(vertreter, fuer, jetzt) {
+  const v = vertreterVon(fuer, jetzt);
+  return !!v && v === String(vertreter || '').toLowerCase().trim();
+}
+
+/** Für wen springt diese Person gerade ein? (Liste von UPNs) */
+function vertretungenVon(upn, jetzt) {
+  const u = String(upn || '').toLowerCase().trim();
+  if (!u) return [];
+  return Object.entries(getVertretungen())
+    .filter(([, e]) => vertretungAktiv(e, jetzt) && String(e.vertreter || '').toLowerCase() === u)
+    .map(([fuer]) => fuer);
+}
+
+/** Empfängerliste um die gerade aktiven Vertretungen erweitern (ohne Dubletten). */
+function mitVertretern(liste, jetzt) {
+  const out = [];
+  for (const u of (liste || []).filter(Boolean)) {
+    const lc = String(u).toLowerCase();
+    if (!out.includes(lc)) out.push(lc);
+    const v = vertreterVon(lc, jetzt);
+    if (v && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+/** Steht die Person in der Liste – selbst oder als aktive Vertretung? */
+function _hasOderVertritt(liste, upn) {
+  if (_has(liste, upn)) return true;
+  return (liste || []).some(x => vertrittGerade(upn, x));
+}
+
+/** Für wen aus dieser Liste handelt die Person gerade als Vertretung? ('' = für sich selbst) */
+function vertretungFuerAus(liste, upn) {
+  if (_has(liste, upn)) return '';
+  const treffer = (liste || []).find(x => vertrittGerade(upn, x));
+  return treffer ? String(treffer).toLowerCase() : '';
+}
+
 /* ── Genehmigungsverfahren: Rollen & Schwellen ── */
-function isPruefer(upn)           { return _has(_cfg().pruefer, upn); }
-function isGeschaeftsleitung(upn) { return _has(_cfg().geschaeftsleitung, upn); }
+function isPruefer(upn)           { return _hasOderVertritt(_cfg().pruefer, upn); }
+function isGeschaeftsleitung(upn) { return _hasOderVertritt(_cfg().geschaeftsleitung, upn); }
 function isCurrentUserPruefer()           { return isPruefer(_currentUpn()); }
 function isCurrentUserGeschaeftsleitung() { return isGeschaeftsleitung(_currentUpn()); }
 function getPruefer()           { return [...(_cfg().pruefer || [])]; }
@@ -205,7 +285,7 @@ function getPolicyKonformSchwelle(p) {
 function policyHasPrueferOverride(p) {
   return !!(p && p.pruefKonfig && Array.isArray(p.pruefKonfig.pruefer) && p.pruefKonfig.pruefer.filter(Boolean).length);
 }
-function isPrueferForPolicy(p, upn)      { return _has(getPolicyPruefer(p), upn); }
+function isPrueferForPolicy(p, upn)      { return _hasOderVertritt(getPolicyPruefer(p), upn); }
 function isCurrentUserPrueferForPolicy(p) { return isPrueferForPolicy(p, _currentUpn()); }
 
 /* Analog für die Freigabe (Geschäftsleitung): eigene Freigeber je Richtlinie
@@ -221,7 +301,7 @@ function getPolicyFreigabeSchwelle(p) {
 function policyHasFreigabeOverride(p) {
   return !!(p && p.freigabeKonfig && Array.isArray(p.freigabeKonfig.freigeber) && p.freigabeKonfig.freigeber.filter(Boolean).length);
 }
-function isGeschaeftsleitungForPolicy(p, upn)      { return _has(getPolicyGeschaeftsleitung(p), upn); }
+function isGeschaeftsleitungForPolicy(p, upn)      { return _hasOderVertritt(getPolicyGeschaeftsleitung(p), upn); }
 function isCurrentUserGeschaeftsleitungForPolicy(p) { return isGeschaeftsleitungForPolicy(p, _currentUpn()); }
 
 /** Config im Speicher aktualisieren (nach dem Speichern in SP). */

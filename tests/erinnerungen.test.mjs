@@ -22,7 +22,8 @@ const s = fs.readFileSync(path.join(ROOT, 'scripts/erinnerungen.mjs'), 'utf8');
 /* ── Konzepte bei der Geschäftsleitung ── */
 ok(/\(f\.Typ2 \|\| ''\) === 'Konzept'/.test(s), 'Konzepte werden erkannt');
 ok(/phase = 'Konzeptprüfung'/.test(s), 'Sie bekommen eine eigene Phase');
-ok(/roleRecipients = gl;/.test(s), 'Empfänger ist die Geschäftsleitung');
+ok(/roleRecipients = mitVertretern\(gl, cfg\.vertretungen\);/.test(s),
+  'Empfänger ist die Geschäftsleitung – samt ihrer Vertretung');
 ok(/if \(!ko\.eingereichtAm \|\| entschieden\) continue;/.test(s),
   'Nur eingereichte und noch offene Konzepte – Entwürfe und Erledigtes nicht');
 ok(/eingereichtAm \|\| ref/.test(s), 'Die Frist zählt ab dem Einreichen, nicht ab der letzten Änderung');

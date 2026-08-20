@@ -156,8 +156,11 @@ async function applyDeepLinkOrDefault() {
   if (ansicht === 'freigaben' || (ansicht === '' && canReview)) {
     if (!canReview) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
     await switchView('freigaben');
-    if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     const aktion = (params.get('aktion') || '').toLowerCase();
+    const token = params.get('t') || '';
+    // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
+    if (aktion && token && typeof einKlickAktion === 'function') { await einKlickAktion(deepId, aktion, token); return; }
+    if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {
     await switchView('meine');

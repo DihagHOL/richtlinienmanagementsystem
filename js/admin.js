@@ -1296,6 +1296,8 @@ async function savePolicy(newStatus) {
     p.pruefungSeit = new Date().toISOString();
     p.konformitaet = [];                    // neue Prüfrunde startet ohne Votes
     p.mitbestimmung = null;                 // Betriebsrat muss im neuen Zyklus erneut beteiligt werden
+    // Neue Runde, neues Einmal-Token: Links aus der alten Mail laufen ins Leere.
+    if (typeof neuerAktionToken === 'function') p.aktionToken = neuerAktionToken('pruefung');
   }
 
   if (!p.id) historieAdd(p, 'Angelegt', `„${p.title}" als Entwurf angelegt.`);

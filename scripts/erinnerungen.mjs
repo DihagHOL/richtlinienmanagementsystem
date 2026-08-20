@@ -205,10 +205,58 @@ async function fetchAttachment(driveId, itemId, fallbackName, docUrl) {
   } catch (e) { console.log(`   ⚠ Anhang-Fehler: ${e.message} – Mail nur mit Link`); return null; }
 }
 
+/* ── Vertretung (Urlaub, Krankheit) ──
+   Dieselbe Regel wie in der App: Läuft der Zeitraum, geht die Erinnerung auch an
+   die Vertretung, und ihr Votum zählt für die vertretene Person – sonst würde
+   weiter gemahnt, obwohl längst entschieden ist. */
+
+function vertretungAktiv(eintrag, heute) {
+  if (!eintrag || !eintrag.vertreter) return false;
+  const tag = (heute || new Date().toISOString()).slice(0, 10);
+  const von = String(eintrag.von || '').slice(0, 10);
+  const bis = String(eintrag.bis || '').slice(0, 10);
+  if (von && tag < von) return false;
+  if (bis && tag > bis) return false;
+  return true;
+}
+
+/** Empfänger um die gerade aktiven Vertretungen erweitern. */
+function mitVertretern(liste, vertretungen) {
+  const v = vertretungen || {};
+  const out = [];
+  for (const u of (liste || []).filter(Boolean)) {
+    const key = lc(u);
+    if (!out.includes(key)) out.push(key);
+    const e = v[key];
+    if (vertretungAktiv(e) && !out.includes(lc(e.vertreter))) out.push(lc(e.vertreter));
+  }
+  return out;
+}
+
+/** Wer hat abgestimmt – auch, wenn es die Vertretung war (Feld „fuer"). */
+function abgestimmtVon(votes) {
+  const out = [];
+  for (const v of (votes || [])) {
+    if (v.upn) out.push(lc(v.upn));
+    if (v.fuer) out.push(lc(v.fuer));
+  }
+  return out;
+}
+
 /** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
-function policyLink(id, aktion) {
+function policyLink(id, aktion, token) {
   const sep = APP_URL.includes('?') ? '&' : '?';
-  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben${aktion ? '&aktion=' + aktion : ''}`;
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`
+    + (aktion ? '&aktion=' + aktion : '')
+    + (aktion && token ? '&t=' + encodeURIComponent(token) : '');
+}
+
+/** Einmal-Token der laufenden Runde aus dem Sammelfeld (für den Ein-Klick-Link). */
+function aktionToken(f, art) {
+  try {
+    const t = (JSON.parse(f.DatenJson || '{}') || {}).aktionToken;
+    return (t && t.art === art && t.wert) ? t.wert : '';
+  } catch { return ''; }
 }
 
 /** Konzepte liegen nicht im Freigaben-Reiter, sondern im Regelwerk-Dashboard. */
@@ -219,7 +267,7 @@ function konzeptLink(id, aktion) {
 
 const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 
-function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
+function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token) {
   const konzept = phase === 'Konzeptprüfung';
   const link = konzept ? konzeptLink(id) : policyLink(id);
   const actions = konzept
@@ -227,8 +275,8 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName) {
       + _btn(konzeptLink(id, 'zurueckstellen'), '#64748b', '⏸ Zurückstellen')
       + _btn(konzeptLink(id, 'ablehnen'), '#dc2626', '✗ Ablehnen')
     : phase === 'Freigabe'
-      ? _btn(policyLink(id, 'freigeben'), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
-      : _btn(policyLink(id, 'konform'), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform'), '#dc2626', '✗ Nicht konform');
+      ? _btn(policyLink(id, 'freigeben', token), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token), '#dc2626', '✗ Zurück (nicht konform)')
+      : _btn(policyLink(id, 'konform', token), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token), '#dc2626', '✗ Nicht konform');
   const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
@@ -408,7 +456,7 @@ function kenntnisEskalationHtml(posten) {
       const entschieden = ko.entscheidung && ko.entscheidung.status;
       if (!ko.eingereichtAm || entschieden) continue;      // Entwurf oder erledigt
       phase = 'Konzeptprüfung';
-      roleRecipients = gl;
+      roleRecipients = mitVertretern(gl, cfg.vertretungen);
       voted = [];
     } else if (status === 'Mitbestimmung') {
       // Beim Betriebsrat: KBR und/oder die Betriebsräte der betroffenen Werke.
@@ -425,15 +473,15 @@ function kenntnisEskalationHtml(posten) {
       // Pro-Richtlinie-Prüfer haben Vorrang; sonst die globale Prüferliste.
       let ownPruefer = [];
       try { const pk = JSON.parse(f.PruefKonfigJson || '{}'); if (Array.isArray(pk.pruefer)) ownPruefer = pk.pruefer.filter(Boolean); } catch { ownPruefer = []; }
-      roleRecipients = ownPruefer.length ? ownPruefer : pruefer;
-      try { voted = (JSON.parse(f.KonformitaetJson || '[]')).map((v) => lc(v.upn)); } catch { voted = []; }
+      roleRecipients = mitVertretern(ownPruefer.length ? ownPruefer : pruefer, cfg.vertretungen);
+      try { voted = abgestimmtVon(JSON.parse(f.KonformitaetJson || '[]')); } catch { voted = []; }
     } else if (status === 'Freigabe' || status === 'Freigabe ausstehend') {
       phase = 'Freigabe';
       // Pro-Richtlinie-Freigeber haben Vorrang; sonst die globale GL-Liste.
       let ownFreigeber = [];
       try { const fk = JSON.parse(f.FreigabeKonfigJson || '{}'); if (Array.isArray(fk.freigeber)) ownFreigeber = fk.freigeber.filter(Boolean); } catch { ownFreigeber = []; }
-      roleRecipients = ownFreigeber.length ? ownFreigeber : gl;
-      try { voted = (JSON.parse(f.FreigabeJson || '[]')).map((v) => lc(v.upn)); } catch { voted = []; }
+      roleRecipients = mitVertretern(ownFreigeber.length ? ownFreigeber : gl, cfg.vertretungen);
+      try { voted = abgestimmtVon(JSON.parse(f.FreigabeJson || '[]')); } catch { voted = []; }
     } else {
       continue; // nur laufende Workflow-Schritte
     }
@@ -441,7 +489,17 @@ function kenntnisEskalationHtml(posten) {
 
     if (!isDue(tage, erste, alle)) { console.log(`• ${title} [${phase}] – ${tage}d, heute keine Erinnerung`); continue; }
 
-    const pending = roleRecipients.filter((u) => !voted.includes(lc(u)));
+    const vertretungen = cfg.vertretungen || {};
+    const erledigt = (u) => {
+      const key = lc(u);
+      if (voted.includes(key)) return true;
+      // Hat die Person, die diese hier vertritt, schon entschieden? Und andersherum.
+      const e = vertretungen[key];
+      if (vertretungAktiv(e) && voted.includes(lc(e.vertreter))) return true;
+      return Object.entries(vertretungen).some(([fuer, x]) =>
+        vertretungAktiv(x) && lc(x.vertreter) === key && voted.includes(lc(fuer)));
+    };
+    const pending = roleRecipients.filter((u) => !erledigt(u));
     if (!pending.length) { console.log(`• ${title} [${phase}] – ${tage}d, alle haben bereits reagiert`); continue; }
 
     const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
@@ -453,7 +511,8 @@ function kenntnisEskalationHtml(posten) {
     // Bei der Mitbestimmung sind die Empfänger admin-gepflegte BR-Adressen –
     // sie dürfen auch auf Gruppengesellschafts-Domains liegen.
     const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
-      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : ''), att ? [att] : [],
+      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : '',
+        aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung')), att ? [att] : [],
       phase === 'Mitbestimmung' ? roleRecipients : []);
     if (ok) sent++;
   }

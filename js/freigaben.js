@@ -177,12 +177,14 @@ function handleMailAction(id, aktion) {
 
 function _votesHtml(p) {
   // Konformitätsprüfung + Freigabe – beide mit (optionaler) Anmerkung anzeigen
+  // „in Vertretung für …" gehört sichtbar dazu, sonst wirkt die Freigabe unbefugt
+  const iV = (v) => v && v.fuer ? ` <span style="color:var(--c-muted)">(in Vertretung für ${esc(v.fuer)})</span>` : '';
   const k = (p.konformitaet || []).map(v =>
-    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> ${v.entscheidung === 'konform'
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}${iV(v)}:</b> ${v.entscheidung === 'konform'
       ? '<span style="color:#15803d">konform ✓</span>'
       : '<span style="color:#b91c1c">nicht konform</span>'}${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
   const f = (p.freigaben || []).map(v =>
-    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}${iV(v)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
   const all = [...k, ...f];
   if (!all.length) return '';
   return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${all.join('')}</div>`;
@@ -298,14 +300,21 @@ async function markKonform(policyId, konform) {
     if (!anmerkung) { toast('Ohne Begründung nicht möglich.', 'error'); return; }
   }
   p.konformitaet = (p.konformitaet || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
-  p.konformitaet.push({ upn: State.user.upn, name: State.user.name, entscheidung: konform ? 'konform' : 'nicht_konform', anmerkung: anmerkung || '', datum: new Date().toISOString() });
+  const _fuerPruef = (typeof vertretungFuerAus === 'function')
+    ? vertretungFuerAus(getPolicyPruefer(p), State.user.upn) : '';
+  p.konformitaet.push({
+    upn: State.user.upn, name: State.user.name,
+    entscheidung: konform ? 'konform' : 'nicht_konform',
+    anmerkung: anmerkung || '', datum: new Date().toISOString(),
+    ...(_fuerPruef ? { fuer: _fuerPruef } : {}),   // als Vertretung entschieden
+  });
   let toGL = false, toBR = false;
   if (!konform) p.status = 'Konformitätsprüfung';
   else if (konformErreicht(p)) {
     // Ist die Mitbestimmung betroffen und noch nicht bestätigt → erst zum Betriebsrat,
     // sonst direkt zur GL-Freigabe.
     if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
-    else { p.status = 'Freigabe'; toGL = true; }
+    else { p.status = 'Freigabe'; toGL = true; p.aktionToken = neuerAktionToken('freigabe'); }
   }
   if (!await pruefeFremdaenderung(p, 'die Prüfung abschließt')) return;
   historieAdd(p, konform ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
@@ -363,6 +372,8 @@ async function markMitbestimmung(policyId, konform) {
     datum: new Date().toISOString(), anmerkung,
   };
   p.status = konform ? 'Freigabe' : 'Konformitätsprüfung';   // konform → GL-Freigabe; sonst zurück
+  // Auch nach der Mitbestimmung beginnt für die GL eine neue Runde – neues Token.
+  if (konform) p.aktionToken = neuerAktionToken('freigabe');
   if (!await pruefeFremdaenderung(p, 'die Mitbestimmung abschließt')) return;
   historieAdd(p, konform ? 'Mitbestimmung: konform' : 'Mitbestimmung: nicht konform',
     (anmerkung ? 'Begründung: ' + anmerkung + '\n' : '') +
@@ -388,7 +399,14 @@ async function markFreigabe(policyId) {
   const field = document.getElementById('fg-kom-' + policyId);
   const anmerkung = (field ? field.value : '').trim();   // bei Freigabe optional
   p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
-  p.freigaben.push({ upn: State.user.upn, name: State.user.name, anmerkung, datum: new Date().toISOString() });
+  p.freigaben.push({
+    upn: State.user.upn, name: State.user.name, anmerkung, datum: new Date().toISOString(),
+    // Handelt jemand als Vertretung, gehört das ins Protokoll – sonst steht dort
+    // später eine Freigabe von einer Person, die gar nicht freigabeberechtigt ist.
+    ...(typeof vertretungFuerAus === 'function'
+      ? (() => { const f = vertretungFuerAus(getPolicyGeschaeftsleitung(p), State.user.upn); return f ? { fuer: f } : {}; })()
+      : {}),
+  });
   let published = false;
   if (freigabeErreicht(p)) {
     p.status = 'Veröffentlicht';
@@ -414,7 +432,9 @@ async function notifyPruefer(p) {
     console.info('[wf] Konformitätsprüfung über Power Automate – App-Prüfer-Mail übersprungen.');
     return;   // Power Automate verschickt die Genehmigungs-Mail
   }
-  const pruefer = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
+  const zustaendig = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
+  // Wer gerade vertreten wird, bekommt die Mail trotzdem – die Vertretung zusätzlich.
+  const pruefer = (typeof mitVertretern === 'function') ? mitVertretern(zustaendig) : zustaendig;
   if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error'); return; }
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
@@ -431,7 +451,8 @@ async function notifyGL(p) {
     console.info('[wf] Freigabe über Power Automate – App-GL-Mail übersprungen.');
     return;   // Power Automate verschickt die Freigabe-Mail
   }
-  const gl = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
+  const zustaendig = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
+  const gl = (typeof mitVertretern === 'function') ? mitVertretern(zustaendig) : zustaendig;
   if (!gl.length) return;
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
@@ -523,10 +544,148 @@ function _wfDokumentHtml(p, attachmentName) {
   return `${zeilen.length ? `<p style="margin:12px 0 0">${zeilen.join('<br>')}</p>` : ''}${link}`;
 }
 
+/* ═══════════════════════════════════════════════════
+   Ein-Klick-Entscheidung aus der Mail
+   ═══════════════════════════════════════════════════
+   Der Knopf in der Mail führt auf eine Landung, die still anmeldet (SSO), das
+   Token prüft und die Entscheidung sofort ausführt – kein Suchen, keine
+   Rückfrage. Zwei Dinge müssen dabei zusammenkommen:
+
+   • Das **Token** bindet den Klick an die laufende Runde. Ein Link aus einer
+     früheren Runde (oder aus einer weitergeleiteten alten Mail) läuft ins Leere.
+   • Die **Anmeldung** liefert, wer geklickt hat. Ein Link allein belegt nur den
+     Zugriff aufs Postfach – für eine Freigabe, die im Audit standhalten soll, zu
+     wenig. Deshalb keine Entscheidung ohne angemeldetes Konto.
+
+   Ein Fehlklick lässt sich zurücknehmen (siehe freigabeZuruecknehmen) – auch das
+   wird protokolliert. */
+
+/** Neues Einmal-Token für eine Runde. */
+function neuerAktionToken(art) {
+  let wert = '';
+  try {
+    const b = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(b);
+    wert = Array.from(b).map(x => x.toString(36)).join('').slice(0, 24);
+  } catch (e) {
+    wert = (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 24);
+  }
+  return { wert, art, erstelltAm: new Date().toISOString() };
+}
+
+/** Passt das Token aus dem Link zur laufenden Runde? */
+function aktionTokenGueltig(p, art, token) {
+  const t = p && p.aktionToken;
+  return !!(t && t.wert && token && t.wert === token && t.art === art);
+}
+
+/** In welchem Status ist diese Entscheidung überhaupt möglich? */
+const _EK_ERWARTET = {
+  freigeben:     ['Freigabe'],
+  zurueck:       ['Freigabe'],
+  konform:       ['Konformitätsprüfung', 'InReview'],
+  nicht_konform: ['Konformitätsprüfung', 'InReview'],
+};
+
+function _ekPanel(inhalt) {
+  const host = document.getElementById('modal-mount');
+  if (!host) return;
+  host.innerHTML = `<div class="modal-overlay"><div class="modal" role="dialog" aria-modal="true" aria-label="Entscheidung">
+    <div class="modal-body" style="text-align:center;padding:28px 26px">${inhalt}</div></div></div>`;
+}
+
+const _ekSchliessen = `<div style="margin-top:16px"><button class="btn btn-outline" onclick="closeModal()">Schließen</button></div>`;
+
+/**
+ * Landung aus der Mail: prüfen, ausführen, Ergebnis zeigen.
+ * Ohne gültiges Token bleibt es beim gewohnten Weg mit Rückfrage.
+ */
+async function einKlickAktion(id, aktion, token) {
+  const p = State.policies.find(x => x.id === id);
+  if (!p) { _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
+    <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>${_ekSchliessen}`); return; }
+
+  const art = (aktion === 'freigeben' || aktion === 'zurueck') ? 'freigabe' : 'pruefung';
+  const erwartet = _EK_ERWARTET[aktion] || [];
+
+  if (!erwartet.includes(p.status)) {
+    _ekPanel(`<div style="font-size:2rem">✓</div><h3>Schon erledigt</h3>
+      <p style="line-height:1.55">„${esc(p.title)}" steht inzwischen auf <b>${esc(p.status)}</b> –
+      hier ist nichts mehr zu tun.</p>
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard('${esc(id)}')">Vorgang ansehen</button></div>`);
+    return;
+  }
+  const befugt = (art === 'freigabe')
+    ? (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p))
+    : (typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p));
+  if (!befugt) {
+    _ekPanel(`<h3>Dafür fehlt Ihnen die Berechtigung</h3>
+      <p style="line-height:1.55">Für „${esc(p.title)}" ist ${art === 'freigabe' ? 'die Geschäftsleitung' : 'der Kreis der Prüfer'}
+      hinterlegt. Sind Sie eingesprungen, muss die <b>Vertretung</b> in den Einstellungen eingetragen sein.</p>${_ekSchliessen}`);
+    return;
+  }
+  if (!aktionTokenGueltig(p, art, token)) {
+    // Kein Drama, nur kein Ein-Klick: Der Link stammt aus einer früheren Runde.
+    _ekPanel(`<h3>Dieser Link ist nicht mehr aktuell</h3>
+      <p style="line-height:1.55">Zu „${esc(p.title)}" läuft inzwischen eine neue Runde. Bitte den Vorgang
+      öffnen und dort entscheiden – die Angaben sind dann auf dem aktuellen Stand.</p>
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard('${esc(id)}')">Vorgang öffnen</button></div>`);
+    return;
+  }
+
+  const fuer = (typeof vertretungFuerAus === 'function')
+    ? vertretungFuerAus(art === 'freigabe' ? getPolicyGeschaeftsleitung(p) : getPolicyPruefer(p), State.user.upn) : '';
+  const inVertretung = fuer ? `<div class="field-hint" style="margin-top:6px">in Vertretung für ${esc(fuer)}</div>` : '';
+  _ekPanel(`<div class="doc-loading">Entscheidung wird gespeichert …</div>`);
+
+  if (aktion === 'freigeben') await markFreigabe(id);
+  else if (aktion === 'konform') await markKonform(id, true);
+  else await markKonform(id, false);
+
+  const danach = State.policies.find(x => x.id === id) || p;
+  const fertig = aktion === 'freigeben'
+    ? (danach.status === 'Veröffentlicht'
+      ? `<div style="font-size:2rem">🎉</div><h3>Freigegeben und veröffentlicht</h3>
+         <p style="line-height:1.55">„${esc(p.title)}" ist ab sofort für die Zielgruppe sichtbar.</p>${inVertretung}
+         <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+           <button class="btn btn-outline" onclick="freigabeZuruecknehmen('${esc(id)}')">Rückgängig</button>
+           <button class="btn btn-primary" onclick="closeModal()">Fertig</button></div>`
+      : `<div style="font-size:2rem">✓</div><h3>Ihre Freigabe ist vermerkt</h3>
+         <p style="line-height:1.55">Für die Veröffentlichung fehlen noch weitere Freigaben.</p>${inVertretung}${_ekSchliessen}`)
+    : `<div style="font-size:2rem">✓</div><h3>Entscheidung gespeichert</h3>
+       <p style="line-height:1.55">„${esc(p.title)}" steht jetzt auf <b>${esc(danach.status)}</b>.</p>${inVertretung}${_ekSchliessen}`;
+  _ekPanel(fertig);
+}
+
+/** Fehlklick zurücknehmen: Freigabe entfernen, Veröffentlichung aufheben – protokolliert. */
+async function freigabeZuruecknehmen(id) {
+  const src = State.policies.find(x => x.id === id);
+  if (!src) return;
+  const p = JSON.parse(JSON.stringify(src));
+  const meine = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
+  if (!meine.length) { toast('Von Ihnen liegt hier keine Freigabe vor.', 'error'); return; }
+  p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
+  p.status = 'Freigabe';
+  p.veroeffentlichtAm = '';
+  p.freigegebenVon = (p.freigaben || []).map(v => v.name || v.upn).join(', ');
+  historieAdd(p, 'Freigabe zurückgenommen',
+    'Die eigene Freigabe wurde direkt nach der Entscheidung zurückgenommen; das Regelwerk ist wieder in der Freigabe.');
+  try {
+    await spSavePolicy(p);
+    await reloadData();
+    if (typeof renderFreigaben === 'function') renderFreigaben();
+    _ekPanel(`<div style="font-size:2rem">↩</div><h3>Zurückgenommen</h3>
+      <p style="line-height:1.55">„${esc(p.title)}" liegt wieder zur Freigabe bereit.</p>${_ekSchliessen}`);
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
 function _wfMailHtml(headline, p, text, attachmentName, phase) {
   const base = 'https://rms.dihag.de/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
-  const act = (a) => `${url}&aktion=${a}`;
+  // Das Token macht aus dem Link eine Ein-Klick-Entscheidung – ohne ihn bleibt es
+  // beim gewohnten Weg mit Rückfrage (z. B. bei Mails aus einer früheren Runde).
+  const tok = (p.aktionToken && p.aktionToken.wert) ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
+  const act = (a) => `${url}&aktion=${a}${tok}`;
   const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
   const actions = phase === 'freigabe'
     ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
@@ -540,7 +699,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet die Richtlinie in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }
 
@@ -599,13 +758,16 @@ function _freigabeAuditRows() {
       out.push({
         datum: v.datum || '', policy: p.title, version: p.version,
         aktion: v.entscheidung === 'konform' ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
-        wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+        wer: (v.name || v.upn || '') + (v.fuer ? ` (in Vertretung für ${v.fuer})` : ''),
+        anmerkung: v.anmerkung || '',
       });
     }
     for (const v of (p.freigaben || [])) {
       out.push({
         datum: v.datum || '', policy: p.title, version: p.version,
-        aktion: 'Freigabe erteilt', wer: v.name || v.upn || '', anmerkung: v.anmerkung || '',
+        aktion: 'Freigabe erteilt',
+        wer: (v.name || v.upn || '') + (v.fuer ? ` (in Vertretung für ${v.fuer})` : ''),
+        anmerkung: v.anmerkung || '',
       });
     }
     // In Outlook (Power Automate) erteilte Freigabe: kein App-JSON, aber FreigegebenVon gesetzt
