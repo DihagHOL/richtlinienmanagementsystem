@@ -302,6 +302,35 @@ function getFreigabeSchwelle()  { return _cfg().freigabeSchwelle || 'einer'; }
 function getKbrMail()           { return _cfg().kbrMail || ''; }
 function getBrMails()           { const m = _cfg().brMails; return (m && typeof m === 'object') ? { ...m } : {}; }
 function getBrMail(werk)        { return getBrMails()[werk] || ''; }
+/** Adressen, an die die Mitbestimmungs-Mail für dieses Regelwerk geht:
+ *  Konzernbetriebsrat und die Betriebsräte der betroffenen Werke. */
+function mitbestimmungMails(p) {
+  const werke = (p && Array.isArray(p.mitbestimmungWerke)) ? p.mitbestimmungWerke : [];
+  return [p && p.kbrBetroffen ? getKbrMail() : '', ...werke.map(w => getBrMail(w))]
+    .map(m => String(m || '').trim().toLowerCase()).filter(Boolean);
+}
+
+/**
+ * Darf die angemeldete Person die Mitbestimmung für dieses Regelwerk entscheiden?
+ *
+ * Ja, wenn sie den Ablauf führt (Prüfer oder Geschäftsleitung – sie dokumentieren
+ * das Votum bisher im Portal). Und ja, wenn sie zu dem Betriebsrat gehört, an den
+ * die Mail ging: entweder ist es ihre eigene Adresse oder sie ist Mitglied der
+ * hinterlegten Verteiler-/Sicherheitsgruppe. Dafür muss niemand eine zusätzliche
+ * Liste pflegen – die BR-Adressen stehen ohnehin in den Einstellungen.
+ */
+function darfMitbestimmung(p) {
+  const u = String(_currentUpn() || '').toLowerCase();   // dieselbe Quelle wie überall hier
+  if (typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p)) return true;
+  if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p)) return true;
+  if (typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) return true;
+  const ziele = mitbestimmungMails(p);
+  if (!ziele.length || !u) return false;
+  if (ziele.includes(u)) return true;
+  const meine = (typeof State !== 'undefined' && Array.isArray(State.myGroups)) ? State.myGroups : [];
+  return meine.some(g => g && g.mail && ziele.includes(String(g.mail).toLowerCase()));
+}
+
 /* ── C-Level-Audit-Bericht: Empfänger ── */
 function getClevelMail()        { return _cfg().clevelMail || ''; }
 /* ── Power-Automate-Genehmigung: Umfang je Etappe ── */

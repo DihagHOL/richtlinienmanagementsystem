@@ -78,7 +78,10 @@ function renderFreigaben() {
     </div>`;
   };
 
-  const kannBR = istPruefer || istGL;   // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten
+  // Mitbestimmung dokumentieren dürfen die Workflow-Beteiligten – und der
+  // Betriebsrat selbst, erkannt an seiner Adresse bzw. Gruppenmitgliedschaft.
+  const darfMb = (p) => (typeof darfMitbestimmung === 'function') ? darfMitbestimmung(p) : (istPruefer || istGL);
+  const kannBR = istPruefer || istGL || inMitbestimmung.some(darfMb);
 
   // „Eigene" = für die jeweilige Richtlinie bin ich der zuständige Prüfer bzw. Freigeber.
   const isMinePruef = p => typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p);
@@ -110,7 +113,7 @@ function renderFreigaben() {
   }
   if (kannBR) {
     html += secBlock('mb', '1.5 · Mitbestimmung (Betriebsverfassung)', mbList.length,
-      mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, kannBR)).join('') : leer('in der Mitbestimmung'));
+      mbList.length ? mbList.map(p => mitbestimmungCardHtml(p, darfMb(p))).join('') : leer('in der Mitbestimmung'));
   }
   if (istGL) {
     html += secBlock('frei', '2 · Freigabe (Geschäftsleitung)', freiList.length,
@@ -313,7 +316,11 @@ async function markKonform(policyId, konform) {
   else if (konformErreicht(p)) {
     // Ist die Mitbestimmung betroffen und noch nicht bestätigt → erst zum Betriebsrat,
     // sonst direkt zur GL-Freigabe.
-    if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) { p.status = 'Mitbestimmung'; toBR = true; }
+    if (mitbestimmungPflicht(p) && !mitbestimmungBestaetigt(p)) {
+      p.status = 'Mitbestimmung'; toBR = true;
+      // Auch der Betriebsrat entscheidet aus der Mail – eigene Runde, eigenes Token.
+      p.aktionToken = neuerAktionToken('mitbestimmung');
+    }
     else { p.status = 'Freigabe'; toGL = true; p.aktionToken = neuerAktionToken('freigabe'); }
   }
   if (!await pruefeFremdaenderung(p, 'die Prüfung abschließt')) return;
@@ -790,10 +797,12 @@ function aktionTokenGueltig(p, art, token) {
 
 /** In welchem Status ist diese Entscheidung überhaupt möglich? */
 const _EK_ERWARTET = {
-  freigeben:     ['Freigabe'],
-  zurueck:       ['Freigabe'],
-  konform:       ['Konformitätsprüfung', 'InReview'],
-  nicht_konform: ['Konformitätsprüfung', 'InReview'],
+  freigeben:        ['Freigabe'],
+  zurueck:          ['Freigabe'],
+  konform:          ['Konformitätsprüfung', 'InReview'],
+  nicht_konform:    ['Konformitätsprüfung', 'InReview'],
+  mb_konform:       ['Mitbestimmung'],
+  mb_nicht_konform: ['Mitbestimmung'],
 };
 
 function _ekPanel(inhalt) {
@@ -832,7 +841,8 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     return;
   }
 
-  const art = (aktion === 'freigeben' || aktion === 'zurueck') ? 'freigabe' : 'pruefung';
+  const art = String(aktion).startsWith('mb_') ? 'mitbestimmung'
+    : (aktion === 'freigeben' || aktion === 'zurueck') ? 'freigabe' : 'pruefung';
   const erwartet = _EK_ERWARTET[aktion] || [];
 
   if (!erwartet.includes(p.status)) {
@@ -842,13 +852,19 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
       <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard('${esc(id)}')">Vorgang ansehen</button></div>`);
     return;
   }
-  const befugt = (art === 'freigabe')
-    ? (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p))
-    : (typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p));
+  const befugt = (art === 'mitbestimmung')
+    ? (typeof darfMitbestimmung === 'function' && darfMitbestimmung(p))
+    : (art === 'freigabe')
+      ? (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && isCurrentUserGeschaeftsleitungForPolicy(p))
+      : (typeof isCurrentUserPrueferForPolicy === 'function' && isCurrentUserPrueferForPolicy(p));
   if (!befugt) {
+    const kreis = art === 'mitbestimmung' ? 'der Betriebsrat (und der Kreis der Prüfer bzw. die Geschäftsleitung)'
+      : art === 'freigabe' ? 'die Geschäftsleitung' : 'der Kreis der Prüfer';
     _ekPanel(`<h3>Dafür fehlt Ihnen die Berechtigung</h3>
-      <p style="line-height:1.55">Für „${esc(p.title)}" ist ${art === 'freigabe' ? 'die Geschäftsleitung' : 'der Kreis der Prüfer'}
-      hinterlegt. Sind Sie eingesprungen, muss die <b>Vertretung</b> in den Einstellungen eingetragen sein.</p>${_ekSchliessen}`);
+      <p style="line-height:1.55">Für „${esc(p.title)}" ist ${kreis} hinterlegt.
+      ${art === 'mitbestimmung'
+        ? 'Erkannt wird die Zugehörigkeit über die Adresse des Betriebsrats aus den Einstellungen – als eigene Adresse oder über die Mitgliedschaft in der hinterlegten Gruppe.'
+        : 'Sind Sie eingesprungen, muss die <b>Vertretung</b> in den Einstellungen eingetragen sein.'}</p>${_ekSchliessen}`);
     return;
   }
   if (!aktionTokenGueltig(p, art, token)) {
@@ -860,8 +876,8 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     return;
   }
 
-  const fuer = (typeof vertretungFuerAus === 'function')
-    ? vertretungFuerAus(art === 'freigabe' ? getPolicyGeschaeftsleitung(p) : getPolicyPruefer(p), State.user.upn) : '';
+  const fuer = (art === 'mitbestimmung' || typeof vertretungFuerAus !== 'function') ? ''
+    : vertretungFuerAus(art === 'freigabe' ? getPolicyGeschaeftsleitung(p) : getPolicyPruefer(p), State.user.upn);
   const inVertretung = fuer ? `<div class="field-hint" style="margin-top:6px">in Vertretung für ${esc(fuer)}</div>` : '';
   _ekPanel(`<div class="doc-loading">Entscheidung wird gespeichert …</div>`);
 
@@ -869,6 +885,10 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
   try {
     if (aktion === 'freigeben') await markFreigabe(id);
     else if (aktion === 'konform') await markKonform(id, true);
+    else if (aktion === 'mb_konform') await markMitbestimmung(id, true);
+    // „Nicht konform" fragt in beiden Fällen nach der Begründung – markKonform und
+    // markMitbestimmung greifen ohne Eingabefeld auf die Rückfrage zurück.
+    else if (aktion === 'mb_nicht_konform') await markMitbestimmung(id, false);
     else await markKonform(id, false);
   } finally { _ekAusMail = false; }
 

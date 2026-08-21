@@ -154,10 +154,16 @@ async function applyDeepLinkOrDefault() {
                  || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
 
   if (ansicht === 'freigaben' || (ansicht === '' && canReview)) {
-    if (!canReview) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
-    await switchView('freigaben');
     const aktion = (params.get('aktion') || '').toLowerCase();
     const token = params.get('t') || '';
+    // Die Mitbestimmung entscheidet der Betriebsrat – der ist weder Prüfer noch
+    // Geschäftsleitung. Für diesen Klick zählt deshalb die eigene Berechtigung,
+    // sonst käme er nie bis zur Entscheidung.
+    const mbDarf = (aktion === 'mb_konform' || aktion === 'mb_nicht_konform') && !!token
+      && typeof darfMitbestimmung === 'function'
+      && darfMitbestimmung(State.policies.find(x => x.id === deepId) || {});
+    if (!canReview && !mbDarf) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
+    await switchView(canReview ? 'freigaben' : 'meine');
     // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
     // Der Adressat kommt aus demselben Parametersatz: Nach einem Login-Redirect steht
     // die Ursprungs-URL nur noch hier, nicht mehr zwingend in location.search.

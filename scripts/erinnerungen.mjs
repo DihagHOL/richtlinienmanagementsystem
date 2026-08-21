@@ -293,7 +293,12 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
       + _btn(konzeptLink(id, 'ablehnen'), '#dc2626', '✗ Ablehnen')
     : phase === 'Freigabe'
       ? _btn(policyLink(id, 'freigeben', token, empf), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token, empf), '#dc2626', '✗ Zurück (nicht konform)')
-      : _btn(policyLink(id, 'konform', token, empf), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token, empf), '#dc2626', '✗ Nicht konform');
+      // Der Betriebsrat entscheidet über die Mitbestimmung, nicht über die Konformität –
+      // dieselben Knöpfe, aber ein anderer Vorgang. Ohne Empfänger im Link: Adressat ist
+      // ein Betriebsrats-Postfach, angemeldet wird sich persönlich.
+      : phase === 'Mitbestimmung'
+        ? _btn(policyLink(id, 'mb_konform', token), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'mb_nicht_konform', token), '#dc2626', '✗ Nicht konform')
+        : _btn(policyLink(id, 'konform', token, empf), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token, empf), '#dc2626', '✗ Nicht konform');
   const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
@@ -530,7 +535,8 @@ function kenntnisEskalationHtml(posten) {
     // Einzelversand: Der Ein-Klick-Link trägt die Adresse des Empfängers, sonst müsste
     // sich jeder erst anmelden. Die Eskalation geht zusätzlich raus – ohne persönlichen
     // Link, sie entscheidet ja nicht.
-    const tok = aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung');
+    const tok = aktionToken(f, phase === 'Freigabe' ? 'freigabe'
+      : phase === 'Mitbestimmung' ? 'mitbestimmung' : 'pruefung');
     const bau = (empf) => mailHtml(it.id, title, phase, tage, pending, eskaliert,
       att ? att.name : '', tok, geltungsbereich(f), empf);
     const erlaubt = phase === 'Mitbestimmung' ? roleRecipients : [];

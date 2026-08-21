@@ -1562,7 +1562,14 @@ function dpSelect(idx) {
 
 function _mitMailHtml(p, label, attachmentName) {
   const base = 'https://rms.dihag.de/';
-  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}`;
+  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
+  // Entscheiden aus der Mail – wie bei Prüfung und Freigabe. Bewusst OHNE
+  // Anmelde-Hinweis (&u=): Empfänger ist ein Betriebsrats-Postfach, angemeldet
+  // wird sich mit dem persönlichen Konto. Wer dahinter steht, erkennt die App an
+  // der Adresse bzw. der Gruppenmitgliedschaft.
+  const tok = (p.aktionToken && p.aktionToken.wert && p.aktionToken.art === 'mitbestimmung')
+    ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
+  const mbBtn = (a, bg, label2) => `<a href="${esc(url + '&aktion=' + a + tok)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label2}</a>`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
     <p>Empfänger: <b>${esc(label)}</b></p>
@@ -1575,6 +1582,12 @@ function _mitMailHtml(p, label, attachmentName) {
     ${attachmentName
       ? `<p>📎 Das Richtliniendokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
       : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar) – bitte bei der ISMS-Stelle anfordern.</p>`}
+    ${(typeof _wfApprovalsHtml === 'function') ? _wfApprovalsHtml(p) : ''}
+    <p style="margin-top:18px"><b>Rückmeldung – ein Klick genügt:</b></p>
+    <p>${mbBtn('mb_konform', '#16a34a', '✓ Konform')}${mbBtn('mb_nicht_konform', '#dc2626', '✗ Nicht konform')}</p>
+    <p style="color:#6b7280;font-size:13px">Bei <b>„Nicht konform"</b> fragt die Seite nach der Begründung – ohne sie
+    wird nichts gespeichert. Die Entscheidung wird unter Ihrem Namen protokolliert; angemeldet werden Sie
+    dabei mit Ihrem DIHAG-Konto.</p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
   </div>`;
 }

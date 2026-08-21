@@ -164,12 +164,13 @@ ok(/function freigabeZuruecknehmen/.test(fg) && /Freigabe zurückgenommen/.test(
 ok(/function aktionToken\(f, art\)/.test(cron), 'Der Cron liest das Token aus dem Sammelfeld');
 ok(/policyLink\(id, 'freigeben', token, empf\)/.test(cron),
   'Und hängt es an seine Erinnerungs-Links – samt Adressat');
-ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe' : 'pruefung'\)/.test(cron), 'Passend zur Etappe');
+ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe'[\s\S]{0,40}'mitbestimmung' : 'pruefung'\)/.test(cron),
+  'Passend zur Etappe – Prüfung, Mitbestimmung und Freigabe sind eigene Runden');
 
 /* ── 8) Was die Entscheidung aus der Mail absichert ── */
 ok(/let _ekAusMail = false;/.test(fg) && /ekKanalHinweis\(\)/.test(fg),
   'Im Protokoll steht, dass aus der Mail heraus entschieden wurde');
-ok(/_ekAusMail = true;[\s\S]{0,220}finally \{ _ekAusMail = false; \}/.test(fg),
+ok(/_ekAusMail = true;[\s\S]{0,600}finally \{ _ekAusMail = false; \}/.test(fg),
   'Das Kennzeichen gilt nur für die eine Entscheidung – auch bei einem Fehler');
 const zurueck = fg.slice(fg.indexOf('async function freigabeZuruecknehmen'));
 ok(/p\.aktionToken = neuerAktionToken\('freigabe'\)/.test(zurueck.slice(0, 1200)),
