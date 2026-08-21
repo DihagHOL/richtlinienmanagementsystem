@@ -116,5 +116,47 @@ ok(/DatenJson:\s*JSON\.stringify\(_buildDatenJson\(p\)\)/.test(shp), 'spSavePoli
 ok(shp.includes("{ name: 'DatenJson',"), 'DatenJson ist Pflichtspalte');
 ok(/const POLICY_EXT_FIELDS = \[/.test(shp), 'Erweiterungsfelder zentral definiert');
 
+/* ── 9) Kein Erweiterungsfeld darf beim Abbilden verloren gehen ──
+   Genau das war passiert: `_mapPolicy` zählte fünf Felder namentlich auf, während
+   `_readExtFields` alle sieben lieferte. videos, aktionToken und bekanntgabeAm
+   wurden gelesen und im selben Atemzug weggeworfen – ohne Fehler, ohne Spur.
+   Sichtbar wurde es als „kein Lernvideo" und „dieser Link ist nicht mehr aktuell".
+   Deshalb hier datengetrieben: Ein neues Erweiterungsfeld ist automatisch mitgeprüft. */
+run('globalThis.__felder = POLICY_EXT_FIELDS.map(d => d.feld);');
+const beispiel = {
+  regelwerkTyp: 'Policy', geltungsbereich: ['HOL'], historie: [{ aktion: 'A' }],
+  konzept: { prioritaet: 'hoch' }, videos: [{ titel: 'V', url: 'https://x.de/v' }],
+  aktionToken: { wert: 'abc', art: 'freigabe', erstelltAm: '2026-08-21T09:00:00.000Z' },
+  bekanntgabeAm: '2026-08-21T10:00:00.000Z',
+};
+setColumns(['Title', 'DatenJson']);
+run(`globalThis.__voll = _mapPolicy({ id: '1', fields: { Title: 'V',
+  DatenJson: JSON.stringify(_buildDatenJson(${JSON.stringify(beispiel)})) } });`);
+const voll = ctx.__voll;
+const fehlend = ctx.__felder.filter(f => voll[f] === undefined);
+ok(!fehlend.length, `Alle ${ctx.__felder.length} Erweiterungsfelder kommen beim Laden an`
+  + (fehlend.length ? ' – fehlt: ' + fehlend.join(', ') : ''));
+ok(voll.videos.length === 1 && voll.videos[0].url === 'https://x.de/v',
+  'Lernvideos überstehen den Rundlauf – sonst zeigt die Detailseite nie ein Video');
+ok(voll.aktionToken && voll.aktionToken.wert === 'abc' && voll.aktionToken.art === 'freigabe',
+  'Das Einmal-Token ebenso – sonst ist jeder Ein-Klick-Link „nicht mehr aktuell"');
+ok(voll.bekanntgabeAm === '2026-08-21T10:00:00.000Z', 'Und der Vermerk der Bekanntgabe');
+ok(/\.\.\.ext,/.test(shp), '_mapPolicy übernimmt sie als Ganzes statt namentlich');
+
+/* ── 10) Ein unlesbares Sammelfeld meldet sich ──
+   Wird die Spalte als „Einzelne Textzeile" angelegt, schneidet SharePoint bei 255
+   Zeichen ab. Alles wirkt normal, nur die Felder ohne eigene Spalte fehlen. */
+run('_datenJsonDefekt = 0;');
+map({ Title: 'A', DatenJson: '{"videos":[{"titel":"lang' });
+ok(run('spDatenJsonDefekt()') === 1, 'Abgeschnittenes Sammelfeld wird gezählt');
+map({ Title: 'B' });
+map({ Title: 'C', DatenJson: '' });
+ok(run('spDatenJsonDefekt()') === 1, 'Ein leeres Feld ist kein Defekt – da stand nie etwas');
+map({ Title: 'D', DatenJson: '{"videos":[]}' });
+ok(run('spDatenJsonDefekt()') === 1, 'Lesbares Feld zählt nicht mit');
+const adm = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
+ok(/spDatenJsonDefekt\(\)/.test(adm) && /Einzelne Textzeile/.test(adm),
+  'Das Dashboard sagt es dem Administrator, statt still Felder zu verlieren');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

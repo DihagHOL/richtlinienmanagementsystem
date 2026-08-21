@@ -360,7 +360,19 @@ function renderAdminList() {
       <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
       Bitte in SharePoint anlegen: ${miss.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
     </div>` : '';
-  const warn = roBanner +
+  // Ein abgeschnittenes Sammelfeld sieht man den Regelwerken nicht an: Alles wirkt
+  // normal, nur Lernvideos und Ein-Klick-Links fehlen. Deshalb ausdrücklich melden.
+  const djKaputt = (typeof spDatenJsonDefekt === 'function') ? spDatenJsonDefekt() : 0;
+  const djBanner = djKaputt ? `<div class="col-warning" style="display:block;margin-bottom:12px">
+      <b>⚠ Das Sammelfeld „DatenJson" ist bei ${djKaputt} Regelwerk(en) nicht lesbar.</b>
+      Der Inhalt ist vermutlich abgeschnitten – das passiert, wenn die Spalte als
+      <b>„Einzelne Textzeile"</b> angelegt wurde. Betroffen sind Felder ohne eigene Spalte:
+      <b>Lernvideos</b>, der <b>Ein-Klick-Link</b> aus den Freigabe-Mails und der Vermerk der
+      <b>Bekanntgabe</b>.<br>
+      Bitte die Spalte in SharePoint auf <b>„Mehrere Zeilen Text"</b> umstellen (Nur-Text, ohne
+      Versionierung) und die betroffenen Regelwerke einmal speichern.
+    </div>` : '';
+  const warn = roBanner + djBanner +
     _colBanner('Richtlinien', (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : []) +
     _colBanner('Bestaetigungen', (typeof spMissingAckColumns === 'function') ? spMissingAckColumns() : []);
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();

@@ -160,14 +160,22 @@ function _buildDatenJson(p) {
   return o;
 }
 
+/* Datensätze, deren Sammelfeld sich nicht lesen ließ. Das passiert, wenn die
+   Spalte `DatenJson` als „Einzelne Textzeile" angelegt wurde: SharePoint schneidet
+   den Inhalt bei 255 Zeichen ab, danach ist das JSON unbrauchbar. Felder ohne
+   eigene Spalte (Lernvideos, Ein-Klick-Token, Bekanntgabe) wären dann still weg –
+   deshalb wird mitgezählt statt geschwiegen. */
+let _datenJsonDefekt = 0;
+function spDatenJsonDefekt() { return _datenJsonDefekt; }
+
 /** Erweiterungsfelder aus `DatenJson` lesen (Fallback: Einzelspalten). */
 function _readExtFields(f) {
   let daten = {};
+  const roh = f[_policyFieldName('DatenJson')];
   try {
-    const raw = f[_policyFieldName('DatenJson')];
-    const o = raw ? JSON.parse(raw) : null;
+    const o = roh ? JSON.parse(roh) : null;
     if (o && typeof o === 'object' && !Array.isArray(o)) daten = o;
-  } catch { daten = {}; }
+  } catch { daten = {}; if (String(roh || '').trim()) _datenJsonDefekt++; }
 
   const out = {};
   for (const def of POLICY_EXT_FIELDS) {
@@ -486,6 +494,7 @@ async function spGetPolicies(_zweiterVersuch) {
     if (_zweiterVersuch) throw e;
     return _spNeuErmitteln(e, () => spGetPolicies(true));
   }
+  _datenJsonDefekt = 0;   // jede Ladung zählt neu
   return items.map(_mapPolicy)
     .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 }
@@ -526,14 +535,14 @@ function _mapPolicy(item) {
       freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
     }
   } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
-  // Erweiterungsfelder: Sammelfeld DatenJson mit Rückfall auf die Einzelspalten
+  // Erweiterungsfelder: Sammelfeld DatenJson mit Rückfall auf die Einzelspalten.
+  // ALLE uebernehmen, nicht einzeln aufzählen: Genau das war der Sinn von
+  // POLICY_EXT_FIELDS – ein neues Feld soll ohne weitere Codestelle ankommen.
+  // Vorher standen hier fünf Namen; videos, aktionToken und bekanntgabeAm
+  // wurden gelesen und danach still weggeworfen.
   const ext = _readExtFields(f);
   return {
-    typ:          ext.typ,
-    konzept:      ext.konzept,
-    regelwerkTyp: ext.regelwerkTyp,
-    geltungsbereich: ext.geltungsbereich,
-    historie:     ext.historie,
+    ...ext,
     id:                  item.id,
     title:               f.Title || '',
     beschreibung:        f.Beschreibung || '',
