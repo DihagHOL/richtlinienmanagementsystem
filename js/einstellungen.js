@@ -64,6 +64,7 @@ function _cfgRenderBereich() {
     </div>`;
   if (reiter) { rrRenderBody(); return; }
   renderCfgLists();
+  renderZielgruppenMails();
   renderVertretungen();
   renderRolesList();
   renderUserRolesList();
@@ -85,6 +86,21 @@ function _rollenBereichHtml() {
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
       ${roleCard('govStrukturKoepfe', 'Governance-Struktur: Zeilen &amp; Spalten ändern (Aufbau der Systematik)')}
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h2>Verteiler je Zielgruppe (Bekanntgabe)</h2></div>
+        <div class="card-body">
+          <div class="field-hint" style="margin-bottom:10px">
+            Wird ein Regelwerk veröffentlicht, geht die Bekanntgabe an den <b>Verteiler</b> der
+            Zielgruppe – eine Mail statt hunderter Einzelnachrichten. Eingetragen wird die
+            <b>Adresse einer Verteiler- oder Sicherheitsgruppe</b> (z. B. <code>produktion@dihag.com</code>);
+            wer dazugehört, pflegt Exchange. Ohne Verteiler erscheint beim Veröffentlichen ein Hinweis,
+            und die Bekanntgabe lässt sich später über <b>„📣 Zielgruppe informieren"</b> nachholen.
+          </div>
+          <div id="cfg-zielgruppenmails"></div>
+          <datalist id="cfg-eigene-gruppen"></datalist>
+        </div>
+      </div>
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Vertretungen (Urlaub, Krankheit)</h2></div>
@@ -685,6 +701,46 @@ function _rrGruppenNamenAufraeumen(cfg) {
     if (!cfg[feld]) continue;
     for (const id of Object.keys(cfg[feld])) if (!benutzt.has(id)) delete cfg[feld][id];
   }
+}
+
+/* ── Verteiler je Zielgruppe ──
+   Die Zielgruppen stehen als Rollen am Regelwerk; hier bekommt jede Rolle die
+   Adresse ihrer Gruppe. „Alle Mitarbeitenden" steht bewusst oben – das ist der
+   Verteiler, der am häufigsten gebraucht wird. */
+
+function renderZielgruppenMails() {
+  const host = document.getElementById('cfg-zielgruppenmails');
+  if (!host) return;
+  if (!_cfgEdit.zielgruppenMails) _cfgEdit.zielgruppenMails = {};
+  const werte = _cfgEdit.zielgruppenMails;
+  const rollen = (typeof getCompanyRoles === 'function') ? getCompanyRoles() : [];
+  const alle = (typeof ZIELGRUPPE_ALLE !== 'undefined') ? ZIELGRUPPE_ALLE : 'ALLE';
+  const zeile = (key, label, hinweis) => `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0">
+      <span style="flex:0 0 220px;font-size:.85rem;font-weight:${key === alle ? '700' : '500'}">${esc(label)}
+        ${hinweis ? `<span class="field-hint" style="display:block;font-weight:400">${esc(hinweis)}</span>` : ''}</span>
+      <input type="email" list="cfg-eigene-gruppen" value="${esc(werte[key] || '')}"
+        placeholder="verteiler@dihag.com" style="flex:1;min-width:220px;${_rrFeldStil}"
+        oninput="zgMailSet('${esc(key)}', this.value)">
+    </div>`;
+  host.innerHTML = zeile(alle, 'Alle Mitarbeitenden', 'gilt, sobald ein Regelwerk „für alle" ist')
+    + (rollen.length
+      ? rollen.map(r => zeile(r, r, '')).join('')
+      : '<div class="field-hint">Noch keine Rollen angelegt – weiter unten unter „Verfügbare Rollen / Abteilungen".</div>');
+
+  // Vorschläge: die eigenen Gruppen mit Mailadresse (spart Tippen und Tippfehler)
+  const dl = document.getElementById('cfg-eigene-gruppen');
+  if (dl) {
+    const eigene = ((typeof State !== 'undefined' && State.myGroups) || []).filter(g => g.mail);
+    dl.innerHTML = eigene.map(g => `<option value="${esc(g.mail)}">${esc(g.name || '')}</option>`).join('');
+  }
+}
+
+function zgMailSet(key, wert) {
+  if (!_cfgEdit.zielgruppenMails) _cfgEdit.zielgruppenMails = {};
+  const v = String(wert || '').trim().toLowerCase();
+  if (v) _cfgEdit.zielgruppenMails[key] = v;
+  else delete _cfgEdit.zielgruppenMails[key];
 }
 
 /* ── Vertretungen ──

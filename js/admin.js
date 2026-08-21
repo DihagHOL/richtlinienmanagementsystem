@@ -1763,6 +1763,8 @@ function renderComplianceDetail() {
         <h2>${esc(p.title)} <span style="font-weight:400;color:var(--c-muted)">· v${esc(p.version)} · 👥 ${esc(zielgruppenLabel(p))}</span></h2>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn btn-outline btn-sm" onclick="remindOpenForCurrent()">⏰ Offene erinnern</button>
+          <button class="btn btn-outline btn-sm" onclick="zielgruppeInformierenAktuell()"
+            title="Bekanntgabe an den Verteiler der Zielgruppe – auch nachträglich oder erneut">📣 Zielgruppe informieren</button>
           <span class="quote-pill ${qCls}">${quote}% erfüllt</span>
         </div>
       </div>
@@ -1787,6 +1789,13 @@ function complianceBadge(st) {
   if (st === 'abgeschlossen') return '<span class="status-badge sb-done">✓ Abgeschlossen</span>';
   if (st === 'gelesen') return '<span class="status-badge sb-read">Gelesen</span>';
   return '<span class="status-badge sb-open">Offen</span>';
+}
+
+/** Bekanntgabe an die Zielgruppe des gerade betrachteten Regelwerks. */
+function zielgruppeInformierenAktuell() {
+  const p = AdminState.lastCompliancePolicy;
+  if (!p) { toast('Kein Regelwerk gewählt.', 'error'); return; }
+  if (typeof zielgruppeInformieren === 'function') zielgruppeInformieren(p.id);
 }
 
 /* ── #4 Erinnerung an offene Mitarbeiter der aktuell gewählten Richtlinie ── */

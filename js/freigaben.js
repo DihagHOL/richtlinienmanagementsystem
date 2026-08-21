@@ -423,8 +423,104 @@ async function markFreigabe(policyId) {
     await reloadData();
     renderFreigaben();
     toast(published ? 'Freigegeben & veröffentlicht ✓' : 'Freigabe vermerkt (weitere GL nötig).', 'success');
-    if (published) _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
+    if (published) {
+      _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
+      // Bekanntgabe: bewusst mit Rückfrage. Eine reine Korrekturversion muss nicht
+      // die halbe Belegschaft erreichen – die Entscheidung trifft, wer freigibt.
+      const ziel = (typeof mailsFuerZielgruppen === 'function') ? mailsFuerZielgruppen(p.zielgruppen) : { adressen: [] };
+      if (ziel.adressen.length) {
+        if (await uiConfirm(`Zielgruppe jetzt über „${p.title}" informieren?\n\nVerteiler: ${ziel.adressen.join(', ')}`,
+          { title: 'Veröffentlichung bekanntgeben', okLabel: 'Mail senden', cancelLabel: 'Später' })) {
+          if (await notifyZielgruppe(p)) await zielgruppeBekanntgabeVermerken(p.id, ziel.adressen);
+        }
+      } else if (typeof toast === 'function') {
+        toast('Veröffentlicht. Für die Bekanntgabe fehlt ein Verteiler – Einstellungen → Verteiler je Zielgruppe.', 'error');
+      }
+    }
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+/* ── Veröffentlichung bekanntgeben ──
+   Bis hierher erfuhr die Zielgruppe von einem neuen Regelwerk nur, wenn sie die
+   App öffnete – die erste Mail war die Erinnerung nach sieben Tagen. Das ist die
+   falsche Reihenfolge und im Audit die Frage, wie Bekanntgabe sichergestellt ist
+   (ISO 27001 A.6.3, Klausel 7.3). */
+
+function _zielgruppeMailHtml(p) {
+  const url = `https://rms.dihag.de/?richtlinie=${encodeURIComponent(p.id)}`;
+  const wasTun = p.quizErforderlich
+    ? 'lesen, die Kenntnisnahme bestätigen und den kurzen Wissenstest bestehen'
+    : 'lesen und die Kenntnisnahme bestätigen';
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+    <p>Guten Tag,</p>
+    <p>ab sofort gilt ein neues Regelwerk:</p>
+    <p style="font-size:17px"><b>${esc(p.title)}</b><br>
+      <span style="color:#6b7280">Version ${esc(p.version)}${p.kategorie ? ' · ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ' · ' + esc(p.regelwerkTyp) : ''}</span></p>
+    ${p.beschreibung ? `<p>${esc(p.beschreibung)}</p>` : ''}
+    <p>${p.pflicht !== false ? `Bitte das Regelwerk <b>${wasTun}</b>.` : 'Das Regelwerk steht Ihnen zur Kenntnis bereit.'}
+       Das dauert meist wenige Minuten.</p>
+    <p style="margin:18px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht des DIHAG Regelwerk-Managements.
+      Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.</p>
+  </div>`;
+}
+
+/**
+ * Zielgruppe über ein veröffentlichtes Regelwerk informieren – über die
+ * hinterlegten Verteiler, nicht über Einzeladressen.
+ * @returns {boolean} true, wenn eine Mail rausging
+ */
+async function notifyZielgruppe(p, opts) {
+  const still = !!(opts && opts.still);
+  if (typeof mailsFuerZielgruppen !== 'function') return false;
+  const { adressen, fehlend } = mailsFuerZielgruppen(p.zielgruppen);
+  if (!adressen.length) {
+    if (!still) {
+      toast(`Für ${fehlend.length ? '„' + fehlend.join('", „') + '"' : 'diese Zielgruppe'} ist kein Verteiler hinterlegt `
+        + '– Einstellungen → Verteiler je Zielgruppe.', 'error');
+    }
+    return false;
+  }
+  try {
+    const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
+    await spSendMail(adressen, `Neues Regelwerk: ${p.title}`, _zielgruppeMailHtml(p),
+      att ? [att] : [], null, (typeof zielgruppenDomains === 'function') ? zielgruppenDomains() : []);
+    if (fehlend.length) {
+      toast(`Verschickt an ${adressen.length} Verteiler. Ohne Verteiler blieb: „${fehlend.join('", „')}".`, 'error');
+    } else if (!still) {
+      toast(`Zielgruppe informiert (${adressen.join(', ')}) ✓`, 'success');
+    }
+    return true;
+  } catch (e) {
+    toast('Bekanntgabe fehlgeschlagen: ' + e.message, 'error');
+    return false;
+  }
+}
+
+/** Bekanntgabe im Regelwerk vermerken (eigener Speichervorgang, damit sie im Audit steht). */
+async function zielgruppeBekanntgabeVermerken(id, adressen) {
+  const src = State.policies.find(x => x.id === id);
+  if (!src) return;
+  const p = JSON.parse(JSON.stringify(src));
+  p.bekanntgabeAm = new Date().toISOString();
+  historieAdd(p, 'Zielgruppe informiert',
+    `Bekanntgabe der Veröffentlichung an: ${adressen.join(', ')}`);
+  try { await spSavePolicy(p); await reloadData(); } catch (e) { /* die Mail ist raus – das zählt */ }
+}
+
+/** „Zielgruppe informieren" von Hand (Nachzügler, vergessene Bekanntgabe, neue Version). */
+async function zielgruppeInformieren(id) {
+  const p = State.policies.find(x => x.id === id);
+  if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
+  const { adressen, fehlend } = mailsFuerZielgruppen(p.zielgruppen);
+  if (!adressen.length) {
+    toast(`Kein Verteiler hinterlegt für „${fehlend.join('", „')}" – Einstellungen → Verteiler je Zielgruppe.`, 'error');
+    return;
+  }
+  const wieder = p.bekanntgabeAm ? `\n\nZuletzt bekanntgegeben am ${fmtDateTime ? fmtDateTime(p.bekanntgabeAm) : p.bekanntgabeAm}.` : '';
+  if (!await uiConfirm(`„${p.title}" an ${adressen.join(', ')} bekanntgeben?${wieder}`,
+    { title: 'Zielgruppe informieren', okLabel: 'Mail senden' })) return;
+  if (await notifyZielgruppe(p)) await zielgruppeBekanntgabeVermerken(id, adressen);
 }
 
 async function notifyPruefer(p) {

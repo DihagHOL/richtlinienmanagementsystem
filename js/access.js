@@ -27,6 +27,10 @@ const ACCESS_CONFIG_DEFAULT = {
   govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
   // Vertretungen: { "chef@dihag.com": { vertreter, von, bis } } – von/bis optional (leer = unbefristet)
   vertretungen: {},
+  // Verteiler je Zielgruppe: { "ALLE": "alle@dihag.com", "Produktion": "produktion@dihag.com" }
+  // Adressen von Verteiler- oder Sicherheitsgruppen – Exchange verteilt, die App
+  // schickt eine Mail statt hunderter Einzelnachrichten.
+  zielgruppenMails: {},
   // ── Mitbestimmung (Betriebsverfassung) ──
   kbrMail:          '',        // Konzernbetriebsrat – Empfänger für die Mitbestimmungsprüfung
   brMails:          {},        // { Werk-Code → BR-Mail }, z. B. { SHB: 'br@…' }
@@ -93,6 +97,7 @@ async function loadRuntimeAccessConfig() {
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
         vertretungen: (cfg.vertretungen && typeof cfg.vertretungen === 'object' && !Array.isArray(cfg.vertretungen)) ? cfg.vertretungen : {},
+        zielgruppenMails: (cfg.zielgruppenMails && typeof cfg.zielgruppenMails === 'object' && !Array.isArray(cfg.zielgruppenMails)) ? cfg.zielgruppenMails : {},
         kbrMail:           typeof cfg.kbrMail === 'string' ? cfg.kbrMail : '',
         brMails:           (cfg.brMails && typeof cfg.brMails === 'object' && !Array.isArray(cfg.brMails)) ? cfg.brMails : {},
         clevelMail:        typeof cfg.clevelMail === 'string' ? cfg.clevelMail : '',
@@ -129,6 +134,7 @@ function getAccessConfig() {
     probelaufUser: [...(c.probelaufUser || [])],
     govStrukturKoepfe: [...(c.govStrukturKoepfe || [])],
     vertretungen: JSON.parse(JSON.stringify(c.vertretungen || {})),
+    zielgruppenMails: JSON.parse(JSON.stringify(c.zielgruppenMails || {})),
     admins:     [...(c.admins || [])],
     genehmiger: [...(c.genehmiger || [])],
     roles:      [...getCompanyRoles()],
@@ -161,6 +167,49 @@ function getAccessConfig() {
 
 /** Positive Ganzzahl mit Fallback. */
 function _posInt(v, def) { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : def; }
+
+/* ── Verteiler je Zielgruppe ──
+   Ein veröffentlichtes Regelwerk soll die Betroffenen erreichen. Statt die
+   Zielgruppe in hunderte Einzeladressen aufzulösen, geht eine Mail an den
+   Verteiler der Gruppe – Exchange kennt die Mitglieder ohnehin, hält sie aktuell
+   und verteilt zuverlässiger als jede Empfängerschleife. */
+
+function getZielgruppenMails() {
+  const m = _cfg().zielgruppenMails;
+  return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+}
+
+/** Adresse des Verteilers einer Zielgruppe ('' = nicht hinterlegt). */
+function zielgruppenMail(rolle) {
+  const m = getZielgruppenMails();
+  const key = String(rolle || '').trim();
+  const treffer = m[key] || m[key.toLowerCase()]
+    || Object.entries(m).find(([k]) => k.toLowerCase() === key.toLowerCase())?.[1];
+  return String(treffer || '').trim().toLowerCase();
+}
+
+/**
+ * Verteiler für die Zielgruppen eines Regelwerks.
+ * @returns {{adressen: string[], fehlend: string[]}} fehlend = Zielgruppen ohne Verteiler
+ */
+function mailsFuerZielgruppen(zielgruppen) {
+  const zg = (Array.isArray(zielgruppen) && zielgruppen.length) ? zielgruppen.filter(Boolean) : [ZIELGRUPPE_ALLE];
+  // „Alle" schlägt alles andere: Wer alle meint, braucht keine Einzelverteiler.
+  const gemeint = zg.some(z => String(z).toUpperCase() === ZIELGRUPPE_ALLE) ? [ZIELGRUPPE_ALLE] : zg;
+  const adressen = [], fehlend = [];
+  for (const rolle of gemeint) {
+    const a = zielgruppenMail(rolle);
+    if (a) { if (!adressen.includes(a)) adressen.push(a); }
+    else fehlend.push(rolle);
+  }
+  return { adressen, fehlend };
+}
+
+/** Domains der hinterlegten Verteiler – admin-gepflegt, deshalb auch außerhalb der eigenen erlaubt. */
+function zielgruppenDomains() {
+  return [...new Set(Object.values(getZielgruppenMails())
+    .map(a => String(a || '').split('@').pop().trim().toLowerCase()).filter(Boolean))];
+}
 
 /* ═══════════════════════════════════════════════════
    Vertretung (Urlaub, Krankheit)

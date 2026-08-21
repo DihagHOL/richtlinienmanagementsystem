@@ -97,6 +97,8 @@ const POLICY_EXT_FIELDS = [
   { feld: 'videos',             spalte: '',                    json: true,  leer: [] },
   // Einmal-Token der laufenden Runde (Ein-Klick-Entscheidung aus der Mail)
   { feld: 'aktionToken',        spalte: '',                    json: true,  leer: null },
+  // Wann die Zielgruppe über die Veröffentlichung informiert wurde
+  { feld: 'bekanntgabeAm',      spalte: '',                    json: false, leer: '' },
 ];
 
 /** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,
