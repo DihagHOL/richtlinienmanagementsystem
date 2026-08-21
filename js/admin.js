@@ -13,8 +13,14 @@ let _editing = null;          // aktuell bearbeitetes Regelwerk
 let _edSecOpen = { pruef: false, frei: false, mit: false, hist: false };
 let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Regelwerk-Dashboard
 
-// Dokumentart eines Regelwerks (zentral – auch von den Konzepten genutzt)
-const REGELWERK_TYPEN = ['Handbuch', 'Richtlinie', 'Konzernrichtlinie', 'Konzernfachregelung', 'Arbeits-/Prozessanweisung', 'Leitfaden'];
+// Dokumentart eines Regelwerks – nur als Rückfall. Gepflegt wird sie als Spalte
+// der Governance-Struktur (js/govstruktur.js → regelwerkArten()).
+const REGELWERK_TYPEN = ['Handbuch', 'Policy', 'Konzernrichtlinie', 'Konzernfachregelung', 'Arbeits-/Prozessanweisung', 'Leitfaden', 'Weitere'];
+
+/** Die Dokumentenarten, wie sie im Editor und im Filter gelten. */
+function regelwerkTypen(aktuell) {
+  return (typeof regelwerkArten === 'function') ? regelwerkArten(aktuell) : REGELWERK_TYPEN;
+}
 
 // Nur als Rückfall, falls die Governance-Struktur (js/govstruktur.js) nicht geladen ist.
 const KATEGORIEN_FALLBACK = ['Allgemein', 'Compliance', 'Security / Cyber Security'];
@@ -195,8 +201,10 @@ function _fillAdminFilters() {
   const alle = [...(State.policies || []), ...(State.konzepte || [])];
   if (typEl) {
     const prev = typEl.value;
-    const typen = (typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : [])
-      .filter(t => alle.some(p => p.regelwerkTyp === t));
+    const bekannt = regelwerkTypen();
+    const vorhanden = [...new Set(alle.map(p => p.regelwerkTyp).filter(Boolean))];
+    const typen = bekannt.filter(t => vorhanden.includes(t))
+      .concat(vorhanden.filter(t => !bekannt.includes(t)));   // Altbestand hinten anhängen
     typEl.innerHTML = '<option value="">Alle Typen</option>' +
       typen.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
     if (prev && typen.includes(prev)) typEl.value = prev;
@@ -719,12 +727,18 @@ function openPolicyEditor(policyId) {
   renderPolicyEditor();
 }
 
+/** Kurze Erklärung zu einer Dokumentenart, wie sie in der Matrix steht. */
+function _artHinweis(t) {
+  return (typeof regelwerkArtHinweis === 'function') ? regelwerkArtHinweis(t) : '';
+}
+
 function renderPolicyEditor() {
   const p = _editing;
   // Kategorien aus der Governance-Struktur (dieselbe Systematik wie im Konzernregelwerk).
   // Sind sie noch nicht geladen, gilt der Startbestand – und sobald sie da sind,
   // zeichnet der Editor sich einmal neu.
   const cats = (typeof regelwerkKategorien === 'function') ? regelwerkKategorien(p.kategorie) : KATEGORIEN_FALLBACK;
+  const arten = regelwerkTypen(p.regelwerkTyp);
   if (typeof gsDatenGeladen === 'function' && !gsDatenGeladen() && typeof gsDatenLaden === 'function') {
     gsDatenLaden().then(() => { if (_editing) renderPolicyEditor(); });
   }
@@ -745,10 +759,13 @@ function renderPolicyEditor() {
         </div>
         <div class="form-group">
           <label>Dokumentenart <span class="req">*</span></label>
-          <select onchange="_editing.regelwerkTyp=this.value">
+          <select onchange="_editing.regelwerkTyp=this.value;renderPolicyEditor()">
             <option value="">– bitte wählen –</option>
-            ${REGELWERK_TYPEN.map(t => `<option ${t === p.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            ${arten.map(t => `<option ${t === p.regelwerkTyp ? 'selected' : ''} title="${esc(_artHinweis(t))}">${esc(t)}</option>`).join('')}
           </select>
+          <span class="field-hint">${p.regelwerkTyp && _artHinweis(p.regelwerkTyp)
+            ? esc(_artHinweis(p.regelwerkTyp))
+            : 'Ebene der Regelwerkspyramide – gepflegt in der <b>Governance-Struktur</b>.'}</span>
         </div>
         <div class="form-group">
           <label>Kategorie</label>
@@ -756,7 +773,7 @@ function renderPolicyEditor() {
             <option value="">– keine –</option>
             ${cats.map(c => `<option ${c === p.kategorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
-          <span class="field-hint">Aus der <b>Governance-Struktur</b> – dort werden die Kategorien gepflegt.</span>
+          <span class="field-hint">Themenfeld des Konzernregelwerks (Zeile der <b>Governance-Struktur</b>).</span>
         </div>
         <div class="form-group">
           <label>Version <span class="req">*</span></label>
@@ -1284,7 +1301,7 @@ async function savePolicy(newStatus) {
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
   // Die Dokumentenart steuert Nummernkreis, Ablage und Auswertung – ohne sie
   // landet ein Regelwerk in keiner Systematik. Deshalb Pflicht.
-  if (!(p.regelwerkTyp || '').trim()) { toast('Bitte die Dokumentenart wählen (z. B. Richtlinie, Handbuch).', 'error'); return; }
+  if (!(p.regelwerkTyp || '').trim()) { toast('Bitte die Dokumentenart wählen (z. B. Policy, Konzernrichtlinie).', 'error'); return; }
   if (!p.dokumentItemId && !p.dokumentUrl) { toast('Bitte ein Dokument zuordnen.', 'error'); return; }
   if (!Array.isArray(p.geltungsbereich) || !p.geltungsbereich.length) {
     toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return;

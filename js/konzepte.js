@@ -23,6 +23,18 @@ function konzeptKategorien(aktuell) {
     ? regelwerkKategorien(aktuell)
     : (typeof KATEGORIEN_FALLBACK !== 'undefined' ? KATEGORIEN_FALLBACK : ['Allgemein']);
 }
+/** Dokumentenarten – dieselbe Liste wie bei Regelwerken (Spalten der Governance-Struktur). */
+function konzeptArten(aktuell) {
+  return (typeof regelwerkTypen === 'function')
+    ? regelwerkTypen(aktuell)
+    : (typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : []);
+}
+
+/** Erklärung zur Dokumentenart, wie sie in der Matrix steht ('' = keine). */
+function konzeptArtHinweis(t) {
+  return (typeof regelwerkArtHinweis === 'function') ? regelwerkArtHinweis(t) : '';
+}
+
 const KONZEPT_PRIOS = [['hoch', 'Hoch'], ['mittel', 'Mittel'], ['niedrig', 'Niedrig']];
 
 function newKonzept() {
@@ -52,7 +64,7 @@ function newKonzept() {
 /** Pflichtfelder eines Konzepts prüfen. @returns Meldung oder '' (alles gut) */
 function konzeptPflichtfelderFehlen(k) {
   if (!k) return '';
-  if (!(k.regelwerkTyp || '').trim()) return 'Bitte den Typ (Dokumentart) wählen – z. B. Richtlinie oder Konzernrichtlinie.';
+  if (!(k.regelwerkTyp || '').trim()) return 'Bitte den Typ (Dokumentart) wählen – z. B. Policy oder Konzernrichtlinie.';
   if (!Array.isArray(k.geltungsbereich) || !k.geltungsbereich.length)
     return 'Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.';
   return '';
@@ -177,6 +189,11 @@ function openKonzeptEditor(id) {
 }
 
 function renderKonzeptEditor() {
+  // Systematik (Dokumentenart, Kategorie) kommt aus der Governance-Struktur.
+  // War der Reiter noch nicht offen, nachladen und einmal neu zeichnen.
+  if (typeof gsDatenGeladen === 'function' && !gsDatenGeladen() && typeof gsDatenLaden === 'function') {
+    gsDatenLaden().then(() => { if (_kEditing) renderKonzeptEditor(); });
+  }
   const k = _kEditing;
   const ko = k.konzept;
   const st = konzeptStatus(k);
@@ -196,10 +213,10 @@ function renderKonzeptEditor() {
           <input type="text" value="${esc(k.title)}" oninput="_kEditing.title=this.value" placeholder="z. B. Regelwerk zur Nutzung von KI">
         </div>
         <div class="form-group">
-          <label>Typ (Dokumentart) <span class="req">*</span></label>
+          <label>Dokumentenart <span class="req">*</span></label>
           <select onchange="_kEditing.regelwerkTyp=this.value">
             <option value="">– bitte wählen –</option>
-            ${(typeof REGELWERK_TYPEN !== 'undefined' ? REGELWERK_TYPEN : []).map(t => `<option ${t === k.regelwerkTyp ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            ${konzeptArten(k.regelwerkTyp).map(t => `<option ${t === k.regelwerkTyp ? 'selected' : ''} title="${esc(konzeptArtHinweis(t))}">${esc(t)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">

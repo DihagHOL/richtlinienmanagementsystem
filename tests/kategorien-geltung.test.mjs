@@ -61,16 +61,46 @@ w("_gsDaten.eintraege = [{ kategorie: 'Nachzügler', art: 'Policy', titel: 'X', 
 ok(w('regelwerkKategorien()').includes('Nachzügler'),
   'Eine Kategorie, an der Regelungen hängen, bleibt wählbar – auch ohne eigene Zeile');
 
+/* ── 1b) Dokumentenart kommt aus den Spalten derselben Matrix ──
+   „die kategorien sind oben“ – gemeint sind die Spaltenköpfe: die
+   Verbindlichkeitsebenen der Pyramide. Die standen fest im Code und wichen ab. */
+const arten = w('regelwerkArten()');
+ok(arten.length === 7 && arten[0] === 'Handbuch' && arten[1] === 'Policy',
+  `Die Ebenen der Pyramide, in ihrer Reihenfolge (${arten.length})`);
+ok(arten.includes('Konzernfachregelung') && arten.includes('Weitere'),
+  '„Weitere“ ist dabei – im festen Code fehlte sie');
+ok(!arten.includes('Richtlinie'), 'Und „Richtlinie“ heißt in der Matrix „Policy“');
+ok(w("regelwerkArten('Richtlinie')").includes('Richtlinie'),
+  'Ein Altbestand mit „Richtlinie“ bleibt wählbar – sonst spränge er still um');
+ok(w("regelwerkArten('policy').length") === 7, 'Groß-/Kleinschreibung erzeugt keine Dublette');
+ok(w("regelwerkArtHinweis('Policy')").startsWith('Strategischer Rahmen'),
+  'Die Erklärung aus der Matrix steht als Hilfe daneben');
+ok(w("regelwerkArtHinweis('gibt es nicht')") === '', 'Ohne Erklärung bleibt es leer');
+w("_gsDaten.arten = [{ key: 'Nur Handbuch', erklaerung: 'X' }]; _gsDaten.eintraege = [];");
+ok(w('regelwerkArten()').join('|') === 'Nur Handbuch' && w("regelwerkArtHinweis('nur handbuch')") === 'X',
+  'Wer die Spalten der Matrix ändert, ändert damit die Auswahl im Editor');
+
 /* ── 2) Eingebaut ── */
 ok(/const cats = \(typeof regelwerkKategorien === 'function'\) \? regelwerkKategorien\(p\.kategorie\)/.test(adm),
   'Der Regelwerk-Editor nutzt sie');
 ok(/gsDatenLaden\(\)\.then\(\(\) => \{ if \(_editing\) renderPolicyEditor\(\); \}\)/.test(adm),
   'Sind sie noch nicht geladen, zeichnet der Editor sich nach');
-ok(/Aus der <b>Governance-Struktur<\/b>/.test(adm), 'Und sagt, woher die Liste kommt');
+ok(/Themenfeld des Konzernregelwerks \(Zeile der <b>Governance-Struktur<\/b>\)/.test(adm),
+  'Und sagt, woher die Liste kommt – die Zeilen der Matrix');
 ok(/function konzeptKategorien/.test(kon) && /konzeptKategorien\(k\.kategorie\)/.test(kon),
   'Konzepte nutzen dieselbe Liste – sie werden ja zu Regelwerken');
 ok(!/'ISO 27001', 'NIS2', 'ISMS allgemein'/.test(adm + kon), 'Die feste Liste ist raus');
 ok(/const KATEGORIEN_FALLBACK/.test(adm), 'Ein Rückfall bleibt, falls die Struktur nicht geladen ist');
+ok(/const arten = regelwerkTypen\(p\.regelwerkTyp\)/.test(adm), 'Die Dokumentenart ebenso');
+ok(/function regelwerkTypen/.test(adm) && /regelwerkArten\(aktuell\)/.test(adm),
+  'Über einen Wrapper, damit der Rückfall erhalten bleibt');
+ok(/konzeptArten\(k\.regelwerkTyp\)/.test(kon) && /function konzeptArten/.test(kon),
+  'Konzepte nutzen dieselben Ebenen – sie werden ja zu Regelwerken');
+ok(/const vorhanden = \[\.\.\.new Set\(alle\.map\(p => p\.regelwerkTyp\)/.test(adm)
+  && /Altbestand hinten anhängen/.test(adm),
+  'Der Filter behält eine Art, die es nur noch im Altbestand gibt');
+ok(/if \(typeof gsDatenGeladen === 'function' && !gsDatenGeladen\(\)/.test(kon),
+  'Auch der Konzept-Editor lädt die Struktur nach, wenn nötig');
 ok(/<option value="">– keine –<\/option>/.test(adm), 'Keine Kategorie ist ebenfalls erlaubt');
 
 /* Der Normbezug hing an der Kategorie – das musste mit umgestellt werden */

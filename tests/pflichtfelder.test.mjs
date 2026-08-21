@@ -57,7 +57,7 @@ ok(posGeltung > -1 && posDokument > -1 && posGeltung > posDokument,
 /* ── Kennzeichnung in der Oberfläche ── */
 ok(/Geltungsbereich \(Standorte\) <span class="req">\*<\/span>/.test(adm), 'Geltungsbereich ist mit * gekennzeichnet');
 ok(/Pflichtangabe/.test(adm), 'Hinweistext nennt die Pflicht');
-ok(/Typ \(Dokumentart\) <span class="req">\*<\/span>/.test(kjs), 'Konzept-Typ ist mit * gekennzeichnet');
+ok(/Dokumentenart <span class="req">\*<\/span>/.test(kjs), 'Konzept-Dokumentenart ist mit * gekennzeichnet');
 
 /* ── Dokumentenart ist Pflicht ──
    Sie steuert Nummernkreis, Ablage und Auswertung; ohne sie fällt ein Regelwerk

@@ -175,6 +175,28 @@ function gsFilterZuruecksetzen() {
 /** Sind die Daten schon da? (ohne sie nachzuladen) */
 function gsDatenGeladen() { return _gsGeladen; }
 
+/** Dokumentenarten für den Regelwerk- und Konzept-Editor: die <b>Spaltenköpfe</b>
+ *  der Matrix, also die Verbindlichkeitsebenen der Regelwerkspyramide
+ *  (Handbuch, Policy, Konzernrichtlinie, …). Sie standen bis dahin als feste Liste
+ *  im Code und wichen ab („Richtlinie“ statt „Policy“, „Weitere“ fehlte).
+ *  Ein bereits gesetzter Wert bleibt wählbar, auch wenn er dort nicht (mehr)
+ *  steht – sonst spränge er beim nächsten Speichern still um. */
+function regelwerkArten(aktuell) {
+  const basis = (typeof gsArten === 'function') ? gsArten() : GOV_ARTEN;
+  const out = basis.map(a => String((a && a.key) || '').trim()).filter(Boolean);
+  const a = String(aktuell || '').trim();
+  if (a && !out.some(k => k.toLowerCase() === a.toLowerCase())) out.push(a);
+  return out;
+}
+
+/** Erklärung zu einer Dokumentenart ('' = keine hinterlegt) – als Hilfe im Editor. */
+function regelwerkArtHinweis(key) {
+  const t = String(key || '').trim().toLowerCase();
+  const basis = (typeof gsArten === 'function') ? gsArten() : GOV_ARTEN;
+  const a = basis.find(x => String((x && x.key) || '').trim().toLowerCase() === t);
+  return (a && a.erklaerung) || '';
+}
+
 /**
  * Kategorien für die Klassifikation eines Regelwerks.
  * Sie kommen aus der Governance-Struktur – dieselbe Systematik, in der das
