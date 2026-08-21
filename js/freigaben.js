@@ -627,12 +627,21 @@ async function notifyPruefer(p) {
   if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error'); return; }
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
-    await spSendMail(pruefer, `Neues Regelwerk zur Sichtung: ${p.title}`,
-      _wfMailHtml('Neues Regelwerk – bitte um Sichtung und ggf. Anmerkung', p,
-        'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
-        att ? att.name : '', 'pruefung'),
-      att ? [att] : []);
-    toast('Prüfer benachrichtigt ✓' + (att ? ' (mit Dokument)' : ''), 'success');
+    // Einzelversand: Nur so trägt der Link die Adresse des Empfängers – und nur dann
+    // ist die Entscheidung aus der Mail wirklich ein Klick.
+    let sent = 0, letzterFehler = '';
+    for (const empf of pruefer) {
+      try {
+        await spSendMail([empf], `Neues Regelwerk zur Sichtung: ${p.title}`,
+          _wfMailHtml('Neues Regelwerk – bitte um Sichtung und ggf. Anmerkung', p,
+            'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
+            att ? att.name : '', 'pruefung', empf),
+          att ? [att] : []);
+        sent++;
+      } catch (e) { letzterFehler = e.message; console.warn('Prüfer-Mail an', empf, e.message); }
+    }
+    if (!sent) throw new Error(letzterFehler || 'kein Empfänger erreicht');
+    toast(`Prüfer benachrichtigt (${sent}) ✓` + (att ? ' (mit Dokument)' : ''), 'success');
   } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
 }
 async function notifyGL(p) {
@@ -645,11 +654,16 @@ async function notifyGL(p) {
   if (!gl.length) return;
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
-    await spSendMail(gl, `Regelwerk zur Freigabe: ${p.title}`,
-      _wfMailHtml('Regelwerk ist konform – bitte um Freigabe', p,
-        'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
-        att ? att.name : '', 'freigabe'),
-      att ? [att] : []);
+    // Einzelversand – jede Freigeberin bekommt ihren eigenen Ein-Klick-Link.
+    for (const empf of gl) {
+      try {
+        await spSendMail([empf], `Regelwerk zur Freigabe: ${p.title}`,
+          _wfMailHtml('Regelwerk ist konform – bitte um Freigabe', p,
+            'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
+            att ? att.name : '', 'freigabe', empf),
+          att ? [att] : []);
+      } catch (e) { console.warn('GL-Mail an', empf, e.message); }
+    }
   } catch (e) { console.warn('GL-Mail:', e.message); }
 }
 
@@ -795,10 +809,28 @@ const _ekSchliessen = `<div style="margin-top:16px"><button class="btn btn-outli
  * Landung aus der Mail: prüfen, ausführen, Ergebnis zeigen.
  * Ohne gültiges Token bleibt es beim gewohnten Weg mit Rückfrage.
  */
-async function einKlickAktion(id, aktion, token) {
+async function einKlickAktion(id, aktion, token, adressatAusLink) {
   const p = State.policies.find(x => x.id === id);
   if (!p) { _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
     <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>${_ekSchliessen}`); return; }
+
+  // Der Link nennt seinen Adressaten. Weil der Konto-Cache über Tabs geteilt wird,
+  // könnte an einem Rechner sonst die Entscheidung unter einem fremden Namen landen –
+  // etwa nach einer weitergeleiteten Mail mit der Bitte, kurz einzuspringen.
+  const adressat = String(adressatAusLink || '').trim().toLowerCase()
+    || ((typeof getLoginHint === 'function') ? getLoginHint() : '');
+  const ich = String((State.user && State.user.upn) || '').toLowerCase();
+  if (adressat && ich && adressat !== ich) {
+    _ekPanel(`<h3>Dieser Link war an jemand anderen adressiert</h3>
+      <p style="line-height:1.55">Angemeldet sind Sie als <b>${esc(ich)}</b>, die Mail ging an
+      <b>${esc(adressat)}</b>. Eine Entscheidung stünde sonst unter dem falschen Namen.</p>
+      <p style="line-height:1.55">Sind Sie <b>eingesprungen</b>, tragen Sie die Vertretung in den
+      Einstellungen ein und entscheiden im Portal – dann steht es auch so im Protokoll.</p>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="authAnmeldenAls('${esc(adressat)}')">Als ${esc(adressat)} anmelden</button>
+        <button class="btn btn-outline" onclick="closeModal();focusPolicyCard('${esc(id)}')">Im Portal öffnen</button></div>`);
+    return;
+  }
 
   const art = (aktion === 'freigeben' || aktion === 'zurueck') ? 'freigabe' : 'pruefung';
   const erwartet = _EK_ERWARTET[aktion] || [];
@@ -880,13 +912,16 @@ async function freigabeZuruecknehmen(id) {
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 
-function _wfMailHtml(headline, p, text, attachmentName, phase) {
+function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
   const base = 'https://rms.dihag.de/';
   const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
   // Das Token macht aus dem Link eine Ein-Klick-Entscheidung – ohne ihn bleibt es
   // beim gewohnten Weg mit Rückfrage (z. B. bei Mails aus einer früheren Runde).
   const tok = (p.aktionToken && p.aktionToken.wert) ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
-  const act = (a) => `${url}&aktion=${a}${tok}`;
+  // Der Adressat steht im Link: Microsoft meldet ihn ohne Kontoauswahl an, und die
+  // App merkt es, wenn jemand anders auf den weitergeleiteten Link klickt.
+  const hint = String(empfaenger || '').trim() ? `&u=${encodeURIComponent(String(empfaenger).trim())}` : '';
+  const act = (a) => `${url}&aktion=${a}${tok}${hint}`;
   const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
   const actions = phase === 'freigabe'
     ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')

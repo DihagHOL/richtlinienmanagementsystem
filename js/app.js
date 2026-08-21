@@ -159,7 +159,11 @@ async function applyDeepLinkOrDefault() {
     const aktion = (params.get('aktion') || '').toLowerCase();
     const token = params.get('t') || '';
     // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
-    if (aktion && token && typeof einKlickAktion === 'function') { await einKlickAktion(deepId, aktion, token); return; }
+    // Der Adressat kommt aus demselben Parametersatz: Nach einem Login-Redirect steht
+    // die Ursprungs-URL nur noch hier, nicht mehr zwingend in location.search.
+    if (aktion && token && typeof einKlickAktion === 'function') {
+      await einKlickAktion(deepId, aktion, token, params.get('u') || ''); return;
+    }
     if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {

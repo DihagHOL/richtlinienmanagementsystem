@@ -135,7 +135,7 @@ ok(g({ DatenJson: JSON.stringify({ geltungsbereich: ['ALLE'] }) }) === 'Alle Sta
 ok(g({ GeltungsbereichJson: JSON.stringify(['EIS']) }) === 'EIS', 'Aus der Einzelspalte (Altbestand)');
 ok(g({}) === '' && g({ DatenJson: 'kaputt' }) === '', 'Ohne Angabe oder bei kaputten Daten leer');
 ok(/\$\{geltung \? `<p><b>Geltungsbereich:<\/b>/.test(cron), 'Die Erinnerungs-Mail nennt ihn');
-ok(/geltungsbereich\(f\)\), att \? \[att\] : \[\]/.test(cron), 'Er wird beim Versand mitgegeben');
+ok(/tok, geltungsbereich\(f\), empf\)/.test(cron), 'Er wird beim Versand mitgegeben');
 ok(/geltung: geltungsbereich\(f\)/.test(cron) && /gilt für ' \+ esc\(x\.geltung\)/.test(cron),
   'Auch die Kenntnisnahme-Erinnerung führt ihn je Regelwerk mit');
 

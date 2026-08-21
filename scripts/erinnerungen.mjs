@@ -244,11 +244,13 @@ function abgestimmtVon(votes) {
 }
 
 /** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
-function policyLink(id, aktion, token) {
+function policyLink(id, aktion, token, empf) {
   const sep = APP_URL.includes('?') ? '&' : '?';
   return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`
     + (aktion ? '&aktion=' + aktion : '')
-    + (aktion && token ? '&t=' + encodeURIComponent(token) : '');
+    + (aktion && token ? '&t=' + encodeURIComponent(token) : '')
+    // Adressat im Link: Microsoft meldet ihn ohne Kontoauswahl an.
+    + (aktion && empf ? '&u=' + encodeURIComponent(empf) : '');
 }
 
 /** Geltungsbereich als Text ('' = nicht gepflegt). Steht im Sammelfeld DatenJson,
@@ -282,7 +284,7 @@ function konzeptLink(id, aktion) {
 
 const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 
-function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token, geltung) {
+function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token, geltung, empf) {
   const konzept = phase === 'Konzeptprüfung';
   const link = konzept ? konzeptLink(id) : policyLink(id);
   const actions = konzept
@@ -290,8 +292,8 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
       + _btn(konzeptLink(id, 'zurueckstellen'), '#64748b', '⏸ Zurückstellen')
       + _btn(konzeptLink(id, 'ablehnen'), '#dc2626', '✗ Ablehnen')
     : phase === 'Freigabe'
-      ? _btn(policyLink(id, 'freigeben', token), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token), '#dc2626', '✗ Zurück (nicht konform)')
-      : _btn(policyLink(id, 'konform', token), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token), '#dc2626', '✗ Nicht konform');
+      ? _btn(policyLink(id, 'freigeben', token, empf), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token, empf), '#dc2626', '✗ Zurück (nicht konform)')
+      : _btn(policyLink(id, 'konform', token, empf), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token, empf), '#dc2626', '✗ Nicht konform');
   const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
@@ -519,18 +521,26 @@ function kenntnisEskalationHtml(posten) {
     if (!pending.length) { console.log(`• ${title} [${phase}] – ${tage}d, alle haben bereits reagiert`); continue; }
 
     const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
-    const to = eskaliert ? [...pending, eskalationMail] : pending;
     const docUrl = typeof f.DokumentUrl === 'string' ? f.DokumentUrl : ((f.DokumentUrl && f.DokumentUrl.Url) || '');
     console.log(`   doc-Felder: driveId=${f.DokumentDriveId ? 'ja' : 'nein'}, itemId=${f.DokumentItemId ? 'ja' : 'nein'}, url=${docUrl ? 'ja' : 'nein'}, name=${f.DokumentName || '-'}`);
     const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName, docUrl);
     console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}${att ? ' (+Anhang)' : ''}`);
     // Bei der Mitbestimmung sind die Empfänger admin-gepflegte BR-Adressen –
     // sie dürfen auch auf Gruppengesellschafts-Domains liegen.
-    const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
-      mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : '',
-        aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung'), geltungsbereich(f)), att ? [att] : [],
-      phase === 'Mitbestimmung' ? roleRecipients : []);
-    if (ok) sent++;
+    // Einzelversand: Der Ein-Klick-Link trägt die Adresse des Empfängers, sonst müsste
+    // sich jeder erst anmelden. Die Eskalation geht zusätzlich raus – ohne persönlichen
+    // Link, sie entscheidet ja nicht.
+    const tok = aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung');
+    const bau = (empf) => mailHtml(it.id, title, phase, tage, pending, eskaliert,
+      att ? att.name : '', tok, geltungsbereich(f), empf);
+    const erlaubt = phase === 'Mitbestimmung' ? roleRecipients : [];
+    let zugestellt = 0;
+    for (const empf of pending) {
+      if (await sendMail([empf], `Erinnerung: ${phase} – ${title}`, bau(empf), att ? [att] : [], erlaubt)) zugestellt++;
+    }
+    if (eskaliert && await sendMail([eskalationMail], `Erinnerung: ${phase} – ${title}`,
+      bau(''), att ? [att] : [], erlaubt)) zugestellt++;
+    if (zugestellt) sent++;
   }
 
   // ── Offene Kenntnisnahmen: Erinnerung an die Mitarbeitenden ──

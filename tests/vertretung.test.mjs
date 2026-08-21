@@ -162,7 +162,8 @@ ok(/function freigabeZuruecknehmen/.test(fg) && /Freigabe zurückgenommen/.test(
   'Ein Fehlklick lässt sich zurücknehmen – protokolliert');
 
 ok(/function aktionToken\(f, art\)/.test(cron), 'Der Cron liest das Token aus dem Sammelfeld');
-ok(/policyLink\(id, 'freigeben', token\)/.test(cron), 'Und hängt es an seine Erinnerungs-Links');
+ok(/policyLink\(id, 'freigeben', token, empf\)/.test(cron),
+  'Und hängt es an seine Erinnerungs-Links – samt Adressat');
 ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe' : 'pruefung'\)/.test(cron), 'Passend zur Etappe');
 
 /* ── 8) Was die Entscheidung aus der Mail absichert ── */

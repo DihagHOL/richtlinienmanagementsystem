@@ -33,6 +33,38 @@ let _msal = null;
 let _account = null;
 let _postAuthCb = null;
 
+/**
+ * Anmelde-Hinweis aus dem Link (?u=…). Entscheidungs-Mails tragen die Adresse des
+ * Empfängers – damit trifft die Anmeldung sofort das richtige Konto (Microsoft zeigt
+ * keine Kontoauswahl), und eine Entscheidung kann nicht unter einem fremden Namen
+ * landen, wenn im Browser mehrere Konten liegen.
+ */
+function getLoginHint() {
+  try {
+    // Nach dem Login-Redirect kann die Ursprungs-URL verloren sein – app.js sichert
+    // sie vorher, derselbe Vorrat gilt hier.
+    let such = location.search;
+    try { such = sessionStorage.getItem('rms_deeplink') || such; } catch (e) { /* gesperrt */ }
+    const u = (new URLSearchParams(such).get('u') || '').trim().toLowerCase();
+    // Bewusst enger als das, was als E-Mail zulässig wäre: Der Wert landet in
+    // einem onclick-Attribut. Anführungszeichen und Winkelklammern haben hier
+    // nichts zu suchen.
+    return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(u) ? u : '';
+  } catch (e) { return ''; }
+}
+
+/** Bewusst mit einem anderen Konto anmelden (der Link ging an jemand anderen). */
+function authAnmeldenAls(upn) {
+  if (!_msal) return;
+  const hint = String(upn || '').trim();
+  _msal.loginRedirect({
+    scopes:    _LOGIN_SCOPES,
+    loginHint: hint || undefined,
+    prompt:    hint ? undefined : 'select_account',
+    state:     location.pathname + location.search,
+  });
+}
+
 /** Callback registrieren, der nach erfolgreichem Login (mit Account) aufgerufen wird. */
 function onAuthReady(cb) { _postAuthCb = cb; }
 
@@ -45,7 +77,12 @@ async function authInit() {
       postLogoutRedirectUri: _AUTH.redirectUri,
     },
     cache: {
-      cacheLocation:          'sessionStorage',
+      // localStorage statt sessionStorage: Ein Klick aus Outlook öffnet einen NEUEN
+      // Tab. Mit sessionStorage ist dort kein Konto bekannt – jede Entscheidung liefe
+      // erst über die Microsoft-Anmeldeseite, und genau das soll sie nicht.
+      // Preis: Die Anmeldung überlebt das Schließen des Browsers; an einem geteilten
+      // Rechner bleibt das Konto angemeldet – wie bei Outlook und Teams auch.
+      cacheLocation:          'localStorage',
       storeAuthStateInCookie: true,
     },
   });
@@ -71,19 +108,34 @@ async function authInit() {
   }
 
   const accounts = _msal.getAllAccounts();
+  const hint = getLoginHint();
 
-  if (!_account && accounts.length === 0) {
-    // Nicht angemeldet → Microsoft-Login starten. Alle Scopes gleich mitanfordern
-    // (Consent einmalig) und KEIN prompt:'select_account' → stiller SSO-Login,
-    // wenn bereits eine Microsoft-365-Sitzung besteht (keine „Ja/Nein"-Rückfrage).
-    await _msal.loginRedirect({
-      scopes: _LOGIN_SCOPES,
-      state:  location.pathname + location.search,
-    });
-    return;
+  if (!_account && accounts.length) {
+    // Der Konto-Cache wird über Tabs geteilt und kann mehrere Konten enthalten.
+    // Kommt der Aufruf aus einer Entscheidungs-Mail, zählt deren Adressat.
+    _account = (hint && accounts.find(a => (a.username || '').toLowerCase() === hint))
+      || _msal.getActiveAccount() || accounts[0];
   }
 
-  if (!_account) _account = accounts[0];
+  if (!_account) {
+    // Noch kein Konto im Browser. Erst stumm versuchen (kein sichtbarer Umweg über
+    // die Microsoft-Seite), sonst der gewohnte Redirect – ohne prompt:'select_account',
+    // damit angemeldete DIHAG-Nutzer ohne Rückfrage durchkommen.
+    if (hint) {
+      try {
+        const r = await _msal.ssoSilent({ scopes: _LOGIN_SCOPES, loginHint: hint });
+        if (r && r.account) _account = r.account;
+      } catch (e) { /* kein stiller Weg – dann eben über die Anmeldeseite */ }
+    }
+    if (!_account) {
+      await _msal.loginRedirect({
+        scopes:    _LOGIN_SCOPES,
+        loginHint: hint || undefined,   // spart die Kontoauswahl
+        state:     location.pathname + location.search,
+      });
+      return;
+    }
+  }
   _msal.setActiveAccount(_account);
 
   _renderUser(_account);
