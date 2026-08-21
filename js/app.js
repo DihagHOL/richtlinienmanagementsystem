@@ -418,7 +418,7 @@ async function openDetail(policyId) {
         <div id="doc-frame-host"><div class="doc-loading">Vorschau wird geladen …</div></div>
       </div>
       ${renderLernvideos(p)}
-      <div id="ack-host">${renderAckCard(p, a, st)}</div>
+      <div id="ack-host" class="detail-status">${renderAckCard(p, a, st)}</div>
     </div>`;
 
   loadPreview(p);

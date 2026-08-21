@@ -249,7 +249,14 @@ a { color: inherit; }
 .detail-header h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; }
 .detail-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+/* Der Status gehört neben das Dokument – dort wird gelesen und dort wird bestätigt.
+   Ohne die feste Zuweisung schiebt ein Lernvideo (spannt beide Spalten) die Karte
+   in die nächste Zeile und damit unter das Dokument. */
+.detail-status { grid-column: 2; grid-row: 1; }
+@media (max-width: 900px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .detail-status { grid-column: 1; grid-row: auto; }
+}
 
 /* ── Document preview ── */
 .doc-frame-wrap { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; overflow: hidden; }

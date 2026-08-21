@@ -76,6 +76,19 @@ ok(/\.filter\(v => v && String\(v\.url \|\| ''\)\.trim\(\)\)/.test(app), 'Leere 
 const css = lies('css/style.css');
 ok(/\.lernvideo-rahmen \{[^}]*padding-top: 56\.25%/.test(css), 'Der Rahmen behält 16:9, egal wie breit');
 
+/* ── 4a) Das Video darf den Status nicht verdrängen ──
+   Die Detailansicht ist ein Raster: Dokument links, Status rechts. Das Video
+   spannt beide Spalten – ohne feste Zuweisung rutschte die Statuskarte dadurch
+   in die dritte Zeile, also unter das Video statt neben das Dokument. */
+ok(/\.detail-grid \{[^}]*grid-template-columns: 1fr 320px/.test(css), 'Detailansicht: zwei Spalten');
+ok(/\.detail-status \{ grid-column: 2; grid-row: 1; \}/.test(css),
+  'Die Statuskarte sitzt fest in Spalte 2, Zeile 1 – neben dem Dokument');
+ok(/\.lernvideo-wrap \{[^}]*grid-column: 1 \/ -1/.test(css), 'Das Video spannt weiterhin die volle Breite');
+const eng = css.slice(css.indexOf('@media (max-width: 900px) {\n  .detail-grid'));
+ok(/\.detail-status \{ grid-column: 1; grid-row: auto; \}/.test(eng.slice(0, 300)),
+  'Auf schmalen Geräten wird die Zuweisung wieder aufgehoben – sonst entstünde eine zweite Spalte');
+ok(/<div id="ack-host" class="detail-status">/.test(app), 'Die Leseansicht vergibt die Klasse');
+
 /* ── 5) Dokumentation ── */
 const doku = lies('js/dokumentation.js');
 ok(/sec\('wissenstest', 'Wissenstest & Lernvideos'/.test(doku), 'Die Dokumentation hat einen eigenen Abschnitt');
