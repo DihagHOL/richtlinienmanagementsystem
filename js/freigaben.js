@@ -427,11 +427,14 @@ async function markFreigabe(policyId) {
       _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
       // Bekanntgabe: bewusst mit Rückfrage. Eine reine Korrekturversion muss nicht
       // die halbe Belegschaft erreichen – die Entscheidung trifft, wer freigibt.
-      const ziel = (typeof mailsFuerZielgruppen === 'function') ? mailsFuerZielgruppen(p.zielgruppen) : { adressen: [] };
+      const ziel = (typeof mailsFuerZielgruppen === 'function') ? mailsFuerZielgruppen(p.zielgruppen) : { adressen: [], fehlend: [] };
       if (ziel.adressen.length) {
-        if (await uiConfirm(`Zielgruppe jetzt über „${p.title}" informieren?\n\nVerteiler: ${ziel.adressen.join(', ')}`,
-          { title: 'Veröffentlichung bekanntgeben', okLabel: 'Mail senden', cancelLabel: 'Später' })) {
-          if (await notifyZielgruppe(p)) await zielgruppeBekanntgabeVermerken(p.id, ziel.adressen);
+        const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
+        if (await zielgruppeBekanntgabeDialog(p, ziel, { dokumentName: att ? att.name : '' })) {
+          if (await notifyZielgruppe(p, { still: true })) {
+            toast(`Zielgruppe informiert (${ziel.adressen.join(', ')}) ✓`, 'success');
+            await zielgruppeBekanntgabeVermerken(p.id, ziel.adressen);
+          }
         }
       } else if (typeof toast === 'function') {
         toast('Veröffentlicht. Für die Bekanntgabe fehlt ein Verteiler – Einstellungen → Verteiler je Zielgruppe.', 'error');
@@ -463,6 +466,84 @@ function _zielgruppeMailHtml(p) {
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht des DIHAG Regelwerk-Managements.
       Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.</p>
   </div>`;
+}
+
+/* ── Rückfrage vor der Bekanntgabe ──
+   Eine Mail an mehrere hundert Leute verdient mehr als eine Textzeile: Wer sie
+   bekommt, was drinsteht, ob das Dokument dranhängt – und die Möglichkeit,
+   vorher hineinzusehen. Wer das einmal gesehen hat, klickt beim nächsten Mal
+   ruhiger auf „Jetzt bekanntgeben". */
+
+let _bgAntwort = null;
+
+function bgEntscheiden(ja) {
+  closeModal();
+  const antwort = _bgAntwort;
+  _bgAntwort = null;
+  if (antwort) antwort(!!ja);
+}
+
+/** @returns {Promise<boolean>} true = senden */
+function zielgruppeBekanntgabeDialog(p, ziel, opts) {
+  const o = opts || {};
+  return new Promise((resolve) => {
+    _bgAntwort = resolve;
+    const zg = (p.zielgruppen && p.zielgruppen.length) ? p.zielgruppen : ['ALLE'];
+    const chip = (t, farbe, schrift) => `<span style="display:inline-block;background:${farbe || '#eef2ff'};
+      color:${schrift || '#312e81'};border-radius:999px;padding:3px 10px;font-size:.78rem;font-weight:600;
+      margin:0 6px 6px 0">${esc(t)}</span>`;
+    const zeile = (label, inhalt) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border-2)">
+      <span style="flex:0 0 130px;color:var(--c-muted);font-size:.83rem">${esc(label)}</span>
+      <span style="flex:1;min-width:0;font-size:.86rem">${inhalt}</span></div>`;
+
+    const empfaenger = ziel.adressen.map(a => chip('📧 ' + a, '#dcfce7', '#166534')).join('');
+    const fehlend = ziel.fehlend.length
+      ? `<div class="col-warning" style="display:block;margin-top:10px">
+           Für ${ziel.fehlend.map(f => '<b>' + esc(f) + '</b>').join(', ')} ist <b>kein Verteiler</b> hinterlegt –
+           diese Gruppe erhält nichts. Nachtragen unter <i>Einstellungen → Verteiler je Zielgruppe</i>.</div>`
+      : '';
+    const dokument = o.dokumentName
+      ? `📎 ${esc(o.dokumentName)} <span class="field-hint">hängt an der Mail</span>`
+      : '<span class="field-hint">kein Anhang – die Mail verlinkt auf das Regelwerk</span>';
+    const wieder = p.bekanntgabeAm
+      ? `<div class="field-hint" style="margin-top:10px">⏱ Bereits bekanntgegeben am
+         <b>${typeof fmtDateTime === 'function' ? esc(fmtDateTime(p.bekanntgabeAm)) : esc(p.bekanntgabeAm)}</b> –
+         diese Nachricht geht erneut an alle.</div>`
+      : '';
+
+    openModal(`
+      <div class="modal-header">
+        <h3>📣 Veröffentlichung bekanntgeben</h3>
+        <button class="modal-close" onclick="bgEntscheiden(false)">×</button>
+      </div>
+      <div class="modal-body">
+        ${zeile('Regelwerk', `<b>${esc(p.title)}</b> <span class="field-hint">Version ${esc(p.version)}${p.regelwerkTyp ? ' · ' + esc(p.regelwerkTyp) : ''}</span>`)}
+        ${zeile('Zielgruppe', zg.map(z => chip(z === 'ALLE' ? 'Alle Mitarbeitenden' : z)).join(''))}
+        ${zeile('Geht an', empfaenger || '<span class="field-hint">–</span>')}
+        ${zeile('Anhang', dokument)}
+        ${zeile('Zu erledigen', p.pflicht !== false
+          ? (p.quizErforderlich ? 'Kenntnisnahme <b>und</b> Wissenstest' : 'Kenntnisnahme')
+          : '<span class="field-hint">freiwillige Lektüre</span>')}
+        ${fehlend}${wieder}
+        <details style="margin-top:14px">
+          <summary style="cursor:pointer;font-weight:600;font-size:.86rem">So sieht die Nachricht aus</summary>
+          <div style="border:1px solid var(--c-border);border-radius:10px;padding:14px;margin-top:8px;
+            max-height:280px;overflow:auto;background:#fff">
+            <div style="font-size:.78rem;color:var(--c-muted);margin-bottom:8px">
+              Betreff: <b>Neues Regelwerk: ${esc(p.title)}</b></div>
+            ${_zielgruppeMailHtml(p)}
+          </div>
+        </details>
+        <div class="field-hint" style="margin-top:12px">
+          Verschickt wird <b>eine</b> Mail je Verteiler – wer dazugehört, weiß Exchange.
+          Zeitpunkt und Empfänger landen in der Historie des Regelwerks.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="bgEntscheiden(false)">${o.nachtraeglich ? 'Abbrechen' : 'Später'}</button>
+        <button class="btn btn-primary" onclick="bgEntscheiden(true)">📣 Jetzt bekanntgeben</button>
+      </div>`, true, { label: 'Veröffentlichung bekanntgeben' });
+  });
 }
 
 /**
@@ -517,10 +598,13 @@ async function zielgruppeInformieren(id) {
     toast(`Kein Verteiler hinterlegt für „${fehlend.join('", „')}" – Einstellungen → Verteiler je Zielgruppe.`, 'error');
     return;
   }
-  const wieder = p.bekanntgabeAm ? `\n\nZuletzt bekanntgegeben am ${fmtDateTime ? fmtDateTime(p.bekanntgabeAm) : p.bekanntgabeAm}.` : '';
-  if (!await uiConfirm(`„${p.title}" an ${adressen.join(', ')} bekanntgeben?${wieder}`,
-    { title: 'Zielgruppe informieren', okLabel: 'Mail senden' })) return;
-  if (await notifyZielgruppe(p)) await zielgruppeBekanntgabeVermerken(id, adressen);
+  const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
+  if (!await zielgruppeBekanntgabeDialog(p, { adressen, fehlend },
+    { dokumentName: att ? att.name : '', nachtraeglich: true })) return;
+  if (await notifyZielgruppe(p, { still: true })) {
+    toast(`Zielgruppe informiert (${adressen.join(', ')}) ✓`, 'success');
+    await zielgruppeBekanntgabeVermerken(id, adressen);
+  }
 }
 
 async function notifyPruefer(p) {

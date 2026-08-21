@@ -77,15 +77,30 @@ ok(/weil dieses Regelwerk für Ihren Bereich gilt/.test(html), 'Sie erklärt, wa
 
 /* ── 3) Beim Veröffentlichen ── */
 const beim = fg.slice(fg.indexOf('if (published) {'), fg.indexOf('async function notifyPruefer'));
-ok(/uiConfirm\(`Zielgruppe jetzt über/.test(beim), 'Beim Veröffentlichen wird gefragt, nicht einfach verschickt');
-ok(/Verteiler: \$\{ziel\.adressen\.join\(', '\)\}/.test(beim), 'Die Rückfrage nennt die Empfänger');
-ok(/cancelLabel: 'Später'/.test(beim), 'Und lässt sich vertagen');
+ok(/zielgruppeBekanntgabeDialog\(p, ziel/.test(beim), 'Beim Veröffentlichen wird gefragt, nicht einfach verschickt');
+ok(/dokumentName: att \? att\.name : ''/.test(beim), 'Der Dialog weiß, ob das Dokument anhängt');
+
+/* Der Dialog selbst: Empfänger, Anhang, Vorschau, Ausstieg */
+const dlg = fg.slice(fg.indexOf('function zielgruppeBekanntgabeDialog'),
+  fg.indexOf('async function notifyZielgruppe'));
+ok(/Geht an/.test(dlg) && /ziel\.adressen\.map\(a => chip/.test(dlg), 'Er zeigt die Verteiler als Empfänger');
+ok(/Zielgruppe/.test(dlg) && /Alle Mitarbeitenden/.test(dlg), 'Und die Zielgruppen im Klartext');
+ok(/kein Verteiler/.test(dlg) && /col-warning/.test(dlg), 'Fehlende Verteiler stehen als Warnung darin');
+ok(/So sieht die Nachricht aus/.test(dlg) && /_zielgruppeMailHtml\(p\)/.test(dlg),
+  'Die fertige Mail lässt sich vorher ansehen');
+ok(/Betreff: <b>Neues Regelwerk/.test(dlg), 'Samt Betreff');
+ok(/Kenntnisnahme <b>und<\/b> Wissenstest/.test(dlg), 'Er sagt, was die Empfänger erledigen müssen');
+ok(/Bereits bekanntgegeben am/.test(dlg), 'Beim zweiten Mal steht dabei, wann sie schon lief');
+ok(/bgEntscheiden\(false\)/.test(dlg) && /bgEntscheiden\(true\)/.test(dlg), 'Zwei klare Ausgänge');
+ok(/o\.nachtraeglich \? 'Abbrechen' : 'Später'/.test(dlg), 'Und lässt sich vertagen');
+ok(/function bgEntscheiden/.test(fg) && /_bgAntwort = null;/.test(fg),
+  'Die Antwort läuft über eine Zusage, die genau einmal eingelöst wird');
 ok(/Für die Bekanntgabe fehlt ein Verteiler/.test(beim), 'Fehlt ein Verteiler, wird darauf hingewiesen');
 ok(/Eine reine Korrekturversion muss nicht/.test(beim), 'Der Quelltext sagt, warum nicht automatisch verschickt wird');
 
 /* ── 4) Nachträglich und wiederholbar ── */
 ok(/async function zielgruppeInformieren\(id\)/.test(fg), 'Die Bekanntgabe lässt sich nachholen');
-ok(/Zuletzt bekanntgegeben am/.test(fg), 'Beim zweiten Mal steht dabei, wann sie schon lief');
+ok(/nachtraeglich: true/.test(fg), 'Die nachträgliche Bekanntgabe nutzt denselben Dialog');
 ok(/zielgruppeInformierenAktuell\(\)/.test(adm) && /📣 Zielgruppe informieren/.test(adm),
   'Im Dashboard gibt es dafür einen Knopf');
 ok(/historieAdd\(p, 'Zielgruppe informiert'/.test(fg), 'Die Bekanntgabe steht in der Historie');
