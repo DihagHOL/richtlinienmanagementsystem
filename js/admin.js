@@ -16,6 +16,9 @@ let _adminMode = 'regelwerke'; // 'regelwerke' | 'konzepte' – Umschalter im Re
 // Dokumentart eines Regelwerks (zentral – auch von den Konzepten genutzt)
 const REGELWERK_TYPEN = ['Handbuch', 'Richtlinie', 'Konzernrichtlinie', 'Konzernfachregelung', 'Arbeits-/Prozessanweisung', 'Leitfaden'];
 
+// Nur als Rückfall, falls die Governance-Struktur (js/govstruktur.js) nicht geladen ist.
+const KATEGORIEN_FALLBACK = ['Allgemein', 'Compliance', 'Security / Cyber Security'];
+
 // Standorte für den Geltungsbereich (zentral – auch von den Konzepten genutzt); 'ALLE' = alle Standorte
 const STANDORTE = ['HOL', 'SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA'];
 
@@ -691,7 +694,8 @@ function _policyOpenButtons(p) {
 
 function newPolicy() {
   return {
-    id: null, typ: 'Regelwerk', title: '', beschreibung: '', kategorie: 'ISO 27001',
+    id: null, typ: 'Regelwerk', title: '', beschreibung: '',
+    kategorie: (typeof regelwerkKategorien === 'function') ? (regelwerkKategorien()[0] || '') : '',
     dokumentUrl: '', dokumentName: '', dokumentDriveId: '', dokumentItemId: '',
     regelwerkTyp: '', geltungsbereich: [], historie: [], videos: [],
     version: '1.0', status: 'Entwurf', pflicht: true,
@@ -717,7 +721,13 @@ function openPolicyEditor(policyId) {
 
 function renderPolicyEditor() {
   const p = _editing;
-  const cats = ['ISO 27001', 'NIS2', 'ISMS allgemein', 'Datenschutz', 'IT-Sicherheit', 'Arbeitssicherheit', 'Allgemein'];
+  // Kategorien aus der Governance-Struktur (dieselbe Systematik wie im Konzernregelwerk).
+  // Sind sie noch nicht geladen, gilt der Startbestand – und sobald sie da sind,
+  // zeichnet der Editor sich einmal neu.
+  const cats = (typeof regelwerkKategorien === 'function') ? regelwerkKategorien(p.kategorie) : KATEGORIEN_FALLBACK;
+  if (typeof gsDatenGeladen === 'function' && !gsDatenGeladen() && typeof gsDatenLaden === 'function') {
+    gsDatenLaden().then(() => { if (_editing) renderPolicyEditor(); });
+  }
   const body = `
     <div class="modal-header">
       <h3>${p.id ? 'Regelwerk bearbeiten' : 'Neues Regelwerk'}</h3>
@@ -743,8 +753,10 @@ function renderPolicyEditor() {
         <div class="form-group">
           <label>Kategorie</label>
           <select onchange="_editing.kategorie=this.value;renderPolicyEditor()">
+            <option value="">– keine –</option>
             ${cats.map(c => `<option ${c === p.kategorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
+          <span class="field-hint">Aus der <b>Governance-Struktur</b> – dort werden die Kategorien gepflegt.</span>
         </div>
         <div class="form-group">
           <label>Version <span class="req">*</span></label>
@@ -799,7 +811,11 @@ function renderPolicyEditor() {
       </div>
       ${renderGeltungsbereichSection(p.geltungsbereich, 'gb')}
       ${renderZielgruppenSection()}
-      ${(typeof renderNormbezugSection === 'function' && (p.kategorie === 'ISO 27001' || p.kategorie === 'NIS2')) ? renderNormbezugSection() : ''}
+      ${/* Der Normbezug hing an der Kategorie „ISO 27001"/„NIS2". Seit die Kategorien
+             aus der Governance-Struktur kommen, wäre er nie wieder erschienen – und
+             inhaltlich stimmte die Kopplung ohnehin nicht: Auch ein Regelwerk der
+             Kategorie „Compliance" kann ISO-Bezug haben. Der Abschnitt ist eingeklappt. */
+        (typeof renderNormbezugSection === 'function') ? renderNormbezugSection() : ''}
       ${renderWorkflowSections()}
       ${renderVideoEditorSection()}
       ${p.id ? renderHistorieSection(p) : ''}
@@ -1523,6 +1539,9 @@ function _mitMailHtml(p, label, attachmentName) {
     <p>Empfänger: <b>${esc(label)}</b></p>
     <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
     <p style="font-size:16px"><a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    ${geltungsbereichLabel(p.geltungsbereich)
+      ? `<p><b>Geltungsbereich:</b> ${esc(geltungsbereichLabel(p.geltungsbereich))}${p.mitbestimmung && Array.isArray(p.mitbestimmung.werke) && p.mitbestimmung.werke.length
+          ? ` · <b>betroffene Werke:</b> ${esc(p.mitbestimmung.werke.join(', '))}` : ''}</p>` : ''}
     ${p.beschreibung ? `<p style="color:#374151">${esc(p.beschreibung)}</p>` : ''}
     ${attachmentName
       ? `<p>📎 Das Richtliniendokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
@@ -1819,6 +1838,7 @@ function reminderHtml(p) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p>Hallo,</p>
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>
+    ${geltungsbereichLabel(p.geltungsbereich) ? `<p style="color:#6b7280;font-size:14px">Gilt für: ${esc(geltungsbereichLabel(p.geltungsbereich))}</p>` : ''}
     <p>Bitte holen Sie das zeitnah nach:</p>
     <p><a href="${url}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Erinnerung vom DIHAG Richtlinienmanagementsystem.</p>

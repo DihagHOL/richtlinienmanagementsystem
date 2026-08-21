@@ -16,7 +16,13 @@
 
 let _kEditing = null;   // aktuell bearbeitetes Konzept
 
-const KONZEPT_KATEGORIEN = ['ISO 27001', 'NIS2', 'ISMS allgemein', 'Datenschutz', 'IT-Sicherheit', 'Arbeitssicherheit', 'Allgemein'];
+/* Konzepte werden zu Regelwerken – sie brauchen dieselbe Systematik.
+   Die Liste kommt aus der Governance-Struktur (js/govstruktur.js). */
+function konzeptKategorien(aktuell) {
+  return (typeof regelwerkKategorien === 'function')
+    ? regelwerkKategorien(aktuell)
+    : (typeof KATEGORIEN_FALLBACK !== 'undefined' ? KATEGORIEN_FALLBACK : ['Allgemein']);
+}
 const KONZEPT_PRIOS = [['hoch', 'Hoch'], ['mittel', 'Mittel'], ['niedrig', 'Niedrig']];
 
 function newKonzept() {
@@ -25,7 +31,7 @@ function newKonzept() {
     typ: 'Konzept',
     title: '',
     beschreibung: '',
-    kategorie: 'ISO 27001',
+    kategorie: (typeof regelwerkKategorien === 'function') ? (regelwerkKategorien()[0] || '') : '',
     regelwerkTyp: '',             // Dokumentart (Handbuch, Richtlinie, …) – wird bei Annahme übernommen
     geltungsbereich: [],          // Standorte ('ALLE' = alle) – wird bei Annahme übernommen
     status: 'Entwurf',            // SP-Status-Spalte neutral halten (nicht für Konzepte genutzt)
@@ -199,7 +205,8 @@ function renderKonzeptEditor() {
         <div class="form-group">
           <label>Kategorie</label>
           <select onchange="_kEditing.kategorie=this.value">
-            ${KONZEPT_KATEGORIEN.map(c => `<option ${c === k.kategorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+            <option value="">– keine –</option>
+            ${konzeptKategorien(k.kategorie).map(c => `<option ${c === k.kategorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -583,6 +590,8 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>Neues Regelwerk-Konzept zur Prüfung durch die Geschäftsleitung</b></p>
     <p>Titel: <b>${esc(k.title)}</b>${k.kategorie ? ' (' + esc(k.kategorie) + ')' : ''}<br>
+       ${(typeof geltungsbereichLabel === 'function' && geltungsbereichLabel(k.geltungsbereich))
+         ? 'Geltungsbereich: <b>' + esc(geltungsbereichLabel(k.geltungsbereich)) + '</b><br>' : ''}
        Priorität (Vorschlag): <b>${esc(konzeptPrioLabel(ko.prioritaet))}</b>${ko.antragstellerName ? '<br>Eingereicht von: ' + esc(ko.antragstellerName) : ''}</p>
     ${ko.motivation ? `<p><b>Warum?</b><br>${br(ko.motivation)}</p>` : ''}
     ${ko.skizze ? `<p><b>Wie könnte es aussehen?</b><br>${br(ko.skizze)}</p>` : ''}

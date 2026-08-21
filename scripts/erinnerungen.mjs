@@ -251,6 +251,21 @@ function policyLink(id, aktion, token) {
     + (aktion && token ? '&t=' + encodeURIComponent(token) : '');
 }
 
+/** Geltungsbereich als Text ('' = nicht gepflegt). Steht im Sammelfeld DatenJson,
+ *  bei Altbestand in der Spalte GeltungsbereichJson. */
+function geltungsbereich(f) {
+  let arr = [];
+  try {
+    const d = JSON.parse(f.DatenJson || '{}') || {};
+    arr = Array.isArray(d.geltungsbereich) ? d.geltungsbereich : [];
+  } catch { arr = []; }
+  if (!arr.length) {
+    try { const g = JSON.parse(f.GeltungsbereichJson || '[]'); if (Array.isArray(g)) arr = g; } catch { /* keiner */ }
+  }
+  if (!arr.length) return '';
+  return arr.includes('ALLE') ? 'Alle Standorte' : arr.join(', ');
+}
+
 /** Einmal-Token der laufenden Runde aus dem Sammelfeld (für den Ein-Klick-Link). */
 function aktionToken(f, art) {
   try {
@@ -267,7 +282,7 @@ function konzeptLink(id, aktion) {
 
 const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 
-function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token) {
+function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token, geltung) {
   const konzept = phase === 'Konzeptprüfung';
   const link = konzept ? konzeptLink(id) : policyLink(id);
   const actions = konzept
@@ -282,6 +297,7 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
     <p>Guten Tag,</p>
     <p>für ${gegenstand} <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
        steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
+    ${geltung ? `<p><b>Geltungsbereich:</b> ${esc(geltung)}</p>` : ''}
     <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
     <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
     ${attachmentName ? `<p>📎 Das aktuelle Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
@@ -380,7 +396,7 @@ function regelwerkLink(id) {
 function kenntnisMailHtml(name, posten) {
   const zeilen = posten.map((x) => `<li style="margin-bottom:6px">
       <a href="${esc(regelwerkLink(x.id))}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(x.title)}</a>
-      <span style="color:#6b7280"> – seit ${x.tage} Tag(en) veröffentlicht${x.quizNoetig ? ', mit Wissenstest' : ''}</span></li>`).join('');
+      <span style="color:#6b7280"> – seit ${x.tage} Tag(en) veröffentlicht${x.quizNoetig ? ', mit Wissenstest' : ''}${x.geltung ? ' · gilt für ' + esc(x.geltung) : ''}</span></li>`).join('');
   const eins = posten.length === 1;
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
     <p>Guten Tag ${esc(name)},</p>
@@ -512,7 +528,7 @@ function kenntnisEskalationHtml(posten) {
     // sie dürfen auch auf Gruppengesellschafts-Domains liegen.
     const ok = await sendMail(to, `Erinnerung: ${phase} – ${title}`,
       mailHtml(it.id, title, phase, tage, pending, eskaliert, att ? att.name : '',
-        aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung')), att ? [att] : [],
+        aktionToken(f, phase === 'Freigabe' ? 'freigabe' : 'pruefung'), geltungsbereich(f)), att ? [att] : [],
       phase === 'Mitbestimmung' ? roleRecipients : []);
     if (ok) sent++;
   }
@@ -562,7 +578,7 @@ function kenntnisEskalationHtml(posten) {
             offeneNamen.push(u.name);
             if (!faellig) continue;                     // an diesem Tag nur für die Eskalation zählen
             if (!jeUser.has(lc(u.upn))) jeUser.set(lc(u.upn), { upn: u.upn, name: u.name, posten: [] });
-            jeUser.get(lc(u.upn)).posten.push({ id: it.id, title, tage, quizNoetig });
+            jeUser.get(lc(u.upn)).posten.push({ id: it.id, title, tage, quizNoetig, geltung: geltungsbereich(f) });
           }
           if (eskaliert && offeneNamen.length) eskalation.push({ title, tage, offen: offeneNamen });
           console.log(`• Kenntnisnahme „${title}" – ${tage}d, offen: ${offeneNamen.length}`);

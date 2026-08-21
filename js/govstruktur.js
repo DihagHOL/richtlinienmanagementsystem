@@ -172,6 +172,52 @@ function gsFilterZuruecksetzen() {
 
 /* ── Laden und Speichern ── */
 
+/** Sind die Daten schon da? (ohne sie nachzuladen) */
+function gsDatenGeladen() { return _gsGeladen; }
+
+/**
+ * Kategorien für die Klassifikation eines Regelwerks.
+ * Sie kommen aus der Governance-Struktur – dieselbe Systematik, in der das
+ * Konzernregelwerk geführt wird. Zwei Listen nebeneinander wären zwei
+ * Wahrheiten; gepflegt wird sie an einer Stelle, im Reiter Governance-Struktur.
+ * @param {string} [aktuell] bisheriger Wert – bleibt wählbar, auch wenn er aus
+ *   einer alten Systematik stammt (sonst spränge er beim Speichern still um)
+ */
+function regelwerkKategorien(aktuell) {
+  const out = (typeof gsKategorien === 'function') ? gsKategorien().slice() : [];
+  const a = String(aktuell || '').trim();
+  if (a && !out.some(k => String(k).toLowerCase() === a.toLowerCase())) out.push(a);
+  return out;
+}
+
+/** Daten laden, ohne zu zeichnen – für alle, die nur die Kategorien brauchen. */
+async function gsDatenLaden() {
+  if (_gsGeladen) return _gsDaten;
+  try {
+    const gespeichert = (typeof spLoadGovStruktur === 'function') ? await spLoadGovStruktur() : null;
+    if (gespeichert && gespeichert.daten && Array.isArray(gespeichert.daten.eintraege)) {
+      const d = gespeichert.daten;
+      _gsDaten = {
+        arten: (Array.isArray(d.arten) && d.arten.length) ? d.arten : JSON.parse(JSON.stringify(GOV_ARTEN)),
+        kategorien: (Array.isArray(d.kategorien) && d.kategorien.length) ? d.kategorien : [...GOV_KATEGORIEN],
+        eintraege: d.eintraege,
+        weitere: Array.isArray(d.weitere) ? d.weitere : [],
+        historie: Array.isArray(d.historie) ? d.historie : [],
+        stand: d.stand || GOV_STAND,
+      };
+      _gsGeaendertAm = gespeichert.geaendertAm || '';
+    } else {
+      _gsDaten = gsStartbestand();
+      _gsGeaendertAm = '';
+    }
+  } catch (e) {
+    console.warn('[govstruktur] Laden fehlgeschlagen:', e.message);
+    _gsDaten = gsStartbestand();
+  }
+  _gsGeladen = true;
+  return _gsDaten;
+}
+
 async function initGovStruktur() {
   const mount = document.getElementById('govstruktur-mount');
   if (!mount) return;

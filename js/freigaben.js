@@ -443,6 +443,14 @@ async function markFreigabe(policyId) {
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 
+/** Geltungsbereich als Text für Mails ('' = nicht gepflegt).
+ *  Wer eine Freigabe erteilt oder ein Regelwerk zur Kenntnis bekommt, muss wissen,
+ *  für welche Standorte es überhaupt gilt – das stand bisher nur in der App. */
+function _mailGeltungsbereich(p) {
+  const gb = (typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(p.geltungsbereich) : '';
+  return gb || '';
+}
+
 /* ── Veröffentlichung bekanntgeben ──
    Bis hierher erfuhr die Zielgruppe von einem neuen Regelwerk nur, wenn sie die
    App öffnete – die erste Mail war die Erinnerung nach sieben Tagen. Das ist die
@@ -459,6 +467,7 @@ function _zielgruppeMailHtml(p) {
     <p>ab sofort gilt ein neues Regelwerk:</p>
     <p style="font-size:17px"><b>${esc(p.title)}</b><br>
       <span style="color:#6b7280">Version ${esc(p.version)}${p.kategorie ? ' · ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ' · ' + esc(p.regelwerkTyp) : ''}</span></p>
+    ${_mailGeltungsbereich(p) ? `<p style="margin:0 0 10px"><b>Gilt für:</b> ${esc(_mailGeltungsbereich(p))}</p>` : ''}
     ${p.beschreibung ? `<p>${esc(p.beschreibung)}</p>` : ''}
     <p>${p.pflicht !== false ? `Bitte das Regelwerk <b>${wasTun}</b>.` : 'Das Regelwerk steht Ihnen zur Kenntnis bereit.'}
        Das dauert meist wenige Minuten.</p>
@@ -886,7 +895,8 @@ function _wfMailHtml(headline, p, text, attachmentName, phase) {
       : '';
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
     <p><b>${esc(headline)}</b></p>
-    <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ', ' + esc(p.regelwerkTyp) : ''})</p>
+    ${_mailGeltungsbereich(p) ? `<p style="margin:0 0 10px"><b>Geltungsbereich:</b> ${esc(_mailGeltungsbereich(p))}${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? ` · <b>Zielgruppe:</b> ${esc(p.zielgruppen.join(', '))}` : ''}</p>` : ''}
     <p>${esc(text)}</p>
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
