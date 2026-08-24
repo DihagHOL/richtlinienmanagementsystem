@@ -442,6 +442,16 @@ function _dokuSections() {
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat zwei Ansichten: <b>🗺 Landkarte</b> (der Einstieg) und <b>📋 Modelle</b> (alle BPMN-Dateien als Liste).</p>
+      <div style="${h3}">🗺 Prozesslandkarte</div>
+      <p style="margin:0 0 8px;line-height:1.55">Die Prozesslandschaft des Konzerns in der abgestimmten Darstellung: <b>Führungsprozesse</b> oben, <b>Kernprozesse</b> als Pfeile in die Ergebnisse (Aufträge, Produkte, Einnahmen), <b>Unterstützungsprozesse</b> unten. Jede Kachel ist anklickbar.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Ein Klick auf eine Kachel</b> zeigt den Geltungsbereich, das hinterlegte <b>BPMN-Modell</b> und die Regelwerke, die daran hängen. Von dort geht es direkt in den Modeler oder in das Regelwerk.</li>
+        <li style="${li}"><b>Noch kein Modell?</b> „Modell anlegen" erzeugt ein Grundgerüst und öffnet es; „Vorhandenes verknüpfen" verbindet die Kachel mit einer bereits bestehenden Datei. Ein <b>grüner Punkt</b> zeigt auf einen Blick, wo ein Modell liegt.</li>
+        <li style="${li}"><b>Geltungsbereich je Prozess</b> – dieselben Standorte wie bei den Regelwerken. Über die Auswahl <b>Standort</b> oben lässt sich fragen: „Welche Prozesse gelten in SHB?" Was dort nicht gilt, wird <b>ausgegraut</b> statt ausgeblendet – so bleibt die Landschaft vergleichbar.</li>
+        <li style="${li}"><b>Bearbeiten:</b> „+ Prozess" legt eine Kachel an, ein Klick auf „Bearbeiten" ändert Name, Untertitel, Band und Geltungsbereich. Kacheln lassen sich <b>zwischen den Bändern ziehen</b>. Jede Änderung steht mit Person und Zeitpunkt im <b>Versionsverlauf</b> (Knopf oben).</li>
+        <li style="${li}">Die Karte liegt als <b>prozesslandkarte.json</b> im Konfigurations-Ordner – wie die Governance-Struktur. Keine zusätzliche SharePoint-Liste, keine neue Spalte.</li>
+      </ul>
       <ul style="${ol}">
         <li style="${li}"><b>+ Neuer Prozess</b> – leeres Diagramm im Modeler (Elemente aus der Palette ziehen).</li>
         <li style="${li}"><b>📋 Standard-Prozesse</b> – legt die <b>im RMS gelebten Abläufe</b> auf einen Schlag als BPMN-Entwürfe an (siehe unten).</li>

@@ -654,3 +654,90 @@ body.demo-mode .main { padding-bottom: 64px; }
 .gs-legende summary { cursor: pointer; font-weight: 600; font-size: .85rem; }
 .gs-legende-tbl { border-collapse: collapse; margin-top: 8px; font-size: .82rem; }
 .gs-legende-tbl td { padding: 3px 12px 3px 0; vertical-align: top; }
+
+
+/* ══ Prozesslandkarte ══════════════════════════════════════════════════
+   Die gewohnte Darstellung: Führungsprozesse oben, Kernprozesse als Pfeile
+   in die Ergebnisse, Unterstützungsprozesse unten. Die Formen entstehen mit
+   clip-path – keine Bilder, damit die Karte anklickbar und durchsuchbar
+   bleibt und bei jeder Breite scharf ist. */
+.lk-karte { background: #f4f7fb; border: 1px solid var(--c-border); border-radius: 14px; padding: 18px; }
+.lk-band {
+  background: var(--c-primary); color: #fff; font-weight: 700; text-align: center;
+  padding: 13px 16px; border-radius: 9px; letter-spacing: .01em;
+}
+/* Raster statt Flexbox: Alle Kacheln eines Bandes stehen gleich breit in EINER
+   Zeile – wie in der abgestimmten Darstellung. Flexbox blies die letzte Zeile
+   auf, sobald ein Band umbrach. Die Spaltenzahl setzt der Renderer je Band. */
+.lk-reihe { display: grid; gap: 10px; margin: 10px 0; }
+
+.lk-kachel {
+  min-width: 0; cursor: pointer; border: none; text-align: center;
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
+  transition: filter .12s ease, transform .12s ease;
+}
+.lk-kachel-inhalt { padding: 16px 12px 34px; }
+.lk-kachel:hover { filter: brightness(.95); transform: translateY(-1px); }
+/* Lange Komposita wie „Arbeitsvorbereitung" passen sonst nicht in eine schmale
+   Kachel – Silbentrennung statt Überlauf (die Seite ist lang=de). */
+.lk-kachel-kopf, .lk-kachel-unter { hyphens: auto; overflow-wrap: break-word; }
+.lk-kachel-kopf { font-weight: 700; font-size: .84rem; line-height: 1.35; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.lk-kachel-kopf span { min-width: 0; }
+.lk-kachel-unter { font-size: .74rem; opacity: .85; margin-top: 4px; line-height: 1.35; }
+.lk-kachel-geltung { font-size: .68rem; font-weight: 700; opacity: .7; margin-top: 6px; letter-spacing: .03em; }
+.lk-fuehrung { background: #dbeada; color: #2f5d38; }
+.lk-unterstuetzung { background: #fbf1c2; color: #7a6417; }
+
+/* Kernprozesse: Klammer · Pfeile · Ergebnisse */
+.lk-kern { display: grid; grid-template-columns: 44px 1fr 168px; gap: 10px; align-items: stretch; margin: 14px 0; }
+.lk-kern-klammer {
+  background: var(--c-primary); color: #fff; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+.lk-kern-klammer span { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 700; font-size: .82rem; }
+.lk-kern-pfeile { display: flex; flex-direction: column; gap: 9px; justify-content: center; }
+.lk-pfeil {
+  background: #d2711f; color: #fff; cursor: pointer;
+  padding: 13px 46px 13px 18px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 50%, calc(100% - 34px) 100%, 0 100%);
+  transition: filter .12s ease;
+}
+.lk-pfeil:hover { filter: brightness(1.07); }
+.lk-pfeil b { font-size: .95rem; }
+.lk-pfeil-unter { font-size: .78rem; opacity: .92; }
+.lk-pfeil-geltung { font-size: .7rem; font-weight: 700; opacity: .85; letter-spacing: .03em; }
+.lk-ergebnis {
+  background: var(--c-primary); color: #fff; border-radius: 9px; padding: 10px;
+  display: flex; flex-direction: column; justify-content: space-around; gap: 6px;
+}
+.lk-ergebnis-zeile { text-align: center; font-weight: 700; font-size: .86rem; }
+
+/* Zustände */
+.lk-aus { opacity: .32; filter: grayscale(.7); }
+.lk-zieht { opacity: .5; }
+.lk-punkt { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.lk-punkt-modell { background: #16a34a; }
+.lk-punkt-offen { background: transparent; border: 2px solid currentColor; opacity: .45; }
+.lk-legende { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: .78rem; color: var(--c-muted); }
+.lk-legende span { display: flex; align-items: center; gap: 6px; }
+
+/* Schmale Geräte: Formen weglassen, Lesbarkeit gewinnt */
+/* Wird es eng, dürfen die Bänder umbrechen – dann aber gleichmäßig. */
+@media (max-width: 1100px) {
+  .lk-reihe { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+}
+@media (max-width: 780px) {
+  .lk-reihe { grid-template-columns: 1fr !important; }
+  .lk-kachel { clip-path: none; border-radius: 9px; }
+  .lk-kachel-inhalt { padding: 13px 12px; }
+  .lk-pfeil { clip-path: none; border-radius: 9px; padding: 13px 16px; }
+  .lk-kern { grid-template-columns: 1fr; }
+  .lk-kern-klammer span { writing-mode: horizontal-tb; transform: none; padding: 8px 0; }
+  .lk-ergebnis { flex-direction: row; }
+}
+
+/* Druck: die Karte gehört als Ganzes auf eine Seite */
+@media print {
+  .lk-karte { background: #fff; }
+  .lk-kachel, .lk-pfeil { break-inside: avoid; page-break-inside: avoid; }
+}

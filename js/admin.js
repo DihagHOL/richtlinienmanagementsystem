@@ -48,17 +48,24 @@ function renderGeltungsbereichSection(arr, prefix) {
     </div>`;
 }
 
-/** Ziel-Objekt + Re-Render für den Geltungsbereich, je nach Editor (gb = Regelwerk, kgb = Konzept). */
+/** Ziel-Objekt + Re-Render für den Geltungsbereich, je nach Editor
+ *  (gb = Regelwerk, kgb = Konzept, lgb = Kachel der Prozesslandkarte).
+ *  Eine Auswahl für alle drei – der Geltungsbereich soll überall dasselbe heißen. */
 function _gbScope(scope) {
   if (scope === 'kgb') return {
     obj: (typeof _kEditing !== 'undefined' ? _kEditing : null),
     render: (typeof renderKonzeptEditor === 'function' ? renderKonzeptEditor : null),
+  };
+  if (scope === 'lgb') return {
+    obj: (typeof _lkEditing !== 'undefined' ? _lkEditing : null),
+    render: (typeof renderLkEditor === 'function' ? renderLkEditor : null),
   };
   return { obj: (typeof _editing !== 'undefined' ? _editing : null), render: renderPolicyEditor };
 }
 function gbSectionSetAlle(scope, on) {
   const s = _gbScope(scope); if (!s.obj) return;
   s.obj.geltungsbereich = on ? ['ALLE'] : [];
+  if (scope === 'lgb') s.obj.geltung = s.obj.geltungsbereich;
   if (s.render) s.render();
 }
 function gbSectionToggle(scope, code, on) {
@@ -66,6 +73,7 @@ function gbSectionToggle(scope, code, on) {
   if (!Array.isArray(s.obj.geltungsbereich)) s.obj.geltungsbereich = [];
   s.obj.geltungsbereich = s.obj.geltungsbereich.filter(x => x !== code && x !== 'ALLE');
   if (on) s.obj.geltungsbereich.push(code);
+  if (scope === 'lgb') s.obj.geltung = s.obj.geltungsbereich;   // Kachel führt das Feld „geltung"
 }
 
 /** Anzeige-Text eines Geltungsbereichs für Tags/Listen. */

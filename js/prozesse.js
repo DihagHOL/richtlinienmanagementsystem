@@ -62,11 +62,37 @@ function _destroyModeler() {
   if (_bpmnModeler) { try { _bpmnModeler.destroy(); } catch (e) { /* egal */ } _bpmnModeler = null; }
 }
 
+/* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
+   die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
+   Reiter mit Umschalter statt zweier Reiter. */
+let _prozModus = 'karte';   // 'karte' | 'liste'
+
+/** Umschalter, den beide Ansichten oben einblenden. */
+function prozessModusLeiste(aktiv) {
+  const knopf = (key, label, titel) => `<button class="btn btn-sm ${aktiv === key ? 'btn-primary' : 'btn-ghost'}"
+      onclick="setProzessModus('${key}')" title="${titel}">${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin:0 0 12px">
+      ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
+      ${knopf('liste', '📋 Modelle', 'Alle BPMN-Modelle als Liste')}
+    </div>`;
+}
+
+function setProzessModus(m) {
+  _prozModus = (m === 'liste') ? 'liste' : 'karte';
+  renderProzesseAktuell();
+}
+
+/** Die gerade gewählte Ansicht zeichnen. */
+function renderProzesseAktuell() {
+  if (_prozModus === 'karte' && typeof initLandkarte === 'function') { initLandkarte(); return; }
+  renderProzesseList();
+}
+
 async function initProzesse() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   _destroyModeler();   // evtl. offenen Editor beenden → zurück zur Liste
-  if (_processes) renderProzesseList();
+  if (_processes) renderProzesseAktuell();
   else mount.innerHTML = '<div class="doc-loading">Lade Prozesse …</div>';
   _processesLoading = true;
   try {
@@ -79,7 +105,7 @@ async function initProzesse() {
     return;
   }
   _processesLoading = false;
-  renderProzesseList();
+  renderProzesseAktuell();
 }
 
 async function refreshProzesse() { _processes = null; _procLinkCache = {}; await initProzesse(); }
@@ -89,6 +115,7 @@ function renderProzesseList() {
   if (!mount) return;
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
   mount.innerHTML = `
+    ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('liste') : ''}
     <div class="view-desc" style="margin:0 0 12px">
       Prozesse (BPMN 2.0) im Camunda-Stil selbst modellieren und mit Richtlinien verknüpfen –
       „<b>im Einklang mit den Richtlinien</b>". Gespeichert als <b>.bpmn</b> im Ordner „Prozesse" der ISMS-Bibliothek.

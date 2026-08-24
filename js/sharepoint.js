@@ -1800,6 +1800,55 @@ async function spGetPolicyDocText(driveId, itemId) {
   return _docxXmlToText(new TextDecoder('utf-8').decode(xmlBytes));
 }
 
+/* ── Prozesslandkarte (prozesslandkarte.json im Konfig-Ordner) ──
+   Dieselbe Mechanik wie die Governance-Struktur: eine Datei, keine Liste,
+   keine Spalte. Die Karte ist Aufbauwissen, kein Bestand. */
+const LANDKARTE_DATEI = 'prozesslandkarte.json';
+function _landkartePfad() { return `${SP.configFolder}/${LANDKARTE_DATEI}`; }
+
+/** @returns {{daten:object, geaendertAm:string}|null} – null = noch nie gespeichert. */
+async function spLoadLandkarte() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_landkartePfad()}`;
+  let meta;
+  try {
+    meta = await _get(`${basis}?$select=lastModifiedDateTime`, token);
+  } catch (e) {
+    return null;      // 404 = Startbestand gilt
+  }
+  const resp = await fetch(`${basis}:/content`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (!resp.ok) return null;
+  return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/** Zeitstempel der gespeicherten Karte (für die Gleichzeitigkeits-Prüfung). */
+async function spLandkarteMeta() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  try {
+    const meta = await _get(
+      `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_landkartePfad()}?$select=lastModifiedDateTime`, token);
+    return meta.lastModifiedDateTime || '';
+  } catch (e) { return null; }
+}
+
+async function spSaveLandkarte(daten) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const json = JSON.stringify(daten, null, 2);
+  const item = await _uploadFile(token, _landkartePfad(), new TextEncoder().encode(json), 'application/json');
+  return (item && item.lastModifiedDateTime) || '';
+}
+
 /* ═══════════════════════════════════════════════════
    Prozesse (BPMN 2.0) – .bpmn-Dateien im Ordner „Prozesse"
    der ISMS-Dokumentbibliothek (sites/ISMS). Verknüpfung zu Richtlinien
