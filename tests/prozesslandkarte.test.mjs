@@ -61,8 +61,33 @@ ok(w('lkErgebnisse().join("|")') === 'Aufträge|Produkte|Einnahmen', 'Und die dr
 ok(w("lkKacheln().filter(k => k.id).length") === 17 && new Set(w('lkKacheln().map(k => k.id)')).size === 17,
   'Jede Kachel hat eine eigene, stabile Kennung');
 w("lkKacheln()[0].name = 'verbogen';");
-ok(w('lkStartbestand().kacheln[0].name') === 'Strategie', 'Der Startbestand selbst bleibt unangetastet');
+ok(w('lkStartbestand().karten.HOL.kacheln[0].name') === 'Strategie', 'Der Startbestand selbst bleibt unangetastet');
 w("_lkDaten = lkStartbestand(); _lkDaten.historie = [];");
+
+/* ── 1b) Jedes Werk führt seine eigene Landkarte ──
+   Die abgestimmte Landschaft ist die von HOL – nicht die des Konzerns. */
+ok(w("LK_START_WERK") === 'HOL', 'Der Startbestand gehört zu HOL');
+ok(w("LK_WERKE[0]") === 'KONZERN' && w("LK_WERKE.includes('SHB')"),
+  'Zur Auswahl stehen die Konzern-Ebene und alle Werke');
+ok(w("lkWerkLabel('KONZERN')") === 'Konzern / Holding' && w("lkWerkLabel('SHB')") === 'SHB',
+  'Die Konzern-Ebene heißt auch so');
+ok(w('lkWerk()') === 'HOL' && w('lkKacheln().length') === 17, 'Geöffnet ist zunächst HOL');
+w("lkSetWerk('SHB')");
+ok(w('lkKacheln().length') === 0, 'SHB hat noch keine Karte – und leiht sich keine');
+ok(w("lkBaender().length") === 3, 'Die drei Bänder gibt es trotzdem – sonst ließe sich nichts einsortieren');
+ok(w('lkWerkeMitKarte().join("|")') === 'HOL', 'Belegt ist bisher nur HOL');
+w("lkKarte('SHB').kacheln.push({ id: 'giesserei', band: 'kern', name: 'Gießerei', geltung: ['SHB'] });");
+ok(w('lkAlleKacheln().length') === 18 && w("lkAlleKacheln().filter(x => x.werk === 'SHB').length") === 1,
+  'lkAlleKacheln() sieht über die Werke hinweg – das braucht die Mindmap');
+ok(w("lkAlleKacheln()[0].werk") === 'HOL', 'Und jede Kachel weiß, zu welchem Werk sie gehört');
+w("lkSetWerk('HOL')");
+
+/* Neue Kachel: Geltungsbereich auf das Werk vorbelegt */
+w("lkSetWerk('SHB'); lkKachelNeu();");
+ok(w('_lkEditing.geltung.join("|")') === 'SHB', 'Ein neuer Prozess in einer Werk-Karte gilt zunächst dort');
+w("lkSetWerk('KONZERN'); lkKachelNeu();");
+ok(w('_lkEditing.geltung.join("|")') === 'ALLE', 'Auf Konzern-Ebene konzernweit');
+w("_lkEditing = null; lkSetWerk('HOL');");
 
 /* ── 2) Geltungsbereich – dieselbe Frage wie bei Regelwerken ── */
 const gilt = (g, s) => vm.runInContext(`lkGiltDort(${JSON.stringify({ geltung: g })}, ${JSON.stringify(s)})`, ctx);
@@ -143,6 +168,32 @@ ok(/^[a-z0-9]+$/.test(id1) && id1.length <= 20 && id1.startsWith('qualitaetssich
   'Umlaute werden umschrieben, Sonderzeichen fallen weg, die Kennung bleibt kurz');
 ok(neueId('IT') === 'it2', 'Eine belegte Kennung wird durchnummeriert');
 ok(neueId('###') === 'prozess', 'Und wenn nichts übrig bleibt, gibt es einen Namen');
+
+/* ── 7b) Übernahme: niemand baut zehn Karten von Hand ── */
+w("lkSetWerk('WGC');");
+ok(w('lkKacheln().length') === 0, 'WGC startet leer');
+ctx.__wahl = { value: 'HOL' };
+ctx.document.getElementById = (id) => (id === 'lk-quelle' ? ctx.__wahl : (id === 'prozesse-mount' ? mount : null));
+await ctx.lkUebernehmen();
+ok(w('lkKacheln().length') === 17, 'Die Struktur von HOL lässt sich übernehmen');
+ok(w("lkKacheln().every(k => k.geltung.join() === 'WGC')"),
+  'Dabei gilt sie danach für WGC – nicht weiter für HOL');
+ok(w("lkKarte('HOL').kacheln.length") === 17, 'Die Quelle bleibt unverändert');
+ok(/aus HOL übernommen/.test(w('_lkDaten.historie[_lkDaten.historie.length - 1].was')),
+  'Und der Verlauf hält es fest');
+w("lkSetWerk('HOL');");
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+
+/* ── 7c) Migration: die alte Fassung kannte nur eine Karte ── */
+ctx.spLoadLandkarte = async () => ({
+  daten: { baender: [{ key: 'kern', titel: 'Kernprozesse' }], kacheln: [{ id: 'a', band: 'kern', name: 'Alt' }], ergebnisse: ['X'] },
+  geaendertAm: 'alt',
+});
+w('_lkGeladen = false; _lkDaten = null;');
+await ctx.lkDatenLaden();
+ok(w("lkKarte('HOL').kacheln.length") === 1 && w("lkKarte('HOL').kacheln[0].name") === 'Alt',
+  'Eine Datei der alten Fassung landet als Landkarte von HOL – ohne Neuerfassung');
+ok(w('_lkDaten.version') === 2, 'Und wird als Fassung 2 weitergeführt');
 
 /* ── 8) Speicherung: eine Datei, keine Liste ── */
 ok(/const LANDKARTE_DATEI = 'prozesslandkarte\.json'/.test(shp), 'Die Karte liegt als eine Datei im Konfig-Ordner');

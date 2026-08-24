@@ -23,7 +23,13 @@
  *     und die Antwort passt zu der, die die Regelwerke geben.
  */
 
-/* ── Startbestand: die Prozesslandschaft, wie sie heute abgestimmt ist ── */
+/* Jedes Werk führt seine eigene Landkarte; dazu die Konzern-Ebene für das,
+   was die Holding steuert. Die Reihenfolge bestimmt die Auswahl oben. */
+const LK_WERKE = ['KONZERN'].concat(typeof STANDORTE !== 'undefined' ? STANDORTE : []);
+function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
+
+/* ── Startbestand: die abgestimmte Landschaft – sie gehört zu HOL ── */
+const LK_START_WERK = 'HOL';
 const LK_START = {
   baender: [
     { key: 'fuehrung',       titel: 'Führungsprozesse' },
@@ -54,20 +60,62 @@ const LK_START = {
   ],
 };
 
-let _lkDaten = null;         // Arbeitsstand (aus SharePoint oder Startbestand)
+let _lkDaten = null;         // { version, karten: { WERK: {…} }, historie }
 let _lkGeaendertAm = '';     // Zeitstempel der geladenen Datei (Gleichzeitigkeit)
 let _lkGeladen = false;
-let _lkFilter = '';          // Standort-Filter ('' = alle)
+let _lkWerk = LK_START_WERK; // welche Landkarte gerade offen ist
+let _lkFilter = '';          // Standort-Filter innerhalb der Karte ('' = alle)
 let _lkEditing = null;       // Kachel im Bearbeiten-Dialog
 let _lkZiehIndex = -1;       // laufendes Ziehen
 
 /** Tiefe Kopie des Startbestands – nie die Konstante verändern. */
-function lkStartbestand() { return JSON.parse(JSON.stringify(LK_START)); }
+function lkStartbestand() {
+  return { version: 2, karten: { [LK_START_WERK]: JSON.parse(JSON.stringify(LK_START)) }, historie: [] };
+}
 
-function lkBaender()    { return (_lkDaten && Array.isArray(_lkDaten.baender) && _lkDaten.baender.length) ? _lkDaten.baender : LK_START.baender; }
-function lkKacheln()    { return (_lkDaten && Array.isArray(_lkDaten.kacheln)) ? _lkDaten.kacheln : []; }
-function lkErgebnisse() { return (_lkDaten && Array.isArray(_lkDaten.ergebnisse)) ? _lkDaten.ergebnisse : LK_START.ergebnisse; }
+/** Leere Karte für ein Werk, das noch keine hat. */
+function lkLeereKarte() {
+  return { baender: JSON.parse(JSON.stringify(LK_START.baender)), ergebnisse: [], kacheln: [] };
+}
+
+/** Das gerade gewählte Werk. */
+function lkWerk() { return _lkWerk; }
+
+/** Karte eines Werks (legt sie im Arbeitsstand an, wenn sie fehlt). */
+function lkKarte(werk) {
+  const w = werk || _lkWerk;
+  if (!_lkDaten) return lkLeereKarte();
+  if (!_lkDaten.karten || typeof _lkDaten.karten !== 'object') _lkDaten.karten = {};
+  if (!_lkDaten.karten[w]) _lkDaten.karten[w] = lkLeereKarte();
+  return _lkDaten.karten[w];
+}
+
+/** Welche Werke haben schon eine Karte mit Inhalt? */
+function lkWerkeMitKarte() {
+  const k = (_lkDaten && _lkDaten.karten) || {};
+  return Object.keys(k).filter(w => Array.isArray(k[w].kacheln) && k[w].kacheln.length);
+}
+
+function lkBaender()    { const k = lkKarte(); return (Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender; }
+function lkKacheln()    { const k = lkKarte(); return Array.isArray(k.kacheln) ? k.kacheln : []; }
+function lkErgebnisse() { const k = lkKarte(); return Array.isArray(k.ergebnisse) ? k.ergebnisse : []; }
 function lkDatenGeladen() { return _lkGeladen; }
+
+/** Alle Kacheln aller Werke – für die Mindmap, die über die Werke hinweg schaut. */
+function lkAlleKacheln() {
+  const karten = (_lkDaten && _lkDaten.karten) || {};
+  const out = [];
+  Object.keys(karten).forEach(w => {
+    (Array.isArray(karten[w].kacheln) ? karten[w].kacheln : []).forEach(k => out.push({ werk: w, kachel: k }));
+  });
+  return out;
+}
+
+/** Bänder einer bestimmten Karte (die Mindmap braucht sie je Werk). */
+function lkBaenderVon(werk) {
+  const k = (_lkDaten && _lkDaten.karten && _lkDaten.karten[werk]) || null;
+  return (k && Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender;
+}
 
 /** Darf die Karte bearbeitet werden? Wer den Reiter schreiben darf, darf es. */
 function lkDarfSchreiben() { return typeof canWriteTab !== 'function' || canWriteTab('prozesse'); }
@@ -99,23 +147,33 @@ async function lkDatenLaden() {
     const gespeichert = (typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null;
     if (gespeichert && gespeichert.daten) {
       const d = gespeichert.daten;
-      _lkDaten = {
-        baender:    (Array.isArray(d.baender) && d.baender.length) ? d.baender : lkStartbestand().baender,
-        ergebnisse: Array.isArray(d.ergebnisse) ? d.ergebnisse : lkStartbestand().ergebnisse,
-        kacheln:    Array.isArray(d.kacheln) ? d.kacheln : lkStartbestand().kacheln,
-        historie:   Array.isArray(d.historie) ? d.historie : [],
-      };
+      if (d.karten && typeof d.karten === 'object') {
+        _lkDaten = { version: 2, karten: d.karten, historie: Array.isArray(d.historie) ? d.historie : [] };
+      } else {
+        // Fassung 1 kannte nur EINE Landkarte. Die abgestimmte Landschaft gehört
+        // zu HOL – dorthin wandert sie, ohne dass jemand etwas neu erfassen muss.
+        _lkDaten = {
+          version: 2,
+          karten: { [LK_START_WERK]: {
+            baender:    (Array.isArray(d.baender) && d.baender.length) ? d.baender : JSON.parse(JSON.stringify(LK_START.baender)),
+            ergebnisse: Array.isArray(d.ergebnisse) ? d.ergebnisse : JSON.parse(JSON.stringify(LK_START.ergebnisse)),
+            kacheln:    Array.isArray(d.kacheln) ? d.kacheln : JSON.parse(JSON.stringify(LK_START.kacheln)),
+          } },
+          historie: Array.isArray(d.historie) ? d.historie : [],
+        };
+      }
       _lkGeaendertAm = gespeichert.geaendertAm || '';
     } else {
       _lkDaten = lkStartbestand();
-      _lkDaten.historie = [];
       _lkGeaendertAm = '';
     }
   } catch (e) {
     console.warn('[landkarte] Laden fehlgeschlagen, Startbestand gilt:', e.message);
     _lkDaten = lkStartbestand();
-    _lkDaten.historie = [];
   }
+  // Auf ein Werk stellen, das auch etwas zeigt.
+  const belegt = lkWerkeMitKarte();
+  if (belegt.length && !belegt.includes(_lkWerk)) _lkWerk = belegt[0];
   _lkGeladen = true;
   return _lkDaten;
 }
@@ -125,7 +183,7 @@ function _lkVerlauf(was) {
   if (!_lkDaten) return;
   if (!Array.isArray(_lkDaten.historie)) _lkDaten.historie = [];
   const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
-  _lkDaten.historie.push({ datum: new Date().toISOString(), name: u.name || u.upn || '', was });
+  _lkDaten.historie.push({ datum: new Date().toISOString(), name: u.name || u.upn || '', werk: _lkWerk, was });
   if (_lkDaten.historie.length > 100) _lkDaten.historie = _lkDaten.historie.slice(-100);
 }
 
@@ -176,17 +234,23 @@ function renderLandkarte() {
     ? _lkDaten.historie[_lkDaten.historie.length - 1] : null;
 
   const standorte = (typeof STANDORTE !== 'undefined') ? STANDORTE : [];
+  const belegt = lkWerkeMitKarte();
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('karte') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Die Prozesslandschaft des Konzerns. Ein Klick auf eine Kachel zeigt Geltungsbereich,
-      das hinterlegte <b>BPMN-Modell</b> und die daran hängenden Regelwerke.
-      <b>${mitModell}</b> von <b>${kacheln.length}</b> Prozessen sind modelliert.
+      Die Prozesslandschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b> – jedes Werk führt seine eigene.
+      Ein Klick auf eine Kachel zeigt Geltungsbereich, das hinterlegte <b>BPMN-Modell</b> und die
+      daran hängenden Regelwerke. <b>${mitModell}</b> von <b>${kacheln.length}</b> Prozessen sind modelliert.
     </div>
     <div class="view-toolbar">
-      <label class="field-hint" style="margin:0 6px 0 0">Standort</label>
-      <select id="lk-filter" onchange="lkSetFilter(this.value)" style="max-width:190px">
-        <option value="">Alle Standorte</option>
+      <label class="field-hint" style="margin:0 6px 0 0">Landkarte</label>
+      <select id="lk-werk" onchange="lkSetWerk(this.value)" style="max-width:210px">
+        ${LK_WERKE.map(w => `<option value="${esc(w)}"${_lkWerk === w ? ' selected' : ''}>${esc(lkWerkLabel(w))}${
+          belegt.includes(w) ? '' : ' – leer'}</option>`).join('')}
+      </select>
+      <label class="field-hint" style="margin:0 6px 0 14px">gilt für</label>
+      <select id="lk-filter" onchange="lkSetFilter(this.value)" style="max-width:160px">
+        <option value="">alle</option>
         ${standorte.map(s => `<option value="${esc(s)}"${_lkFilter === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
       </select>
       <div class="toolbar-spacer"></div>
@@ -197,11 +261,11 @@ function renderLandkarte() {
     </div>
     ${_lkFilter ? `<div class="field-hint" style="margin:0 0 10px">Prozesse, die am Standort <b>${esc(_lkFilter)}</b>
       nicht gelten, sind ausgegraut – die Landschaft bleibt dadurch vergleichbar.</div>` : ''}
-    <div class="lk-karte">
+    ${kacheln.length ? `<div class="lk-karte">
       ${_lkBandHtml('fuehrung', schreiben)}
       ${_lkKernHtml(schreiben)}
       ${_lkBandHtml('unterstuetzung', schreiben)}
-    </div>
+    </div>` : _lkLeerHtml(schreiben, belegt)}
     <div class="lk-legende">
       <span><i class="lk-punkt lk-punkt-modell"></i> Modell hinterlegt</span>
       <span><i class="lk-punkt lk-punkt-offen"></i> noch kein Modell</span>
@@ -285,6 +349,65 @@ function _lkPfeilHtml(k, i, schreiben) {
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
     </div>`;
+}
+
+/** Für ein Werk gibt es noch keine Karte: anlegen oder von einem anderen übernehmen. */
+function _lkLeerHtml(schreiben, belegt) {
+  const quellen = belegt.filter(w => w !== _lkWerk);
+  return `<div class="lk-karte" style="text-align:center;padding:44px 20px">
+      <div style="font-size:2rem;margin-bottom:8px">🗺</div>
+      <div style="font-weight:700;margin-bottom:6px">Für ${esc(lkWerkLabel(_lkWerk))} gibt es noch keine Landkarte.</div>
+      <div class="field-hint" style="max-width:520px;margin:0 auto 16px">
+        Jedes Werk führt seine eigene Landschaft. Sie können bei null anfangen – oder die
+        Struktur eines anderen Werks übernehmen und dort anpassen, wo es abweicht.
+      </div>
+      ${schreiben ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="lkKachelNeu()">+ Erster Prozess</button>
+        ${quellen.length ? `<button class="btn btn-outline btn-sm" onclick="lkUebernehmenDialog()">Von einem anderen Werk übernehmen</button>` : ''}
+      </div>` : '<div class="field-hint">Für das Anlegen fehlt Ihnen das Schreibrecht auf „Prozesse".</div>'}
+    </div>`;
+}
+
+/** Landkarte wechseln. */
+function lkSetWerk(w) {
+  _lkWerk = LK_WERKE.includes(w) ? w : _lkWerk;
+  renderLandkarte();
+}
+
+function lkUebernehmenDialog() {
+  const quellen = lkWerkeMitKarte().filter(w => w !== _lkWerk);
+  if (!quellen.length) return;
+  openModal(`
+    <div class="modal-header"><h3>Landkarte übernehmen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Die Struktur wird nach
+        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert – Bänder, Kacheln und die Verknüpfung zum Modell.
+        Der Geltungsbereich wird auf ${esc(lkWerkLabel(_lkWerk))} gesetzt; alles Weitere lässt sich
+        danach anpassen. Die Quelle bleibt unverändert.</p>
+      <div class="form-group full">
+        <select id="lk-quelle">${quellen.map(w =>
+          `<option value="${esc(w)}">${esc(lkWerkLabel(w))} – ${lkKarte(w).kacheln.length} Prozesse</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkUebernehmen()">Übernehmen</button>
+    </div>`);
+}
+
+async function lkUebernehmen() {
+  const wahl = document.getElementById('lk-quelle');
+  if (!wahl || !lkDarfSchreiben()) return;
+  const quelle = lkKarte(wahl.value);
+  const ziel = lkKarte(_lkWerk);
+  ziel.baender = JSON.parse(JSON.stringify(quelle.baender || []));
+  ziel.ergebnisse = JSON.parse(JSON.stringify(quelle.ergebnisse || []));
+  ziel.kacheln = JSON.parse(JSON.stringify(quelle.kacheln || []))
+    .map(k => Object.assign(k, { geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk] }));
+  closeModal();
+  await lkSpeichern(`Landkarte von ${lkWerkLabel(wahl.value)} übernommen ✓`,
+    `Landkarte für ${lkWerkLabel(_lkWerk)} aus ${lkWerkLabel(wahl.value)} übernommen (${ziel.kacheln.length} Prozesse)`);
 }
 
 function lkSetFilter(v) { _lkFilter = v || ''; renderLandkarte(); }
@@ -441,7 +564,10 @@ async function lkVerknuepfungLoesen(id) {
 
 function lkKachelNeu() {
   if (!lkDarfSchreiben()) return;
-  _lkEditing = { id: '', band: 'unterstuetzung', name: '', unter: '', geltung: ['ALLE'], prozessId: '', prozessName: '', neu: true };
+  // In einer Werk-Karte gilt ein neuer Prozess zunächst für dieses Werk;
+  // auf Konzern-Ebene konzernweit. Beides bleibt änderbar.
+  const vorgabe = (_lkWerk === 'KONZERN') ? ['ALLE'] : [_lkWerk];
+  _lkEditing = { id: '', band: 'unterstuetzung', name: '', unter: '', geltung: vorgabe, prozessId: '', prozessName: '', neu: true };
   renderLkEditor();
 }
 
@@ -620,5 +746,5 @@ async function lkZuVerknuepfungen(id) {
   setProzessModus('netz');
   // Der Graph wird beim Umschalten aufgebaut; danach den Fokus setzen.
   if (typeof initVerknuepfungen === 'function') await initVerknuepfungen();
-  if (typeof vkFokus === 'function') vkFokus('prozess:' + id);
+  if (typeof vkFokus === 'function') vkFokus('prozess:' + _lkWerk + ':' + id);
 }

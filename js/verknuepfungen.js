@@ -34,7 +34,9 @@ const VK_ARTEN = {
   prozess:   { farbe: '#dbeada', text: '#2f5d38', label: 'Prozess' },
   modell:    { farbe: '#d2711f', text: '#fff', label: 'BPMN-Modell' },
   regelwerk: { farbe: '#fbf1c2', text: '#7a6417', label: 'Regelwerk' },
-  standort:  { farbe: '#e6eef8', text: '#1A2644', label: 'Standort' },
+  // Werk und Standort sind dasselbe Ding: das Werk führt eine Landkarte UND ist
+  // der Ort, für den Prozesse und Regelwerke gelten. Ein Knoten, zwei Rollen.
+  werk:      { farbe: '#e6eef8', text: '#1A2644', label: 'Werk / Standort' },
 };
 
 /* ── Graph aufbauen ──────────────────────────────────────────────────── */
@@ -69,34 +71,42 @@ async function vkGraphBauen() {
     knoten.get(von).grad++; knoten.get(nach).grad++;
   };
 
-  add('wurzel', 'wurzel', 'Prozesslandschaft');
-  (typeof lkBaender === 'function' ? lkBaender() : []).forEach(b => {
-    add('band:' + b.key, 'band', b.titel);
-    link('wurzel', 'band:' + b.key, 'gliedert');
-  });
+  const werkLabel = (w) => (typeof lkWerkLabel === 'function') ? lkWerkLabel(w) : w;
+  const werkKnoten = (w) => {
+    const id = 'werk:' + w;
+    add(id, 'werk', w === 'ALLE' ? 'Alle Standorte' : werkLabel(w), { werk: w });
+    return id;
+  };
 
-  const kacheln = (typeof lkKacheln === 'function') ? lkKacheln() : [];
+  add('wurzel', 'wurzel', 'Konzern');
+  const alleKacheln = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
   const policies = (typeof State !== 'undefined' && Array.isArray(State.policies)) ? State.policies : [];
 
-  for (const k of kacheln) {
-    const pid = 'prozess:' + k.id;
-    add(pid, 'prozess', k.name, { unter: k.unter || '' });
-    if (knoten.has('band:' + k.band)) link('band:' + k.band, pid, 'enthält');
+  // Jedes Werk mit eigener Landkarte hängt unter dem Konzern.
+  [...new Set(alleKacheln.map(x => x.werk))].forEach(w => link('wurzel', werkKnoten(w), 'Landkarte von'));
 
-    // Standorte (Geltungsbereich der Kachel)
+  for (const eintrag of alleKacheln) {
+    const w = eintrag.werk, k = eintrag.kachel;
+    const pid = `prozess:${w}:${k.id}`;
+    add(pid, 'prozess', k.name, { unter: k.unter || '', werk: w, kachelId: k.id });
+
+    const bid = `band:${w}:${k.band}`;
+    if (!knoten.has(bid)) {
+      const baender = (typeof lkBaenderVon === 'function') ? lkBaenderVon(w) : [];
+      const b = baender.find(x => x.key === k.band);
+      add(bid, 'band', (b ? b.titel : k.band) + ' · ' + werkLabel(w), { werk: w });
+      link('werk:' + w, bid, 'gliedert');
+    }
+    link(bid, pid, 'enthält');
+
+    // Geltungsbereich der Kachel – dieselben Werk-Knoten
     const g = Array.isArray(k.geltung) ? k.geltung : [];
-    const orte = (!g.length || g.includes('ALLE'))
-      ? ['ALLE'] : g;
-    orte.forEach(o => {
-      const sid = 'standort:' + o;
-      add(sid, 'standort', o === 'ALLE' ? 'Alle Standorte' : o);
-      link(pid, sid, 'gilt für');
-    });
+    ((!g.length || g.includes('ALLE')) ? ['ALLE'] : g).forEach(o => link(pid, werkKnoten(o), 'gilt für'));
 
     const modell = (typeof lkProzessVon === 'function') ? lkProzessVon(k) : null;
     if (!modell) continue;
     const mid = 'modell:' + modell.itemId;
-    add(mid, 'modell', modell.title, { itemId: modell.itemId });
+    add(mid, 'modell', modell.title, { itemId: modell.itemId, modellName: modell.title });
     link(pid, mid, 'modelliert in');
 
     const ids = await _vkModellLinks(modell);
@@ -107,11 +117,7 @@ async function vkGraphBauen() {
       add(rw, 'regelwerk', treffer.title, { policyId: treffer.id, status: treffer.status, version: treffer.version });
       link(mid, rw, 'setzt um');
       const gb = Array.isArray(treffer.geltungsbereich) ? treffer.geltungsbereich : [];
-      ((!gb.length || gb.includes('ALLE')) ? ['ALLE'] : gb).forEach(o => {
-        const sid = 'standort:' + o;
-        add(sid, 'standort', o === 'ALLE' ? 'Alle Standorte' : o);
-        link(rw, sid, 'gilt für');
-      });
+      ((!gb.length || gb.includes('ALLE')) ? ['ALLE'] : gb).forEach(o => link(rw, werkKnoten(o), 'gilt für'));
     });
   }
   return { knoten, kanten };
@@ -134,7 +140,7 @@ function vkNachbarn(id) {
 
 function _vkGegenrichtung(typ) {
   return { 'gliedert': 'gehört zu', 'enthält': 'gehört zu', 'modelliert in': 'modelliert',
-    'setzt um': 'umgesetzt in', 'gilt für': 'gilt für' }[typ] || typ;
+    'setzt um': 'umgesetzt in', 'gilt für': 'gilt hier', 'Landkarte von': 'gehört zum' }[typ] || typ;
 }
 
 /* ── Ansicht ─────────────────────────────────────────────────────────── */
@@ -196,6 +202,7 @@ function renderVerknuepfungen() {
       <button class="btn btn-ghost btn-sm" onclick="vkNeuLaden()" title="Verknüpfungen neu einlesen">↻ Aktualisieren</button>
     </div>
     <div class="vk-flaeche">${_vkSvg(mitte)}</div>
+    ${_vkAktionenHtml(k)}
     ${_vkNachbarnListe(mitte)}
     ${_vkLueckenHtml()}`;
 }
@@ -311,7 +318,10 @@ function _vkKurz(s, max) {
 /* ── Lücken: was hängt an nichts? ────────────────────────────────────── */
 
 function vkLuecken() {
-  const kacheln = (typeof lkKacheln === 'function') ? lkKacheln() : [];
+  // Über ALLE Werke, nicht nur über die gerade geöffnete Karte – sonst zeigt die
+  // Übersicht nur einen Ausschnitt und die Lücken der anderen Werke bleiben blind.
+  const alle = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
+  const kacheln = alle.map(x => Object.assign({ werk: x.werk }, x.kachel));
   const policies = (typeof State !== 'undefined' && Array.isArray(State.policies)) ? State.policies : [];
   const verknuepfteRw = new Set();
   const modelleMitRw = new Set();
@@ -344,8 +354,9 @@ function _vkLueckenHtml() {
 
   return `<div class="vk-luecken">
       ${block('Prozesse ohne Modell', l.ohneModell,
-        'In der Landkarte anklicken und „Modell anlegen".',
-        (k) => `<div><a href="#" onclick="setProzessModus('karte');return false">${esc(k.name)}</a></div>`)}
+        'Ein Klick stellt den Prozess in die Mitte – dort lässt sich ein Modell anlegen oder verknüpfen.',
+        (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>
+          <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${block('Modelle ohne Regelwerk', l.modelleOhneRw,
         'Im Prozess-Editor lässt sich zuordnen, welche Regelwerke der Ablauf umsetzt.',
         (m) => `<div><a href="#" onclick="openProcessEditor('${esc(m.itemId)}');return false">${esc(m.title)}</a></div>`)}
@@ -354,6 +365,169 @@ function _vkLueckenHtml() {
         (p) => `<div><a href="#" onclick="focusPolicyCard('${esc(p.id)}');return false">${esc(p.title)}</a></div>`)}
       ${block('Prozesse ohne Geltungsbereich', l.ohneGeltung,
         'Ungepflegt zählt als konzernweit – besser ausdrücklich festlegen.',
-        (k) => `<div><a href="#" onclick="setProzessModus('karte');return false">${esc(k.name)}</a></div>`)}
+        (k) => `<div><a href="#" onclick="vkZurKarte('${esc(k.werk)}','${esc(k.id)}');return false">${esc(k.name)}</a>
+          <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
     </div>`;
+}
+
+
+/* ── Verknüpfen direkt in der Mindmap ────────────────────────────────────
+   „Wer hängt woran" ist erst dann nützlich, wenn man es hier auch ändern kann.
+   Prozess → Modell läuft über die Landkarte (dort liegt die Kachel);
+   Modell → Regelwerk schreibt den Marker in die BPMN-Datei – dieselbe Stelle,
+   die der Prozess-Editor beschreibt, nur ohne den Modeler zu öffnen. */
+
+function _vkDarfSchreiben() { return typeof canWriteTab !== 'function' || canWriteTab('prozesse'); }
+
+/** Zur Landkarte des Werks springen (und die Kachel öffnen). */
+function vkZurKarte(werk, kachelId) {
+  if (typeof lkSetWerk === 'function') lkSetWerk(werk);
+  if (typeof setProzessModus === 'function') setProzessModus('karte');
+  if (kachelId && typeof lkKachelOeffnen === 'function') setTimeout(() => lkKachelOeffnen(kachelId), 0);
+}
+
+/** Aktionsleiste je nach Art des Knotens in der Mitte. */
+function _vkAktionenHtml(k) {
+  if (!k || !_vkDarfSchreiben()) return '';
+  const knopf = (fn, label, art) => `<button class="btn btn-${art || 'outline'} btn-sm" onclick="${fn}">${label}</button>`;
+  let inhalt = '';
+  if (k.art === 'prozess') {
+    const modell = _vkGraph.kanten.find(x => x.von === k.id && x.typ === 'modelliert in');
+    inhalt = modell
+      ? knopf(`vkModellOeffnen('${esc(modell.nach)}')`, 'Modell öffnen', 'primary')
+        + knopf(`vkRegelwerkeDialog('${esc(modell.nach)}')`, 'Regelwerke zuordnen')
+        + knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`, 'In der Landkarte öffnen', 'ghost')
+      : knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`, 'Modell anlegen oder verknüpfen', 'primary');
+  } else if (k.art === 'modell') {
+    inhalt = knopf(`vkModellOeffnen('${esc(k.id)}')`, 'Modell öffnen', 'primary')
+      + knopf(`vkRegelwerkeDialog('${esc(k.id)}')`, 'Regelwerke zuordnen');
+  } else if (k.art === 'regelwerk') {
+    inhalt = knopf(`closeModal();focusPolicyCard('${esc(k.policyId)}')`, 'Regelwerk öffnen', 'primary')
+      + knopf(`vkRegelwerkAnModell('${esc(k.id)}')`, 'Mit einem Modell verknüpfen');
+  }
+  return inhalt ? `<div class="vk-aktionen">${inhalt}</div>` : '';
+}
+
+function vkModellOeffnen(knotenId) {
+  const n = _vkGraph && _vkGraph.knoten.get(knotenId);
+  if (n && n.itemId && typeof openProcessEditor === 'function') openProcessEditor(n.itemId);
+}
+
+/* ── Regelwerke einem Modell zuordnen (ohne den Modeler zu öffnen) ── */
+
+/** Marker im BPMN-XML setzen/ersetzen/entfernen. Die Dokumentation des Prozesses
+ *  ist laut Schema sein erstes Kindelement – dort steht sie auch beim Modeler. */
+function vkXmlMitRegelwerken(xml, ids) {
+  const namen = ids.map(id => {
+    const p = (typeof State !== 'undefined' && (State.policies || [])).find(x => String(x.id) === String(id));
+    return p ? p.title : ('Regelwerk ' + id);
+  });
+  const text = ids.length
+    ? `Im Einklang mit den Richtlinien: ${namen.join('; ')}\n[[rms:policies=${ids.join(',')}]]`
+    : '';
+  const esc2 = (t) => (typeof _xmlEsc === 'function') ? _xmlEsc(t)
+    : String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const proc = String(xml).match(/<(\w+:)?process\b[^>]*>/);
+  if (!proc) return xml;
+  const prefix = proc[1] || '';
+  const pos = proc.index + proc[0].length;
+  const rest = xml.slice(pos);
+  const doku = rest.match(/^(\s*)<(\w+:)?documentation\b[^>]*>[\s\S]*?<\/(\w+:)?documentation>/);
+  if (doku) {
+    const ersatz = text ? `${doku[1]}<${prefix}documentation>${esc2(text)}</${prefix}documentation>` : '';
+    return xml.slice(0, pos) + ersatz + rest.slice(doku[0].length);
+  }
+  if (!text) return xml;
+  return xml.slice(0, pos) + `\n    <${prefix}documentation>${esc2(text)}</${prefix}documentation>` + rest;
+}
+
+function vkRegelwerkeDialog(modellKnoten) {
+  const n = _vkGraph && _vkGraph.knoten.get(modellKnoten);
+  if (!n) return;
+  const schon = _vkGraph.kanten.filter(x => x.von === n.id && x.typ === 'setzt um')
+    .map(x => x.nach.replace('regelwerk:', ''));
+  const policies = ((typeof State !== 'undefined' && State.policies) || [])
+    .filter(p => p.typ !== 'Konzept')
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  openModal(`
+    <div class="modal-header"><h3>Regelwerke zuordnen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Welche Regelwerke setzt <b>${esc(n.label)}</b> um?
+        Die Zuordnung wird in der BPMN-Datei gespeichert – dieselbe Stelle, die auch der
+        Prozess-Editor beschreibt.</p>
+      <div style="max-height:340px;overflow:auto;border:1px solid var(--c-border);border-radius:9px;padding:10px">
+        ${policies.length ? policies.map(p => `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" value="${esc(p.id)}" ${schon.includes(String(p.id)) ? 'checked' : ''}>
+          <span>${esc(p.title)} <span class="field-hint">· ${esc(p.status || '')}</span></span></label>`).join('')
+          : '<div class="field-hint">Es gibt noch keine Regelwerke.</div>'}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="vkRegelwerkeSpeichern('${esc(n.id)}')">Speichern</button>
+    </div>`);
+}
+
+async function vkRegelwerkeSpeichern(modellKnoten) {
+  const n = _vkGraph && _vkGraph.knoten.get(modellKnoten);
+  if (!n || !n.itemId) return;
+  const host = document.querySelector('.modal-body');
+  const ids = host ? [...host.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value) : [];
+  closeModal();
+  try {
+    const xml = await spGetProcessXml(n.itemId);
+    await spSaveProcess(n.modellName || n.label, vkXmlMitRegelwerken(xml, ids));
+    if (typeof _procLinkCache !== 'undefined') _procLinkCache = {};
+    if (typeof _processes !== 'undefined') _processes = null;
+    toast(ids.length ? `${ids.length} Regelwerk(e) zugeordnet ✓` : 'Zuordnung entfernt ✓', 'success');
+    await vkNeuLaden();
+    vkFokus(modellKnoten);
+  } catch (e) {
+    toast('Zuordnung fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+/** Vom Regelwerk aus: an welchem Modell soll es hängen? */
+function vkRegelwerkAnModell(regelwerkKnoten) {
+  const n = _vkGraph && _vkGraph.knoten.get(regelwerkKnoten);
+  const modelle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+  if (!n) return;
+  if (!modelle.length) { toast('Es gibt noch kein Modell zum Verknüpfen.', 'error'); return; }
+  openModal(`
+    <div class="modal-header"><h3>Regelwerk mit einem Modell verknüpfen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Welcher Ablauf setzt <b>${esc(n.label)}</b> um?</p>
+      <div class="form-group full">
+        <select id="vk-modell-wahl">${modelle.map(m =>
+          `<option value="${esc(m.itemId)}">${esc(m.title)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="vkRegelwerkAnModellSpeichern('${esc(n.policyId)}')">Verknüpfen</button>
+    </div>`);
+}
+
+async function vkRegelwerkAnModellSpeichern(policyId) {
+  const wahl = document.getElementById('vk-modell-wahl');
+  const modelle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+  const m = wahl && modelle.find(x => x.itemId === wahl.value);
+  if (!m) return;
+  closeModal();
+  try {
+    const xml = await spGetProcessXml(m.itemId);
+    const vorhanden = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
+    const ids = vorhanden.includes(String(policyId)) ? vorhanden : vorhanden.concat(String(policyId));
+    await spSaveProcess(m.title, vkXmlMitRegelwerken(xml, ids));
+    if (typeof _procLinkCache !== 'undefined') _procLinkCache = {};
+    if (typeof _processes !== 'undefined') _processes = null;
+    toast(`Mit „${m.title}" verknüpft ✓`, 'success');
+    await vkNeuLaden();
+    vkFokus('regelwerk:' + policyId);
+  } catch (e) {
+    toast('Verknüpfen fehlgeschlagen: ' + e.message, 'error');
+  }
 }
