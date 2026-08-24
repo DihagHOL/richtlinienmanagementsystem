@@ -39,12 +39,15 @@ function renderGeltungsbereichSection(arr, prefix) {
         <input type="checkbox" ${alle ? 'checked' : ''} onchange="gbSectionSetAlle('${prefix}', this.checked)">
         <span>Alle Standorte (konzernweit)</span>
       </label>
-      ${alle ? '' : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:2px 12px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:2px 12px${alle ? ';opacity:.45' : ''}">
         ${STANDORTE.map(code => `<label class="ack-check" style="font-weight:500">
-          <input type="checkbox" ${list.includes(code) ? 'checked' : ''} onchange="gbSectionToggle('${prefix}','${code}', this.checked)">
+          <input type="checkbox" ${(!alle && list.includes(code)) ? 'checked' : ''} ${alle ? 'disabled' : ''}
+            onchange="gbSectionToggle('${prefix}','${code}', this.checked)">
           <span>${esc(code)}</span></label>`).join('')}
-      </div>`}
-      <span class="field-hint">Pflichtangabe: Für welche Standorte gilt das Regelwerk? „Alle Standorte" schließt alle ein.</span>
+      </div>
+      <span class="field-hint">${alle
+        ? 'Einzelne Werke wählbar, sobald „Alle Standorte" abgewählt ist.'
+        : 'Pflichtangabe: Für welche Standorte gilt das? „Alle Standorte" schließt alle ein.'}</span>
     </div>`;
 }
 

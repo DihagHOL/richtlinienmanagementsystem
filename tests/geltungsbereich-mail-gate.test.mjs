@@ -30,7 +30,13 @@ ok(Array.isArray(actx.__np.geltungsbereich) && actx.__np.geltungsbereich.length=
 arun('globalThis.__g1 = renderGeltungsbereichSection([], "gb");');
 ok(actx.__g1.includes('Alle Standorte') && actx.__g1.includes('gbSectionToggle') && actx.__g1.includes('>HOL<') && actx.__g1.includes('>EWA<'), 'Section: Alle Standorte + Codes + gbSectionToggle');
 arun('globalThis.__g2 = renderGeltungsbereichSection(["ALLE"], "gb");');
-ok(!actx.__g2.includes('gbSectionToggle'), 'Section: bei Alle Standorte keine Einzel-Checkboxen');
+// Die Werke waren bei „Alle Standorte" ausgeblendet – man sah ein einziges
+// Kästchen und hielt die Auswahl für gesperrt. Jetzt sichtbar, aber deaktiviert.
+ok(actx.__g2.includes('gbSectionToggle') && actx.__g2.includes('>HOL<'),
+  'Section: die Werke sind auch bei „Alle Standorte" sichtbar – sonst wirkt die Auswahl gesperrt');
+ok((actx.__g2.match(/disabled/g) || []).length === 10 && !/checked[^>]*onchange="gbSectionToggle/.test(actx.__g2),
+  'Section: dann aber deaktiviert und ohne Haken');
+ok(/Einzelne Werke wählbar, sobald/.test(actx.__g2), 'Section: mit dem Hinweis, wie man dorthin kommt');
 arun('_editing = newPolicy(); gbSectionToggle("gb","HOL",true); gbSectionToggle("gb","SHB",true); globalThis.__e1 = _editing.geltungsbereich.slice(); gbSectionSetAlle("gb",true); globalThis.__e2 = _editing.geltungsbereich.slice(); gbSectionSetAlle("gb",false); globalThis.__e3 = _editing.geltungsbereich.slice();');
 arun('_kEditing = { geltungsbereich: [] }; renderKonzeptEditor = () => {}; gbSectionToggle("kgb","EIS",true); globalThis.__k1a = _kEditing.geltungsbereich.slice(); gbSectionSetAlle("kgb",true); globalThis.__k2a = _kEditing.geltungsbereich.slice();');
 ok(JSON.stringify(actx.__k1a)===JSON.stringify(['EIS']) && JSON.stringify(actx.__k2a)===JSON.stringify(['ALLE']), 'gbSection-Dispatch kgb (Konzept)');

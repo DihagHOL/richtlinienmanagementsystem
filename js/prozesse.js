@@ -71,20 +71,22 @@ let _prozModus = 'karte';   // 'karte' | 'liste'
 function prozessModusLeiste(aktiv) {
   const knopf = (key, label, titel) => `<button class="btn btn-sm ${aktiv === key ? 'btn-primary' : 'btn-ghost'}"
       onclick="setProzessModus('${key}')" title="${titel}">${label}</button>`;
-  return `<div style="display:flex;gap:6px;margin:0 0 12px">
+  return `<div style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
+      ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran – Prozesse, Modelle, Regelwerke, Standorte')}
       ${knopf('liste', '📋 Modelle', 'Alle BPMN-Modelle als Liste')}
     </div>`;
 }
 
 function setProzessModus(m) {
-  _prozModus = (m === 'liste') ? 'liste' : 'karte';
+  _prozModus = ['liste', 'netz', 'karte'].includes(m) ? m : 'karte';
   renderProzesseAktuell();
 }
 
 /** Die gerade gewählte Ansicht zeichnen. */
 function renderProzesseAktuell() {
   if (_prozModus === 'karte' && typeof initLandkarte === 'function') { initLandkarte(); return; }
+  if (_prozModus === 'netz' && typeof initVerknuepfungen === 'function') { initVerknuepfungen(); return; }
   renderProzesseList();
 }
 

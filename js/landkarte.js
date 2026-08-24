@@ -339,6 +339,8 @@ function lkKachelOeffnen(id) {
     <div class="modal-footer">
       ${schreiben ? `<button class="btn btn-ghost" onclick="lkKachelLoeschen('${esc(k.id)}')">Löschen</button>` : ''}
       <div style="flex:1"></div>
+      <button class="btn btn-outline" onclick="lkZuVerknuepfungen('${esc(k.id)}')"
+        title="Diesen Prozess in der Mindmap in die Mitte stellen">🕸 Verknüpfungen</button>
       ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten('${esc(k.id)}')">Bearbeiten</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`);
@@ -609,4 +611,14 @@ function lkVerlaufZeigen() {
       <p class="field-hint" style="margin-top:12px">Ältere Fassungen der Datei bewahrt SharePoint zusätzlich auf.</p>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal()">Schließen</button></div>`);
+}
+
+/** Von der Kachel in die Mindmap – dieser Prozess kommt in die Mitte. */
+async function lkZuVerknuepfungen(id) {
+  closeModal();
+  if (typeof setProzessModus !== 'function') return;
+  setProzessModus('netz');
+  // Der Graph wird beim Umschalten aufgebaut; danach den Fokus setzen.
+  if (typeof initVerknuepfungen === 'function') await initVerknuepfungen();
+  if (typeof vkFokus === 'function') vkFokus('prozess:' + id);
 }

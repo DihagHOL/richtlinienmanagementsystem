@@ -741,3 +741,34 @@ body.demo-mode .main { padding-bottom: 64px; }
   .lk-karte { background: #fff; }
   .lk-kachel, .lk-pfeil { break-inside: avoid; page-break-inside: avoid; }
 }
+
+
+/* ══ Verknüpfungen (Mindmap) ═══════════════════════════════════════════
+   Ein Objekt in der Mitte, seine Beziehungen ringsum – die Ansicht, die
+   Prozessmanagement-Werkzeuge „Beziehungsansicht" nennen. SVG statt Bild:
+   anklickbar, skalierbar, kein zusätzliches Paket. */
+.vk-flaeche { background: #f4f7fb; border: 1px solid var(--c-border); border-radius: 14px; padding: 10px; overflow-x: auto; }
+.vk-svg { width: 100%; min-width: 620px; height: auto; display: block; }
+.vk-kante { fill: none; stroke: #b6c4d6; stroke-width: 1.6; }
+.vk-kanten-text { font-size: 10.5px; fill: var(--c-muted); }
+.vk-knoten { cursor: pointer; }
+.vk-knoten:hover rect { filter: brightness(.94); }
+.vk-mitte { cursor: default; }
+.vk-mitte rect { filter: drop-shadow(0 2px 6px rgba(26,38,68,.22)); }
+.vk-leer { font-size: 13px; fill: var(--c-muted); }
+
+.vk-luecken { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+.vk-luecke { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; padding: 14px 16px; }
+.vk-luecke-kopf { font-weight: 700; font-size: .87rem; color: var(--c-navy, #1A2644); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.vk-zahl { background: #eef2f7; border-radius: 999px; padding: 1px 9px; font-size: .78rem; color: var(--c-muted); }
+.vk-luecke-liste { font-size: .84rem; line-height: 1.9; }
+.vk-luecke-liste a { color: var(--c-primary); text-decoration: none; font-weight: 600; }
+.vk-luecke-liste a:hover { text-decoration: underline; }
+
+@media print { .vk-flaeche { background: #fff; } .vk-luecke { break-inside: avoid; } }
+
+.vk-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 18px; margin-top: 12px; }
+.vk-chip-gruppe { min-width: 0; }
+.vk-chip-kopf { font-size: .76rem; font-weight: 700; color: var(--c-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.vk-chip { border: 1px solid rgba(0,0,0,.12); border-radius: 999px; padding: 4px 11px; font-size: .8rem; font-weight: 600; cursor: pointer; margin: 0 6px 6px 0; font-family: inherit; }
+.vk-chip:hover { filter: brightness(.94); }

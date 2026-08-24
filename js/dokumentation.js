@@ -442,7 +442,7 @@ function _dokuSections() {
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
-      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat zwei Ansichten: <b>🗺 Landkarte</b> (der Einstieg) und <b>📋 Modelle</b> (alle BPMN-Dateien als Liste).</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat drei Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🕸 Verknüpfungen</b> (wer hängt woran) und <b>📋 Modelle</b> (alle BPMN-Dateien als Liste).</p>
       <div style="${h3}">🗺 Prozesslandkarte</div>
       <p style="margin:0 0 8px;line-height:1.55">Die Prozesslandschaft des Konzerns in der abgestimmten Darstellung: <b>Führungsprozesse</b> oben, <b>Kernprozesse</b> als Pfeile in die Ergebnisse (Aufträge, Produkte, Einnahmen), <b>Unterstützungsprozesse</b> unten. Jede Kachel ist anklickbar.</p>
       <ul style="${ol}">
@@ -458,6 +458,13 @@ function _dokuSections() {
         <li style="${li}"><b>⬆ Importieren</b> – eine vorhandene <b>.bpmn/.xml</b>-Datei einlesen und weiterbearbeiten.</li>
         <li style="${li}"><b>✨ Aus Regelwerk</b> – erzeugt einen echten Prozessentwurf per <b>Texterkennung</b> aus dem verknüpften Word-Dokument des Regelwerks.</li>
         <li style="${li}">Je Prozess wählbar, welche <b>Regelwerke</b> er umsetzt; die Verknüpfung wird in der BPMN-Datei mitgespeichert und auf den Karten angezeigt.</li>
+      </ul>
+      <div style="${h3}">🕸 Verknüpfungen</div>
+      <p style="margin:0 0 8px;line-height:1.55">Wer hängt woran? <b>Prozess ↔ Modell ↔ Regelwerk ↔ Standort</b> als Mindmap: In der Mitte steht ein Objekt, ringsum stehen seine Beziehungen – nach Art beschriftet („modelliert in", „setzt um", „gilt für"). Ein <b>Klick auf einen Nachbarn</b> rückt diesen in die Mitte, <b>← Zurück</b> führt den Weg zurück. Über die Auswahl <b>„In die Mitte"</b> springt man direkt zu einem beliebigen Objekt.</p>
+      <ul style="${ol}">
+        <li style="${li}">Zeigt das Bild höchstens <b>zwölf</b> Nachbarn – mehr wären auf einem Kreis nicht mehr lesbar. <b>Vollständig</b> stehen alle darunter als anklickbare Chips, nach Beziehungsart gruppiert.</li>
+        <li style="${li}"><b>Die Lücken</b> darunter sind der eigentliche Nutzen: <b>Prozesse ohne Modell</b>, <b>Modelle ohne Regelwerk</b>, <b>veröffentlichte Regelwerke ohne Prozess</b> und <b>Prozesse ohne Geltungsbereich</b>. Jeder Eintrag führt mit einem Klick dorthin, wo sich die Lücke schließen lässt.</li>
+        <li style="${li}">Die Ansicht liest beim Öffnen alle Modelle einmal ein (dafür der kurze Ladehinweis) und <b>speichert nichts</b> – sie zeigt nur, was in Landkarte, BPMN-Dateien und Regelwerken ohnehin steht.</li>
       </ul>
       <div style="${h3}">📋 Standard-Prozesse</div>
       <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>13 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, KI-Antrag, Dokument-Health-Check, ISMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
