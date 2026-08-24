@@ -43,11 +43,12 @@ const ctx = {
   geltungsbereichLabel: (a) => (!a || !a.length ? '' : a.includes('ALLE') ? 'Alle Standorte' : a.join(', ')),
   prozessModusLeiste: () => '',
   _processes: [
-    { itemId: 'm1', title: 'Vertrieb', modified: 'x' },
+    { itemId: 'm1', title: 'Vertrieb – Angebot', modified: 'x' },
     { itemId: 'm2', title: 'Produktion', modified: 'x' },
-    { itemId: 'm3', title: 'Ohne Bezug', modified: 'x' },
+    { itemId: 'm3', title: 'Vertrieb – Reklamation', modified: 'x' },
+    { itemId: 'm4', title: 'Ohne Bezug', modified: 'x' },
   ],
-  _procLinkCache: { 'm1|x': ['2'], 'm2|x': ['1'], 'm3|x': [] },
+  _procLinkCache: { 'm1|x': ['2'], 'm2|x': ['1'], 'm3|x': [], 'm4|x': [] },
   spGetProcessXml: async () => { throw new Error('sollte aus dem Cache kommen'); },
   _parsePolicyIds: () => [],
   openProcessEditor: () => {}, focusPolicyCard: () => {}, setProzessModus: () => {},
@@ -59,9 +60,11 @@ vm.runInContext(vk, ctx);
 const w = (a) => vm.runInContext(a, ctx);
 
 w(`_lkDaten = lkStartbestand(); _lkDaten.historie = []; _lkGeladen = true;
-   Object.assign(lkKachelVonId('vertrieb'),   { prozessId: 'm1', geltung: ['ALLE'] });
-   Object.assign(lkKachelVonId('produktion'), { prozessId: 'm2', geltung: ['HOL','SHB'] });
+   Object.assign(lkKachelVonId('vertrieb'),   { prozesse: [{ id: 'm1' }, { id: 'm3' }], geltung: ['ALLE'] });
+   Object.assign(lkKachelVonId('produktion'), { prozesse: [{ id: 'm2' }], geltung: ['HOL','SHB'] });
    Object.assign(lkKachelVonId('qs'),         { geltung: [] });
+   // Ein Prozess ohne Modell, aber mit direkt zugeordnetem Regelwerk
+   Object.assign(lkKachelVonId('personal'),   { regelwerke: ['3'], geltung: ['ALLE'] });
    // SHB führt eine eigene Landkarte – die Mindmap muss beide sehen.
    lkKarte('SHB').kacheln.push({ id: 'giesserei', band: 'kern', name: 'Gießerei', geltung: ['SHB'] });`);
 
@@ -73,16 +76,20 @@ const arten = [...graph.knoten.values()].reduce((a, n) => (a[n.art] = (a[n.art] 
 ok(arten.wurzel === 1 && arten.prozess === 18,
   'Die Mindmap sieht die Prozesse ALLER Werke – 17 aus HOL und einen aus SHB');
 ok(arten.band === 4, 'Bänder gehören zu ihrer Karte: drei für HOL, eines für SHB');
-ok(arten.modell === 2, 'Nur verknüpfte Modelle sind Knoten – „Ohne Bezug" hängt an keiner Kachel');
-ok(arten.regelwerk === 2, 'Und nur Regelwerke, die ein Modell umsetzt');
+ok(arten.modell === 3, 'Nur verknüpfte Modelle sind Knoten – „Ohne Bezug" hängt an keiner Kachel');
+ok(arten.regelwerk === 3, 'Regelwerke aus den Modellen UND die direkt zugeordneten');
 ok(arten.werk === 3, 'Werk und Standort sind ein Knoten: HOL, SHB und „Alle Standorte"');
 ok(graph.kanten.filter(k => k.typ === 'Landkarte von').length === 2,
   'Unter dem Konzern hängen die beiden Werke mit eigener Landkarte');
 const typen = [...new Set(graph.kanten.map(k => k.typ))].sort();
-ok(typen.join('|') === 'Landkarte von|enthält|gilt für|gliedert|modelliert in|setzt um',
-  `Sechs Beziehungsarten (${typen.join(', ')})`);
+ok(typen.join('|') === 'Landkarte von|enthält|geregelt durch|gilt für|gliedert|modelliert in|setzt um',
+  `Sieben Beziehungsarten (${typen.join(', ')})`);
 ok(graph.kanten.some(k => k.von === 'prozess:HOL:vertrieb' && k.nach === 'modell:m1' && k.typ === 'modelliert in'),
   'Kachel → Modell, die Kennung trägt das Werk');
+ok(graph.kanten.filter(k => k.von === 'prozess:HOL:vertrieb' && k.typ === 'modelliert in').length === 2,
+  'Mehrere Modelle an einem Prozess – Angebot und Auftrag gehören beide zum Vertrieb');
+ok(graph.kanten.some(k => k.von === 'prozess:HOL:personal' && k.nach === 'regelwerk:3' && k.typ === 'geregelt durch'),
+  'Ein Regelwerk hängt auch direkt an der Kachel – ohne Umweg über ein Modell');
 ok(graph.knoten.has('prozess:SHB:giesserei'), 'Auch der Prozess aus SHB ist da');
 ok(graph.kanten.some(k => k.von === 'modell:m1' && k.nach === 'regelwerk:2' && k.typ === 'setzt um'),
   'Modell → Regelwerk, gelesen aus dem BPMN-Marker');
@@ -113,7 +120,10 @@ ok(/Math\.min\(Math\.max\(cx \+ Math\.cos\(w\) \* rx, b \/ 2 \+ 8\), B - b \/ 2 
 
 w("_vkFokus = 'prozess:HOL:vertrieb'; renderVerknuepfungen();");
 html = mount.innerHTML;
-ok(/vkFokus\('modell:m1'\)/.test(html), 'Ein Klick auf den Nachbarn rückt ihn in die Mitte');
+ok(/vkFokus\('modell:m1'\)/.test(html) && /vkFokus\('modell:m3'\)/.test(html),
+  'Ein Klick auf den Nachbarn rückt ihn in die Mitte – beide Modelle stehen da');
+ok(/2 Modelle – über die Kachel zu öffnen/.test(html),
+  'Bei mehreren Abläufen wäre „das Modell" mehrdeutig – dann führt der Weg über die Kachel');
 const svgTeil = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
 ok(!/Kartellrecht/.test(svgTeil), 'Das Regelwerk hängt am Modell, nicht direkt am Prozess – zwei Klicks');
 ok(/<optgroup label="Prozess">/.test(html) && /<optgroup label="Regelwerk">/.test(html),
@@ -131,17 +141,24 @@ ok(w('_vkFokus') === '', 'Ein unbekannter Knoten ändert nichts');
 
 /* ── 5) Die Lücken – der eigentliche Nutzen ── */
 const l = ctx.vkLuecken();
-ok(l.ohneModell.length === 16, `Prozesse ohne Modell über alle Werke (${l.ohneModell.length} von 18)`);
+ok(l.ohneModell.length === 16 && !l.ohneModell.some(k => k.id === 'vertrieb'),
+  `Prozesse ohne Modell über alle Werke (${l.ohneModell.length} von 18)`);
 ok(l.ohneModell.some(k => k.werk === 'SHB'), 'Auch die aus anderen Werken – sonst bliebe deren Lücke blind');
 ok(l.ohneModell.every(k => k.werk), 'Jeder Eintrag nennt sein Werk');
-ok(l.modelleOhneRw.length === 1 && l.modelleOhneRw[0].title === 'Ohne Bezug', 'Modelle ohne Regelwerk');
+ok(l.modelleOhneRw.map(m => m.title).sort().join('|') === 'Ohne Bezug|Vertrieb – Reklamation',
+  'Modelle ohne Regelwerk – auch das zweite Modell eines Prozesses zählt einzeln');
 ok(l.rwOhneProzess.length === 1 && l.rwOhneProzess[0].title === 'Reisekosten',
   'Veröffentlichte Regelwerke ohne Prozess – Entwürfe zählen nicht mit');
 ok(!l.rwOhneProzess.some(p => p.status === 'Entwurf'), 'Ein Entwurf ist keine Lücke, er ist in Arbeit');
-ok(l.ohneGeltung.length === 15, 'Und Prozesse ohne gepflegten Geltungsbereich');
+ok(l.ohneGeltung.length === 14 && l.ohneGeltung.every(k => !(k.geltung || []).length),
+  'Und Prozesse ohne gepflegten Geltungsbereich');
 w("_vkFokus = ''; renderVerknuepfungen();");
 html = mount.innerHTML;
-ok((html.match(/class="vk-luecke"/g) || []).length === 4, 'Alle vier Lücken-Kästen werden gezeigt');
+ok((html.match(/class="vk-luecke"/g) || []).length === 5, 'Alle fünf Lücken-Kästen werden gezeigt');
+ok(!l.ohneBezug.some(k => k.id === 'personal'),
+  'Ein Prozess mit direkt zugeordnetem Regelwerk gilt nicht als bezuglos – auch ohne Modell');
+ok(l.ohneBezug.some(k => k.id === 'strategie'), 'Einer ganz ohne Bezug schon');
+ok(l.ohneModell.some(k => k.id === 'personal'), 'Beim Modell fehlt er weiterhin');
 ok(/Nichts offen ✓/.test(html) === false, 'Bei offenen Punkten steht kein „alles gut"');
 
 /* ── 6) Keine zweite Wahrheit, kein Mehraufwand ── */

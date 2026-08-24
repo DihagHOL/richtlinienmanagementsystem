@@ -103,22 +103,37 @@ async function vkGraphBauen() {
     const g = Array.isArray(k.geltung) ? k.geltung : [];
     ((!g.length || g.includes('ALLE')) ? ['ALLE'] : g).forEach(o => link(pid, werkKnoten(o), 'gilt für'));
 
-    const modell = (typeof lkProzessVon === 'function') ? lkProzessVon(k) : null;
-    if (!modell) continue;
-    const mid = 'modell:' + modell.itemId;
-    add(mid, 'modell', modell.title, { itemId: modell.itemId, modellName: modell.title });
-    link(pid, mid, 'modelliert in');
-
-    const ids = await _vkModellLinks(modell);
-    ids.forEach(rid => {
+    /** Regelwerk als Knoten anlegen (samt seinem Geltungsbereich). */
+    const regelwerkKnoten = (rid) => {
       const treffer = policies.find(x => String(x.id) === String(rid));
-      if (!treffer) return;
+      if (!treffer) return '';
       const rw = 'regelwerk:' + treffer.id;
       add(rw, 'regelwerk', treffer.title, { policyId: treffer.id, status: treffer.status, version: treffer.version });
-      link(mid, rw, 'setzt um');
       const gb = Array.isArray(treffer.geltungsbereich) ? treffer.geltungsbereich : [];
       ((!gb.length || gb.includes('ALLE')) ? ['ALLE'] : gb).forEach(o => link(rw, werkKnoten(o), 'gilt für'));
+      return rw;
+    };
+
+    // Regelwerke, die direkt an der Kachel hängen – der Weg für Prozesse, die
+    // (noch) kein Modell haben. Ohne ihn bliebe die Mindmap dort leer.
+    (Array.isArray(k.regelwerke) ? k.regelwerke : []).forEach(rid => {
+      const rw = regelwerkKnoten(rid);
+      if (rw) link(pid, rw, 'geregelt durch');
     });
+
+    // Ein Prozess besteht oft aus mehreren Abläufen – alle hängen an der Kachel.
+    const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(k) : [];
+    for (const modell of modelle) {
+      const mid = 'modell:' + modell.itemId;
+      add(mid, 'modell', modell.title, { itemId: modell.itemId, modellName: modell.title });
+      link(pid, mid, 'modelliert in');
+
+      const ids = await _vkModellLinks(modell);
+      ids.forEach(rid => {
+        const rw = regelwerkKnoten(rid);
+        if (rw) link(mid, rw, 'setzt um');
+      });
+    }
   }
   return { knoten, kanten };
 }
@@ -140,7 +155,8 @@ function vkNachbarn(id) {
 
 function _vkGegenrichtung(typ) {
   return { 'gliedert': 'gehört zu', 'enthält': 'gehört zu', 'modelliert in': 'modelliert',
-    'setzt um': 'umgesetzt in', 'gilt für': 'gilt hier', 'Landkarte von': 'gehört zum' }[typ] || typ;
+    'setzt um': 'umgesetzt in', 'gilt für': 'gilt hier', 'Landkarte von': 'gehört zum',
+    'geregelt durch': 'regelt' }[typ] || typ;
 }
 
 /* ── Ansicht ─────────────────────────────────────────────────────────── */
@@ -150,8 +166,9 @@ async function initVerknuepfungen() {
   if (!mount) return;
   if (!_vkGraph && !_vkLaden) {
     _vkLaden = true;
+    const anzahl = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes.length : 0;
     mount.innerHTML = `${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('netz') : ''}
-      <div class="doc-loading">Verknüpfungen werden gelesen – die Modelle werden dafür einzeln geöffnet …</div>`;
+      <div class="doc-loading">Verknüpfungen werden gelesen${anzahl ? ` – ${anzahl} Modell${anzahl > 1 ? 'e' : ''} werden dafür einzeln geöffnet` : ''} …</div>`;
     if (typeof lkDatenLaden === 'function') await lkDatenLaden();
     try { _vkGraph = await vkGraphBauen(); }
     catch (e) {
@@ -331,13 +348,22 @@ function vkLuecken() {
       modelleMitRw.add(k.von);
     });
   }
-  const ohneModell = kacheln.filter(k => !(typeof lkProzessVon === 'function' && lkProzessVon(k)));
+  const ohneModell = kacheln.filter(k => !((typeof lkProzesseVon === 'function' ? lkProzesseVon(k) : []).length));
   const modelle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
   const modelleOhneRw = modelle.filter(m => !modelleMitRw.has('modell:' + m.itemId));
   const rwOhneProzess = policies.filter(p =>
     p.typ !== 'Konzept' && p.status === 'Veröffentlicht' && !verknuepfteRw.has(String(p.id)));
   const ohneGeltung = kacheln.filter(k => !Array.isArray(k.geltung) || !k.geltung.length);
-  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung };
+  // Ein Prozess ganz ohne Bezug – weder Modell noch Regelwerk – ist die eigentliche
+  // Baustelle. „Nur kein Modell" ist oft in Ordnung, wenn Regelwerke daran hängen.
+  const ohneAllesId = new Set();
+  if (_vkGraph) {
+    _vkGraph.kanten.forEach(x => {
+      if (x.typ === 'modelliert in' || x.typ === 'geregelt durch') ohneAllesId.add(x.von);
+    });
+  }
+  const ohneBezug = kacheln.filter(k => !ohneAllesId.has(`prozess:${k.werk}:${k.id}`));
+  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung, ohneBezug };
 }
 
 function _vkLueckenHtml() {
@@ -353,6 +379,10 @@ function _vkLueckenHtml() {
     </div>`;
 
   return `<div class="vk-luecken">
+      ${block('Prozesse ohne jeden Bezug', l.ohneBezug,
+        'Weder Modell noch Regelwerk – hier ist noch gar nichts hinterlegt.',
+        (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>
+          <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${block('Prozesse ohne Modell', l.ohneModell,
         'Ein Klick stellt den Prozess in die Mitte – dort lässt sich ein Modell anlegen oder verknüpfen.',
         (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>
@@ -392,12 +422,18 @@ function _vkAktionenHtml(k) {
   const knopf = (fn, label, art) => `<button class="btn btn-${art || 'outline'} btn-sm" onclick="${fn}">${label}</button>`;
   let inhalt = '';
   if (k.art === 'prozess') {
-    const modell = _vkGraph.kanten.find(x => x.von === k.id && x.typ === 'modelliert in');
-    inhalt = modell
-      ? knopf(`vkModellOeffnen('${esc(modell.nach)}')`, 'Modell öffnen', 'primary')
-        + knopf(`vkRegelwerkeDialog('${esc(modell.nach)}')`, 'Regelwerke zuordnen')
-        + knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`, 'In der Landkarte öffnen', 'ghost')
-      : knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`, 'Modell anlegen oder verknüpfen', 'primary');
+    const modelle = _vkGraph.kanten.filter(x => x.von === k.id && x.typ === 'modelliert in');
+    inhalt = knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`,
+      modelle.length ? 'In der Landkarte öffnen' : 'Modell anlegen oder verknüpfen',
+      modelle.length ? 'ghost' : 'primary');
+    if (modelle.length === 1) {
+      inhalt = knopf(`vkModellOeffnen('${esc(modelle[0].nach)}')`, 'Modell öffnen', 'primary')
+        + knopf(`vkRegelwerkeDialog('${esc(modelle[0].nach)}')`, 'Regelwerke zuordnen') + inhalt;
+    } else if (modelle.length > 1) {
+      // Bei mehreren Abläufen wäre „das Modell" mehrdeutig – dann führt der Weg
+      // über die Kachel, wo alle stehen.
+      inhalt = `<span class="field-hint" style="align-self:center">${modelle.length} Modelle – über die Kachel zu öffnen</span>` + inhalt;
+    }
   } else if (k.art === 'modell') {
     inhalt = knopf(`vkModellOeffnen('${esc(k.id)}')`, 'Modell öffnen', 'primary')
       + knopf(`vkRegelwerkeDialog('${esc(k.id)}')`, 'Regelwerke zuordnen');

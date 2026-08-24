@@ -67,6 +67,7 @@ let _lkWerk = LK_START_WERK; // welche Landkarte gerade offen ist
 let _lkFilter = '';          // Standort-Filter innerhalb der Karte ('' = alle)
 let _lkEditing = null;       // Kachel im Bearbeiten-Dialog
 let _lkZiehIndex = -1;       // laufendes Ziehen
+let _lkSuche = '';           // Suche über ALLE Landkarten
 
 /** Tiefe Kopie des Startbestands – nie die Konstante verändern. */
 function lkStartbestand() {
@@ -128,15 +129,42 @@ function lkGiltDort(k, standort) {
   return g.includes(standort);
 }
 
-/** Kachel → verknüpftes Modell aus der geladenen Prozessliste (id zuerst, sonst Name). */
-function lkProzessVon(k) {
+/**
+ * Verweise einer Kachel auf ihre BPMN-Modelle. Ein Prozess besteht oft aus
+ * mehreren Abläufen – Angebot, Auftrag, Reklamation gehören alle zum Vertrieb.
+ * Frühere Fassungen kannten nur einen; deren Felder werden hier mitgelesen.
+ */
+function lkModellVerweise(k) {
+  if (Array.isArray(k.prozesse)) return k.prozesse;
+  if (k.prozessId || k.prozessName) return [{ id: k.prozessId || '', name: k.prozessName || '' }];
+  return [];
+}
+
+/** Ein Verweis → Modell aus der geladenen Prozessliste (Kennung zuerst, sonst Name). */
+function lkModellZu(verweis) {
   const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
-  if (k.prozessId) {
-    const t = alle.find(p => p.itemId === k.prozessId);
+  if (verweis && verweis.id) {
+    const t = alle.find(p => p.itemId === verweis.id);
     if (t) return t;
   }
-  const n = String(k.prozessName || '').trim().toLowerCase();
+  const n = String((verweis && verweis.name) || '').trim().toLowerCase();
   return n ? alle.find(p => (p.title || '').trim().toLowerCase() === n) || null : null;
+}
+
+/** Alle aufgelösten Modelle einer Kachel (Verweise ins Leere fallen weg). */
+function lkProzesseVon(k) {
+  return lkModellVerweise(k).map(lkModellZu).filter(Boolean);
+}
+
+/** Das erste Modell – für Anzeigen, die nur eines brauchen. */
+function lkProzessVon(k) { return lkProzesseVon(k)[0] || null; }
+
+/** Direkt an der Kachel hängende Regelwerke (ohne Umweg über ein Modell). */
+function lkRegelwerkeVon(k) {
+  const ids = Array.isArray(k.regelwerke) ? k.regelwerke.map(String) : [];
+  if (!ids.length) return [];
+  const alle = (typeof State !== 'undefined' && Array.isArray(State.policies)) ? State.policies : [];
+  return ids.map(id => alle.find(p => String(p.id) === id)).filter(Boolean);
 }
 
 /* ── Laden und Speichern ─────────────────────────────────────────────── */
@@ -253,12 +281,18 @@ function renderLandkarte() {
         <option value="">alle</option>
         ${standorte.map(s => `<option value="${esc(s)}"${_lkFilter === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
       </select>
+      <div class="search-box" style="margin-left:14px;max-width:230px">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="lk-suche" value="${esc(_lkSuche)}" aria-label="Prozess in allen Landkarten suchen"
+          placeholder="In allen Werken suchen …" oninput="lkSuchen(this.value)">
+      </div>
       <div class="toolbar-spacer"></div>
       ${stand ? `<button class="btn btn-ghost btn-sm" onclick="lkVerlaufZeigen()" title="Versionsverlauf">
         🕘 ${esc(stand.name || '–')}${stand.datum && typeof fmtDate === 'function' ? ' · ' + esc(fmtDate(stand.datum)) : ''}</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="lkNeuLaden()" title="Aktualisieren">↻ Aktualisieren</button>
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
+    ${_lkTrefferHtml()}
     ${_lkFilter ? `<div class="field-hint" style="margin:0 0 10px">Prozesse, die am Standort <b>${esc(_lkFilter)}</b>
       nicht gelten, sind ausgegraut – die Landschaft bleibt dadurch vergleichbar.</div>` : ''}
     ${kacheln.length ? `<div class="lk-karte">
@@ -311,8 +345,12 @@ function _lkKernHtml(schreiben) {
 }
 
 function _lkStatusPunkt(k) {
-  const p = lkProzessVon(k);
-  return `<i class="lk-punkt ${p ? 'lk-punkt-modell' : 'lk-punkt-offen'}" title="${p ? 'BPMN-Modell hinterlegt' : 'noch kein Modell'}"></i>`;
+  const n = lkProzesseVon(k).length;
+  const r = (Array.isArray(k.regelwerke) ? k.regelwerke.length : 0);
+  const titel = [n ? `${n} Modell${n > 1 ? 'e' : ''}` : 'noch kein Modell',
+    r ? `${r} Regelwerk${r > 1 ? 'e' : ''}` : ''].filter(Boolean).join(' · ');
+  return `<i class="lk-punkt ${n ? 'lk-punkt-modell' : 'lk-punkt-offen'}" title="${esc(titel)}"></i>${
+    n > 1 ? `<span class="lk-zahl-punkt" title="${esc(titel)}">${n}</span>` : ''}`;
 }
 
 function _lkGeltungKurz(k) {
@@ -327,11 +365,16 @@ function _lkZiehAttr(i, schreiben) {
     : '';
 }
 
+/** Mit Enter und Leertaste bedienbar – die Kacheln sind Schaltflächen, keine Bilder. */
+function _lkTastatur(id) {
+  return ` role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();lkKachelOeffnen('${esc(id)}')}"`;
+}
+
 function _lkKachelHtml(k, i, band, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
-  return `<div class="lk-kachel lk-${esc(band)}${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" title="${esc(k.name)}">
+  return `<div class="lk-kachel lk-${esc(band)}${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(k.name)}">
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf">${_lkStatusPunkt(k)}<span>${esc(k.name)}</span></div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
@@ -343,8 +386,8 @@ function _lkKachelHtml(k, i, band, schreiben) {
 function _lkPfeilHtml(k, i, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
-  return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" title="${esc(k.name)}">
+  return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(k.name)}">
       ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
@@ -405,9 +448,48 @@ async function lkUebernehmen() {
   ziel.ergebnisse = JSON.parse(JSON.stringify(quelle.ergebnisse || []));
   ziel.kacheln = JSON.parse(JSON.stringify(quelle.kacheln || []))
     .map(k => Object.assign(k, { geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk] }));
+  ziel.kacheln.forEach(_lkVerweise);   // Altbestand-Felder gleich mit umstellen
   closeModal();
   await lkSpeichern(`Landkarte von ${lkWerkLabel(wahl.value)} übernommen ✓`,
     `Landkarte für ${lkWerkLabel(_lkWerk)} aus ${lkWerkLabel(wahl.value)} übernommen (${ziel.kacheln.length} Prozesse)`);
+}
+
+/**
+ * Suche über alle Werke. Bei zehn Landkarten ist „wo steckt die Beschaffung?"
+ * sonst eine Klickstrecke – hier ist es ein Treffer mit Werk daneben.
+ */
+function lkSuchen(q) {
+  _lkSuche = String(q || '');
+  const host = document.getElementById('lk-treffer');
+  if (host) { host.outerHTML = _lkTrefferHtml(); return; }
+  renderLandkarte();
+}
+
+function lkTreffer(q) {
+  const s = String(q || '').trim().toLowerCase();
+  if (s.length < 2) return [];
+  return ((typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [])
+    .filter(x => [x.kachel.name, x.kachel.unter].filter(Boolean).join(' ').toLowerCase().includes(s))
+    .slice(0, 12);
+}
+
+function _lkTrefferHtml() {
+  const q = _lkSuche.trim();
+  if (q.length < 2) return '<div id="lk-treffer"></div>';
+  const treffer = lkTreffer(q);
+  return `<div id="lk-treffer" class="lk-treffer">
+      ${treffer.length ? treffer.map(t => `<button class="lk-treffer-knopf"
+          onclick="lkSpringeZu('${esc(t.werk)}','${esc(t.kachel.id)}')">
+          ${esc(t.kachel.name)} <span>${esc(lkWerkLabel(t.werk))}</span></button>`).join('')
+        : `<span class="field-hint">Kein Prozess mit „${esc(q)}" – in keiner Landkarte.</span>`}
+    </div>`;
+}
+
+/** Zum Treffer springen: richtige Karte öffnen, Kachel zeigen. */
+function lkSpringeZu(werk, id) {
+  _lkWerk = LK_WERKE.includes(werk) ? werk : _lkWerk;
+  renderLandkarte();
+  lkKachelOeffnen(id);
 }
 
 function lkSetFilter(v) { _lkFilter = v || ''; renderLandkarte(); }
@@ -425,7 +507,8 @@ function lkKachelVonId(id) { return lkKacheln().find(k => k.id === id) || null; 
 function lkKachelOeffnen(id) {
   const k = lkKachelVonId(id);
   if (!k) return;
-  const p = lkProzessVon(k);
+  const modelle = lkProzesseVon(k);
+  const eigene = lkRegelwerkeVon(k);
   const schreiben = lkDarfSchreiben();
   const gb = (typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(k.geltung) : '';
   openModal(`
@@ -441,22 +524,31 @@ function lkKachelOeffnen(id) {
       </div>
 
       <div style="border-top:1px solid var(--c-border);padding-top:12px">
-        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">BPMN-Modell</div>
-        ${p ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <span>🔀 <b>${esc(p.title)}</b></span>
-              <button class="btn btn-primary btn-sm" onclick="closeModal();openProcessEditor('${esc(p.itemId)}')">Modell öffnen</button>
-              ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVerknuepfungLoesen('${esc(k.id)}')">Verknüpfung lösen</button>` : ''}
-            </div>`
-          : `<div class="field-hint" style="margin-bottom:8px">Für diesen Prozess ist noch kein Modell hinterlegt.</div>
-             ${schreiben ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
-               <button class="btn btn-primary btn-sm" onclick="lkProzessAnlegen('${esc(k.id)}')">Modell anlegen</button>
-               <button class="btn btn-outline btn-sm" onclick="lkVerknuepfenDialog('${esc(k.id)}')">Vorhandenes verknüpfen</button>
-             </div>` : ''}`}
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">
+          BPMN-Modelle${modelle.length > 1 ? ` <span class="field-hint">(${modelle.length})</span>` : ''}</div>
+        ${modelle.length ? modelle.map(m => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0">
+              <span style="flex:1;min-width:140px">🔀 <b>${esc(m.title)}</b></span>
+              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessEditor('${esc(m.itemId)}')">Öffnen</button>
+              ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen('${esc(k.id)}','${esc(m.itemId)}')">Lösen</button>` : ''}
+            </div>`).join('')
+          : `<div class="field-hint" style="margin-bottom:8px">Für diesen Prozess ist noch kein Modell hinterlegt.</div>`}
+        ${schreiben ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+               <button class="btn ${modelle.length ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="lkProzessAnlegen('${esc(k.id)}')">+ Modell anlegen</button>
+               <button class="btn btn-outline btn-sm" onclick="lkVerknuepfenDialog('${esc(k.id)}')">+ Vorhandenes verknüpfen</button>
+             </div>` : ''}
+        ${modelle.length > 1 ? `<div class="field-hint" style="margin-top:6px">Ein Prozess besteht oft aus mehreren Abläufen – alle hängen an dieser Kachel.</div>` : ''}
       </div>
 
       <div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Regelwerke zu diesem Prozess</div>
-        <div id="lk-regelwerke" class="field-hint">${p ? 'Wird geladen …' : 'Regelwerke hängen am Modell – sobald eines hinterlegt ist, stehen sie hier.'}</div>
+        ${eigene.length ? `<div style="margin-bottom:8px">${eigene.map(r => `<div style="padding:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <a href="#" onclick="closeModal();focusPolicyCard('${esc(r.id)}');return false"
+               style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:140px">${esc(r.title)}</a>
+            <span class="field-hint">direkt verknüpft</span>
+          </div>`).join('')}</div>` : ''}
+        ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkRegelwerkeDialog('${esc(k.id)}')" style="margin-bottom:10px">Regelwerke zuordnen</button>` : ''}
+        <div id="lk-regelwerke" class="field-hint">${modelle.length ? 'Aus den Modellen wird geladen …'
+          : (eigene.length ? '' : 'Noch keine Regelwerke – direkt zuordnen oder über ein Modell verknüpfen.')}</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -467,50 +559,121 @@ function lkKachelOeffnen(id) {
       ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten('${esc(k.id)}')">Bearbeiten</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`);
-  if (p) _lkRegelwerkeLaden(p);
+  if (modelle.length) _lkRegelwerkeLaden(modelle, k);
 }
 
-/** Verknüpfte Regelwerke aus dem BPMN-XML holen – erst beim Öffnen, nicht für die ganze Karte. */
-async function _lkRegelwerkeLaden(p) {
+/** Regelwerke aus den BPMN-Dateien holen – erst beim Öffnen, nicht für die ganze Karte.
+ *  Bei mehreren Modellen wird je Regelwerk gezeigt, aus welchem es stammt. */
+async function _lkRegelwerkeLaden(modelle, kachel) {
   const host = document.getElementById('lk-regelwerke');
   if (!host) return;
+  const eigeneIds = new Set((Array.isArray(kachel && kachel.regelwerke) ? kachel.regelwerke : []).map(String));
   try {
-    const xml = await spGetProcessXml(p.itemId);
-    const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
-    const treffer = (State.policies || []).filter(x => ids.includes(String(x.id)));
-    if (!treffer.length) {
-      host.innerHTML = 'Im Modell ist noch kein Regelwerk verknüpft – das geschieht im Prozess-Editor.';
+    const treffer = new Map();   // policyId → { policy, quellen: [] }
+    for (const m of modelle) {
+      const xml = await spGetProcessXml(m.itemId);
+      const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
+      ids.forEach(id => {
+        const pol = (State.policies || []).find(x => String(x.id) === String(id));
+        if (!pol) return;
+        if (!treffer.has(String(id))) treffer.set(String(id), { pol, quellen: [] });
+        treffer.get(String(id)).quellen.push(m.title);
+      });
+    }
+    const rows = [...treffer.values()].filter(t => !eigeneIds.has(String(t.pol.id)));
+    if (!rows.length) {
+      host.innerHTML = 'In den Modellen ist kein weiteres Regelwerk verknüpft.';
       return;
     }
     host.className = '';
-    host.innerHTML = treffer.map(x => `<div style="padding:5px 0">
-        <a href="#" onclick="closeModal();focusPolicyCard('${esc(x.id)}');return false"
-           style="color:var(--c-primary);font-weight:600;text-decoration:none">${esc(x.title)}</a>
-        <span class="field-hint"> · Version ${esc(x.version)}${x.status ? ' · ' + esc(x.status) : ''}</span>
+    host.innerHTML = rows.map(t => `<div style="padding:5px 0">
+        <a href="#" onclick="closeModal();focusPolicyCard('${esc(t.pol.id)}');return false"
+           style="color:var(--c-primary);font-weight:600;text-decoration:none">${esc(t.pol.title)}</a>
+        <span class="field-hint"> · Version ${esc(t.pol.version)}${t.pol.status ? ' · ' + esc(t.pol.status) : ''}
+          · über ${esc(t.quellen.join(', '))}</span>
       </div>`).join('');
   } catch (e) {
     host.innerHTML = 'Regelwerke konnten nicht gelesen werden: ' + esc(e.message);
   }
 }
 
+/** Regelwerke direkt an der Kachel zuordnen – für Prozesse, die (noch) kein Modell haben. */
+function lkRegelwerkeDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const schon = (Array.isArray(k.regelwerke) ? k.regelwerke : []).map(String);
+  const policies = ((typeof State !== 'undefined' && State.policies) || [])
+    .filter(p => p.typ !== 'Konzept')
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  openModal(`
+    <div class="modal-header"><h3>Regelwerke zuordnen</h3>
+      <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Welche Regelwerke regeln <b>${esc(k.name)}</b>?
+        Diese Zuordnung hängt an der Kachel – unabhängig davon, ob es ein Modell gibt. Was über ein
+        BPMN-Modell verknüpft ist, steht weiterhin dort und muss hier nicht wiederholt werden.</p>
+      <div style="max-height:340px;overflow:auto;border:1px solid var(--c-border);border-radius:9px;padding:10px">
+        ${policies.length ? policies.map(p => `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" value="${esc(p.id)}" ${schon.includes(String(p.id)) ? 'checked' : ''}>
+          <span>${esc(p.title)} <span class="field-hint">· ${esc(p.status || '')}</span></span></label>`).join('')
+          : '<div class="field-hint">Es gibt noch keine Regelwerke.</div>'}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="lkKachelOeffnen('${esc(k.id)}')">Zurück</button>
+      <button class="btn btn-primary" onclick="lkRegelwerkeSpeichern('${esc(k.id)}')">Speichern</button>
+    </div>`);
+}
+
+async function lkRegelwerkeSpeichern(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const host = document.querySelector('.modal-body');
+  const ids = host ? [...host.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value) : [];
+  const vorher = (Array.isArray(k.regelwerke) ? k.regelwerke : []).length;
+  k.regelwerke = ids;
+  closeModal();
+  await lkSpeichern(ids.length ? `${ids.length} Regelwerk(e) zugeordnet ✓` : 'Zuordnung entfernt ✓',
+    `Regelwerke von „${k.name}" geändert (${vorher} → ${ids.length})`);
+}
+
 /* ── Modell anlegen / verknüpfen ─────────────────────────────────────── */
 
 /** Aus einer Kachel ein BPMN-Grundgerüst erzeugen und verknüpfen. */
+/** Verweise einer Kachel als Feld sicherstellen (und Altbestand mitnehmen). */
+function _lkVerweise(k) {
+  if (!Array.isArray(k.prozesse)) {
+    k.prozesse = (k.prozessId || k.prozessName) ? [{ id: k.prozessId || '', name: k.prozessName || '' }] : [];
+    delete k.prozessId; delete k.prozessName;
+  }
+  return k.prozesse;
+}
+
+/** Dateiname für ein weiteres Modell: „Vertrieb", dann „Vertrieb 2" … –
+ *  gleiche Namen wären dieselbe Datei, das zweite Modell überschriebe das erste. */
+function _lkFreierModellName(basis) {
+  const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+  const belegt = (n) => alle.some(p => (p.title || '').trim().toLowerCase() === n.trim().toLowerCase());
+  if (!belegt(basis)) return basis;
+  for (let i = 2; i < 50; i++) if (!belegt(`${basis} ${i}`)) return `${basis} ${i}`;
+  return `${basis} ${Date.now()}`;
+}
+
 async function lkProzessAnlegen(id) {
   const k = lkKachelVonId(id);
   if (!k || !lkDarfSchreiben()) return;
   try {
-    const text = [k.name, k.unter].filter(Boolean).join('\n');
+    const name = _lkFreierModellName(k.name);
+    const text = [name, k.unter].filter(Boolean).join('\n');
     const xml = (typeof _bpmnFromText === 'function')
-      ? _bpmnFromText(text, k.name, [])
+      ? _bpmnFromText(text, name, [])
       : (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : '');
-    const item = await spSaveProcess(k.name, xml);
-    k.prozessId = (item && item.id) || '';
-    k.prozessName = k.name;
+    const item = await spSaveProcess(name, xml);
+    _lkVerweise(k).push({ id: (item && item.id) || '', name });
     if (typeof refreshProzesse === 'function') await refreshProzesse();
-    await lkSpeichern(`Modell für „${k.name}" angelegt ✓`, `Modell für „${k.name}" angelegt`);
+    await lkSpeichern(`Modell „${name}" angelegt ✓`, `Modell „${name}" für „${k.name}" angelegt`);
     closeModal();
-    if (k.prozessId && typeof openProcessEditor === 'function') openProcessEditor(k.prozessId);
+    if (item && item.id && typeof openProcessEditor === 'function') openProcessEditor(item.id);
   } catch (e) {
     toast('Anlegen fehlgeschlagen: ' + e.message, 'error');
   }
@@ -519,8 +682,10 @@ async function lkProzessAnlegen(id) {
 function lkVerknuepfenDialog(id) {
   const k = lkKachelVonId(id);
   if (!k) return;
-  const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
-  if (!alle.length) { toast('Es gibt noch keine Prozesse zum Verknüpfen.', 'error'); return; }
+  const schon = new Set(lkModellVerweise(k).map(v => v.id).filter(Boolean));
+  const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
+    .filter(p => !schon.has(p.itemId));   // was schon hängt, nicht noch einmal anbieten
+  if (!alle.length) { toast('Es gibt kein weiteres Modell zum Verknüpfen.', 'error'); return; }
   openModal(`
     <div class="modal-header"><h3>Modell verknüpfen</h3>
       <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
@@ -545,19 +710,25 @@ async function lkVerknuepfen(id) {
   const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
   const p = alle.find(x => x.itemId === wahl.value);
   if (!p) return;
-  k.prozessId = p.itemId;
-  k.prozessName = p.title;
+  const verweise = _lkVerweise(k);
+  if (verweise.some(v => v.id === p.itemId)) { toast('Dieses Modell hängt bereits an der Kachel.', 'error'); return; }
+  verweise.push({ id: p.itemId, name: p.title });
   closeModal();
   await lkSpeichern(`„${k.name}" mit „${p.title}" verknüpft ✓`, `„${k.name}" mit Modell „${p.title}" verknüpft`);
 }
 
-async function lkVerknuepfungLoesen(id) {
+/** Ein einzelnes Modell von der Kachel lösen (die Datei bleibt bestehen). */
+async function lkModellLoesen(id, itemId) {
   const k = lkKachelVonId(id);
-  if (!k) return;
-  const alt = k.prozessName || '';
-  k.prozessId = ''; k.prozessName = '';
+  if (!k || !lkDarfSchreiben()) return;
+  const verweise = _lkVerweise(k);
+  const i = verweise.findIndex(v => v.id === itemId);
+  if (i < 0) return;
+  const name = verweise[i].name || '';
+  verweise.splice(i, 1);
   closeModal();
-  await lkSpeichern('Verknüpfung gelöst ✓', `Verknüpfung von „${k.name}"${alt ? ' zu „' + alt + '"' : ''} gelöst`);
+  await lkSpeichern('Verknüpfung gelöst ✓',
+    `Modell${name ? ' „' + name + '"' : ''} von „${k.name}" gelöst – die Datei bleibt bestehen`);
 }
 
 /* ── Kacheln bearbeiten ──────────────────────────────────────────────── */
@@ -567,7 +738,7 @@ function lkKachelNeu() {
   // In einer Werk-Karte gilt ein neuer Prozess zunächst für dieses Werk;
   // auf Konzern-Ebene konzernweit. Beides bleibt änderbar.
   const vorgabe = (_lkWerk === 'KONZERN') ? ['ALLE'] : [_lkWerk];
-  _lkEditing = { id: '', band: 'unterstuetzung', name: '', unter: '', geltung: vorgabe, prozessId: '', prozessName: '', neu: true };
+  _lkEditing = { id: '', band: 'unterstuetzung', name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], neu: true };
   renderLkEditor();
 }
 
@@ -627,7 +798,7 @@ async function lkEditorSpeichern() {
 
   if (k.neu) {
     const id = _lkNeueId(name);
-    lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung, prozessId: '', prozessName: '' });
+    lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung, prozesse: [], regelwerke: [] });
     closeModal();
     _lkEditing = null;
     await lkSpeichern(`„${name}" angelegt ✓`, `Prozess „${name}" angelegt`);

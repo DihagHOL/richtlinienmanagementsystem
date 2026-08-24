@@ -774,3 +774,16 @@ body.demo-mode .main { padding-bottom: 64px; }
 .vk-chip:hover { filter: brightness(.94); }
 
 .vk-aktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* Mehrere Modelle an einer Kachel: die Zahl neben dem Punkt */
+.lk-zahl-punkt { font-size: .62rem; font-weight: 700; opacity: .75; margin-left: -2px; }
+
+/* Suche über alle Landkarten */
+.lk-treffer { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; align-items: center; }
+.lk-treffer-knopf {
+  border: 1px solid var(--c-border); background: #fff; border-radius: 999px;
+  padding: 5px 12px; font-size: .82rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  color: var(--c-primary);
+}
+.lk-treffer-knopf:hover { background: #f1f5f9; }
+.lk-treffer-knopf span { color: var(--c-muted); font-weight: 500; margin-left: 6px; }

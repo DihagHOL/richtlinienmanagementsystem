@@ -101,13 +101,29 @@ ok(/if \(scope === 'lgb'\) return \{/.test(adm) && /_lkEditing/.test(adm), 'admi
 ok(/if \(scope === 'lgb'\) s\.obj\.geltung = s\.obj\.geltungsbereich;/.test(adm),
   'Und spiegelt die Auswahl in das Feld der Kachel zurück');
 
-/* ── 3) Verknüpfung zum Modell ── */
+/* ── 3) Verknüpfung zu den Modellen ──
+   Ein Prozess besteht oft aus mehreren Abläufen: Angebot, Auftrag, Reklamation
+   gehören alle zum Vertrieb. Die Kachel trägt deshalb eine Liste. */
 const proc = (k) => vm.runInContext(`(lkProzessVon(${JSON.stringify(k)}) || {}).title || ''`, ctx);
-ok(proc({ prozessId: 'p-1' }) === 'Vertrieb', 'Das Modell wird über die Kennung gefunden');
-ok(proc({ prozessName: 'produktion' }) === 'Produktion', 'Sonst über den Namen, Groß-/Kleinschreibung egal');
-ok(proc({ prozessId: 'weg', prozessName: 'Vertrieb' }) === 'Vertrieb',
+const procs = (k) => vm.runInContext(`lkProzesseVon(${JSON.stringify(k)}).map(p => p.title)`, ctx);
+ok(proc({ prozesse: [{ id: 'p-1' }] }) === 'Vertrieb', 'Das Modell wird über die Kennung gefunden');
+ok(proc({ prozesse: [{ name: 'produktion' }] }) === 'Produktion', 'Sonst über den Namen, Groß-/Kleinschreibung egal');
+ok(proc({ prozesse: [{ id: 'weg', name: 'Vertrieb' }] }) === 'Vertrieb',
   'Wurde die Datei neu angelegt, greift der Name – der Link bricht nicht');
 ok(proc({}) === '', 'Ohne Angabe kein Modell');
+ok(procs({ prozesse: [{ id: 'p-1' }, { id: 'p-2' }] }).join('|') === 'Vertrieb|Produktion',
+  'Mehrere Modelle an einer Kachel');
+ok(procs({ prozesse: [{ id: 'p-1' }, { id: 'gibt-es-nicht' }] }).join('|') === 'Vertrieb',
+  'Ein Verweis ins Leere fällt weg, der Rest bleibt');
+ok(proc({ prozessId: 'p-1' }) === 'Vertrieb', 'Der Altbestand mit EINEM Modell wird weiter gelesen');
+ok(procs({ prozessName: 'Produktion' }).join('|') === 'Produktion', 'Auch über den alten Namen');
+
+/* Direkt an der Kachel hängende Regelwerke – für Prozesse ohne Modell */
+const rw = (k) => vm.runInContext(`lkRegelwerkeVon(${JSON.stringify(k)}).map(p => p.title)`, ctx);
+ctx.State.policies = [{ id: '7', title: 'Kartellrecht' }, { id: '9', title: 'Datenschutz' }];
+ok(rw({ regelwerke: ['7', '9'] }).join('|') === 'Kartellrecht|Datenschutz', 'Regelwerke direkt an der Kachel');
+ok(rw({ regelwerke: ['7', 'weg'] }).join('|') === 'Kartellrecht', 'Gelöschte Regelwerke fallen weg');
+ok(rw({}).length === 0, 'Ohne Zuordnung nichts');
 const lkCode = lk.split(/\r?\n/).filter(z => !/^\s*(\*|\/\*|\/\/)/.test(z)).join(' ');
 ok(!/policies=/.test(lkCode), 'Die Regelwerks-Verknüpfung wird hier NICHT gespeichert – sie steht im BPMN');
 ok(/_parsePolicyIds\(xml\)/.test(lk), 'Gelesen wird sie aus dem BPMN-XML');
@@ -194,6 +210,37 @@ await ctx.lkDatenLaden();
 ok(w("lkKarte('HOL').kacheln.length") === 1 && w("lkKarte('HOL').kacheln[0].name") === 'Alt',
   'Eine Datei der alten Fassung landet als Landkarte von HOL – ohne Neuerfassung');
 ok(w('_lkDaten.version') === 2, 'Und wird als Fassung 2 weitergeführt');
+
+/* ── 7d) Zweites Modell: der Dateiname muss frei sein ──
+   Gleiche Namen wären dieselbe Datei – das zweite Modell überschriebe das erste. */
+ok(vm.runInContext("_lkFreierModellName('Einkauf')", ctx) === 'Einkauf', 'Ein freier Name bleibt, wie er ist');
+ok(vm.runInContext("_lkFreierModellName('Vertrieb')", ctx) === 'Vertrieb 2', 'Ein belegter bekommt eine Nummer');
+ctx._processes.push({ itemId: 'p-3', title: 'Vertrieb 2' });
+ok(vm.runInContext("_lkFreierModellName('Vertrieb')", ctx) === 'Vertrieb 3', 'Und zählt weiter');
+ctx._processes.pop();
+
+/* ── 7e) Tastatur: die Kacheln sind Schaltflächen ── */
+w("_lkFilter = ''; lkSetWerk('HOL'); renderLandkarte();");
+const kHtml = mount.innerHTML;
+ok(/role="button" tabindex="0"/.test(kHtml), 'Kacheln sind per Tab erreichbar');
+ok(/onkeydown="if\(event\.key==='Enter'\|\|event\.key===' '\)/.test(kHtml),
+  'Enter und Leertaste öffnen sie – wie eine Schaltfläche');
+ok(/aria-label="[^"]+"/.test(kHtml) && /aria-label="Alt"/.test(kHtml), 'Und sie sind beschriftet');
+
+/* ── 7f) Suche über alle Landkarten ──
+   Bei zehn Karten ist „wo steckt die Beschaffung?" sonst eine Klickstrecke. */
+w("lkKarte('SHB').kacheln.push({ id: 'giess', band: 'kern', name: 'Gießerei Schmelzbetrieb', geltung: ['SHB'] });");
+const tr = (q) => vm.runInContext(`lkTreffer(${JSON.stringify(q)}).map(t => t.werk + ':' + t.kachel.name)`, ctx);
+ok(tr('gieß').join('|') === 'SHB:Gießerei Schmelzbetrieb', 'Gefunden wird auch in einer Karte, die gerade nicht offen ist');
+ok(tr('g').length === 0, 'Ein einzelner Buchstabe sucht noch nicht – das wäre nur Rauschen');
+ok(tr('SCHMELZ').length === 1, 'Groß-/Kleinschreibung ist egal');
+ok(tr('gibtesnicht').length === 0, 'Ohne Treffer nichts');
+w("_lkSuche = 'gieß';");
+ok(/lkSpringeZu\('SHB','giess'\)/.test(vm.runInContext('_lkTrefferHtml()', ctx)),
+  'Ein Treffer führt zur richtigen Karte und öffnet die Kachel');
+ok(/Kein Prozess mit/.test(vm.runInContext("_lkSuche = 'zzz'; _lkTrefferHtml()", ctx)),
+  'Und sagt es, wenn es nichts gibt');
+w("_lkSuche = ''; lkKarte('SHB').kacheln.pop();");
 
 /* ── 8) Speicherung: eine Datei, keine Liste ── */
 ok(/const LANDKARTE_DATEI = 'prozesslandkarte\.json'/.test(shp), 'Die Karte liegt als eine Datei im Konfig-Ordner');
