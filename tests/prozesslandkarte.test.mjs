@@ -40,7 +40,10 @@ const ctx = {
   openModal: () => {}, closeModal: () => {},
   geltungsbereichLabel: (a) => (!a || !a.length ? '' : a.includes('ALLE') ? 'Alle Standorte' : a.join(', ')),
   prozessModusLeiste: () => '',
-  _processes: [{ itemId: 'p-1', title: 'Vertrieb' }, { itemId: 'p-2', title: 'Produktion' }],
+  _processes: [
+    { itemId: 'p-1', title: 'Vertrieb', ordner: 'HOL' },
+    { itemId: 'p-2', title: 'Produktion', ordner: 'HOL' },
+  ],
   spLandkarteMeta: async () => ctx.__meta,
   spSaveLandkarte: async (d) => { gespeichert.push(JSON.parse(JSON.stringify(d))); ctx.__meta = 'neu-' + gespeichert.length; return ctx.__meta; },
   __meta: '',
@@ -124,6 +127,16 @@ ctx.State.policies = [{ id: '7', title: 'Kartellrecht' }, { id: '9', title: 'Dat
 ok(rw({ regelwerke: ['7', '9'] }).join('|') === 'Kartellrecht|Datenschutz', 'Regelwerke direkt an der Kachel');
 ok(rw({ regelwerke: ['7', 'weg'] }).join('|') === 'Kartellrecht', 'Gelöschte Regelwerke fallen weg');
 ok(rw({}).length === 0, 'Ohne Zuordnung nichts');
+
+/* Der Name allein ist nicht mehr eindeutig: „Vertrieb" gibt es in HOL und in SHB. */
+ctx._processes.push({ itemId: 'p-shb', title: 'Vertrieb', ordner: 'SHB' });
+const zu = (n, w) => vm.runInContext(`(lkModellZu({ name: ${JSON.stringify(n)} }, ${JSON.stringify(w)}) || {}).itemId`, ctx);
+ok(zu('Vertrieb', 'SHB') === 'p-shb', 'Bei gleichem Namen zählt der Ordner des eigenen Werks');
+ok(zu('Vertrieb', 'HOL') === 'p-1', 'Und in HOL das dortige Modell');
+ok(zu('Vertrieb', 'WGC') === 'p-1', 'Kennt das Werk keins, greift der erste Treffer – besser als gar nichts');
+ok(vm.runInContext("(lkModellZu({ id: 'p-shb', name: 'Vertrieb' }, 'HOL') || {}).itemId", ctx) === 'p-shb',
+  'Die Kennung schlägt den Ordner – sie ist die genauere Angabe');
+ctx._processes.pop();
 const lkCode = lk.split(/\r?\n/).filter(z => !/^\s*(\*|\/\*|\/\/)/.test(z)).join(' ');
 ok(!/policies=/.test(lkCode), 'Die Regelwerks-Verknüpfung wird hier NICHT gespeichert – sie steht im BPMN');
 ok(/_parsePolicyIds\(xml\)/.test(lk), 'Gelesen wird sie aus dem BPMN-XML');
@@ -212,11 +225,16 @@ ok(w("lkKarte('HOL').kacheln.length") === 1 && w("lkKarte('HOL').kacheln[0].name
 ok(w('_lkDaten.version') === 2, 'Und wird als Fassung 2 weitergeführt');
 
 /* ── 7d) Zweites Modell: der Dateiname muss frei sein ──
-   Gleiche Namen wären dieselbe Datei – das zweite Modell überschriebe das erste. */
-ok(vm.runInContext("_lkFreierModellName('Einkauf')", ctx) === 'Einkauf', 'Ein freier Name bleibt, wie er ist');
-ok(vm.runInContext("_lkFreierModellName('Vertrieb')", ctx) === 'Vertrieb 2', 'Ein belegter bekommt eine Nummer');
-ctx._processes.push({ itemId: 'p-3', title: 'Vertrieb 2' });
-ok(vm.runInContext("_lkFreierModellName('Vertrieb')", ctx) === 'Vertrieb 3', 'Und zählt weiter');
+   Gleiche Namen im selben Ordner wären dieselbe Datei – das zweite Modell
+   überschriebe das erste. Über Werke hinweg stört der gleiche Name dagegen
+   nicht: HOL/Vertrieb und SHB/Vertrieb sind zwei Dateien. */
+const frei = (n, w) => vm.runInContext(`_lkFreierModellName(${JSON.stringify(n)}, ${JSON.stringify(w)})`, ctx);
+ok(frei('Einkauf', 'HOL') === 'Einkauf', 'Ein freier Name bleibt, wie er ist');
+ok(frei('Vertrieb', 'HOL') === 'Vertrieb 2', 'Im selben Werk belegt: eine Nummer dahinter');
+ok(frei('Vertrieb', 'SHB') === 'Vertrieb',
+  'In einem anderen Werk ist derselbe Name frei – eigener Ordner, eigene Datei');
+ctx._processes.push({ itemId: 'p-3', title: 'Vertrieb 2', ordner: 'HOL' });
+ok(frei('Vertrieb', 'HOL') === 'Vertrieb 3', 'Und zählt weiter');
 ctx._processes.pop();
 
 /* ── 7e) Tastatur: die Kacheln sind Schaltflächen ── */
@@ -259,6 +277,29 @@ ok(/\.lk-reihe \{ display: grid/.test(css), 'Die Bänder sind ein Raster – Fle
 ok(/hyphens: auto/.test(css), 'Lange Komposita werden getrennt statt überzulaufen');
 ok(/@media \(max-width: 780px\)[\s\S]{0,400}\.lk-kachel \{ clip-path: none/.test(css),
   'Auf schmalen Geräten fallen die Formen weg – Lesbarkeit gewinnt');
+
+/* ── 7d2) Übernahme einer fremden Landkarte ──
+   Die Modelle des Quellwerks liegen in dessen Ordner. Sie mitzunehmen hieße,
+   dass zwei Werke auf dieselbe Datei zeigen – deshalb nur auf ausdrücklichen
+   Wunsch. */
+w("_lkDaten = lkStartbestand(); _lkDaten.historie = []; _lkGeladen = true;");
+w("lkSetWerk('WGC'); _lkDaten.karten.WGC = { baender: [], ergebnisse: [], kacheln: [] };");
+ctx.__hakenAn = false;
+ctx.document.getElementById = (id) => (id === 'lk-quelle' ? { value: 'HOL' }
+  : id === 'lk-uebernahme-modelle' ? { checked: ctx.__hakenAn }
+  : id === 'prozesse-mount' ? mount : null);
+await vm.runInContext('lkUebernehmen()', ctx);
+ok(w("lkKarte('WGC').kacheln.length") === 17, 'Die Struktur wird übernommen');
+ok(w("lkKarte('WGC').kacheln.every(k => !k.prozesse.length)"),
+  'Ohne Haken kommen die Modelle NICHT mit – jedes Werk modelliert seine Abläufe selbst');
+ok(w("lkKarte('HOL').kacheln.length") === 17, 'Die Quelle bleibt unberührt');
+ctx.__hakenAn = true;
+w("lkKarte('HOL').kacheln.find(k => k.id === 'vertrieb').prozesse = [{ id: 'p-1', name: 'Vertrieb' }];");
+await vm.runInContext('lkUebernehmen()', ctx);
+ok(w("lkKarte('WGC').kacheln.find(k => k.id === 'vertrieb').prozesse.length") === 1,
+  'Mit Haken kommen sie mit – für Werke, die wirklich dasselbe Modell nutzen');
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+w("lkSetWerk('HOL');");
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

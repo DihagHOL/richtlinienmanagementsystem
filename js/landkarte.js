@@ -140,24 +140,33 @@ function lkModellVerweise(k) {
   return [];
 }
 
-/** Ein Verweis → Modell aus der geladenen Prozessliste (Kennung zuerst, sonst Name). */
-function lkModellZu(verweis) {
+/**
+ * Ein Verweis → Modell aus der geladenen Prozessliste (Kennung zuerst, sonst Name).
+ * Der Name allein ist nicht mehr eindeutig, seit jedes Werk seinen eigenen Ordner
+ * hat: „Vertrieb" gibt es in HOL und in SHB. Deshalb zählt bei der Namenssuche
+ * zuerst der Ordner des eigenen Werks.
+ */
+function lkModellZu(verweis, werk) {
   const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
   if (verweis && verweis.id) {
     const t = alle.find(p => p.itemId === verweis.id);
     if (t) return t;
   }
   const n = String((verweis && verweis.name) || '').trim().toLowerCase();
-  return n ? alle.find(p => (p.title || '').trim().toLowerCase() === n) || null : null;
+  if (!n) return null;
+  const passt = (p) => (p.title || '').trim().toLowerCase() === n;
+  const w = String(werk || '').trim();
+  return (w && alle.find(p => passt(p) && (p.ordner || '') === w)) || alle.find(passt) || null;
 }
 
 /** Alle aufgelösten Modelle einer Kachel (Verweise ins Leere fallen weg). */
-function lkProzesseVon(k) {
-  return lkModellVerweise(k).map(lkModellZu).filter(Boolean);
+function lkProzesseVon(k, werk) {
+  const w = werk || _lkWerk;
+  return lkModellVerweise(k).map(v => lkModellZu(v, w)).filter(Boolean);
 }
 
 /** Das erste Modell – für Anzeigen, die nur eines brauchen. */
-function lkProzessVon(k) { return lkProzesseVon(k)[0] || null; }
+function lkProzessVon(k, werk) { return lkProzesseVon(k, werk)[0] || null; }
 
 /** Direkt an der Kachel hängende Regelwerke (ohne Umweg über ein Modell). */
 function lkRegelwerkeVon(k) {
@@ -425,13 +434,19 @@ function lkUebernehmenDialog() {
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p class="field-hint" style="margin:0 0 10px">Die Struktur wird nach
-        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert – Bänder, Kacheln und die Verknüpfung zum Modell.
+        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert – Bänder und Kacheln.
         Der Geltungsbereich wird auf ${esc(lkWerkLabel(_lkWerk))} gesetzt; alles Weitere lässt sich
         danach anpassen. Die Quelle bleibt unverändert.</p>
       <div class="form-group full">
         <select id="lk-quelle">${quellen.map(w =>
           `<option value="${esc(w)}">${esc(lkWerkLabel(w))} – ${lkKarte(w).kacheln.length} Prozesse</option>`).join('')}</select>
       </div>
+      <label class="ack-check" style="font-weight:500">
+        <input type="checkbox" id="lk-uebernahme-modelle">
+        <span>Auch die Verknüpfungen zu den BPMN-Modellen mitnehmen</span>
+      </label>
+      <span class="field-hint">Ohne Haken bekommt ${esc(lkWerkLabel(_lkWerk))} eine leere Struktur und
+        modelliert seine Abläufe selbst – die Modelle des anderen Werks bleiben dort, wo sie hingehören.</span>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
@@ -446,9 +461,13 @@ async function lkUebernehmen() {
   const ziel = lkKarte(_lkWerk);
   ziel.baender = JSON.parse(JSON.stringify(quelle.baender || []));
   ziel.ergebnisse = JSON.parse(JSON.stringify(quelle.ergebnisse || []));
+  const mitModellen = !!(document.getElementById('lk-uebernahme-modelle') || {}).checked;
   ziel.kacheln = JSON.parse(JSON.stringify(quelle.kacheln || []))
     .map(k => Object.assign(k, { geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk] }));
   ziel.kacheln.forEach(_lkVerweise);   // Altbestand-Felder gleich mit umstellen
+  // Die Modelle des Quellwerks liegen in dessen Ordner. Sie mitzuschleppen
+  // hieße, dass zwei Werke auf dieselbe Datei zeigen – deshalb nur auf Wunsch.
+  if (!mitModellen) ziel.kacheln.forEach(k => { k.prozesse = []; });
   closeModal();
   await lkSpeichern(`Landkarte von ${lkWerkLabel(wahl.value)} übernommen ✓`,
     `Landkarte für ${lkWerkLabel(_lkWerk)} aus ${lkWerkLabel(wahl.value)} übernommen (${ziel.kacheln.length} Prozesse)`);
@@ -527,7 +546,10 @@ function lkKachelOeffnen(id) {
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">
           BPMN-Modelle${modelle.length > 1 ? ` <span class="field-hint">(${modelle.length})</span>` : ''}</div>
         ${modelle.length ? modelle.map(m => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0">
-              <span style="flex:1;min-width:140px">🔀 <b>${esc(m.title)}</b></span>
+              <span style="flex:1;min-width:140px">🔀 <b>${esc(m.title)}</b>${
+                (m.ordner || '') === _lkWerk ? '' :
+                ` <span class="ic-tag" title="Die Datei liegt nicht im Ordner dieses Werks">${
+                  esc(m.ordner ? lkWerkLabel(m.ordner) : 'ohne Werk')}</span>`}</span>
               <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessEditor('${esc(m.itemId)}')">Öffnen</button>
               ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen('${esc(k.id)}','${esc(m.itemId)}')">Lösen</button>` : ''}
             </div>`).join('')
@@ -650,9 +672,13 @@ function _lkVerweise(k) {
 }
 
 /** Dateiname für ein weiteres Modell: „Vertrieb", dann „Vertrieb 2" … –
- *  gleiche Namen wären dieselbe Datei, das zweite Modell überschriebe das erste. */
-function _lkFreierModellName(basis) {
-  const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+ *  gleiche Namen im selben Ordner wären dieselbe Datei, das zweite Modell
+ *  überschriebe das erste. Über Werke hinweg stört der gleiche Name dagegen
+ *  nicht: HOL/Vertrieb und SHB/Vertrieb sind zwei Dateien. */
+function _lkFreierModellName(basis, werk) {
+  const w = String(werk === undefined ? _lkWerk : (werk || ''));
+  const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
+    .filter(p => (p.ordner || '') === w);
   const belegt = (n) => alle.some(p => (p.title || '').trim().toLowerCase() === n.trim().toLowerCase());
   if (!belegt(basis)) return basis;
   for (let i = 2; i < 50; i++) if (!belegt(`${basis} ${i}`)) return `${basis} ${i}`;
@@ -663,12 +689,13 @@ async function lkProzessAnlegen(id) {
   const k = lkKachelVonId(id);
   if (!k || !lkDarfSchreiben()) return;
   try {
-    const name = _lkFreierModellName(k.name);
+    const name = _lkFreierModellName(k.name, _lkWerk);
     const text = [name, k.unter].filter(Boolean).join('\n');
     const xml = (typeof _bpmnFromText === 'function')
       ? _bpmnFromText(text, name, [])
       : (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : '');
-    const item = await spSaveProcess(name, xml);
+    // Das Modell gehört zum Werk dieser Landkarte – es landet in dessen Ordner.
+    const item = await spSaveProcess(name, xml, _lkWerk);
     _lkVerweise(k).push({ id: (item && item.id) || '', name });
     if (typeof refreshProzesse === 'function') await refreshProzesse();
     await lkSpeichern(`Modell „${name}" angelegt ✓`, `Modell „${name}" für „${k.name}" angelegt`);
@@ -684,7 +711,10 @@ function lkVerknuepfenDialog(id) {
   if (!k) return;
   const schon = new Set(lkModellVerweise(k).map(v => v.id).filter(Boolean));
   const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
-    .filter(p => !schon.has(p.itemId));   // was schon hängt, nicht noch einmal anbieten
+    .filter(p => !schon.has(p.itemId))   // was schon hängt, nicht noch einmal anbieten
+    // Modelle des eigenen Werks zuerst – die sind in aller Regel gemeint.
+    .sort((a, b) => ((b.ordner || '') === _lkWerk) - ((a.ordner || '') === _lkWerk)
+      || (a.title || '').localeCompare(b.title || '', 'de'));
   if (!alle.length) { toast('Es gibt kein weiteres Modell zum Verknüpfen.', 'error'); return; }
   openModal(`
     <div class="modal-header"><h3>Modell verknüpfen</h3>
@@ -693,7 +723,8 @@ function lkVerknuepfenDialog(id) {
       <p class="field-hint" style="margin:0 0 10px">Welches vorhandene BPMN-Modell gehört zu „${esc(k.name)}"?</p>
       <div class="form-group full">
         <select id="lk-proc-wahl">
-          ${alle.map(p => `<option value="${esc(p.itemId)}">${esc(p.title)}</option>`).join('')}
+          ${alle.map(p => `<option value="${esc(p.itemId)}">${esc(p.title)} · ${
+            esc(p.ordner ? lkWerkLabel(p.ordner) : 'ohne Werk')}</option>`).join('')}
         </select>
       </div>
     </div>

@@ -122,7 +122,7 @@ async function vkGraphBauen() {
     });
 
     // Ein Prozess besteht oft aus mehreren Abläufen – alle hängen an der Kachel.
-    const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(k) : [];
+    const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(k, w) : [];
     for (const modell of modelle) {
       const mid = 'modell:' + modell.itemId;
       add(mid, 'modell', modell.title, { itemId: modell.itemId, modellName: modell.title });
@@ -348,7 +348,7 @@ function vkLuecken() {
       modelleMitRw.add(k.von);
     });
   }
-  const ohneModell = kacheln.filter(k => !((typeof lkProzesseVon === 'function' ? lkProzesseVon(k) : []).length));
+  const ohneModell = kacheln.filter(k => !((typeof lkProzesseVon === 'function' ? lkProzesseVon(k, k.werk) : []).length));
   const modelle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
   const modelleOhneRw = modelle.filter(m => !modelleMitRw.has('modell:' + m.itemId));
   const rwOhneProzess = policies.filter(p =>
@@ -514,7 +514,11 @@ async function vkRegelwerkeSpeichern(modellKnoten) {
   closeModal();
   try {
     const xml = await spGetProcessXml(n.itemId);
-    await spSaveProcess(n.modellName || n.label, vkXmlMitRegelwerken(xml, ids));
+    // In den Ordner schreiben, in dem die Datei liegt – sonst entstünde eine
+    // zweite Datei direkt im Prozesse-Ordner.
+    const datei = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
+      .find(p => p.itemId === n.itemId);
+    await spSaveProcess(n.modellName || n.label, vkXmlMitRegelwerken(xml, ids), datei ? datei.ordner : '');
     if (typeof _procLinkCache !== 'undefined') _procLinkCache = {};
     if (typeof _processes !== 'undefined') _processes = null;
     toast(ids.length ? `${ids.length} Regelwerk(e) zugeordnet ✓` : 'Zuordnung entfernt ✓', 'success');
@@ -538,7 +542,8 @@ function vkRegelwerkAnModell(regelwerkKnoten) {
       <p class="field-hint" style="margin:0 0 10px">Welcher Ablauf setzt <b>${esc(n.label)}</b> um?</p>
       <div class="form-group full">
         <select id="vk-modell-wahl">${modelle.map(m =>
-          `<option value="${esc(m.itemId)}">${esc(m.title)}</option>`).join('')}</select>
+          `<option value="${esc(m.itemId)}">${esc(m.title)} · ${
+            esc(m.ordner ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(m.ordner) : m.ordner) : 'ohne Werk')}</option>`).join('')}</select>
       </div>
     </div>
     <div class="modal-footer">
@@ -557,7 +562,7 @@ async function vkRegelwerkAnModellSpeichern(policyId) {
     const xml = await spGetProcessXml(m.itemId);
     const vorhanden = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
     const ids = vorhanden.includes(String(policyId)) ? vorhanden : vorhanden.concat(String(policyId));
-    await spSaveProcess(m.title, vkXmlMitRegelwerken(xml, ids));
+    await spSaveProcess(m.title, vkXmlMitRegelwerken(xml, ids), m.ordner || '');
     if (typeof _procLinkCache !== 'undefined') _procLinkCache = {};
     if (typeof _processes !== 'undefined') _processes = null;
     toast(`Mit „${m.title}" verknüpft ✓`, 'success');

@@ -120,7 +120,7 @@ function renderProzesseList() {
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('liste') : ''}
     <div class="view-desc" style="margin:0 0 12px">
       Prozesse (BPMN 2.0) im Camunda-Stil selbst modellieren und mit Richtlinien verknüpfen –
-      „<b>im Einklang mit den Richtlinien</b>". Gespeichert als <b>.bpmn</b> im Ordner „Prozesse" der ISMS-Bibliothek.
+      „<b>im Einklang mit den Richtlinien</b>". Gespeichert als <b>.bpmn</b> im Ordner „Prozesse" der ISMS-Bibliothek – je Werk ein Unterordner.
     </div>
     <div class="view-toolbar">
       <div class="search-box">
@@ -129,6 +129,7 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${canWrite && (_processes || []).some(p => !(p.ordner || '')) ? `<button class="btn btn-outline btn-sm" onclick="prozessAblageAufraeumen()" title="Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks verschieben">🗂 Ablage aufräumen</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
@@ -152,18 +153,79 @@ function _renderProcCards() {
       : '<div class="field-hint">Keine Prozesse.</div>';
     return;
   }
-  host.innerHTML = `<div class="item-cards">${rows.map(p => `
+  const karte = (p) => `
     <div class="item-card" style="cursor:pointer" onclick="openProcessEditor('${esc(p.itemId)}')">
       <div class="ic-top"><div class="ic-title">🔀 ${esc(p.title)}</div></div>
       <div class="ic-tags"><span class="ic-tag">.bpmn</span>${p.modifiedBy ? `<span class="ic-tag">${esc(p.modifiedBy)}</span>` : ''}${p.modified ? `<span class="ic-tag">${esc(fmtDate(p.modified))}</span>` : ''}</div>
       <div id="proc-link-${esc(p.itemId)}" style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">…</div>
-    </div>`).join('')}</div>`;
+    </div>`;
+  // Nach Werk gruppiert – ein Prozess gehört zu dem Werk, dessen Landkarte ihn führt.
+  host.innerHTML = _procGruppen(rows).map(g => `
+    <div style="margin-bottom:18px">
+      <div style="font-weight:700;font-size:.9rem;color:var(--c-navy,#1A2644);margin:0 0 8px;display:flex;align-items:center;gap:8px">
+        <span>${g.key ? '🏭' : '📄'} ${esc(g.titel)}</span>
+        <span class="field-hint" style="font-weight:500">${g.rows.length} Modell${g.rows.length === 1 ? '' : 'e'}</span>
+      </div>
+      <div class="item-cards">${g.rows.map(karte).join('')}</div>
+    </div>`).join('');
   // Verknüpfte Richtlinien pro Karte (aus dem BPMN-XML) – progressiv, mit Cache.
   rows.forEach(p => {
     const key = p.itemId + '|' + p.modified;
     if (_procLinkCache[key]) _renderCardLink(p.itemId, _procLinkCache[key]);
     else _enrichProcessCard(p, key);
   });
+}
+
+/** Prozesse nach Werk gruppieren: erst die Werke in ihrer üblichen Reihenfolge,
+ *  unbekannte Ordner danach, ganz zuletzt die Dateien ohne Werk. */
+function _procGruppen(rows) {
+  const werke = (typeof LK_WERKE !== 'undefined') ? LK_WERKE : [];
+  const rang = (k) => { if (!k) return 9999; const i = werke.indexOf(k); return i < 0 ? 500 : i; };
+  const label = (k) => k ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(k) : k) : 'Ohne Werk';
+  return [...new Set(rows.map(p => p.ordner || ''))]
+    .sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, 'de'))
+    .map(k => ({ key: k, titel: label(k), rows: rows.filter(p => (p.ordner || '') === k) }));
+}
+
+/**
+ * Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks
+ * verschieben. Welches Werk gemeint ist, sagt die Landkarte: das Werk, dessen
+ * Kachel auf das Modell zeigt. Zeigen Kacheln aus zwei Werken darauf, bleibt es
+ * liegen – diese Entscheidung kann die App nicht treffen.
+ */
+async function prozessAblageAufraeumen() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* Startbestand reicht */ } }
+  const kacheln = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
+  const offen = (_processes || []).filter(p => !(p.ordner || ''));
+  const plan = [], mehrdeutig = [];
+  offen.forEach(p => {
+    const passt = (v) => v.id === p.itemId
+      || (!!v.name && String(v.name).trim().toLowerCase() === String(p.title).trim().toLowerCase());
+    const werke = [...new Set(kacheln
+      .filter(x => ((typeof lkModellVerweise === 'function') ? lkModellVerweise(x.kachel) : []).some(passt))
+      .map(x => x.werk))];
+    if (werke.length === 1) plan.push({ p, werk: werke[0] });
+    else if (werke.length > 1) mehrdeutig.push(p);
+  });
+  const rest = offen.length - plan.length;
+  if (!plan.length) {
+    toast(offen.length ? 'Kein Modell lässt sich eindeutig einem Werk zuordnen – bitte im Modell selbst wählen.' : 'Alle Modelle liegen bereits im Ordner ihres Werks.',
+      plan.length ? 'success' : 'error');
+    return;
+  }
+  const ok = await uiConfirm(
+    `${plan.length} Modell(e) in den Ordner ihres Werks verschieben?<br><span class="field-hint">Die Kennung der Dateien bleibt erhalten – Landkarte, Mindmap und Regelwerks-Verknüpfungen überstehen den Umzug.${
+      rest ? ` ${rest} weitere(s) bleibt liegen${mehrdeutig.length ? `, davon ${mehrdeutig.length} von mehreren Werken verknüpft` : ''}.` : ''}</span>`,
+    { title: 'Ablage aufräumen', okLabel: `${plan.length} verschieben` });
+  if (!ok) return;
+  let done = 0, fail = 0;
+  for (const e of plan) {
+    try { await spMoveProcess(e.p.itemId, e.werk); done++; }
+    catch (err) { console.warn('Umzug fehlgeschlagen:', e.p.title, err.message); fail++; }
+  }
+  await refreshProzesse();
+  toast(`${done} Modell(e) einsortiert${fail ? `, ${fail} fehlgeschlagen` : ''} ✓`, fail ? 'error' : 'success');
 }
 
 async function _enrichProcessCard(p, key) {
@@ -199,7 +261,8 @@ async function openProcessEditor(itemId, seed) {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   const proc = itemId ? (_processes || []).find(p => String(p.itemId) === String(itemId)) : null;
-  _procEditing = { itemId: itemId || null, origName: proc ? proc.name : '' };
+  _procEditing = { itemId: itemId || null, origName: proc ? proc.name : '',
+    origWerk: proc ? (proc.ordner || '') : '' };
   const startName = proc ? proc.title : (seed && seed.name ? seed.name : '');
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
 
@@ -219,6 +282,15 @@ async function openProcessEditor(itemId, seed) {
       <div style="width:280px;max-width:100%">
         <div class="form-group full"><label>Prozessname <span class="req">*</span></label>
           <input type="text" id="proc-name" value="${esc(startName)}" placeholder="z. B. Freigabe von Lieferanten" ${canWrite ? '' : 'disabled'}></div>
+        <div class="form-group full"><label>Ablage (Werk)</label>
+          <select id="proc-werk" ${canWrite ? '' : 'disabled'}>
+            <option value=""${proc && proc.ordner ? '' : ' selected'}>— ohne Werk —</option>
+            ${((typeof LK_WERKE !== 'undefined') ? LK_WERKE : []).map(w =>
+              `<option value="${esc(w)}"${proc && proc.ordner === w ? ' selected' : ''}>${
+                esc((typeof lkWerkLabel === 'function') ? lkWerkLabel(w) : w)}</option>`).join('')}
+          </select>
+          <span class="field-hint">Jedes Werk führt seine eigene Landkarte – die Modelle liegen im
+            Ordner „Prozesse/&lt;Werk&gt;". Beim Wechsel wird die Datei verschoben, ihre Kennung bleibt.</span></div>
         <div class="form-group full"><label>Verknüpfte Richtlinien</label>
           <div id="proc-policy-list" style="max-height:230px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
           <span class="field-hint">Welche Richtlinien dieser Prozess umsetzt. Wird in der BPMN-Datei gespeichert und im Prozess dokumentiert.</span></div>
@@ -303,15 +375,19 @@ async function saveProcess() {
   try {
     _setProcessPolicies(_selectedPolicyIds());
     const { xml } = await _bpmnModeler.saveXML({ format: true });
-    const saved = await spSaveProcess(name, xml);
-    // Umbenennung: neuer Dateiname ⇒ neue Datei → alte Datei entfernen (kein Duplikat).
+    const werk = (document.getElementById('proc-werk') || {}).value || '';
     const newFname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';
-    const oldName = _procEditing && _procEditing.origName;
-    if (_procEditing && _procEditing.itemId && oldName && oldName !== newFname) {
-      try { await spDeleteProcess(_procEditing.itemId); } catch (e) { console.warn('Alte Prozessdatei nicht gelöscht:', e.message); }
+    const alt = _procEditing || {};
+    // Umbenennen oder in ein anderes Werk umziehen: erst die Datei selbst
+    // verschieben – so behält sie ihre Kennung und alle Verknüpfungen aus
+    // Landkarte und Mindmap überleben. (Ein Speichern unter neuem Namen würde
+    // eine zweite Datei anlegen und die Verweise ins Leere laufen lassen.)
+    if (alt.itemId && ((alt.origName && alt.origName !== newFname) || (alt.origWerk || '') !== werk)) {
+      await spMoveProcess(alt.itemId, werk, newFname);
     }
+    const saved = await spSaveProcess(name, xml, werk);
     _processes = null; _procLinkCache = {};   // Liste neu laden, wenn man zurückgeht
-    _procEditing = { itemId: saved && saved.id, origName: newFname };
+    _procEditing = { itemId: (saved && saved.id) || alt.itemId, origName: newFname, origWerk: werk };
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = `<span style="color:#15803d">Gespeichert: ${esc(newFname)} ✓</span>`;
     toast('Prozess gespeichert ✓', 'success');

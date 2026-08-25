@@ -1855,32 +1855,87 @@ async function spSaveLandkarte(daten) {
    liegt im BPMN-XML selbst (Prozess-Dokumentation), keine Extra-Liste nötig.
 ═══════════════════════════════════════════════════ */
 const PROCESS_FOLDER = 'Prozesse';
+const PROC_FELDER = '?$select=id,name,size,webUrl,folder,lastModifiedDateTime,lastModifiedBy&$top=200';
 
-/** Alle .bpmn-Dateien im Prozesse-Ordner auflisten (leer, wenn Ordner fehlt). */
+/** Werk-Kürzel auf einen unbedenklichen Ordnernamen eindampfen ('' = ohne Werk). */
+function _prozessOrdnerName(werk) {
+  return String(werk || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+}
+
+/**
+ * Ordner „Prozesse" und darin den Werk-Ordner anlegen, falls sie fehlen.
+ * Jedes Werk führt eine eigene Landkarte – seine Modelle liegen deshalb auch
+ * in einem eigenen Ordner. Sonst wäre „Vertrieb" aus HOL dieselbe Datei wie
+ * „Vertrieb" aus SHB.
+ */
+async function _prozessOrdnerSicherstellen(token, werk) {
+  const anlegen = async (elternPfad, name) => {
+    const url = elternPfad
+      ? `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${elternPfad}:/children`
+      : `${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children`;
+    const res = await _fetchRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+    });
+    // 409 heißt: gibt es schon - genau das ist der Normalfall.
+    if (!res.ok && res.status !== 409) console.warn(`Ordner „${name}" nicht angelegt (${res.status})`);
+  };
+  await anlegen('', PROCESS_FOLDER);
+  const ordner = _prozessOrdnerName(werk);
+  if (ordner) await anlegen(encodeURIComponent(PROCESS_FOLDER), ordner);
+  return ordner;
+}
+
+/** Pfad einer Prozessdatei: mit Werk im Unterordner, ohne Werk direkt darin. */
+function _prozessPfad(werk, fname) {
+  const teile = [PROCESS_FOLDER];
+  const ordner = _prozessOrdnerName(werk);
+  if (ordner) teile.push(ordner);
+  teile.push(fname);
+  return teile.map(encodeURIComponent).join('/');
+}
+
+/** Ein DriveItem auf einen Prozess abbilden; `ordner` ist das Werk ('' = keins). */
+function _mapProcess(f, ordner) {
+  return {
+    itemId:     f.id,
+    name:       f.name,
+    title:      f.name.replace(/\.bpmn$/i, ''),
+    ordner:     ordner || '',
+    webUrl:     f.webUrl || '',
+    size:       f.size || 0,
+    modified:   f.lastModifiedDateTime || '',
+    modifiedBy: (f.lastModifiedBy && f.lastModifiedBy.user && f.lastModifiedBy.user.displayName) || '',
+  };
+}
+
+/** Alle .bpmn-Dateien auflisten - im Prozesse-Ordner und in den Werk-Ordnern
+ *  darunter (leer, wenn der Ordner noch fehlt). */
 async function spListProcesses() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   await _ismsLib(token);
+  const bpmn = (liste, ordner) => (liste || []).filter(f => /\.bpmn$/i.test(f.name || '')).map(f => _mapProcess(f, ordner));
+  let wurzel;
   try {
-    const data = await _get(
-      `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${encodeURIComponent(PROCESS_FOLDER)}:/children` +
-      `?$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy&$top=200`, token);
-    return (data.value || [])
-      .filter(f => /\.bpmn$/i.test(f.name || ''))
-      .map(f => ({
-        itemId:     f.id,
-        name:       f.name,
-        title:      f.name.replace(/\.bpmn$/i, ''),
-        webUrl:     f.webUrl || '',
-        size:       f.size || 0,
-        modified:   f.lastModifiedDateTime || '',
-        modifiedBy: (f.lastModifiedBy && f.lastModifiedBy.user && f.lastModifiedBy.user.displayName) || '',
-      }))
-      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+    wurzel = await _get(
+      `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${encodeURIComponent(PROCESS_FOLDER)}:/children${PROC_FELDER}`, token);
   } catch (e) {
     if (e.status === 404 || /itemNotFound|404/i.test(e.message || '')) return [];   // Ordner existiert noch nicht
     throw e;
   }
+  const kinder = wurzel.value || [];
+  // Jeder Unterordner ist ein Werk. Ein Ordner, der keinem bekannten Werk
+  // entspricht, wird trotzdem gelesen - lieber anzeigen als verschlucken.
+  const unter = await Promise.all(kinder.filter(f => f.folder).map(async (o) => {
+    try {
+      const d = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${o.id}/children${PROC_FELDER}`, token);
+      return bpmn(d.value, o.name);
+    } catch (e) { console.warn(`Ordner „${o.name}" nicht lesbar:`, e.message); return []; }
+  }));
+  return bpmn(kinder, '').concat(...unter)
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 }
 
 /** BPMN-XML einer Prozessdatei laden. */
@@ -1894,15 +1949,18 @@ async function spGetProcessXml(itemId) {
   return res.text();
 }
 
-/** Prozess speichern (Upload .bpmn; legt den Ordner „Prozesse" bei Bedarf automatisch an).
- *  Gleicher Dateiname → neue Version derselben Datei. @returns das DriveItem. */
-async function spSaveProcess(name, xml) {
+/** Prozess speichern (Upload .bpmn; legt „Prozesse" und den Werk-Ordner bei
+ *  Bedarf automatisch an). Gleicher Pfad → neue Version derselben Datei.
+ *  @param werk Werk-Kürzel; leer lässt die Datei direkt im Prozesse-Ordner.
+ *  @returns das DriveItem. */
+async function spSaveProcess(name, xml, werk) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
   await _ismsLib(token);
   const safe = String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
   const fname = /\.bpmn$/i.test(safe) ? safe : safe + '.bpmn';
-  const path = `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(fname)}`;
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const path = _prozessPfad(ordner, fname);
   const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${path}:/content`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/xml' },
@@ -1911,6 +1969,38 @@ async function spSaveProcess(name, xml) {
   if (!res.ok) {
     const t = await res.text().catch(() => res.status);
     throw new Error(`Speichern fehlgeschlagen (${res.status}): ${String(t).slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+/**
+ * Eine Prozessdatei in den Ordner eines Werks verschieben. Die Kennung der
+ * Datei bleibt dabei erhalten - alle Verknüpfungen überstehen den Umzug,
+ * denn Landkarte und Mindmap merken sich die Kennung, nicht den Pfad.
+ */
+async function spMoveProcess(itemId, werk, neuerName) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const pfad = ordner
+    ? `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(ordner)}`
+    : encodeURIComponent(PROCESS_FOLDER);
+  const ziel = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${pfad}`, token);
+  const rumpf = { parentReference: { id: ziel.id } };
+  // Umbenennen im selben Zug: auch dabei bleibt die Kennung erhalten – anders
+  // als beim Anlegen unter neuem Namen, das eine zweite Datei erzeugen würde.
+  if (neuerName) rumpf.name = /\.bpmn$/i.test(neuerName) ? neuerName : neuerName + '.bpmn';
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(rumpf),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(/nameAlreadyExists/i.test(String(t))
+      ? 'Dort gibt es bereits ein Modell mit diesem Namen.'
+      : `Verschieben fehlgeschlagen (${res.status})`);
   }
   return res.json();
 }

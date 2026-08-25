@@ -46,6 +46,7 @@ const FEATURES = [
   { name: 'Muster-Vorlage',          code: () => /MUSTER_VORLAGE_URL/.test(admin),                   begriffe: ['Muster-Vorlage'] },
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
+  { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
   { name: 'Reihenfolge Freigabe/MB', code: () => /function edSwapWorkflowOrder/.test(admin),         begriffe: ['Reihenfolge'] },
   { name: 'Einführungs-Schritte',    code: () => /const RW_SCHRITTE/.test(admin),                     begriffe: ['So wird ein Regelwerk eingeführt'] },
   { name: 'Probelauf',               code: () => /function probelaufAktivieren/.test(read('js/probelauf.js')), begriffe: ['Probelauf', 'echten Vorgang', 'Aufräumen', 'Selbsttest'] },
