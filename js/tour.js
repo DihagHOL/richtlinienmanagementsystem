@@ -247,7 +247,7 @@ function tourSchritte() {
           }
           if (!Array.isArray(_editing.videos) || !_editing.videos.length) {
             _editing.videos = [{ titel: 'Regelwerke im Konzern – kurz erklärt',
-              url: 'https://www.youtube.com/watch?v=QnRo245Cv6w&t=7s' }];
+              url: 'https://www.youtube.com/shorts/8hKPmMOMuz8' }];
           }
           if (typeof renderPolicyEditor === 'function') renderPolicyEditor();
         }, 300);

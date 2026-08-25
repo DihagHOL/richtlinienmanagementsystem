@@ -78,7 +78,9 @@ function videoEinbettung(eingabe) {
 
   if (/\/_layouts\/15\/embed\.aspx/i.test(url)) return { art: 'einbetten', src: url };
 
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?[^#]*\bv=|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
+  // „shorts/" gehört dazu: Kurzvideos sind genau das Format, das man für eine
+  // Regel-Erklärung dreht – ohne den Zweig liefe der Link nur als Verweis raus.
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?[^#]*\bv=|embed\/|live\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
   if (yt) return { art: 'einbetten', src: 'https://www.youtube-nocookie.com/embed/' + yt[1] };
 
   const vi = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);

@@ -710,6 +710,26 @@ async function spUploadPolicyDoc(filename, bytes, contentType) {
 }
 
 /**
+ * Ein abgelegtes Dokument umbenennen. Die Kennung bleibt, nur Name und Adresse
+ * ändern sich – deshalb gibt die Funktion beides zurück, damit die Verweise
+ * nachgezogen werden können.
+ */
+async function spRenameDoc(driveId, itemId, neuerName) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const safe = String(neuerName || '').replace(/[<>:"/\\|?*]/g, '_').trim();
+  if (!safe) throw new Error('Kein Name angegeben');
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${driveId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: safe }),
+  });
+  if (!res.ok) throw new Error(`Umbenennen fehlgeschlagen (${res.status})`);
+  const d = await res.json();
+  return { name: d.name, url: d.webUrl || '' };
+}
+
+/**
  * Ersetzt den Inhalt eines bestehenden Dokuments am selben Speicherort.
  * SharePoint legt dabei automatisch eine neue Version an (Versionsverlauf der Bibliothek).
  */

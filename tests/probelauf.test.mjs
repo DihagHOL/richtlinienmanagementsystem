@@ -142,7 +142,17 @@ ok(echt.dateiGeloescht.includes('f1'), 'Aufräumen löscht die Datei wieder');
 ok(/function spDeleteDriveItem/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann Dateien löschen');
 ok(/probelaufDokument/.test(tour), 'Auch die Führung legt beim Vormachen ein Dokument ab');
 ok(/nochSkizze = \/\^Konzept-Skizze\/i\.test/.test(tour),
-  'Die geerbte Konzept-Skizze wird am Regelwerk durch ein Dokument mit richtigem Namen ersetzt');
+  'Bleibt die Skizze doch am Regelwerk hängen, legt Vormachen ein Dokument mit richtigem Namen ab');
+const kz = lies('js/konzepte.js');
+ok(kz.includes('const ohneSkizze') && kz.includes('Konzept[-'),
+  'Beim Übernehmen wird die Skizze umbenannt – am Regelwerk ist sie keine Skizze mehr');
+ok(/spRenameDoc\(rw\.dokumentDriveId, rw\.dokumentItemId, ohneSkizze\)/.test(kz),
+  'Umbenannt wird die Datei selbst, nicht nur das Feld');
+ok(/k\.dokumentName = rw\.dokumentName;/.test(kz),
+  'Das Konzept zieht mit – es zeigt auf dieselbe Datei');
+ok(/catch \(e\) \{ console\.warn\('Skizze nicht umbenannt/.test(kz),
+  'Scheitert das Umbenennen, geht die Annahme trotzdem durch');
+ok(/async function spRenameDoc/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann umbenennen');
 ok(/Dokument in der Bibliothek abgelegt/.test(quelle), 'Der Selbsttest prüft das Dokument');
 
 /* ── 4c) Konzept-Anhang: die Skizze geht an die Geschäftsleitung mit ── */

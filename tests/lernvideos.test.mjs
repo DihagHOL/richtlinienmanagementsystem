@@ -37,6 +37,8 @@ ok(deute('https://dihag.sharepoint.com/sites/ISMS/_layouts/15/embed.aspx?a=1&amp
 const ytErwartet = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ';
 ok(deute('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s')?.src === ytErwartet, 'YouTube-Adresse wird zur Player-Adresse');
 ok(deute('https://youtu.be/dQw4w9WgXcQ')?.src === ytErwartet, 'Auch die Kurzform');
+ok(deute('https://www.youtube.com/shorts/dQw4w9WgXcQ')?.src === ytErwartet,
+  'Und Shorts – genau das Format, in dem kurze Erklärvideos entstehen');
 ok(deute('https://www.youtube.com/embed/dQw4w9WgXcQ')?.src === ytErwartet, 'Und eine schon fertige Einbettung');
 ok(/nocookie/.test(ytErwartet), 'YouTube läuft ohne Cookies – der Aufruf soll niemanden verfolgen');
 ok(deute('https://vimeo.com/76979871')?.src === 'https://player.vimeo.com/video/76979871', 'Vimeo ebenso');

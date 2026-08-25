@@ -500,6 +500,21 @@ async function konzeptDecide(id, decision, opts) {
       rw.dokumentName = k.dokumentName || '';
       rw.dokumentDriveId = k.dokumentDriveId || '';
       rw.dokumentItemId = k.dokumentItemId || '';
+      // Am Regelwerk ist es keine Skizze mehr: „Konzept-Skizze X.docx" heißt ab
+      // jetzt „X.docx". Es bleibt dieselbe Datei – nur der Name stimmt wieder.
+      // Scheitert das Umbenennen, geht die Annahme trotzdem durch.
+      const ohneSkizze = String(k.dokumentName || '').replace(/^Konzept[-\s]?Skizze\s*/i, '').trim();
+      if (ohneSkizze && ohneSkizze !== k.dokumentName && rw.dokumentDriveId && rw.dokumentItemId
+          && typeof spRenameDoc === 'function') {
+        try {
+          const neu = await spRenameDoc(rw.dokumentDriveId, rw.dokumentItemId, ohneSkizze);
+          rw.dokumentName = neu.name || ohneSkizze;
+          rw.dokumentUrl = neu.url || rw.dokumentUrl;
+          // Das Konzept zeigt auf dieselbe Datei – sonst liefe sein Link ins Leere.
+          k.dokumentName = rw.dokumentName;
+          k.dokumentUrl = rw.dokumentUrl;
+        } catch (e) { console.warn('Skizze nicht umbenannt:', e.message); }
+      }
     }
     // Die Entscheidung über das Konzept gehört in die Historie des Regelwerks –
     // sie ist der erste Schritt seiner Entstehung und im Audit genauso relevant
