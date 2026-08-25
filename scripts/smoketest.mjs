@@ -113,6 +113,14 @@ for (const page of PAGES) {
     else fail(`${page.html} referenziert fehlende Datei: ${s}`);
   }
 
+  // Das Cache-Busting ersetzt nur VORHANDENE ?v=…-Parameter (cache-bust.yml).
+  // Ein Skript ohne Parameter bekommt daher nie eine neue Version – Browser
+  // halten ewig die alte Datei fest. Genau das ist schon passiert.
+  const ohneVersion = [...html.matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)]
+    .map(m => m[1]).filter(u => !/\?v=/.test(u));
+  if (!ohneVersion.length) ok('alle eigenen Skripte/Stile tragen einen ?v=-Parameter');
+  else ohneVersion.forEach(u => fail(`ohne ?v=-Parameter – das Cache-Busting greift hier nicht: ${u}`));
+
   head(`3. Inline-Handler → definierte Funktion – ${page.name}`);
   const bundle = scripts.filter(s => s.endsWith('.js') && exists(s));
   const defined = collectDefined(bundle);
