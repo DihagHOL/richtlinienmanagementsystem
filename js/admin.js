@@ -167,7 +167,10 @@ function renderHistorieSection(p) {
 }
 
 // Muster-Vorlage für komplett neue Regelwerke (Legal, „Erstellung von Konzernregelungen")
-const MUSTER_VORLAGE_URL = 'https://dihag.sharepoint.com/:w:/r/sites/ArbeitsplatzLegal/_layouts/15/Doc.aspx?sourcedoc=%7BDFD3E9F1-DD0C-493E-A2C6-4B74F948BE11%7D&file=2026_Muster_Erstellung%20von%20Konzernregelungen.docx&action=default&mobileredirect=true';
+// Muster-Vorlage: Der Ordner, nicht die einzelne Datei – der alte
+// Direktlink auf die Datei war nicht mehr erreichbar, der Ordner überlebt
+// auch die nächste Fassung.
+const MUSTER_VORLAGE_URL = 'https://dihag.sharepoint.com/:f:/r/sites/ArbeitsplatzLegal/Freigegebene%20Dokumente/010_Corporate%20Governance-Board/01_Konzernregelwerk/00_Allgemein/03_Muster_Erstellung%20von%20Konzernregelungen?d=we72ba6ec15c54f088689ffa73ea9261c&csf=1&web=1&e=sCYaiX';
 
 /** Einstieg „+ Neues Regelwerk": komplett neue Regelwerke sollen zuerst als Konzept an die GF.
  *  Bietet Konzept erstellen (empfohlen) · Direkt anlegen (Migration/Bestand) · Abbrechen. */

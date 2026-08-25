@@ -47,7 +47,8 @@ ok(actx.geltungsbereichLabel(['ALLE'])==='Alle Standorte' && actx.geltungsbereic
 ok(/renderGeltungsbereichSection\(p\.geltungsbereich, 'gb'\)/.test(adm), 'Regelwerk-Editor bindet Geltungsbereich ein');
 
 arun('globalThis.__U = MUSTER_VORLAGE_URL;');
-ok(/Muster_Erstellung%20von%20Konzernregelungen\.docx/.test(actx.__U), 'MUSTER_VORLAGE_URL zeigt auf das Muster');
+ok(/Muster_Erstellung%20von%20Konzernregelungen/.test(actx.__U) && /^https:\/\/dihag\.sharepoint\.com\//.test(actx.__U),
+  'MUSTER_VORLAGE_URL zeigt auf den Muster-Ordner in SharePoint');
 ok(typeof actx.newRegelwerkGate === 'function', 'newRegelwerkGate definiert');
 arun('newRegelwerkGate();');
 ok(actx.__modal.includes('Konzept erstellen') && actx.__modal.includes('Direkt anlegen') && actx.__modal.includes('Muster-Vorlage'), 'Gate: 3 Optionen + Muster-Link');
