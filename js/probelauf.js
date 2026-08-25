@@ -49,6 +49,27 @@ function probelaufGewuenscht() {
   try { return localStorage.getItem(PROBELAUF_AN) === '1'; } catch (e) { return false; }
 }
 
+/**
+ * Aufgeräumte Navigation für die Aufnahme: Im Probelauf bleiben nur die Reiter
+ * stehen, die ohnehin jede und jeder sieht – plus <b>Regelwerk Dashboard</b> und
+ * <b>Freigaben</b>, ohne die sich die Vorführung nicht zeigen ließe.
+ *
+ * Grund: Im Lernvideo verwirrt eine Leiste voller Reiter, die die Zuschauer nie
+ * zu sehen bekommen. Beendet man den Probelauf, lädt die Seite neu – dann ist
+ * wieder alles da.
+ */
+const PROBELAUF_NAV_AUS = ['nav-cockpit', 'nav-ismsdocs', 'nav-governance', 'nav-govstruktur',
+  'nav-prozesse', 'nav-abdeckung', 'nav-faelligkeit', 'nav-risiken', 'nav-vorschlaege',
+  'nav-compliance', 'nav-einstellungen', 'nav-grp-governance', 'nav-grp-isms', 'nav-grp-verwaltung'];
+
+function probelaufNavFiltern() {
+  if (!_plAn) return;
+  PROBELAUF_NAV_AUS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
 /** Merken bzw. vergessen, dass gerade ein Probelauf läuft. */
 function _plLaufMerken(an) {
   try { if (an) localStorage.setItem(PROBELAUF_AN, '1'); else localStorage.removeItem(PROBELAUF_AN); } catch (e) { /* gesperrt */ }
@@ -164,6 +185,7 @@ async function probelaufAktivieren() {
   _plSpurLaden();
   _plBuchfuehrung();
   _plBanner();
+  probelaufNavFiltern();
 
   if (/[?&]tour=1(&|$)/.test(location.search) && typeof tourStart === 'function') {
     setTimeout(() => tourStart(), 600);

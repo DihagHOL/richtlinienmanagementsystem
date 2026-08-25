@@ -333,6 +333,16 @@ await new Promise(r => setTimeout(r, 30));
 run('globalThis.__nachAufraeumen = tourStand();');
 ok(ctx.__nachAufraeumen === 0, 'Aufräumen verwirft den Stand mit (der Vorgang ist ja weg)');
 ok(/function probelaufBannerAktualisieren/.test(quelle), 'Der Streifen wird beim Schließen nachgeführt');
+
+/* ── 10b2) Aufgeräumte Leiste für die Aufnahme ── */
+ok(/function probelaufNavFiltern/.test(quelle), 'Im Probelauf wird die Navigation aufgeräumt');
+ok(/'nav-verwaltung'/.test(quelle) === false && /'nav-freigaben'/.test(quelle) === false,
+  'Dashboard und Freigaben bleiben stehen – ohne sie liefe die Vorführung nicht');
+ok(/'nav-einstellungen'/.test(quelle) && /'nav-risiken'/.test(quelle),
+  'Was im Video nur verwirrt, wird ausgeblendet');
+ok(/if \(!_plAn\) return;/.test(quelle), 'Und nur, solange wirklich ein Probelauf läuft');
+ok(/probelaufNavFiltern/.test(lies('js/access.js')),
+  'initRoleNav ruft den Filter zuletzt auf – sonst überschreibt die Rollenlogik ihn wieder');
 ok(/pl-tour-neu/.test(quelle), 'Es gibt einen Knopf, um von vorn zu beginnen');
 
 /* ── 10c) Die Führung steuert im Freigaben-Reiter den richtigen Abschnitt an ── */

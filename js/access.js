@@ -612,4 +612,8 @@ function initRoleNav() {
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
   show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse);
   show('nav-grp-verwaltung',  v.compliance || admin);
+
+  // Zuletzt: Läuft gerade ein Probelauf, bleibt die Leiste auf das Nötige
+  // beschränkt – sonst zeigt das Lernvideo Reiter, die niemand im Publikum hat.
+  if (typeof probelaufNavFiltern === 'function') probelaufNavFiltern();
 }
