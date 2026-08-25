@@ -28,6 +28,7 @@
 const PROBELAUF_PRAEFIX = '[Probelauf] ';
 
 const PROBELAUF_SPUR = 'rms_probelauf_spur';   // angelegte Einträge (zum Aufräumen)
+const PROBELAUF_AN = 'rms_probelauf_an';       // läuft gerade einer? (überlebt Neuladen und neue Tabs)
 
 let _plAn = false;
 let _plSpur = { policies: [], acks: [], dateien: [] };
@@ -37,8 +38,21 @@ let _plEchtSaveAck = null;
 /** Läuft gerade ein Probelauf? */
 function probelaufAktiv() { return _plAn; }
 
-/** Soll nach der Anmeldung ein Probelauf gestartet werden? */
-function probelaufGewuenscht() { return /[?&]probelauf=1(&|$)/.test(location.search); }
+/**
+ * Soll nach der Anmeldung ein Probelauf gestartet werden?
+ * Nicht nur über die Adresse: Wer aus einer Mail heraus in einem neuen Tab
+ * landet, hat den Parameter nicht dabei – der Probelauf soll trotzdem
+ * weiterlaufen, bis er ausdrücklich beendet wird.
+ */
+function probelaufGewuenscht() {
+  if (/[?&]probelauf=1(&|$)/.test(location.search)) return true;
+  try { return localStorage.getItem(PROBELAUF_AN) === '1'; } catch (e) { return false; }
+}
+
+/** Merken bzw. vergessen, dass gerade ein Probelauf läuft. */
+function _plLaufMerken(an) {
+  try { if (an) localStorage.setItem(PROBELAUF_AN, '1'); else localStorage.removeItem(PROBELAUF_AN); } catch (e) { /* gesperrt */ }
+}
 
 /** UPN der angemeldeten Person (für die Empfängerübersicht). */
 function _plIch() { return (typeof State !== 'undefined' && State.user) ? State.user.upn : ''; }
@@ -108,6 +122,7 @@ function probelaufBeenden() {
     ? `Probelauf beenden?\n\nEs sind ${offen} Einträge entstanden, die noch in den Listen stehen.\nDu kannst sie vorher über „Aufräumen" löschen.`
     : 'Probelauf beenden?';
   if (!confirm(frage)) return;
+  _plLaufMerken(false);
   if (typeof tourStandVergessen === 'function') tourStandVergessen();
   location.href = location.pathname;
 }
@@ -145,6 +160,7 @@ async function probelaufAktivieren() {
   if (typeof darfProbelauf === 'function' && !darfProbelauf()) { probelaufKeinZugriff(); return false; }
 
   _plAn = true;
+  _plLaufMerken(true);
   _plSpurLaden();
   _plBuchfuehrung();
   _plBanner();

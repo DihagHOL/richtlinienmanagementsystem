@@ -161,6 +161,7 @@ function tourSchritte() {
       text: 'Arbeitstitel, Dokumentart, Geltungsbereich – und die Frage <i>Warum?</i>',
       hinweis: '„✨ Vormachen" füllt das Formular aus und legt eine Skizze an.',
       ziel: '.modal-body',
+      platz: 'ecke',
       erfuellt: () => {
         if (typeof _kEditing === 'undefined' || !_kEditing) return false;
         const ko = _kEditing.konzept || {};
@@ -197,24 +198,19 @@ function tourSchritte() {
     },
     {
       symbol: '✉️',
-      titel: 'Die Mail im Postfach',
+      titel: 'Die Mail im Postfach – Annehmen, Zurückstellen oder Ablehnen',
       text: 'Entschieden wird dort, wo alle ohnehin sind: im Postfach.',
-      hinweis: 'Mit Anhang und Link nach SharePoint – genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
-      ziel: null, erfuellt: null,
-    },
-    {
-      symbol: '✓',
-      titel: 'Entscheiden',
-      text: '<b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b>.',
-      hinweis: 'In der Mail oder hier auf der Karte – beides wirkt gleich.',
-      ziel: '.item-card .btn-primary',
+      hinweis: 'Ein Klick in der Mail genügt – ohne Rückfrage. Mit Anhang und Link nach SharePoint; genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
+      ziel: null,
+      // Es geht weiter, sobald die Entscheidung wirklich gefallen ist – egal ob
+      // in der Mail oder auf der Karte.
       erfuellt: () => {
         const k = _tourKonzept();
         return !!(k && k.konzept && k.konzept.entscheidung && k.konzept.entscheidung.status === 'angenommen');
       },
       vormachen: () => {
         const k = _tourKonzept();
-        if (k) { setAdminMode('konzepte'); switchView('verwaltung').then(() => konzeptDecide(k.id, 'angenommen')); }
+        if (k) { setAdminMode('konzepte'); switchView('verwaltung').then(() => konzeptDecide(k.id, 'angenommen', { ohneRueckfrage: true, ohneWeiche: true })); }
       },
     },
     {
@@ -223,8 +219,12 @@ function tourSchritte() {
       symbol: '🎯',
       titel: 'Zielgruppe, Pflichtlektüre, Wissenstest',
       text: 'Am Entwurf wird festgelegt, wer es lesen muss – und ob ein Wissenstest dazugehört.',
-      hinweis: 'Hier stehen auch Wiedervorlage, Lernvideo und der zuständige Betriebsrat. „✨ Vormachen" belegt die Felder vor.',
+      hinweis: 'Alles ist vorbelegt: Pflichtlektüre, Wissenstest mit zwei Fragen, jährliche Wiedervorlage und ein Lernvideo. Scrollen Sie ruhig durch – die Sprechblase steht unten links und ist nicht im Weg.',
+      // Der Schritt springt selbst ins Regelwerk: Von hier an geht es nicht mehr
+      // um das Konzept, sondern um das, was die Mitarbeitenden später sehen.
+      beim: () => { const p = _tourRegelwerk(); if (p) openPolicyEditor(p.id); },
       ziel: '.modal-body',
+      platz: 'ecke',
       erfuellt: null,
       vormachen: () => {
         const p = _tourRegelwerk();
@@ -235,6 +235,20 @@ function tourSchritte() {
           _editing.pflicht = true;                 // Pflichtlektüre
           _editing.quizErforderlich = true;        // mit Wissenstest
           _editing.wiederholungMonate = 12;        // jährlich erneut bestätigen
+          // Ein Wissenstest mit zwei Fragen – im Video wird erklärt, nicht getippt.
+          if (!Array.isArray(_editing.quiz) || !_editing.quiz.length) {
+            _editing.quiz = [
+              { frage: 'Dürfen Geschäftsgeheimnisse in ein öffentliches KI-Werkzeug eingegeben werden?',
+                optionen: ['Nein, niemals', 'Ja, wenn es schnell gehen muss', 'Nur mit Zustimmung der Kollegen'], richtig: 0 },
+              { frage: 'Was gilt für Texte und Bilder, die eine KI erzeugt hat?',
+                optionen: ['Sie werden gekennzeichnet', 'Sie brauchen keine Kennzeichnung', 'Sie dürfen gar nicht verwendet werden'], richtig: 0 },
+            ];
+            _editing.quizBestehenProzent = 80;
+          }
+          if (!Array.isArray(_editing.videos) || !_editing.videos.length) {
+            _editing.videos = [{ titel: 'Regelwerke im Konzern – kurz erklärt',
+              url: 'https://www.youtube.com/watch?v=QnRo245Cv6w&t=7s' }];
+          }
           if (typeof renderPolicyEditor === 'function') renderPolicyEditor();
         }, 300);
       },
@@ -280,47 +294,44 @@ function tourSchritte() {
     },
     {
       symbol: '✅',
-      titel: 'Konformitätsprüfung entscheiden',
-      text: 'Die fachliche Prüfung. „Nicht konform" verlangt immer eine Begründung.',
-      hinweis: 'Zum Mitmachen: in der Karte auf <b>Konform</b>. Im Betrieb entscheiden die hinterlegten Prüfer.',
+      // Drei Entscheidungen, ein Schritt: Wer sie per Mail trifft, klickt hier
+      // nichts – die Führung wartet einfach, bis veröffentlicht ist.
+      titel: 'Konformitätsprüfung, Mitbestimmung und Freigabe',
+      text: 'Drei Entscheidungen – jede per Mail, jede mit einem Klick.',
+      hinweis: '„Nicht konform" verlangt immer eine Begründung. Die Freigabe-Mail nennt, wer vorher schon zugestimmt hat. Es geht weiter, sobald das Regelwerk veröffentlicht ist.',
+      // Die Warteschlange offen zeigen, während in der Mail entschieden wird.
       beim: () => _tourFreigabenAbschnitt('pruef'),
-      ziel: () => _tourKarteSel('.btn-success'),
-      basis: () => { const p = _tourRegelwerk(); return p ? (p.konformitaet || []).length : 0; },
-      erfuellt: (b) => { const p = _tourRegelwerk(); return !!(p && (p.konformitaet || []).length > (b || 0)); },
-      vormachen: () => { const p = _tourRegelwerk(); if (p) markKonform(p.id, true); },
-    },
-    {
-      symbol: '🤝',
-      titel: 'Mitbestimmung',
-      text: 'Dasselbe Dokument geht an den Betriebsrat.',
-      hinweis: 'Betroffen sind die Betriebsräte der gewählten Werke.',
-      beim: () => _tourFreigabenAbschnitt('mb'),
-      ziel: () => _tourKarteSel('.btn-success'),
-      erfuellt: () => {
-        const p = _tourRegelwerk();
-        return !p || !mitbestimmungPflicht(p) || mitbestimmungBestaetigt(p);
-      },
+      ziel: null,
+      erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Veröffentlicht'); },
       vormachen: () => {
         const p = _tourRegelwerk();
-        if (p && mitbestimmungPflicht(p)) markMitbestimmung(p.id, true);
+        if (!p) return;
+        markKonform(p.id, true);
+        setTimeout(() => {
+          const q = _tourRegelwerk();
+          if (q && typeof mitbestimmungPflicht === 'function' && mitbestimmungPflicht(q)
+              && typeof mitbestimmungBestaetigt === 'function' && !mitbestimmungBestaetigt(q)) markMitbestimmung(q.id, true);
+          setTimeout(() => { const r = _tourRegelwerk(); if (r && r.status !== 'Veröffentlicht') markFreigabe(r.id); }, 600);
+        }, 600);
       },
-    },
-    {
-      symbol: '🚀',
-      titel: 'Freigabe durch die Geschäftsleitung',
-      text: 'Mit der Freigabe ist das Regelwerk veröffentlicht.',
-      hinweis: 'In der Karte steht, wer vorher schon zugestimmt hat.',
-      beim: () => _tourFreigabenAbschnitt('frei'),
-      ziel: () => _tourKarteSel('.btn-success'),
-      erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Veröffentlicht'); },
-      vormachen: () => { const p = _tourRegelwerk(); if (p) markFreigabe(p.id); },
     },
     {
       symbol: '👀',
-      titel: 'Kenntnisnahme',
-      text: 'Jetzt steht es bei allen unter „Meine Regelwerke": lesen, bestätigen.',
-      hinweis: 'Ist ein Lernvideo hinterlegt, erscheint es hier – oberhalb des Wissenstests.',
+      titel: 'Meine Regelwerke öffnen',
+      text: 'Ab jetzt steht es bei allen in der Zielgruppe – hier sehen es die Mitarbeitenden.',
+      hinweis: 'Zum Mitmachen: Reiter <b>Meine Regelwerke</b>. Diesen Reiter sieht jede und jeder im Konzern.',
       ziel: '.nav-item[data-view="meine"]',
+      erfuellt: () => _tourAnsicht('meine'),
+      vormachen: () => switchView('meine'),
+    },
+    {
+      symbol: '✅',
+      titel: 'Kenntnisnahme, Wissenstest und Video',
+      text: 'Lesen, mit einem Klick bestätigen – bei wichtigen Themen folgt der Wissenstest.',
+      hinweis: 'Das Lernvideo steht direkt beim Dokument, oberhalb des Wissenstests. Die Bestätigung ist der Nachweis; über die Erinnerungs-Mails kommt sie auch ohne Anmeldung zustande.',
+      ziel: null,
+      platz: 'ecke',
+      beim: () => { const p = _tourRegelwerk(); if (p && typeof openDetail === 'function') openDetail(p.id); },
       erfuellt: () => {
         const p = _tourRegelwerk();
         return !!(p && (State.acks || []).some(a => String(a.richtlinieId) === String(p.id)));
@@ -547,8 +558,17 @@ function _tourPositioniere(scrollen) {
   ring.style.left = x + 'px'; ring.style.top = y + 'px';
   ring.style.width = w + 'px'; ring.style.height = h + 'px';
 
-  // Sprechblase unter das Ziel, sonst darüber
+  // Sprechblase unter das Ziel, sonst darüber.
+  // Bei `platz: 'ecke'` stattdessen unten links: Ist das Ziel ein ganzes
+  // Formular, deckte die Blase sonst genau die Felder ab, um die es geht –
+  // und man kann darin nicht mehr scrollen, ohne sie zu verschieben.
   const tipH = tip.offsetHeight || 220, tipW = tip.offsetWidth || 360;
+  if (s.platz === 'ecke') {
+    tip.style.transform = 'none';
+    tip.style.left = '16px';
+    tip.style.top = Math.max(12, window.innerHeight - tipH - 16) + 'px';
+    return;
+  }
   const platzUnten = window.innerHeight - (y + h);
   const top = platzUnten > tipH + 20 ? (y + h + 14) : Math.max(12, y - tipH - 14);
   const left = Math.max(12, Math.min(Math.max(12, x), window.innerWidth - tipW - 12));

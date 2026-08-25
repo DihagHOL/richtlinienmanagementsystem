@@ -239,7 +239,7 @@ ok(/return rwId;/.test(kq2), 'Und gibt die Id des entstandenen Regelwerks zurüc
 /* ── 9) Schritte der geführten Vorführung ── */
 run('globalThis.__s = tourSchritte();');
 const schritte = ctx.__s;
-ok(schritte.length >= 15, `Mindestens fünfzehn Schritte (ist ${schritte.length})`);
+ok(schritte.length >= 14, `Mindestens fünfzehn Schritte (ist ${schritte.length})`);
 ok(schritte.every(s => s.titel && s.text && s.symbol), 'Jeder Schritt hat Titel, Text und Symbol');
 const titel = schritte.map(s => s.titel).join(' | ');
 for (const wort of ['Dashboard', 'Konzept ausfüllen', 'GF-Prüfung einreichen', 'Postfach', 'Entwurf',
@@ -251,18 +251,24 @@ ok(/Aufräumen/.test(alle), 'Und weist auf das Aufräumen hin');
 ok(/Dokument/.test(alle), 'Das Dokument kommt vor');
 
 const mit = schritte.filter(s => typeof s.erfuellt === 'function');
-ok(mit.length >= 11, `Die meisten Schritte warten auf eine echte Aktion (${mit.length})`);
+ok(mit.length >= 9, `Die meisten Schritte warten auf eine echte Aktion (${mit.length})`);
 // Ausfüllen und Einreichen sind zwei getrennt entscheidbare Schritte
 const iAus = schritte.findIndex(x => /ausfüllen/i.test(x.titel));
 const iEin = schritte.findIndex(x => /einreichen/i.test(x.titel));
 ok(iAus >= 0 && iEin === iAus + 1, 'Ausfüllen und Einreichen sind zwei aufeinanderfolgende Schritte');
 const iTab = schritte.findIndex(x => /Freigaben-Reiter/.test(x.titel));
-const iKon = schritte.findIndex(x => /Konformitätsprüfung entscheiden/.test(x.titel));
-ok(iTab >= 0 && iKon === iTab + 1, 'Reiter öffnen und Entscheiden sind getrennt');
+const iKon = schritte.findIndex(x => /Konformitätsprüfung/.test(x.titel) && !/Reiter/.test(x.titel));
+ok(iTab >= 0 && iKon === iTab + 1, 'Erst der Reiter, dann die Entscheidungen');
 ok(typeof schritte[iTab].erfuellt === 'function' && typeof schritte[iKon].erfuellt === 'function',
   'Beide warten je für sich');
-ok(typeof schritte[iKon].basis === 'function',
-  'Die Entscheidung misst gegen den Stand beim Betreten – ein alter Eintrag zählt nicht');
+// Entschieden wird per Mail: Die drei Stufen sind ein Schritt, der wartet, bis
+// veroeffentlicht ist. Ein eigener Klick im System ist dafuer nicht noetig.
+ok(!schritte.some(x => /^Entscheiden$/.test(x.titel)),
+  'Kein eigener Klick-Schritt fuers Entscheiden – das passiert in der Mail');
+ok(/Meine Regelwerke öffnen/.test(titel) && /Kenntnisnahme, Wissenstest und Video/.test(titel),
+  'Die Kenntnisnahme ist in Aufruf und Erklärung geteilt');
+ok(schritte.filter(x => x.platz === 'ecke').length >= 2,
+  'Bei Formularschritten steht die Sprechblase in der Ecke – sonst deckt sie die Felder ab');
 ok(typeof schritte[iAus].erfuellt === 'function' && typeof schritte[iEin].erfuellt === 'function',
   'Beide warten je für sich auf die Ausführung');
 let geworfen = 0;
@@ -331,12 +337,9 @@ ok(/pl-tour-neu/.test(quelle), 'Es gibt einen Knopf, um von vorn zu beginnen');
 
 /* ── 10c) Die Führung steuert im Freigaben-Reiter den richtigen Abschnitt an ── */
 ok(/function _tourFreigabenAbschnitt/.test(tour), 'Es gibt eine Vorbereitung je Abschnitt');
-ok(/beim: \(\) => _tourFreigabenAbschnitt\('pruef'\)/.test(tour), 'Konformitätsprüfung klappt „pruef" auf');
-ok(/beim: \(\) => _tourFreigabenAbschnitt\('mb'\)/.test(tour), 'Mitbestimmung klappt „mb" auf');
-ok(/beim: \(\) => _tourFreigabenAbschnitt\('frei'\)/.test(tour), 'Freigabe klappt „frei" auf');
+ok(/beim: \(\) => _tourFreigabenAbschnitt\('pruef'\)/.test(tour),
+  'Die Warteschlange steht offen, während in der Mail entschieden wird');
 ok(/focusPolicyCard\(p\.id\)/.test(tour), 'Die Karte des Vorgangs wird angesteuert');
-ok((tour.match(/ziel: \(\) => _tourKarteSel\('\.btn-success'\)/g) || []).length === 3,
-  'Alle drei Entscheidungsschritte zielen auf die Schaltfläche dieser Karte');
 ok(/typeof s\.beim === 'function'/.test(tour), 'Der Einstiegs-Hook wird beim Schrittwechsel ausgeführt');
 ok(/typeof ziel === 'function'/.test(tour), 'Ziele dürfen zur Laufzeit berechnet werden');
 
