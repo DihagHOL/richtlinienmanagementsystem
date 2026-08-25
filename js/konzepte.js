@@ -205,7 +205,7 @@ function renderKonzeptEditor() {
     </div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:12px">Ein Konzept ist ein <b>Vorschlag</b> für ein mögliches neues Regelwerk – die Idee, wie es aussehen könnte bzw. ob es überhaupt erstellt werden soll. Die <b>Geschäftsleitung</b> entscheidet über Priorität und Umsetzung. Wird es angenommen, entsteht daraus automatisch ein Regelwerk-Entwurf.</div>
-      ${(typeof MUSTER_VORLAGE_URL !== 'undefined') ? `<p style="margin:0 0 12px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📄 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>` : ''}
+      ${(typeof MUSTER_VORLAGE_URL !== 'undefined') ? `<p style="margin:0 0 12px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📁 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>` : ''}
       ${k.id ? `<div style="margin-bottom:12px">Status: ${konzeptStatusBadge(k)}${(ko.entscheidung && ko.entscheidung.kommentar) ? ` <span class="field-hint">– „${esc(ko.entscheidung.kommentar)}" (${esc(ko.entscheidung.vonName || ko.entscheidung.von)})</span>` : ''}</div>` : ''}
       <div class="form-grid">
         <div class="form-group full">

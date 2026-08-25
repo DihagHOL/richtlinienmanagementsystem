@@ -180,7 +180,7 @@ function newRegelwerkGate() {
     <div class="modal-header"><h3>Neues Regelwerk</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p style="line-height:1.55;margin:0 0 10px">Komplett <b>neue</b> Regelwerke müssen zuerst als <b>Konzept</b> an die Geschäftsleitung (Beantragung &amp; Prüfung). Erst nach Annahme entsteht daraus ein Regelwerk-Entwurf.</p>
-      <p style="margin:0 0 10px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📄 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>
+      <p style="margin:0 0 10px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📁 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>
       <p class="field-hint" style="margin:0">„Direkt anlegen" nur für <b>bestehende</b> Dokumente / Migration verwenden.</p>
     </div>
     <div class="modal-footer">
