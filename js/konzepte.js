@@ -446,7 +446,7 @@ function konzeptVersandHinweis(k) {
  * Entscheidung der Geschäftsleitung über ein Konzept.
  * @param {string} id Konzept-Id
  * @param {string} decision 'angenommen' | 'zurueckgestellt' | 'abgelehnt'
- * @param {object} [opts] { ohneRueckfrage: true } – für den Selbsttest: dieselbe
+ * @param {object} [opts] { ohneRueckfrage: true } – Klick aus der Mail und Selbsttest: dieselbe
  *   Funktion ohne Dialoge, damit die Automatik dahinter wirklich geprüft wird.
  * @returns bei Annahme die Id des entstandenen Regelwerks
  */
@@ -455,6 +455,10 @@ async function konzeptDecide(id, decision, opts) {
     toast('Nur die Geschäftsleitung kann über Konzepte entscheiden.', 'error'); return;
   }
   const k = _kClone(id); if (!k) return;
+  // Aus der Mail heraus ist der Klick die Entscheidung – dann keine zweite
+  // Nachfrage. Was Pflicht ist (die Begründung einer Ablehnung), wird trotzdem
+  // abgefragt: Sie ist keine Rückfrage, sondern eine fehlende Angabe.
+  const ohneRueckfrage = !!(opts && opts.ohneRueckfrage);
 
   if (decision === 'abgelehnt') {
     const res = await uiPrompt('Warum wird das Konzept abgelehnt? (Pflicht)', { title: 'Konzept ablehnen', okLabel: 'Ablehnen', danger: true });
@@ -467,7 +471,8 @@ async function konzeptDecide(id, decision, opts) {
     return;
   }
   if (decision === 'zurueckgestellt') {
-    const res = await uiPrompt('Notiz zum Zurückstellen (optional):', { title: 'Konzept zurückstellen', okLabel: 'Zurückstellen' });
+    // Die Notiz ist freiwillig – beim Ein-Klick-Weg entfällt sie.
+    const res = ohneRueckfrage ? '' : await uiPrompt('Notiz zum Zurückstellen (optional):', { title: 'Konzept zurückstellen', okLabel: 'Zurückstellen' });
     if (res === null) return;
     k.konzept.entscheidung = _kEntsch('zurueckgestellt', res.trim());
     await _kPersist(k, 'Konzept zurückgestellt.');
@@ -477,9 +482,6 @@ async function konzeptDecide(id, decision, opts) {
 
   // decision === 'angenommen'
   const ko = k.konzept || {};
-  // Der Selbsttest durchläuft dieselbe Funktion, nur ohne die Rückfrage –
-  // sonst prüfte er die Automatik dahinter gar nicht.
-  const ohneRueckfrage = !!(opts && opts.ohneRueckfrage);
   const ok = ohneRueckfrage || await uiConfirm('Konzept annehmen? Es wird daraus ein neues Regelwerk (Entwurf) erstellt, das anschließend mit einem Dokument versehen und in die Konformitätsprüfung gegeben wird.',
     { title: 'Konzept annehmen', okLabel: 'Annehmen & Regelwerk anlegen' });
   if (!ok) return;
@@ -519,7 +521,9 @@ async function konzeptDecide(id, decision, opts) {
     await reloadData();
     toast('Konzept angenommen – Regelwerk-Entwurf angelegt ✓', 'success');
     notifyKonzeptErsteller(k, 'angenommen');
-    if (rwId && !ohneRueckfrage) konzeptWeiche(k, rwId);
+    // Die Weiche fragt nicht „sind Sie sicher?", sondern „wie weiter?" – die
+    // bleibt auch beim Ein-Klick-Weg. Nur der Selbsttest schaltet sie ab.
+    if (rwId && !(opts && opts.ohneWeiche)) konzeptWeiche(k, rwId);
     else { _adminMode = 'konzepte'; renderAdminList(); }
     return rwId;
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
@@ -559,8 +563,10 @@ function handleKonzeptMailAction(id, aktion) {
   const decision = map[String(aktion || '').toLowerCase()];
   focusKonzeptCard(id);
   if (!decision) return;
-  // kurz warten, damit die Liste sichtbar ist, dann Entscheidung (konzeptDecide prüft GF-Recht + fragt Begründung ab)
-  setTimeout(() => { konzeptDecide(id, decision); }, 500);
+  // Der Klick in der Mail IST die Entscheidung – hier wird nicht noch einmal
+  // gefragt. Geprüft wird trotzdem das GF-Recht, und eine Ablehnung verlangt
+  // weiterhin ihre Begründung.
+  setTimeout(() => { konzeptDecide(id, decision, { ohneRueckfrage: true }); }, 500);
 }
 
 /* ── Mail an die Geschäftsleitung ── */

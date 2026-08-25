@@ -158,20 +158,24 @@ function focusPolicyCard(id) {
   setTimeout(() => el.classList.remove('fg-highlight'), 4500);
 }
 
-/** Aus dem Mail-Button (?aktion=…): Bewertung mit kurzer Rückfrage direkt ausführen. */
+/**
+ * Aus dem Mail-Button (?aktion=…): Der Klick ist die Entscheidung – ohne zweite
+ * Nachfrage. Geprüft wird die Rolle; was Pflicht ist (die Begründung bei „nicht
+ * konform"), wird weiterhin abgefragt.
+ */
 function handleMailAction(id, aktion) {
   const p = State.policies.find(x => x.id === id);
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
   setTimeout(async () => {
     if (aktion === 'konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
-      if (await uiConfirm(`„${p.title}" als konform markieren?`, { title: 'Konformitätsprüfung', okLabel: 'Als konform markieren' })) markKonform(id, true);
+      markKonform(id, true);
     } else if (aktion === 'nicht_konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       markKonform(id, false);   // fragt anschließend nach der Anmerkung
     } else if (aktion === 'freigeben') {
       if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && !isCurrentUserGeschaeftsleitungForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegte Geschäftsleitung darf freigeben.'); return; }
-      if (await uiConfirm(`„${p.title}" freigeben und veröffentlichen?`, { title: 'Freigabe', okLabel: 'Freigeben & veröffentlichen' })) markFreigabe(id);
+      markFreigabe(id);
     } else if (aktion === 'zurueck') {
       markKonform(id, false);
     }

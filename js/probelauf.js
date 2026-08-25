@@ -595,7 +595,7 @@ async function probelaufSelbsttest() {
 
     // 2) Annahme über den ECHTEN Weg – dieselbe Funktion, die die
     //    Geschäftsleitung auslöst, nur ohne die Rückfrage-Dialoge.
-    rwId = await konzeptDecide(kEing.id, 'angenommen', { ohneRueckfrage: true });
+    rwId = await konzeptDecide(kEing.id, 'angenommen', { ohneRueckfrage: true, ohneWeiche: true });
     await reloadData();
     _plOk('Konzept angenommen (echter Weg)', !!rwId);
     if (!rwId) return _plBericht(titel);
