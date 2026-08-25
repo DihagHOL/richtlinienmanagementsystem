@@ -154,12 +154,34 @@ ok(l.ohneGeltung.length === 14 && l.ohneGeltung.every(k => !(k.geltung || []).le
   'Und Prozesse ohne gepflegten Geltungsbereich');
 w("_vkFokus = ''; renderVerknuepfungen();");
 html = mount.innerHTML;
-ok((html.match(/class="vk-luecke"/g) || []).length === 5, 'Alle fünf Lücken-Kästen werden gezeigt');
+ok((html.match(/class="vk-luecke"/g) || []).length === 6, 'Alle sechs Lücken-Kästen werden gezeigt');
+ok(l.ohneVerantwortlich.length === 18,
+  `Prozesse ohne Verantwortlichen werden aufgeführt – die erste Frage jedes Audits (${l.ohneVerantwortlich.length})`);
+ok(l.ohneVerantwortlich.every(k => !k.verantwortlich), 'Und zwar genau die ohne gepflegte Person');
 ok(!l.ohneBezug.some(k => k.id === 'personal'),
   'Ein Prozess mit direkt zugeordnetem Regelwerk gilt nicht als bezuglos – auch ohne Modell');
 ok(l.ohneBezug.some(k => k.id === 'strategie'), 'Einer ganz ohne Bezug schon');
 ok(l.ohneModell.some(k => k.id === 'personal'), 'Beim Modell fehlt er weiterhin');
 ok(/Nichts offen ✓/.test(html) === false, 'Bei offenen Punkten steht kein „alles gut"');
+
+/* ── Abgleich: Kachel sagt etwas anderes als das Modell ──
+   Beide Orte sind gewollt – ohne Modell gäbe es sonst gar keinen. Aber wenn
+   sie auseinanderlaufen, muss man es sehen. */
+ok(Array.isArray(l.abweichungen) && !l.abweichungen.length,
+  'Ohne Widerspruch meldet der Abgleich nichts');
+w("lkKachelVonId('vertrieb').regelwerke = ['1'];");   // m1 setzt „2" um, „1" steht nur an der Kachel
+const l2 = ctx.vkLuecken();
+ok(l2.abweichungen.length === 1 && l2.abweichungen[0].kachel.id === 'vertrieb',
+  'Ein Regelwerk, das nur an der Kachel hängt, taucht im Abgleich auf');
+ok(l2.abweichungen[0].fehlend.join(',') === '1', 'Und zwar genau das fehlende');
+ok(l2.abweichungen[0].modelle.length === 2, 'Mit allen Modellen, in die es geschrieben werden könnte');
+ok(!l2.abweichungen.some(a => a.kachel.id === 'personal'),
+  'Eine Kachel ohne Modell erzeugt keinen Widerspruch – da gibt es nichts abzugleichen');
+w("_vkFokus = ''; renderVerknuepfungen();");
+ok(/An der Kachel, aber nicht im Modell/.test(mount.innerHTML), 'Der Abgleich bekommt einen eigenen Kasten');
+ok(/vkAbgleichUebernehmen\('HOL','vertrieb','m1'\)/.test(mount.innerHTML),
+  'Mit einem Knopf je Modell, in das die Zuordnung geschrieben werden kann');
+w("delete lkKachelVonId('vertrieb').regelwerke;");
 
 /* ── 6) Keine zweite Wahrheit, kein Mehraufwand ── */
 /* Die Ansicht legt keine eigenen Daten an – sie schreibt ausschließlich dorthin,

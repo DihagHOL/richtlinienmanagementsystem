@@ -48,7 +48,8 @@ async function _vkModellLinks(p) {
   try {
     const xml = await spGetProcessXml(p.itemId);
     const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
-    if (typeof _procLinkCache !== 'undefined') _procLinkCache[key] = ids;
+    if (typeof procLinksMerken === 'function') procLinksMerken(key, ids);
+    else if (typeof _procLinkCache !== 'undefined') _procLinkCache[key] = ids;
     return ids;
   } catch (e) { return []; }
 }
@@ -81,6 +82,15 @@ async function vkGraphBauen() {
   add('wurzel', 'wurzel', 'Konzern');
   const alleKacheln = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
   const policies = (typeof State !== 'undefined' && Array.isArray(State.policies)) ? State.policies : [];
+
+  // Alle Modelle, die gebraucht werden, vorab und PARALLEL lesen. Nacheinander
+  // wären das bei vierzig Modellen vierzig Anfragen in Reihe – die Ansicht
+  // ließe sich sichtbar Zeit. Danach beantwortet _vkModellLinks aus dem Cache.
+  const gebraucht = new Map();
+  alleKacheln.forEach(({ werk, kachel }) =>
+    ((typeof lkProzesseVon === 'function') ? lkProzesseVon(kachel, werk) : [])
+      .forEach(m => { if (m && !gebraucht.has(m.itemId)) gebraucht.set(m.itemId, m); }));
+  await Promise.all([...gebraucht.values()].map(m => _vkModellLinks(m)));
 
   // Jedes Werk mit eigener Landkarte hängt unter dem Konzern.
   [...new Set(alleKacheln.map(x => x.werk))].forEach(w => link('wurzel', werkKnoten(w), 'Landkarte von'));
@@ -136,6 +146,52 @@ async function vkGraphBauen() {
     }
   }
   return { knoten, kanten };
+}
+
+/**
+ * Abgleich: an der Kachel zugeordnet, aber nicht im Modell hinterlegt.
+ *
+ * Dieselbe Aussage – „dieser Ablauf setzt Regelwerk X um" – kann an zwei
+ * Stellen stehen: an der Kachel und als Marker im BPMN-XML. Das ist Absicht
+ * (ohne Modell gäbe es sonst gar keinen Ort dafür), aber es kann auseinander
+ * laufen. Hier steht, wo.
+ */
+function vkAbgleich() {
+  if (!_vkGraph) return [];
+  const alle = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
+  const treffer = [];
+  alle.forEach(({ werk, kachel }) => {
+    const anKachel = (Array.isArray(kachel.regelwerke) ? kachel.regelwerke : []).map(String);
+    if (!anKachel.length) return;
+    const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(kachel, werk) : [];
+    if (!modelle.length) return;                 // ohne Modell gibt es nichts abzugleichen
+    const imModell = new Set();
+    modelle.forEach(m => _vkGraph.kanten
+      .filter(k => k.von === 'modell:' + m.itemId && k.typ === 'setzt um')
+      .forEach(k => imModell.add(k.nach.replace('regelwerk:', ''))));
+    const fehlend = anKachel.filter(id => !imModell.has(id));
+    if (fehlend.length) treffer.push({ werk, kachel, modelle, fehlend });
+  });
+  return treffer;
+}
+
+/** Fehlende Zuordnungen einer Kachel in ein Modell schreiben. */
+async function vkAbgleichUebernehmen(werk, kachelId, itemId) {
+  const eintrag = vkAbgleich().find(a => a.werk === werk && a.kachel.id === kachelId);
+  const modell = eintrag && eintrag.modelle.find(m => m.itemId === itemId);
+  if (!eintrag || !modell) return;
+  try {
+    const xml = await spGetProcessXml(itemId);
+    const vorhanden = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
+    const ids = vorhanden.concat(eintrag.fehlend.filter(id => !vorhanden.includes(String(id))));
+    await spSaveProcess(modell.title, vkXmlMitRegelwerken(xml, ids), modell.ordner || '');
+    if (typeof _procLinkCache !== 'undefined') _procLinkCache = {};
+    if (typeof _processes !== 'undefined') _processes = null;
+    toast(`${eintrag.fehlend.length} Zuordnung(en) in „${modell.title}" übernommen ✓`, 'success');
+    await vkNeuLaden();
+  } catch (e) {
+    toast('Übernahme fehlgeschlagen: ' + e.message, 'error');
+  }
 }
 
 /** Nachbarn eines Knotens, nach Beziehungsart gruppiert. */
@@ -363,7 +419,9 @@ function vkLuecken() {
     });
   }
   const ohneBezug = kacheln.filter(k => !ohneAllesId.has(`prozess:${k.werk}:${k.id}`));
-  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung, ohneBezug };
+  const ohneVerantwortlich = kacheln.filter(k => !String(k.verantwortlich || '').trim());
+  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung, ohneBezug, ohneVerantwortlich,
+    abweichungen: vkAbgleich() };
 }
 
 function _vkLueckenHtml() {
@@ -379,6 +437,22 @@ function _vkLueckenHtml() {
     </div>`;
 
   return `<div class="vk-luecken">
+      ${block('Prozesse ohne Verantwortlichen', l.ohneVerantwortlich,
+        'Der Ablauf steht auf der Karte, aber niemand verantwortet ihn – die erste Frage jedes Audits.',
+        (k) => `<div><a href="#" onclick="vkZurKarte('${esc(k.werk)}','${esc(k.id)}');return false">${esc(k.name)}</a>
+          <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
+      ${(l.abweichungen && l.abweichungen.length) ? `<div class="vk-luecke">
+        <div class="vk-luecke-kopf">An der Kachel, aber nicht im Modell <span>${l.abweichungen.length}</span></div>
+        <div class="field-hint" style="margin-bottom:6px">Dieselbe Aussage kann an zwei Stellen stehen –
+          hier weichen Kachel und BPMN-Datei voneinander ab.</div>
+        ${l.abweichungen.slice(0, 12).map(a => `<div style="padding:3px 0">
+            <a href="#" onclick="vkZurKarte('${esc(a.werk)}','${esc(a.kachel.id)}');return false">${esc(a.kachel.name)}</a>
+            <span class="field-hint"> · ${esc(a.werk)} · ${a.fehlend.length} Regelwerk(e)</span>
+            ${a.modelle.map(m => `<button class="btn btn-ghost btn-sm"
+              onclick="vkAbgleichUebernehmen('${esc(a.werk)}','${esc(a.kachel.id)}','${esc(m.itemId)}')"
+              title="Die fehlenden Zuordnungen in dieses Modell schreiben">→ ${esc(m.title)}</button>`).join('')}
+          </div>`).join('')}
+      </div>` : ''}
       ${block('Prozesse ohne jeden Bezug', l.ohneBezug,
         'Weder Modell noch Regelwerk – hier ist noch gar nichts hinterlegt.',
         (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>

@@ -16,6 +16,31 @@ let _bpmnModeler = null;        // aktive Modeler-Instanz (im Editor)
 let _procEditing = null;        // { itemId, origName } des aktuell bearbeiteten Prozesses
 let _bpmnLibLoading = null;     // Promise beim Nachladen der Bibliothek
 let _procLinkCache = {};        // itemId|modified → [policyId,…] (spart Refetch beim Filtern)
+const PROC_LINK_SPEICHER = 'rms_proc_links';   // derselbe Cache, aber über die Sitzung hinaus
+const PROC_LINK_MAX = 400;                     // mehr Modelle wird es auf Jahre nicht geben
+
+/**
+ * Verknüpfungen aus dem lokalen Speicher übernehmen. Sie stecken im BPMN-XML,
+ * das dafür Datei für Datei gelesen werden muss – ohne diesen Cache zahlt jede
+ * Sitzung den Preis erneut. Schlüssel ist die Kennung samt Änderungsstempel:
+ * eine geänderte Datei fällt damit automatisch aus dem Cache.
+ */
+function procLinksLaden() {
+  try {
+    const roh = localStorage.getItem(PROC_LINK_SPEICHER);
+    if (roh) Object.assign(_procLinkCache, JSON.parse(roh) || {});
+  } catch (e) { /* gesperrt oder defekt – dann eben ohne */ }
+}
+
+function procLinksMerken(key, ids) {
+  _procLinkCache[key] = ids;
+  try {
+    const keys = Object.keys(_procLinkCache);
+    const knapp = {};
+    keys.slice(-PROC_LINK_MAX).forEach(k => { knapp[k] = _procLinkCache[k]; });
+    localStorage.setItem(PROC_LINK_SPEICHER, JSON.stringify(knapp));
+  } catch (e) { /* Speicher voll oder gesperrt – der Cache lebt dann nur im Tab */ }
+}
 
 const PROC_POLICY_MARKER = /\[\[rms:policies=([^\]]*)\]\]/;
 
@@ -65,7 +90,7 @@ function _destroyModeler() {
 /* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
    die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
    Reiter mit Umschalter statt zweier Reiter. */
-let _prozModus = 'karte';   // 'karte' | 'liste'
+let _prozModus = 'karte';   // 'karte' | 'netz' | 'matrix' | 'liste'
 
 /** Umschalter, den beide Ansichten oben einblenden. */
 function prozessModusLeiste(aktiv) {
@@ -74,12 +99,13 @@ function prozessModusLeiste(aktiv) {
   return `<div style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
       ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran – Prozesse, Modelle, Regelwerke, Standorte')}
+      ${knopf('matrix', '👤 Matrix', 'Wer ist für welchen Prozess zuständig – und wo fehlt noch etwas')}
       ${knopf('liste', '📋 Modelle', 'Alle BPMN-Modelle als Liste')}
     </div>`;
 }
 
 function setProzessModus(m) {
-  _prozModus = ['liste', 'netz', 'karte'].includes(m) ? m : 'karte';
+  _prozModus = ['liste', 'netz', 'matrix', 'karte'].includes(m) ? m : 'karte';
   renderProzesseAktuell();
 }
 
@@ -87,6 +113,7 @@ function setProzessModus(m) {
 function renderProzesseAktuell() {
   if (_prozModus === 'karte' && typeof initLandkarte === 'function') { initLandkarte(); return; }
   if (_prozModus === 'netz' && typeof initVerknuepfungen === 'function') { initVerknuepfungen(); return; }
+  if (_prozModus === 'matrix' && typeof initProzessMatrix === 'function') { initProzessMatrix(); return; }
   renderProzesseList();
 }
 
@@ -96,6 +123,7 @@ async function initProzesse() {
   _destroyModeler();   // evtl. offenen Editor beenden → zurück zur Liste
   if (_processes) renderProzesseAktuell();
   else mount.innerHTML = '<div class="doc-loading">Lade Prozesse …</div>';
+  procLinksLaden();
   _processesLoading = true;
   try {
     _processes = await spListProcesses();
@@ -232,7 +260,7 @@ async function _enrichProcessCard(p, key) {
   try {
     const xml = await spGetProcessXml(p.itemId);
     const ids = _parsePolicyIds(xml);
-    _procLinkCache[key] = ids;
+    procLinksMerken(key, ids);
     _renderCardLink(p.itemId, ids);
   } catch (e) {
     const el = document.getElementById('proc-link-' + p.itemId);
@@ -272,6 +300,7 @@ async function openProcessEditor(itemId, seed) {
       <div style="font-weight:700">${proc ? 'Prozess bearbeiten' : 'Neuer Prozess'}</div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als Bild – lässt sich in Word, PowerPoint und Regelwerke einfügen">⬇ Bild</button>
       ${itemId && canWrite ? `<button class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="deleteProcess()">Löschen</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" id="proc-save-btn" onclick="saveProcess()">💾 Speichern</button>` : ''}
     </div>
@@ -411,6 +440,27 @@ async function downloadProcessXml() {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (e) { toast('Download fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/**
+ * Das Diagramm als Bild (SVG) herunterladen. Wer den Ablauf in ein Regelwerk,
+ * eine Schulung oder eine Folie packen will, braucht ein Bild – mit einer
+ * .bpmn-Datei kann außerhalb des Modelers niemand etwas anfangen. SVG bleibt
+ * dabei scharf und lässt sich in Word und PowerPoint direkt einfügen.
+ */
+async function downloadProcessSvg() {
+  if (!_bpmnModeler) return;
+  try {
+    const { svg } = await _bpmnModeler.saveSVG();
+    const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name.replace(/\.bpmn$/i, '') + '.svg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Bild gespeichert ✓', 'success');
+  } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
 }
 
 async function deleteProcess() {

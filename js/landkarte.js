@@ -68,6 +68,48 @@ let _lkFilter = '';          // Standort-Filter innerhalb der Karte ('' = alle)
 let _lkEditing = null;       // Kachel im Bearbeiten-Dialog
 let _lkZiehIndex = -1;       // laufendes Ziehen
 let _lkSuche = '';           // Suche über ALLE Landkarten
+let _lkMembers = null;       // Mitarbeiter für die Auswahl der Verantwortlichen
+
+/** Mitarbeiterliste einmal holen und die Auswahllisten nachfüllen. */
+function lkMitgliederLaden() {
+  if (_lkMembers || typeof spGetMembers !== 'function') return;
+  spGetMembers().then(m => {
+    _lkMembers = m || [];
+    document.querySelectorAll('datalist#lk-people').forEach(dl => { dl.innerHTML = _lkPeopleOptions(); });
+  }).catch(() => { _lkMembers = []; });
+}
+
+function _lkPeopleOptions() {
+  return (_lkMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('');
+}
+
+/** Anzeigename zu einer Mailadresse – solange die Liste fehlt, die Adresse selbst. */
+function lkPersonName(upn) {
+  const u = String(upn || '').trim();
+  if (!u) return '';
+  const t = (_lkMembers || []).find(m => String(m.upn || '').toLowerCase() === u.toLowerCase());
+  return (t && t.name) || u;
+}
+
+/** Verantwortliche(r) einer Kachel – '' wenn nicht gepflegt. */
+function lkVerantwortlich(k) { return String((k && k.verantwortlich) || '').trim(); }
+
+/** Dauerhafter Link auf einen Prozess – für Mails, Regelwerke, Schulungen. */
+function lkLinkFuer(werk, id) {
+  const basis = (typeof location !== 'undefined') ? (location.origin + location.pathname) : '';
+  return `${basis}?ansicht=prozesse&prozess=${encodeURIComponent(werk)}:${encodeURIComponent(id)}`;
+}
+
+async function lkLinkKopieren(werk, id) {
+  const url = lkLinkFuer(werk, id);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link kopiert ✓', 'success');
+  } catch (e) {
+    // Ohne Zwischenablage-Recht bleibt der Link wenigstens sichtbar.
+    if (typeof uiConfirm === 'function') uiConfirm(`<div style="word-break:break-all">${esc(url)}</div>`, { title: 'Link zum Prozess', okLabel: 'Schließen' });
+  }
+}
 
 /** Tiefe Kopie des Startbestands – nie die Konstante verändern. */
 function lkStartbestand() {
@@ -505,6 +547,16 @@ function _lkTrefferHtml() {
 }
 
 /** Zum Treffer springen: richtige Karte öffnen, Kachel zeigen. */
+/** Aus einem Deep-Link: Werk setzen und die Kachel öffnen (sobald geladen). */
+async function lkDeepLink(werk, id) {
+  if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* Startbestand */ } }
+  if (LK_WERKE.includes(werk)) _lkWerk = werk;
+  if (typeof setProzessModus === 'function') setProzessModus('karte');
+  else renderLandkarte();
+  if (lkKachelVonId(id)) lkKachelOeffnen(id);
+  else toast('Dieser Prozess wurde nicht gefunden – vielleicht wurde er umbenannt oder gelöscht.', 'error');
+}
+
 function lkSpringeZu(werk, id) {
   _lkWerk = LK_WERKE.includes(werk) ? werk : _lkWerk;
   renderLandkarte();
@@ -541,6 +593,12 @@ function lkKachelOeffnen(id) {
         <span class="ic-tag">${esc(_lkBandTitel(k.band))}</span>
         <span class="ic-tag cat">${esc(gb || 'Geltungsbereich nicht gepflegt')}</span>
       </div>
+      <div style="margin:0 0 14px;font-size:.86rem">
+        ${lkVerantwortlich(k)
+          ? `👤 Verantwortlich: <a href="mailto:${esc(lkVerantwortlich(k))}">${esc(lkPersonName(lkVerantwortlich(k)))}</a>${
+              k.vertretung ? ` <span class="field-hint">· Vertretung: ${esc(lkPersonName(k.vertretung))}</span>` : ''}`
+          : `<span style="color:#b45309">👤 Kein Prozessverantwortlicher gepflegt</span>`}
+      </div>
 
       <div style="border-top:1px solid var(--c-border);padding-top:12px">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">
@@ -576,6 +634,8 @@ function lkKachelOeffnen(id) {
     <div class="modal-footer">
       ${schreiben ? `<button class="btn btn-ghost" onclick="lkKachelLoeschen('${esc(k.id)}')">Löschen</button>` : ''}
       <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="lkLinkKopieren('${esc(_lkWerk)}','${esc(k.id)}')"
+        title="Dauerhafter Link auf diesen Prozess – für Mails, Regelwerke, Schulungen">🔗 Link</button>
       <button class="btn btn-outline" onclick="lkZuVerknuepfungen('${esc(k.id)}')"
         title="Diesen Prozess in der Mindmap in die Mitte stellen">🕸 Verknüpfungen</button>
       ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten('${esc(k.id)}')">Bearbeiten</button>` : ''}
@@ -788,6 +848,7 @@ function renderLkEditor() {
   // Für die Geltungsbereich-Auswahl gilt dieselbe Oberfläche wie bei Regelwerken;
   // _gbScope('lgb') zeigt auf _lkEditing.geltungsbereich – deshalb hier spiegeln.
   k.geltungsbereich = k.geltung;
+  lkMitgliederLaden();
   openModal(`
     <div class="modal-header">
       <h3>${k.neu ? 'Prozess anlegen' : 'Prozess bearbeiten'}</h3>
@@ -810,6 +871,18 @@ function renderLkEditor() {
             ${lkBaender().map(b => `<option value="${esc(b.key)}"${b.key === k.band ? ' selected' : ''}>${esc(b.titel)}</option>`).join('')}
           </select>
         </div>
+        <div class="form-group">
+          <label>Prozessverantwortlich (E-Mail)</label>
+          <input type="text" list="lk-people" value="${esc(k.verantwortlich || '')}"
+            oninput="_lkEditing.verantwortlich=this.value" placeholder="name@dihag.com">
+          <span class="field-hint">Wer den Ablauf verantwortet – die Frage jedes Audits.</span>
+        </div>
+        <div class="form-group">
+          <label>Vertretung (E-Mail)</label>
+          <input type="text" list="lk-people" value="${esc(k.vertretung || '')}"
+            oninput="_lkEditing.vertretung=this.value" placeholder="optional">
+        </div>
+        <datalist id="lk-people">${_lkPeopleOptions()}</datalist>
       </div>
       ${(typeof renderGeltungsbereichSection === 'function') ? renderGeltungsbereichSection(k.geltung, 'lgb') : ''}
     </div>
@@ -829,7 +902,9 @@ async function lkEditorSpeichern() {
 
   if (k.neu) {
     const id = _lkNeueId(name);
-    lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung, prozesse: [], regelwerke: [] });
+    lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
+      verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
+      prozesse: [], regelwerke: [] });
     closeModal();
     _lkEditing = null;
     await lkSpeichern(`„${name}" angelegt ✓`, `Prozess „${name}" angelegt`);
@@ -837,16 +912,22 @@ async function lkEditorSpeichern() {
   }
   const ziel = lkKachelVonId(k.id);
   if (!ziel) return;
-  const alt = { name: ziel.name, band: ziel.band, unter: ziel.unter || '', geltung: (ziel.geltung || []).join(',') };
+  const alt = { name: ziel.name, band: ziel.band, unter: ziel.unter || '', geltung: (ziel.geltung || []).join(','),
+    verantwortlich: ziel.verantwortlich || '' };
   ziel.name = name;
   ziel.unter = String(k.unter || '').trim();
   ziel.band = k.band;
   ziel.geltung = geltung;
+  ziel.verantwortlich = String(k.verantwortlich || '').trim();
+  ziel.vertretung = String(k.vertretung || '').trim();
   const teile = [];
   if (alt.name !== name) teile.push(`Name: „${alt.name}" → „${name}"`);
   if (alt.band !== ziel.band) teile.push(`Band: ${_lkBandTitel(alt.band)} → ${_lkBandTitel(ziel.band)}`);
   if (alt.unter !== ziel.unter) teile.push('Untertitel geändert');
   if (alt.geltung !== geltung.join(',')) teile.push(`Geltungsbereich: ${geltungsbereichLabel(geltung)}`);
+  if (alt.verantwortlich !== ziel.verantwortlich) {
+    teile.push(`Verantwortlich: ${alt.verantwortlich || '(niemand)'} → ${ziel.verantwortlich || '(niemand)'}`);
+  }
   closeModal();
   _lkEditing = null;
   await lkSpeichern('Gespeichert ✓', `„${name}" geändert${teile.length ? ' – ' + teile.join('; ') : ''}`);

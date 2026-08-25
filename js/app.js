@@ -122,6 +122,22 @@ async function applyDeepLinkOrDefault() {
     return;
   }
 
+  // Deep-Link auf einen Prozess der Landkarte (?prozess=WERK:KACHEL) – aus
+  // Mails, Regelwerken und Schulungen. Ohne Leserecht führt er ins Leere,
+  // deshalb dieselbe Prüfung wie bei den anderen Ansichten.
+  const prozessZiel = params.get('prozess');
+  if (prozessZiel) {
+    if (typeof canReadTab === 'function' && !canReadTab('prozesse')) {
+      await switchView('meine');
+      toast('Für die Prozesse fehlt Ihnen der Zugriff.');
+      return;
+    }
+    await switchView('prozesse');
+    const [werk, kachel] = String(prozessZiel).split(':');
+    if (typeof lkDeepLink === 'function') await lkDeepLink(werk, kachel || '');
+    return;
+  }
+
   const deepId = params.get('richtlinie');
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
