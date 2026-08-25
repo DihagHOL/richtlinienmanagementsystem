@@ -123,7 +123,7 @@ function tourSchritte() {
     {
       symbol: '🎬',
       titel: 'Herzlich willkommen',
-      text: 'Wie aus einer Idee ein gültiges Regelwerk wird – in fünf Minuten.',
+      text: 'Wie aus einer Idee ein gültiges Regelwerk wird – in gut fünf Minuten.',
       hinweis: 'Kein Testmodus: Hier entsteht ein <b>echter Vorgang</b> mit echten E-Mails. Jeder Schritt wartet, bis Sie ihn wirklich ausgeführt haben. „🧹 Aufräumen" entfernt ihn danach wieder.',
       ziel: null, erfuellt: null,
     },
@@ -135,6 +135,16 @@ function tourSchritte() {
       ziel: '#nav-verwaltung',
       erfuellt: () => _tourAnsicht('verwaltung'),
       vormachen: () => switchView('verwaltung'),
+    },
+    {
+      // Nicht jedes Regelwerk ist neu. Wer Bestand übernimmt, soll nicht erst
+      // ein Konzept erfinden müssen – dafür gibt es „Direkt anlegen".
+      symbol: '📥',
+      titel: 'Bestehendes Regelwerk aufnehmen',
+      text: 'Nicht jedes Regelwerk ist neu – vorhandene Dokumente kommen ohne Konzept direkt herein.',
+      hinweis: 'Zum Zeigen: <b>+ Neues Regelwerk</b> öffnen. „Direkt anlegen" ist der Weg für Bestand und Migration, „💡 Konzept erstellen" der für ein neues Thema. Wir gehen gleich den zweiten.',
+      ziel: '#btn-new-policy',
+      erfuellt: null,
     },
     {
       symbol: '💡',
@@ -205,6 +215,28 @@ function tourSchritte() {
       vormachen: () => {
         const k = _tourKonzept();
         if (k) { setAdminMode('konzepte'); switchView('verwaltung').then(() => konzeptDecide(k.id, 'angenommen')); }
+      },
+    },
+    {
+      // Hier entscheidet sich, wen das Regelwerk erreicht und was es verlangt –
+      // der Teil, der die Mitarbeitenden später wirklich betrifft.
+      symbol: '🎯',
+      titel: 'Zielgruppe, Pflichtlektüre, Wissenstest',
+      text: 'Am Entwurf wird festgelegt, wer es lesen muss – und ob ein Wissenstest dazugehört.',
+      hinweis: 'Hier stehen auch Wiedervorlage, Lernvideo und der zuständige Betriebsrat. „✨ Vormachen" belegt die Felder vor.',
+      ziel: '.modal-body',
+      erfuellt: null,
+      vormachen: () => {
+        const p = _tourRegelwerk();
+        if (!p) return;
+        openPolicyEditor(p.id);
+        setTimeout(() => {
+          if (typeof _editing === 'undefined' || !_editing) return;
+          _editing.pflicht = true;                 // Pflichtlektüre
+          _editing.quizErforderlich = true;        // mit Wissenstest
+          _editing.wiederholungMonate = 12;        // jährlich erneut bestätigen
+          if (typeof renderPolicyEditor === 'function') renderPolicyEditor();
+        }, 300);
       },
     },
     {
