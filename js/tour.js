@@ -1,6 +1,10 @@
 /**
- * Geführte Vorführung („echte Trigger")
- * =====================================
+ * Geführte Vorführung – zugleich das Drehbuch des Lernvideos
+ * ==========================================================
+ * Die Texte sprechen die <b>Zuschauer</b> an, nicht die bedienende Person:
+ * Was hier auf dem Bildschirm steht, ist der Lehrtext des Videos und lässt sich
+ * mitlesen. Was zu klicken ist, steht im <b>Hinweis</b> darunter – das stört
+ * beim Zuschauen nicht und führt beim Aufnehmen zuverlässig.
  * Die Führung arbeitet mit der echten Oberfläche: Sie hebt das jeweils nächste
  * Bedienelement hervor, lässt es anklickbar und wartet, bis der Schritt
  * **wirklich** ausgeführt wurde. Erst dann geht es weiter. Es gibt keine
@@ -118,17 +122,20 @@ function tourSchritte() {
   return [
     {
       symbol: '🎬',
-      titel: 'Los geht es',
-      text: `Ab hier entsteht ein <b>echter Vorgang</b>: echte Einträge, echte E-Mails an die
-             hinterlegten Empfänger. Jeder Schritt wartet, bis Sie ihn wirklich ausgeführt haben;
-             wenn es schnell gehen soll, erledigt <b>Vormachen</b> ihn für Sie.`,
-      hinweis: 'Alles trägt „[Probelauf]" im Titel. Über „🧹 Aufräumen" im Streifen unten verschwindet der Vorgang wieder.',
+      titel: 'Herzlich willkommen',
+      text: `Herzlich willkommen zu diesem Lernvideo über die <b>Regelwerke</b> in unserem Konzern.
+             Sie sehen gleich, wie aus einer Idee eine verbindliche Regel wird – von der ersten
+             Skizze bis zu dem Moment, in dem sie bei Ihnen unter „Meine Regelwerke" auftaucht.`,
+      hinweis: 'Keine Attrappe: Hier entsteht ein <b>echter Vorgang</b> mit echten E-Mails. Jeder Schritt wartet, bis Sie ihn wirklich ausgeführt haben; „✨ Vormachen" nimmt Ihnen die Tipparbeit ab. Alles trägt „[Probelauf]" im Titel und verschwindet später über „🧹 Aufräumen" wieder.',
       ziel: null, erfuellt: null,
     },
     {
       symbol: '📋',
       titel: 'Regelwerk-Dashboard öffnen',
-      text: 'Hier verwaltet die Fachseite alle Regelwerke und Konzepte. Klick den Reiter an.',
+      text: `Beginnen wir dort, wo die Fachseite arbeitet: Im <b>Regelwerk-Dashboard</b> stehen alle
+             Regelwerke und alle Konzepte des Konzerns an einer Stelle. Die meisten Mitarbeitenden
+             brauchen diesen Reiter nie – hier entsteht aber alles, was später bei ihnen ankommt.`,
+      hinweis: 'Zum Mitmachen: Reiter <b>Verwaltung</b> anklicken.',
       ziel: '#nav-verwaltung',
       erfuellt: () => _tourAnsicht('verwaltung'),
       vormachen: () => switchView('verwaltung'),
@@ -136,7 +143,8 @@ function tourSchritte() {
     {
       symbol: '💡',
       titel: 'Ein Konzept anlegen',
-      text: `Neue Regelwerke starten als <b>Konzept</b>: Erst entscheidet die Geschäftsleitung,
+      text: `Ein neues Regelwerk beginnt nicht mit einem fertigen Dokument, sondern mit einem
+             <b>Konzept</b>. Erst entscheidet die Geschäftsleitung,
              ob es überhaupt gebraucht wird. Klick auf „💡 Regelwerk-Konzept".`,
       hinweis: 'Das spart Arbeit an Regelwerken, die am Ende niemand will.',
       ziel: '#btn-new-konzept',
@@ -146,8 +154,10 @@ function tourSchritte() {
     {
       symbol: '✍️',
       titel: 'Konzept ausfüllen',
-      text: `Arbeitstitel, Dokumentart und Geltungsbereich sind Pflicht, dazu die Frage <i>Warum?</i>.
-             Dazu die Skizze als <b>Anhang</b> – daran liest die Geschäftsleitung, worum es geht.`,
+      text: `Vier Angaben sind Pflicht: <b>Arbeitstitel</b>, <b>Dokumentart</b>,
+             <b>Geltungsbereich</b> – und die Frage <i>Warum?</i>. Genau die ist der Kern: Wer nicht
+             in zwei Sätzen sagen kann, warum es eine Regel braucht, braucht meistens keine.
+             Dazu eine kurze Skizze als <b>Anhang</b>; daran liest die Geschäftsleitung, worum es geht.`,
       hinweis: '„Vormachen" füllt das Formular aus und legt eine Skizze nach der Muster-Vorlage an.',
       ziel: '.modal-body',
       erfuellt: () => {
@@ -177,9 +187,9 @@ function tourSchritte() {
     {
       symbol: '📤',
       titel: 'Zur GF-Prüfung einreichen',
-      text: `Jetzt unten auf „Zur GF-Prüfung einreichen". Damit geht die Nachricht an die
-             Geschäftsleitung – mit allen Angaben, dem Anhang und den Entscheidungs-Schaltflächen.`,
-      hinweis: 'Solange nicht entschieden ist, steht das Konzept im Dashboard mit dem Status „GF-Prüfung".',
+      text: `Mit dem Einreichen geht die Nachricht an die Geschäftsleitung – mit allen Angaben, dem
+             Anhang und den Entscheidungs-Schaltflächen direkt in der E-Mail.`,
+      hinweis: 'Zum Mitmachen: unten auf „Zur GF-Prüfung einreichen". Solange nicht entschieden ist, steht das Konzept im Dashboard mit dem Status „GF-Prüfung".',
       ziel: '.modal-footer .btn-primary',
       basis: () => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length,
       erfuellt: (b) => (State.konzepte || []).filter(k => k.konzept && k.konzept.eingereichtAm).length > b,
@@ -187,17 +197,19 @@ function tourSchritte() {
     },
     {
       symbol: '✉️',
-      titel: 'Die Mail im Postfach ansehen',
-      text: `Die Geschäftsleitung ist benachrichtigt – die Nachricht ist wirklich raus. Wechsle kurz
-             ins Postfach: Dort stehen die Entscheidungs-Schaltflächen, der <b>Anhang</b> mit dem
-             Dokument und der Link auf die Datei <b>in SharePoint</b>.`,
+      titel: 'Die Mail im Postfach',
+      text: `Und hier steckt der eigentliche Kniff: <b>Entschieden wird dort, wo die Menschen
+             ohnehin sind</b> – im Postfach. Ein Klick auf „Annehmen", fertig. Niemand muss sich
+             erst irgendwo anmelden und ein Portal durchsuchen. Im <b>Anhang</b> liegt das Dokument,
+             der Link führt direkt zur Datei <b>in SharePoint</b>.`,
       hinweis: 'Das ist keine Nachbildung – genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
       ziel: null, erfuellt: null,
     },
     {
       symbol: '✓',
       titel: 'Entscheiden',
-      text: `Annehmen, Zurückstellen oder Ablehnen – wahlweise direkt in der Mail oder hier auf der
+      text: `Drei Möglichkeiten: <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> –
+             wahlweise direkt in der Mail oder hier auf der
              Karte. Nimm das Konzept an: Daraus entsteht automatisch ein Regelwerk-Entwurf.`,
       ziel: '.item-card .btn-primary',
       erfuellt: () => {
@@ -212,10 +224,10 @@ function tourSchritte() {
     {
       symbol: '📄',
       titel: 'Aus dem Konzept wird ein Entwurf',
-      text: `Titel, Dokumentart, Geltungsbereich und Begründung sind übernommen. Häng jetzt das
-             <b>Dokument</b> an (⬆ im Editor) und schick das Regelwerk mit
-             „Zur Konformitätsprüfung →" weiter.`,
-      hinweis: 'Ohne Datei geht die Mail ohne Anhang raus. „Vormachen" legt ein Beispieldokument in der Bibliothek ab und hängt es an.',
+      text: `Jetzt wird aus dem angenommenen Konzept ein Entwurf. Titel, Dokumentart,
+             Geltungsbereich und Begründung sind übernommen – nichts wird doppelt eingetippt.
+             Dazu kommt das eigentliche <b>Dokument</b>, dann geht es in die Prüfung.`,
+      hinweis: 'Zum Mitmachen: Dokument anhängen (⬆ im Editor), dann „Zur Konformitätsprüfung →". Ohne Datei geht die Mail ohne Anhang raus; „Vormachen" legt ein Beispieldokument ab und hängt es an.',
       ziel: '.modal-footer .btn-primary',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Konformitätsprüfung'); },
       vormachen: async () => {
@@ -244,8 +256,10 @@ function tourSchritte() {
     {
       symbol: '🔍',
       titel: 'Freigaben-Reiter öffnen',
-      text: `Der Reiter <b>Freigaben</b> sammelt alles, was auf eine Entscheidung wartet –
-             getrennt nach Konformitätsprüfung, Mitbestimmung und Freigabe. Öffnen Sie ihn.`,
+      text: `Der Reiter <b>Freigaben</b> sammelt alles, was auf eine Entscheidung wartet – getrennt
+             nach Konformitätsprüfung, Mitbestimmung und Freigabe. Wer entscheiden muss, sieht auf
+             einen Blick, was liegen geblieben ist.`,
+      hinweis: 'Zum Mitmachen: Reiter <b>Freigaben</b> öffnen.',
       ziel: '#nav-freigaben',
       erfuellt: () => _tourAnsicht('freigaben'),
       vormachen: () => switchView('freigaben'),
@@ -253,10 +267,10 @@ function tourSchritte() {
     {
       symbol: '✅',
       titel: 'Konformitätsprüfung entscheiden',
-      text: `Die Karte des Vorgangs ist aufgeklappt und hervorgehoben. Setzen Sie das Regelwerk auf
-             <b>Konform</b>. „Nicht konform" verlangt immer eine Begründung – so bleibt
-             nachvollziehbar, warum etwas zurückging.`,
-      hinweis: 'Im Betrieb entscheiden die hinterlegten Prüfer, wahlweise direkt aus der E-Mail.',
+      text: `Erste Station: die fachliche Prüfung. Passt das Regelwerk zu dem, was wir sonst regeln,
+             und zu den Normen, an die wir gebunden sind? <b>„Nicht konform" verlangt immer eine
+             Begründung</b> – so bleibt nachvollziehbar, warum etwas zurückging.`,
+      hinweis: 'Zum Mitmachen: in der hervorgehobenen Karte auf <b>Konform</b>. Im Betrieb entscheiden die hinterlegten Prüfer, wahlweise direkt aus der E-Mail.',
       beim: () => _tourFreigabenAbschnitt('pruef'),
       ziel: () => _tourKarteSel('.btn-success'),
       basis: () => { const p = _tourRegelwerk(); return p ? (p.konformitaet || []).length : 0; },
@@ -266,9 +280,9 @@ function tourSchritte() {
     {
       symbol: '🤝',
       titel: 'Mitbestimmung',
-      text: `Ist die Mitbestimmung betroffen, geht es an den Konzernbetriebsrat bzw. die
-             Betriebsräte der gewählten Werke – mit demselben Dokument.`,
-      hinweis: 'Diese Stufe ist der Grund für den stufenweisen Rollout.',
+      text: `Ist die Mitbestimmung betroffen, geht dasselbe Dokument an den Konzernbetriebsrat
+             bzw. die Betriebsräte der gewählten Werke. Das ist kein Hindernis, sondern der Grund
+             für den stufenweisen Rollout: Was mitbestimmungspflichtig ist, wird auch mitbestimmt.`,
       beim: () => _tourFreigabenAbschnitt('mb'),
       ziel: () => _tourKarteSel('.btn-success'),
       erfuellt: () => {
@@ -283,8 +297,8 @@ function tourSchritte() {
     {
       symbol: '🚀',
       titel: 'Freigabe durch die Geschäftsleitung',
-      text: `In der Freigabe-Karte steht, wer vorher schon zugestimmt hat.
-             Mit der Freigabe wird das Regelwerk veröffentlicht.`,
+      text: `In der Freigabe-Karte steht, wer vorher schon zugestimmt hat – die Geschäftsführung
+             entscheidet also nicht ins Blaue. Mit diesem Klick ist das Regelwerk veröffentlicht.`,
       beim: () => _tourFreigabenAbschnitt('frei'),
       ziel: () => _tourKarteSel('.btn-success'),
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Veröffentlicht'); },
@@ -293,8 +307,11 @@ function tourSchritte() {
     {
       symbol: '👀',
       titel: 'Kenntnisnahme',
-      text: `Jetzt erscheint das Regelwerk bei allen Mitarbeitenden der Zielgruppe.
-             Wechsle zu „Meine Regelwerke", öffne es und bestätige die Kenntnisnahme.`,
+      text: `Und jetzt kommt der Teil, der <b>alle</b> betrifft: Ab sofort steht das Regelwerk bei
+             jeder und jedem in der Zielgruppe unter <b>„Meine Regelwerke"</b>. Lesen, einmal
+             bestätigen – fertig. Bei wichtigen Themen kommt ein kurzer Wissenstest dazu; dabei
+             zählt der beste Versuch.`,
+      hinweis: 'Ist ein Lernvideo hinterlegt, sehen Sie es an derselben Stelle – oberhalb des Wissenstests.',
       ziel: '.nav-item[data-view="meine"]',
       erfuellt: () => {
         const p = _tourRegelwerk();
@@ -308,8 +325,10 @@ function tourSchritte() {
     {
       symbol: '🗂️',
       titel: 'Nachweis im Audit',
-      text: `Der eigentliche Zweck: Auf Knopfdruck belegbar, <b>wer wann was</b> entschieden hat.
-             Öffne das Regelwerk im Dashboard und klapp die <b>Änderungshistorie</b> auf.`,
+      text: `Das ist der Zweck des ganzen Aufwands: auf Knopfdruck belegbar, <b>wer wann was</b>
+             entschieden hat – Konzept, Prüfung, Mitbestimmung, Freigabe und jede Kenntnisnahme.
+             Früher war das eine Suche durch Postfächer, heute ist es eine Liste.`,
+      hinweis: 'Zum Mitmachen: das Regelwerk im Dashboard öffnen und die <b>Änderungshistorie</b> aufklappen.',
       ziel: '#nav-verwaltung',
       erfuellt: () => !!_tourEl('#ed-body-hist'),
       vormachen: () => {
@@ -324,9 +343,12 @@ function tourSchritte() {
     },
     {
       symbol: '🏁',
-      titel: 'Durchlauf abgeschlossen',
-      text: `Vom Konzept über Prüfung und Mitbestimmung bis zu Freigabe, Kenntnisnahme und
-             Audit-Nachweis – alles an einer Stelle und lückenlos protokolliert.`,
+      titel: 'Was das für Sie heißt',
+      text: `Das war der ganze Weg – von der Idee bis zum Nachweis, lückenlos protokolliert.
+             Für Sie bleiben drei Handgriffe: <b>nachsehen</b> unter „Meine Regelwerke",
+             <b>lesen und bestätigen</b> – und <b>mitreden</b>, wenn eine Regel nicht zur Praxis
+             passt: Der Änderungsvorschlag am Dokument geht an die verantwortliche Person.
+             Schauen Sie diese Woche einmal rein; meistens sind es zwei Minuten.`,
       hinweis: 'Jetzt aufräumen? „🧹 Aufräumen" im Streifen unten löscht genau die Einträge dieses Probelaufs wieder.',
       ziel: null, erfuellt: null,
     },
