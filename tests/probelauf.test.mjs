@@ -227,8 +227,8 @@ for (const stufe of ['Konzept anlegen', 'Konzept eingereicht', 'Konzept angenomm
 ok(/legt einen echten Vorgang an und versendet echte/.test(quelle), 'Der Selbsttest fragt vorher nach');
 ok(/konzeptDecide\(kEing\.id, 'angenommen', \{ ohneRueckfrage: true, ohneWeiche: true \}\)/.test(quelle),
   'Er nimmt das Konzept über die echte Funktion an, statt den Entwurf selbst zu bauen');
-ok(/konzeptDecide\(id, decision, \{ ohneRueckfrage: true \}\)/.test(lies('js/konzepte.js')),
-  'Der Klick aus der Mail entscheidet ohne zweite Nachfrage – er ist die Entscheidung');
+ok(/konzeptDecide\(id, decision, \{ ohneRueckfrage: true, ohneWeiche: true \}\)/.test(lies('js/konzepte.js')),
+  'Der Klick aus der Mail entscheidet ohne Nachfrage und ohne Folgefrage – er ist die Entscheidung');
 ok(/Warum wird das Konzept abgelehnt\? \(Pflicht\)/.test(lies('js/konzepte.js')),
   'Die Begründung einer Ablehnung bleibt Pflicht – sie ist keine Rückfrage, sondern eine Angabe');
 ok(!/const rw = newPolicy\(\)/.test(quelle), 'Kein nachgebauter Entwurf mehr im Selbsttest');

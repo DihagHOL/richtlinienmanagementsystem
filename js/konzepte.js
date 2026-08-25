@@ -563,10 +563,11 @@ function handleKonzeptMailAction(id, aktion) {
   const decision = map[String(aktion || '').toLowerCase()];
   focusKonzeptCard(id);
   if (!decision) return;
-  // Der Klick in der Mail IST die Entscheidung – hier wird nicht noch einmal
-  // gefragt. Geprüft wird trotzdem das GF-Recht, und eine Ablehnung verlangt
-  // weiterhin ihre Begründung.
-  setTimeout(() => { konzeptDecide(id, decision, { ohneRueckfrage: true }); }, 500);
+  // Der Klick in der Mail IST die Entscheidung – weder Bestätigung noch
+  // Folgefrage. Geprüft wird trotzdem das GF-Recht, und eine Ablehnung verlangt
+  // weiterhin ihre Begründung. Wie es weitergeht, entscheidet man später im
+  // Entwurf; direkt nach einem Mail-Klick will das niemand beantworten.
+  setTimeout(() => { konzeptDecide(id, decision, { ohneRueckfrage: true, ohneWeiche: true }); }, 500);
 }
 
 /* ── Mail an die Geschäftsleitung ── */
