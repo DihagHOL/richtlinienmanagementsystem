@@ -283,12 +283,24 @@ async function lkSpeichern(meldung, was) {
     if (was) _lkVerlauf(was);
     _lkGeaendertAm = await spSaveLandkarte(_lkDaten);
     if (meldung) toast(meldung, 'success');
-    renderLandkarte();
+    _lkNachSpeichern();
     return true;
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, 'error');
     return false;
   }
+}
+
+/**
+ * Nach dem Speichern dorthin zurück, wo gearbeitet wurde. Gespeichert wird
+ * inzwischen aus drei Ansichten – wer aus der Mindmap heraus einen Prozess
+ * anlegt, will nicht plötzlich in der Landkarte stehen.
+ */
+function _lkNachSpeichern() {
+  const modus = (typeof _prozModus !== 'undefined') ? _prozModus : 'karte';
+  if (modus === 'netz' && typeof vkNachLandkarte === 'function') { vkNachLandkarte(); return; }
+  if (modus === 'matrix' && typeof renderProzessMatrix === 'function') { renderProzessMatrix(); return; }
+  renderLandkarte();
 }
 
 /* ── Ansicht ─────────────────────────────────────────────────────────── */
@@ -464,8 +476,13 @@ function _lkLeerHtml(schreiben, belegt) {
 
 /** Landkarte wechseln. */
 function lkSetWerk(w) {
-  _lkWerk = LK_WERKE.includes(w) ? w : _lkWerk;
+  lkWerkSetzenStill(w);
   renderLandkarte();
+}
+
+/** Werk wechseln, ohne die Ansicht zu wechseln – etwa aus der Mindmap heraus. */
+function lkWerkSetzenStill(w) {
+  _lkWerk = LK_WERKE.includes(w) ? w : _lkWerk;
 }
 
 function lkUebernehmenDialog() {
@@ -824,12 +841,16 @@ async function lkModellLoesen(id, itemId) {
 
 /* ── Kacheln bearbeiten ──────────────────────────────────────────────── */
 
-function lkKachelNeu() {
+function lkKachelNeu(band) {
   if (!lkDarfSchreiben()) return;
   // In einer Werk-Karte gilt ein neuer Prozess zunächst für dieses Werk;
   // auf Konzern-Ebene konzernweit. Beides bleibt änderbar.
   const vorgabe = (_lkWerk === 'KONZERN') ? ['ALLE'] : [_lkWerk];
-  _lkEditing = { id: '', band: 'unterstuetzung', name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], neu: true };
+  // Aus dem Baum heraus ist das Band schon bekannt – dann nicht wieder fragen.
+  const baender = lkBaender();
+  const start = (band && baender.some(b => b.key === band)) ? band
+    : (baender.some(b => b.key === 'unterstuetzung') ? 'unterstuetzung' : (baender[0] || {}).key || 'unterstuetzung');
+  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], neu: true };
   renderLkEditor();
 }
 

@@ -25,6 +25,7 @@
 
 let _vkGraph = null;        // { knoten: Map, kanten: [] }
 let _vkLaden = false;
+let _vkAnsicht = 'baum';    // 'baum' = Übersicht, 'fokus' = radiale Nahsicht
 let _vkFokus = '';          // Knoten-Kennung; '' = Gesamtsicht
 let _vkPfad = [];           // Verlauf der besuchten Knoten
 
@@ -251,9 +252,27 @@ function vkZurueck() {
 }
 function vkGesamt() { _vkFokus = ''; _vkPfad = []; renderVerknuepfungen(); }
 
+function vkSetAnsicht(a) { _vkAnsicht = (a === 'fokus') ? 'fokus' : 'baum'; renderVerknuepfungen(); }
+
+/** Umschalter zwischen Übersicht (Baum) und Nahsicht (Fokus). */
+function _vkAnsichtLeiste() {
+  const knopf = (key, label, titel) => `<button class="btn btn-sm ${_vkAnsicht === key ? 'btn-primary' : 'btn-ghost'}"
+      onclick="vkSetAnsicht('${key}')" title="${titel}">${label}</button>`;
+  return `${knopf('baum', '🌳 Übersicht', 'Die ganze Landschaft als Baum – aufklappbar')}
+    ${knopf('fokus', '🎯 Nahsicht', 'Ein Objekt in der Mitte, ringsum seine Beziehungen')}`;
+}
+
+/** Nach einer Änderung an der Landkarte: Graph neu bauen, Ansicht behalten. */
+async function vkNachLandkarte() {
+  if (!_vkGraph) return;
+  try { _vkGraph = await vkGraphBauen(); } catch (e) { /* alte Sicht bleibt stehen */ }
+  renderVerknuepfungen();
+}
+
 function renderVerknuepfungen() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount || !_vkGraph) return;
+  if (_vkAnsicht === 'baum' && typeof vbRenderHtml === 'function') return _vkBaumAnsicht(mount);
   const mitte = _vkFokus || 'wurzel';
   const k = _vkGraph.knoten.get(mitte);
   if (!k) { _vkFokus = ''; return renderVerknuepfungen(); }
@@ -261,10 +280,12 @@ function renderVerknuepfungen() {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('netz') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Wer hängt woran? In der Mitte steht ein Objekt, ringsum seine Beziehungen –
-      ein Klick auf einen Nachbarn rückt diesen in die Mitte.
+      Nahsicht: In der Mitte steht ein Objekt, ringsum <b>alle</b> seine Beziehungen – auch die
+      querlaufenden wie „gilt für", die im Baum keinen Platz haben. Ein Klick auf einen Nachbarn
+      rückt diesen in die Mitte.
     </div>
     <div class="view-toolbar">
+      ${_vkAnsichtLeiste()}
       ${_vkPfad.length ? `<button class="btn btn-ghost btn-sm" onclick="vkZurueck()">← Zurück</button>` : ''}
       ${_vkFokus ? `<button class="btn btn-ghost btn-sm" onclick="vkGesamt()">⌂ Ganze Landschaft</button>` : ''}
       <label class="field-hint" style="margin:0 6px 0 10px">In die Mitte</label>
@@ -277,6 +298,39 @@ function renderVerknuepfungen() {
     <div class="vk-flaeche">${_vkSvg(mitte)}</div>
     ${_vkAktionenHtml(k)}
     ${_vkNachbarnListe(mitte)}
+    ${_vkLueckenHtml()}`;
+}
+
+/** Die Baum-Übersicht: Wurzel links, Äste nach rechts. */
+function _vkBaumAnsicht(mount) {
+  const wurzel = vbWurzelId();
+  const werke = (typeof lkWerkeMitKarte === 'function') ? lkWerkeMitKarte() : [];
+  const gewaehlt = vbWahlKnoten();
+  mount.innerHTML = `
+    ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('netz') : ''}
+    <div class="view-desc" style="margin:0 0 12px">
+      Die Landschaft als Baum: Werk → Band → Prozess → Modell → Regelwerk. Ein Klick klappt einen
+      Zweig auf oder zu, das <b>+</b> am Knoten legt direkt hier etwas Neues an.
+    </div>
+    <div class="view-toolbar">
+      ${_vkAnsichtLeiste()}
+      <label class="field-hint" style="margin:0 6px 0 10px">Wurzel</label>
+      <select onchange="vbSetWurzel(this.value)" style="max-width:220px" aria-label="Wurzel des Baums">
+        <option value="wurzel"${wurzel === 'wurzel' ? ' selected' : ''}>Konzern (alle Werke)</option>
+        ${werke.map(w => `<option value="werk:${esc(w)}"${wurzel === 'werk:' + w ? ' selected' : ''}>${
+          esc(lkWerkLabel(w))}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="vbAlleAuf()" title="Alle Zweige aufklappen">⤢ Alles</button>
+      <button class="btn btn-ghost btn-sm" onclick="vbAlleZu()" title="Bis auf die Wurzel zuklappen">⤡ Zu</button>
+      <div class="toolbar-spacer"></div>
+      <div class="vb-zoom">
+        ${[[1, '100 %'], [0.8, '80 %'], [0.65, '65 %']].map(([z, l]) =>
+          `<button class="btn btn-sm ${_vbZoom === z ? 'btn-primary' : 'btn-ghost'}" onclick="vbZoom(${z})">${l}</button>`).join('')}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="vkNeuLaden()" title="Verknüpfungen neu einlesen">↻ Aktualisieren</button>
+    </div>
+    ${vbRenderHtml()}
+    ${gewaehlt ? _vkAktionenHtml(gewaehlt) : '<div class="field-hint" style="margin-top:10px">Ein Klick auf einen Knoten zeigt hier, was sich damit tun lässt.</div>'}
     ${_vkLueckenHtml()}`;
 }
 

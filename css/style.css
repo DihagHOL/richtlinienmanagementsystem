@@ -820,3 +820,48 @@ body.demo-mode .main { padding-bottom: 64px; }
 }
 .pm-marke.an { background: #dcfce7; color: #15803d; }
 .pm-marke.aus { background: #f1f5f9; color: #cbd5e1; }
+
+/* ── Mindmap als Baum: Wurzel links, Äste nach rechts ── */
+.vb-rahmen {
+  overflow: auto; border: 1px solid var(--c-border); border-radius: 12px;
+  background: #fff; max-height: 72vh; padding: 14px;
+}
+.vb-flaeche { position: relative; }
+.vb-buehne { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.vb-linien { position: absolute; inset: 0; pointer-events: none; }
+.vb-knoten {
+  position: absolute; display: flex; align-items: center; gap: 6px;
+  border-radius: 12px; padding: 7px 12px; box-sizing: border-box;
+  font-family: inherit; font-size: .82rem; line-height: 1.25; text-align: left;
+  cursor: pointer; box-shadow: 0 1px 3px rgba(15,23,42,.08);
+  transition: box-shadow .12s, transform .12s;
+}
+.vb-knoten:hover { box-shadow: 0 3px 10px rgba(15,23,42,.16); }
+.vb-knoten:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.vb-gewaehlt { box-shadow: 0 0 0 2px var(--c-primary), 0 3px 10px rgba(15,23,42,.16); }
+/* Lange Prozessnamen brechen auf zwei Zeilen statt abgeschnitten zu werden. */
+.vb-text {
+  flex: 1; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; hyphens: auto; overflow-wrap: anywhere;
+}
+.vb-t0 .vb-text { font-size: 1.15rem; font-weight: 800; letter-spacing: .01em; }
+.vb-t1 .vb-text { font-size: .92rem; font-weight: 700; }
+.vb-t2 .vb-text { font-weight: 600; }
+.vb-t3 .vb-text { font-size: .78rem; }
+.vb-zahl {
+  flex: none; min-width: 20px; text-align: center; border-radius: 999px;
+  padding: 1px 6px; font-size: .68rem; font-weight: 700;
+  background: rgba(255,255,255,.28); color: inherit;
+}
+.vb-t2 .vb-zahl, .vb-t3 .vb-zahl { background: rgba(15,23,42,.09); }
+.vb-plus {
+  flex: none; width: 20px; height: 20px; border-radius: 999px; border: none;
+  background: rgba(255,255,255,.3); color: inherit; font-size: .95rem; line-height: 1;
+  font-family: inherit; cursor: pointer; opacity: 0; transition: opacity .12s;
+}
+.vb-t2 .vb-plus, .vb-t3 .vb-plus { background: rgba(15,23,42,.08); }
+.vb-knoten:hover .vb-plus, .vb-gewaehlt .vb-plus, .vb-plus:focus-visible { opacity: 1; }
+.vb-plus:hover { background: rgba(255,255,255,.55); }
+.vb-t2 .vb-plus:hover, .vb-t3 .vb-plus:hover { background: rgba(15,23,42,.16); }
+.vb-zoom { display: flex; gap: 4px; }
+@media print { .vb-rahmen { max-height: none; overflow: visible; } .vb-plus { display: none; } }
