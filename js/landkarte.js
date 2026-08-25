@@ -56,7 +56,6 @@ const LK_START = {
     { key: 'kern',           titel: 'Kernprozesse' },
     { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
   ],
-  ergebnisse: ['Aufträge', 'Produkte', 'Einnahmen'],
   kacheln: [
     { id: 'strategie',     band: 'fuehrung', name: 'Strategie', unter: '' },
     { id: 'projekte',      band: 'fuehrung', name: 'Programm- und Projektmanagement', unter: 'Changemanagement' },
@@ -147,7 +146,6 @@ const LK_KONZERN = {
     { key: 'kommunikation',  titel: 'Kommunikation' },
     { key: 'transformation', titel: 'Transformation' },
   ],
-  ergebnisse: ['Wertsteigerung', 'Steuerungsfähigkeit', 'Synergieeffekte'],
   kacheln: [
     { id: 'vision',        band: 'strategie', name: 'Vision', unter: 'Leitbild und strategische Ziele' },
     { id: 'portfolio',     band: 'strategie', name: 'Portfolio-Steuerung', unter: 'Beteiligungen, Zukäufe, Desinvestitionen' },
@@ -192,7 +190,7 @@ function lkStartbestand() {
 
 /** Leere Karte für ein Werk, das noch keine hat. */
 function lkLeereKarte() {
-  return { baender: JSON.parse(JSON.stringify(LK_START.baender)), ergebnisse: [], kacheln: [] };
+  return { baender: JSON.parse(JSON.stringify(LK_START.baender)), kacheln: [] };
 }
 
 /** Das gerade gewählte Werk. */
@@ -215,7 +213,6 @@ function lkWerkeMitKarte() {
 
 function lkBaender()    { const k = lkKarte(); return (Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender; }
 function lkKacheln()    { const k = lkKarte(); return Array.isArray(k.kacheln) ? k.kacheln : []; }
-function lkErgebnisse() { const k = lkKarte(); return Array.isArray(k.ergebnisse) ? k.ergebnisse : []; }
 function lkDatenGeladen() { return _lkGeladen; }
 
 /** Alle Kacheln aller Werke – für die Mindmap, die über die Werke hinweg schaut. */
@@ -309,7 +306,6 @@ async function lkDatenLaden() {
           version: 2,
           karten: { [LK_START_WERK]: {
             baender:    (Array.isArray(d.baender) && d.baender.length) ? d.baender : JSON.parse(JSON.stringify(LK_START.baender)),
-            ergebnisse: Array.isArray(d.ergebnisse) ? d.ergebnisse : JSON.parse(JSON.stringify(LK_START.ergebnisse)),
             kacheln:    Array.isArray(d.kacheln) ? d.kacheln : JSON.parse(JSON.stringify(LK_START.kacheln)),
           } },
           historie: Array.isArray(d.historie) ? d.historie : [],
@@ -456,17 +452,8 @@ function _lkBandTitel(key) {
  * Ansicht nicht.
  */
 function _lkKarteHtml(schreiben) {
-  const baender = lkBaender();
-  const hatKern = baender.some(b => b.key === 'kern');
-  const ergebnisse = lkErgebnisse();
   return `<div class="lk-karte">
-      ${baender.map((b, i) => _lkZeileHtml(b, i, schreiben)).join('')}
-      ${(!hatKern && ergebnisse.length) ? `<div class="lk-zeile" style="--lk-c:#1A2644">
-          <div class="lk-zeile-titel"><span>Ergebnisse</span></div>
-          <div class="lk-reihe" style="grid-template-columns:repeat(${Math.max(1, ergebnisse.length)},minmax(0,1fr))">
-            ${ergebnisse.map(e => `<div class="lk-ergebnis-zeile">${esc(e)}</div>`).join('')}
-          </div>
-        </div>` : ''}
+      ${lkBaender().map((b, i) => _lkZeileHtml(b, i, schreiben)).join('')}
     </div>`;
 }
 
@@ -474,7 +461,7 @@ function _lkLeeresBand() {
   return '<div class="field-hint" style="padding:14px">Noch kein Prozess in diesem Bereich.</div>';
 }
 
-/** Eine Bandzeile. „Kern" behält seine Form: Pfeile in der Mitte, Ergebnisse rechts. */
+/** Eine Bandzeile. „Kern" behält seine Form: die Prozesse als Pfeile. */
 function _lkZeileHtml(band, nr, schreiben) {
   const alle = lkKacheln();
   const idx = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === band.key);
@@ -486,9 +473,6 @@ function _lkZeileHtml(band, nr, schreiben) {
         ${titel}
         <div class="lk-kern-pfeile" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'kern',-1)">
           ${idx.length ? idx.map(x => _lkPfeilHtml(x.k, x.i, schreiben)).join('') : _lkLeeresBand()}
-        </div>
-        <div class="lk-ergebnis">
-          ${lkErgebnisse().map(e => `<div class="lk-ergebnis-zeile">${esc(e)}</div>`).join('')}
         </div>
       </div>`;
   }
@@ -628,7 +612,6 @@ async function lkVorlageAnwenden() {
   const ziel = lkKarte(_lkWerk);
   const kopie = JSON.parse(JSON.stringify(vorlage.karte));
   ziel.baender = kopie.baender;
-  ziel.ergebnisse = kopie.ergebnisse || [];
   // Der Geltungsbereich richtet sich nach der Ebene: Konzernprozesse gelten
   // konzernweit, die einer Gesellschaft zunächst dort.
   ziel.kacheln = kopie.kacheln.map(k => Object.assign(k, {
@@ -673,7 +656,6 @@ async function lkUebernehmen() {
   const quelle = lkKarte(wahl.value);
   const ziel = lkKarte(_lkWerk);
   ziel.baender = JSON.parse(JSON.stringify(quelle.baender || []));
-  ziel.ergebnisse = JSON.parse(JSON.stringify(quelle.ergebnisse || []));
   const mitModellen = !!(document.getElementById('lk-uebernahme-modelle') || {}).checked;
   ziel.kacheln = JSON.parse(JSON.stringify(quelle.kacheln || []))
     .map(k => Object.assign(k, { geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk] }));

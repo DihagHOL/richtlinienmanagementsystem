@@ -60,7 +60,7 @@ const jeBand = w("lkBaender().map(b => lkKacheln().filter(k => k.band === b.key)
 ok(jeBand.join('|') === '5|3|9', `Fünf Führungs-, drei Kern-, neun Unterstützungsprozesse (${jeBand.join('/')})`);
 ok(w("lkKacheln().filter(k => k.band === 'kern').map(k => k.name).join('|')") === 'Vertrieb|Produktion|Aufträge abwickeln',
   'Die Kernprozesse in der Reihenfolge der Vorlage');
-ok(w('lkErgebnisse().join("|")') === 'Aufträge|Produkte|Einnahmen', 'Und die drei Ergebnisse rechts');
+ok(!/function lkErgebnisse/.test(lk), 'Die Ergebnisspalte ist raus – auch die Funktion dahinter');
 ok(w("lkKacheln().filter(k => k.id).length") === 17 && new Set(w('lkKacheln().map(k => k.id)')).size === 17,
   'Jede Kachel hat eine eigene, stabile Kennung');
 w("lkKacheln()[0].name = 'verbogen';");
@@ -150,10 +150,10 @@ let html = mount.innerHTML;
 ok(/Führungsprozesse/.test(html) && /Unterstützungsprozesse/.test(html),
   'Führungs- und Unterstützungsband werden gezeichnet');
 ok(/lk-zeile lk-zeile-kern/.test(html) && (html.match(/class="lk-pfeil["\s]/g) || []).length === 3,
-  'Die Kernprozesse behalten ihre Form: drei Pfeile mit den Ergebnissen rechts');
+  'Die Kernprozesse behalten ihre Pfeilform');
 ok((html.match(/class="lk-zeile-titel"/g) || []).length === 3,
   'Je Band eine Zeile mit Titelspalte – nicht mehr drei fest verdrahtete Bänder');
-ok((html.match(/lk-ergebnis-zeile/g) || []).length === 3, 'Rechts die drei Ergebnisse');
+ok(!/lk-ergebnis-zeile/.test(html), 'Ohne Ergebnisspalte – die Kernprozesse stehen für sich');
 ok(/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(html)
   && !/grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/.test(html),
   'Höchstens fünf Kacheln nebeneinander – neun in einer Zeile wären Streifen');
@@ -340,10 +340,10 @@ ctx.document.querySelector = () => null;
    Vorher standen drei Bänder fest im Renderer; die Konzernebene hat sechs. */
 w("renderLandkarte();");
 const kHtml6 = mount.innerHTML;
-ok((kHtml6.match(/class="lk-zeile-titel"/g) || []).length === 7,
-  'Sechs Bereiche plus die Ergebniszeile werden gezeichnet');
+ok((kHtml6.match(/class="lk-zeile-titel"/g) || []).length === 6,
+  'Sechs Bereiche werden gezeichnet – nicht mehr drei feste Bänder');
 ok(/Risiko & Compliance|Risiko &amp; Compliance/.test(kHtml6), 'Auch Bänder, die es im Startbestand nie gab');
-ok(/Wertsteigerung/.test(kHtml6), 'Die Ergebnisse stehen ohne Kernband in einer eigenen Zeile');
+ok(!/Ergebnisse/.test(kHtml6), 'Und keine Ergebniszeile mehr');
 ok(!/lk-zeile-kern/.test(kHtml6), 'Ohne Kernprozesse keine Pfeilzeile');
 ok(w("LK_FARBEN.length") >= 6 && w("lkBandFarbe('finanzen')") === w('LK_FARBEN[1]'),
   'Jeder Bereich bekommt seine Farbe nach seiner Position');
