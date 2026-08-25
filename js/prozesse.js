@@ -209,7 +209,7 @@ function _renderProcCards() {
 function _procGruppen(rows) {
   const werke = (typeof LK_WERKE !== 'undefined') ? LK_WERKE : [];
   const rang = (k) => { if (!k) return 9999; const i = werke.indexOf(k); return i < 0 ? 500 : i; };
-  const label = (k) => k ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(k) : k) : 'Ohne Werk';
+  const label = (k) => k ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(k) : k) : 'Ohne Zuordnung';
   return [...new Set(rows.map(p => p.ordner || ''))]
     .sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, 'de'))
     .map(k => ({ key: k, titel: label(k), rows: rows.filter(p => (p.ordner || '') === k) }));
@@ -311,15 +311,15 @@ async function openProcessEditor(itemId, seed) {
       <div style="width:280px;max-width:100%">
         <div class="form-group full"><label>Prozessname <span class="req">*</span></label>
           <input type="text" id="proc-name" value="${esc(startName)}" placeholder="z. B. Freigabe von Lieferanten" ${canWrite ? '' : 'disabled'}></div>
-        <div class="form-group full"><label>Ablage (Werk)</label>
+        <div class="form-group full"><label>Ablage (Konzern / Gesellschaft)</label>
           <select id="proc-werk" ${canWrite ? '' : 'disabled'}>
             <option value=""${proc && proc.ordner ? '' : ' selected'}>— ohne Werk —</option>
             ${((typeof LK_WERKE !== 'undefined') ? LK_WERKE : []).map(w =>
               `<option value="${esc(w)}"${proc && proc.ordner === w ? ' selected' : ''}>${
                 esc((typeof lkWerkLabel === 'function') ? lkWerkLabel(w) : w)}</option>`).join('')}
           </select>
-          <span class="field-hint">Jedes Werk führt seine eigene Landkarte – die Modelle liegen im
-            Ordner „Prozesse/&lt;Werk&gt;". Beim Wechsel wird die Datei verschoben, ihre Kennung bleibt.</span></div>
+          <span class="field-hint">Konzern und Gesellschaften führen je eine eigene Landkarte – die Modelle
+            liegen im Ordner „Prozesse/&lt;Kürzel&gt;". Beim Wechsel wird die Datei verschoben, ihre Kennung bleibt.</span></div>
         <div class="form-group full"><label>Verknüpfte Richtlinien</label>
           <div id="proc-policy-list" style="max-height:230px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
           <span class="field-hint">Welche Richtlinien dieser Prozess umsetzt. Wird in der BPMN-Datei gespeichert und im Prozess dokumentiert.</span></div>

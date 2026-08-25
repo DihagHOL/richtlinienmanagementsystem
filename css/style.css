@@ -661,44 +661,53 @@ body.demo-mode .main { padding-bottom: 64px; }
    in die Ergebnisse, Unterstützungsprozesse unten. Die Formen entstehen mit
    clip-path – keine Bilder, damit die Karte anklickbar und durchsuchbar
    bleibt und bei jeder Breite scharf ist. */
-.lk-karte { background: #f4f7fb; border: 1px solid var(--c-border); border-radius: 14px; padding: 18px; }
-.lk-band {
-  background: var(--c-primary); color: #fff; font-weight: 700; text-align: center;
-  padding: 13px 16px; border-radius: 9px; letter-spacing: .01em;
+.lk-karte {
+  background: linear-gradient(180deg, #f7f9fc 0%, #f2f6fb 100%);
+  border: 1px solid var(--c-border); border-radius: 16px; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
 }
-/* Raster statt Flexbox: Alle Kacheln eines Bandes stehen gleich breit in EINER
-   Zeile – wie in der abgestimmten Darstellung. Flexbox blies die letzte Zeile
-   auf, sobald ein Band umbrach. Die Spaltenzahl setzt der Renderer je Band. */
-.lk-reihe { display: grid; gap: 10px; margin: 10px 0; }
+/* Eine Zeile je Band: Titelspalte links, Kacheln rechts. Früher waren drei
+   Bänder fest verdrahtet – die Konzernebene hat sechs. */
+.lk-zeile { display: grid; grid-template-columns: 172px 1fr; gap: 12px; align-items: stretch; }
+.lk-zeile-kern { grid-template-columns: 172px 1fr 168px; }
+.lk-zeile-titel {
+  background: var(--lk-c, #17509E); color: #fff; border-radius: 12px;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 14px 16px; font-weight: 700; font-size: .92rem; line-height: 1.25;
+  hyphens: auto; overflow-wrap: break-word; box-shadow: 0 1px 3px rgba(15,23,42,.12);
+}
+.lk-zeile-titel i { font-style: normal; font-size: .7rem; font-weight: 600; opacity: .78; margin-top: 5px; }
+.lk-reihe { display: grid; gap: 10px; }
 
+/* Kachel: helle Karte mit farbiger Oberkante – die Farbe kommt vom Band. */
 .lk-kachel {
-  min-width: 0; cursor: pointer; border: none; text-align: center;
-  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
-  transition: filter .12s ease, transform .12s ease;
+  min-width: 0; cursor: pointer; background: #fff; border-radius: 12px;
+  border: 1px solid var(--c-border); border-top: 3px solid var(--lk-c, #17509E);
+  box-shadow: 0 1px 2px rgba(15,23,42,.05);
+  transition: box-shadow .14s ease, transform .14s ease;
+  display: flex;
 }
-.lk-kachel-inhalt { padding: 16px 12px 34px; }
-.lk-kachel:hover { filter: brightness(.95); transform: translateY(-1px); }
+.lk-kachel:hover { box-shadow: 0 8px 20px rgba(15,23,42,.13); transform: translateY(-2px); }
+.lk-kachel:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.lk-kachel-inhalt { padding: 12px 13px; display: flex; flex-direction: column; gap: 4px; width: 100%; }
 /* Lange Komposita wie „Arbeitsvorbereitung" passen sonst nicht in eine schmale
    Kachel – Silbentrennung statt Überlauf (die Seite ist lang=de). */
 .lk-kachel-kopf, .lk-kachel-unter { hyphens: auto; overflow-wrap: break-word; }
-.lk-kachel-kopf { font-weight: 700; font-size: .84rem; line-height: 1.35; display: flex; align-items: center; justify-content: center; gap: 6px; }
-.lk-kachel-kopf span { min-width: 0; }
-.lk-kachel-unter { font-size: .74rem; opacity: .85; margin-top: 4px; line-height: 1.35; }
-.lk-kachel-geltung { font-size: .68rem; font-weight: 700; opacity: .7; margin-top: 6px; letter-spacing: .03em; }
-.lk-fuehrung { background: #dbeada; color: #2f5d38; }
-.lk-unterstuetzung { background: #fbf1c2; color: #7a6417; }
-
-/* Kernprozesse: Klammer · Pfeile · Ergebnisse */
-.lk-kern { display: grid; grid-template-columns: 44px 1fr 168px; gap: 10px; align-items: stretch; margin: 14px 0; }
-.lk-kern-klammer {
-  background: var(--c-primary); color: #fff; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
+.lk-kachel-kopf {
+  font-weight: 700; font-size: .85rem; line-height: 1.3; color: var(--c-navy, #1A2644);
+  display: flex; align-items: flex-start; gap: 6px; justify-content: space-between;
 }
-.lk-kern-klammer span { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 700; font-size: .82rem; }
+.lk-kachel-kopf span { min-width: 0; }
+.lk-kachel-unter { font-size: .74rem; color: var(--c-muted); line-height: 1.35; }
+.lk-kachel-fuss { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lk-kachel-person { font-size: .68rem; font-weight: 600; color: var(--c-muted); }
+.lk-kachel-geltung { font-size: .66rem; font-weight: 700; color: var(--lk-c, #17509E); letter-spacing: .03em; opacity: .85; }
+
+/* Kernprozesse behalten ihre Form: Pfeile in der Mitte, Ergebnisse rechts. */
 .lk-kern-pfeile { display: flex; flex-direction: column; gap: 9px; justify-content: center; }
 .lk-pfeil {
-  background: #d2711f; color: #fff; cursor: pointer;
-  padding: 13px 46px 13px 18px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  background: var(--lk-c, #d2711f); color: #fff; cursor: pointer;
+    padding: 13px 46px 13px 18px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
   clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 50%, calc(100% - 34px) 100%, 0 100%);
   transition: filter .12s ease;
 }
@@ -711,6 +720,9 @@ body.demo-mode .main { padding-bottom: 64px; }
   display: flex; flex-direction: column; justify-content: space-around; gap: 6px;
 }
 .lk-ergebnis-zeile { text-align: center; font-weight: 700; font-size: .86rem; }
+.lk-reihe > .lk-ergebnis-zeile {
+  background: var(--c-navy, #1A2644); color: #fff; border-radius: 12px; padding: 13px 12px;
+}
 
 /* Zustände */
 .lk-aus { opacity: .32; filter: grayscale(.7); }
@@ -728,11 +740,11 @@ body.demo-mode .main { padding-bottom: 64px; }
 }
 @media (max-width: 780px) {
   .lk-reihe { grid-template-columns: 1fr !important; }
-  .lk-kachel { clip-path: none; border-radius: 9px; }
   .lk-kachel-inhalt { padding: 13px 12px; }
+  /* Auf schmalen Geräten fällt die Pfeilform weg – Lesbarkeit gewinnt. */
   .lk-pfeil { clip-path: none; border-radius: 9px; padding: 13px 16px; }
-  .lk-kern { grid-template-columns: 1fr; }
-  .lk-kern-klammer span { writing-mode: horizontal-tb; transform: none; padding: 8px 0; }
+  .lk-zeile, .lk-zeile-kern { grid-template-columns: 1fr; }
+  .lk-zeile-titel { padding: 10px 14px; }
   .lk-ergebnis { flex-direction: row; }
 }
 

@@ -28,6 +28,26 @@
 const LK_WERKE = ['KONZERN'].concat(typeof STANDORTE !== 'undefined' ? STANDORTE : []);
 function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
 
+/** Ebene in Worten – für Texte, die sonst „Werk" sagen müssten. */
+function lkEbeneLabel(w) { return w === 'KONZERN' ? 'die Konzernebene' : `die Gesellschaft ${w}`; }
+
+/* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – die Kachel
+   trägt sie als Kante, damit die Zugehörigkeit ohne Legende lesbar bleibt. */
+const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
+
+/** Farbe eines Bandes – nach seiner Position in der Landkarte. */
+function lkBandFarbe(key) {
+  const i = lkBaender().findIndex(b => b.key === key);
+  return LK_FARBEN[(i < 0 ? 0 : i) % LK_FARBEN.length];
+}
+
+/** Hex-Farbe mit Deckkraft. */
+function _lkTon(hex, deckung) {
+  const h = String(hex || '#17509E').replace('#', '');
+  const z = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(z >> 16) & 255},${(z >> 8) & 255},${z & 255},${deckung})`;
+}
+
 /* ── Startbestand: die abgestimmte Landschaft – sie gehört zu HOL ── */
 const LK_START_WERK = 'HOL';
 const LK_START = {
@@ -112,6 +132,60 @@ async function lkLinkKopieren(werk, id) {
 }
 
 /** Tiefe Kopie des Startbestands – nie die Konstante verändern. */
+/**
+ * Vorlage für die Konzernebene: sechs Prozessbereiche einer Führungsholding.
+ * Nicht die Landschaft eines Werks in klein, sondern das, was eine Holding
+ * tatsächlich tut – Steuern, Finanzieren, Absichern, Bündeln, Kommunizieren,
+ * Verändern. Die Aufgaben je Bereich sind die Kacheln.
+ */
+const LK_KONZERN = {
+  baender: [
+    { key: 'strategie',      titel: 'Strategie' },
+    { key: 'finanzen',       titel: 'Finanzen' },
+    { key: 'risiko',         titel: 'Risiko & Compliance' },
+    { key: 'synergien',      titel: 'Synergien' },
+    { key: 'kommunikation',  titel: 'Kommunikation' },
+    { key: 'transformation', titel: 'Transformation' },
+  ],
+  ergebnisse: ['Wertsteigerung', 'Steuerungsfähigkeit', 'Synergieeffekte'],
+  kacheln: [
+    { id: 'vision',        band: 'strategie', name: 'Vision', unter: 'Leitbild und strategische Ziele' },
+    { id: 'portfolio',     band: 'strategie', name: 'Portfolio-Steuerung', unter: 'Beteiligungen, Zukäufe, Desinvestitionen' },
+    { id: 'marktanalyse',  band: 'strategie', name: 'Marktanalyse', unter: 'Märkte, Wettbewerb, Trends' },
+
+    { id: 'kapital',       band: 'finanzen', name: 'Kapitalallokation', unter: 'Mittel verteilen, Investitionen entscheiden' },
+    { id: 'treasury',      band: 'finanzen', name: 'Treasury', unter: 'Liquidität, Finanzierung, Währungen' },
+    { id: 'steuern',       band: 'finanzen', name: 'Steueroptimierung', unter: 'Steuerplanung im Konzernverbund' },
+
+    { id: 'risikomgmt',    band: 'risiko', name: 'Risikomanagement', unter: 'Risiken erfassen, bewerten, steuern' },
+    { id: 'compliance',    band: 'risiko', name: 'Compliance', unter: 'Regelwerke, Kartellrecht, Datenschutz' },
+    { id: 'revision',      band: 'risiko', name: 'Interne Revision', unter: 'Prüfungen und Nachverfolgung' },
+
+    { id: 'sharedservices', band: 'synergien', name: 'Shared Services', unter: 'Gebündelte Leistungen für die Gesellschaften' },
+    { id: 'wissen',         band: 'synergien', name: 'Wissensmanagement', unter: 'Wissen sichern und weitergeben' },
+    { id: 'innovation',     band: 'synergien', name: 'Innovationen', unter: 'Ideen aufnehmen und in den Konzern tragen' },
+
+    { id: 'reporting',     band: 'kommunikation', name: 'Reporting', unter: 'Konzernberichterstattung' },
+    { id: 'stakeholder',   band: 'kommunikation', name: 'Stakeholder-Management', unter: 'Gesellschafter, Banken, Behörden' },
+    { id: 'investoren',    band: 'kommunikation', name: 'Investor Relations', unter: 'Kapitalgeber informieren' },
+
+    { id: 'change',        band: 'transformation', name: 'Change Management', unter: 'Veränderungen begleiten' },
+    { id: 'projekte',      band: 'transformation', name: 'Projektsteuerung', unter: 'Programme und Projekte im Konzern' },
+    { id: 'talente',       band: 'transformation', name: 'Talententwicklung', unter: 'Führungskräfte und Nachfolge' },
+  ],
+};
+
+/* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
+   null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
+const LK_VORLAGEN = [
+  { key: 'konzern', titel: 'Konzern / Holding',
+    zweck: 'Sechs Prozessbereiche einer Führungsholding: Strategie, Finanzen, Risiko & Compliance, Synergien, Kommunikation, Transformation – mit je drei Hauptaufgaben.',
+    karte: LK_KONZERN },
+  { key: 'gesellschaft', titel: 'Produzierende Gesellschaft',
+    zweck: 'Führungs-, Kern- und Unterstützungsprozesse eines Werks – die abgestimmte Landschaft mit Vertrieb, Produktion und Auftragsabwicklung.',
+    karte: LK_START },
+];
+
 function lkStartbestand() {
   return { version: 2, karten: { [LK_START_WERK]: JSON.parse(JSON.stringify(LK_START)) }, historie: [] };
 }
@@ -329,7 +403,7 @@ function renderLandkarte() {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('karte') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Die Prozesslandschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b> – jedes Werk führt seine eigene.
+      Die Prozesslandschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b> – Konzern und Gesellschaften führen je eine eigene.
       Ein Klick auf eine Kachel zeigt Geltungsbereich, das hinterlegte <b>BPMN-Modell</b> und die
       daran hängenden Regelwerke. <b>${mitModell}</b> von <b>${kacheln.length}</b> Prozessen sind modelliert.
     </div>
@@ -353,16 +427,13 @@ function renderLandkarte() {
       ${stand ? `<button class="btn btn-ghost btn-sm" onclick="lkVerlaufZeigen()" title="Versionsverlauf">
         🕘 ${esc(stand.name || '–')}${stand.datum && typeof fmtDate === 'function' ? ' · ' + esc(fmtDate(stand.datum)) : ''}</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="lkNeuLaden()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageDialog()" title="Fertige Prozesslandschaft einsetzen">📋 Vorlage</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
     ${_lkTrefferHtml()}
     ${_lkFilter ? `<div class="field-hint" style="margin:0 0 10px">Prozesse, die am Standort <b>${esc(_lkFilter)}</b>
       nicht gelten, sind ausgegraut – die Landschaft bleibt dadurch vergleichbar.</div>` : ''}
-    ${kacheln.length ? `<div class="lk-karte">
-      ${_lkBandHtml('fuehrung', schreiben)}
-      ${_lkKernHtml(schreiben)}
-      ${_lkBandHtml('unterstuetzung', schreiben)}
-    </div>` : _lkLeerHtml(schreiben, belegt)}
+    ${kacheln.length ? _lkKarteHtml(schreiben) : _lkLeerHtml(schreiben, belegt)}
     <div class="lk-legende">
       <span><i class="lk-punkt lk-punkt-modell"></i> Modell hinterlegt</span>
       <span><i class="lk-punkt lk-punkt-offen"></i> noch kein Modell</span>
@@ -376,33 +447,58 @@ function _lkBandTitel(key) {
 }
 
 /** Führungs- bzw. Unterstützungsband: Balken + Reihe von Kacheln. */
-function _lkBandHtml(key, schreiben) {
-  const alle = lkKacheln();
-  const idx = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === key);
-  const oben = key === 'fuehrung';
-  const balken = `<div class="lk-band lk-band-${esc(key)}">${esc(_lkBandTitel(key))}</div>`;
-  // Spaltenzahl = Anzahl der Kacheln: ein Band, eine Zeile, gleiche Breiten.
-  const spalten = Math.max(1, idx.length);
-  const reihe = `<div class="lk-reihe" style="grid-template-columns:repeat(${spalten},minmax(0,1fr))"
-      ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'${esc(key)}',-1)">
-      ${idx.length ? idx.map(x => _lkKachelHtml(x.k, x.i, key, schreiben)).join('')
-        : `<div class="field-hint" style="padding:14px">Noch kein Prozess in diesem Band.</div>`}
+/**
+ * Die Karte: je Band eine Zeile mit Titelspalte links.
+ *
+ * Früher standen hier drei fest verdrahtete Bänder (Führung · Kern ·
+ * Unterstützung). Die Konzernebene hat aber sechs Bereiche, ein anderes Werk
+ * vielleicht vier – die Datei kannte die Bänder längst als Liste, nur die
+ * Ansicht nicht.
+ */
+function _lkKarteHtml(schreiben) {
+  const baender = lkBaender();
+  const hatKern = baender.some(b => b.key === 'kern');
+  const ergebnisse = lkErgebnisse();
+  return `<div class="lk-karte">
+      ${baender.map((b, i) => _lkZeileHtml(b, i, schreiben)).join('')}
+      ${(!hatKern && ergebnisse.length) ? `<div class="lk-zeile" style="--lk-c:#1A2644">
+          <div class="lk-zeile-titel"><span>Ergebnisse</span></div>
+          <div class="lk-reihe" style="grid-template-columns:repeat(${Math.max(1, ergebnisse.length)},minmax(0,1fr))">
+            ${ergebnisse.map(e => `<div class="lk-ergebnis-zeile">${esc(e)}</div>`).join('')}
+          </div>
+        </div>` : ''}
     </div>`;
-  return oben ? balken + reihe : reihe + balken;
 }
 
-/** Kernprozesse: Klammer links, Pfeile in der Mitte, Ergebnisse rechts. */
-function _lkKernHtml(schreiben) {
+function _lkLeeresBand() {
+  return '<div class="field-hint" style="padding:14px">Noch kein Prozess in diesem Bereich.</div>';
+}
+
+/** Eine Bandzeile. „Kern" behält seine Form: Pfeile in der Mitte, Ergebnisse rechts. */
+function _lkZeileHtml(band, nr, schreiben) {
   const alle = lkKacheln();
-  const idx = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === 'kern');
-  return `<div class="lk-kern">
-      <div class="lk-kern-klammer"><span>${esc(_lkBandTitel('kern'))}</span></div>
-      <div class="lk-kern-pfeile" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'kern',-1)">
-        ${idx.length ? idx.map(x => _lkPfeilHtml(x.k, x.i, schreiben)).join('')
-          : `<div class="field-hint" style="padding:14px">Noch kein Kernprozess.</div>`}
-      </div>
-      <div class="lk-ergebnis">
-        ${lkErgebnisse().map(e => `<div class="lk-ergebnis-zeile">${esc(e)}</div>`).join('')}
+  const idx = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === band.key);
+  const farbe = LK_FARBEN[nr % LK_FARBEN.length];
+  const titel = `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${idx.length} ${
+    idx.length === 1 ? 'Prozess' : 'Prozesse'}</i></div>`;
+  if (band.key === 'kern') {
+    return `<div class="lk-zeile lk-zeile-kern" style="--lk-c:${farbe}">
+        ${titel}
+        <div class="lk-kern-pfeile" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'kern',-1)">
+          ${idx.length ? idx.map(x => _lkPfeilHtml(x.k, x.i, schreiben)).join('') : _lkLeeresBand()}
+        </div>
+        <div class="lk-ergebnis">
+          ${lkErgebnisse().map(e => `<div class="lk-ergebnis-zeile">${esc(e)}</div>`).join('')}
+        </div>
+      </div>`;
+  }
+  // Höchstens fünf Kacheln nebeneinander – neun in einer Zeile wären Streifen.
+  const spalten = Math.min(Math.max(1, idx.length), 5);
+  return `<div class="lk-zeile" style="--lk-c:${farbe}">
+      ${titel}
+      <div class="lk-reihe" style="grid-template-columns:repeat(${spalten},minmax(0,1fr))"
+        ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'${esc(band.key)}',-1)">
+        ${idx.length ? idx.map(x => _lkKachelHtml(x.k, x.i, band.key, schreiben)).join('') : _lkLeeresBand()}
       </div>
     </div>`;
 }
@@ -436,12 +532,17 @@ function _lkTastatur(id) {
 function _lkKachelHtml(k, i, band, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
-  return `<div class="lk-kachel lk-${esc(band)}${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+  const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
+  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(k.name)}">
       <div class="lk-kachel-inhalt">
-        <div class="lk-kachel-kopf">${_lkStatusPunkt(k)}<span>${esc(k.name)}</span></div>
+        <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
-        ${g ? `<div class="lk-kachel-geltung">${esc(g)}</div>` : ''}
+        <div class="lk-kachel-fuss">
+          ${person ? `<span class="lk-kachel-person" title="${esc(person)}">👤 ${esc(
+            (typeof lkPersonName === 'function' ? lkPersonName(person) : person).split(' ')[0])}</span>` : ''}
+          ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
+        </div>
       </div>
     </div>`;
 }
@@ -463,13 +564,15 @@ function _lkLeerHtml(schreiben, belegt) {
   return `<div class="lk-karte" style="text-align:center;padding:44px 20px">
       <div style="font-size:2rem;margin-bottom:8px">🗺</div>
       <div style="font-weight:700;margin-bottom:6px">Für ${esc(lkWerkLabel(_lkWerk))} gibt es noch keine Landkarte.</div>
-      <div class="field-hint" style="max-width:520px;margin:0 auto 16px">
-        Jedes Werk führt seine eigene Landschaft. Sie können bei null anfangen – oder die
-        Struktur eines anderen Werks übernehmen und dort anpassen, wo es abweicht.
+      <div class="field-hint" style="max-width:560px;margin:0 auto 16px">
+        Konzern und Gesellschaften führen je eine eigene Landschaft. Am schnellsten geht es mit einer
+        <b>Vorlage</b> – für die Konzernebene die sechs Bereiche einer Führungsholding, für eine
+        Gesellschaft die Führungs-, Kern- und Unterstützungsprozesse. Alles bleibt danach änderbar.
       </div>
       ${schreiben ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="lkKachelNeu()">+ Erster Prozess</button>
-        ${quellen.length ? `<button class="btn btn-outline btn-sm" onclick="lkUebernehmenDialog()">Von einem anderen Werk übernehmen</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="lkVorlageDialog()">📋 Vorlage verwenden</button>
+        <button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Erster Prozess</button>
+        ${quellen.length ? `<button class="btn btn-ghost btn-sm" onclick="lkUebernehmenDialog()">Von einer anderen Ebene übernehmen</button>` : ''}
       </div>` : '<div class="field-hint">Für das Anlegen fehlt Ihnen das Schreibrecht auf „Prozesse".</div>'}
     </div>`;
 }
@@ -485,6 +588,57 @@ function lkWerkSetzenStill(w) {
   _lkWerk = LK_WERKE.includes(w) ? w : _lkWerk;
 }
 
+/**
+ * Eine fertige Landschaft übernehmen. Niemand baut eine Landkarte gern von
+ * null, und die Ebenen brauchen verschiedene: Der Konzern steuert, die
+ * Gesellschaft produziert.
+ */
+function lkVorlageDialog() {
+  if (!lkDarfSchreiben()) return;
+  const vorhanden = lkKacheln().length;
+  const vorgabe = (_lkWerk === 'KONZERN' || _lkWerk === 'HOL') ? 'konzern' : 'gesellschaft';
+  openModal(`
+    <div class="modal-header"><h3>Vorlage verwenden</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 12px">Für <b>${esc(lkWerkLabel(_lkWerk))}</b> eine fertige
+        Prozesslandschaft einsetzen. Alles bleibt danach frei änderbar.</p>
+      <div class="form-group full">
+        ${LK_VORLAGEN.map(v => `<label class="ack-check" style="font-weight:500;align-items:flex-start;margin-bottom:10px">
+            <input type="radio" name="lk-vorlage" value="${esc(v.key)}"${v.key === vorgabe ? ' checked' : ''}>
+            <span><b>${esc(v.titel)}</b> <span class="field-hint">· ${v.karte.kacheln.length} Prozesse in ${
+              v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}</span></span>
+          </label>`).join('')}
+      </div>
+      ${vorhanden ? `<div class="col-warning" style="display:block">Achtung: Die vorhandene Landkarte von
+        ${esc(lkWerkLabel(_lkWerk))} mit ${vorhanden} Prozess(en) wird dabei <b>ersetzt</b>. Der Schritt steht
+        anschließend im Verlauf.</div>` : ''}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkVorlageAnwenden()">Einsetzen</button>
+    </div>`);
+}
+
+async function lkVorlageAnwenden() {
+  if (!lkDarfSchreiben()) return;
+  const wahl = document.querySelector('input[name="lk-vorlage"]:checked');
+  const vorlage = LK_VORLAGEN.find(v => v.key === (wahl && wahl.value));
+  if (!vorlage) return;
+  const ziel = lkKarte(_lkWerk);
+  const kopie = JSON.parse(JSON.stringify(vorlage.karte));
+  ziel.baender = kopie.baender;
+  ziel.ergebnisse = kopie.ergebnisse || [];
+  // Der Geltungsbereich richtet sich nach der Ebene: Konzernprozesse gelten
+  // konzernweit, die einer Gesellschaft zunächst dort.
+  ziel.kacheln = kopie.kacheln.map(k => Object.assign(k, {
+    geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk], prozesse: [], regelwerke: [],
+  }));
+  closeModal();
+  await lkSpeichern(`Vorlage „${vorlage.titel}" eingesetzt ✓`,
+    `Vorlage „${vorlage.titel}" für ${lkWerkLabel(_lkWerk)} eingesetzt (${ziel.kacheln.length} Prozesse)`);
+}
+
 function lkUebernehmenDialog() {
   const quellen = lkWerkeMitKarte().filter(w => w !== _lkWerk);
   if (!quellen.length) return;
@@ -493,7 +647,7 @@ function lkUebernehmenDialog() {
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p class="field-hint" style="margin:0 0 10px">Die Struktur wird nach
-        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert – Bänder und Kacheln.
+        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert – Bereiche und Prozesse.
         Der Geltungsbereich wird auf ${esc(lkWerkLabel(_lkWerk))} gesetzt; alles Weitere lässt sich
         danach anpassen. Die Quelle bleibt unverändert.</p>
       <div class="form-group full">

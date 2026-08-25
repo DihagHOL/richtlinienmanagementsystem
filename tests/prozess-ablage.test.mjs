@@ -183,11 +183,11 @@ p(`_processes = [
 const gruppen = p('_procGruppen(_processes).map(g => g.key)');
 ok(gruppen.join('|') === 'KONZERN|HOL|SHB|Sonstiges|',
   `Konzern, dann die Werke in ihrer Reihenfolge, Unbekanntes danach, „ohne Werk" zuletzt (${gruppen.join(', ')})`);
-ok(p("_procGruppen(_processes).find(g => g.key === '').titel") === 'Ohne Werk',
-  'Die letzte Gruppe heißt „Ohne Werk" – nicht leer und nicht kryptisch');
+ok(p("_procGruppen(_processes).find(g => g.key === '').titel") === 'Ohne Zuordnung',
+  'Die letzte Gruppe heißt „Ohne Zuordnung" – nicht leer und nicht kryptisch');
 ok(p('_procGruppen(_processes).reduce((n, g) => n + g.rows.length, 0)') === 5, 'Kein Modell geht beim Gruppieren verloren');
 p('_renderProcCards();');
-ok(/Ohne Werk/.test(mount.innerHTML) && (mount.innerHTML.match(/item-cards/g) || []).length === 5,
+ok(/Ohne Zuordnung/.test(mount.innerHTML) && (mount.innerHTML.match(/item-cards/g) || []).length === 5,
   'Die Liste zeigt je Werk einen Block');
 
 /* ── 7) Aufräumen: das Werk sagt die Landkarte ── */

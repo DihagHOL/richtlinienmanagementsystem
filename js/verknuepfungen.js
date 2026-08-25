@@ -309,14 +309,14 @@ function _vkBaumAnsicht(mount) {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('netz') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Die Landschaft als Baum: Werk → Band → Prozess → Modell → Regelwerk. Ein Klick klappt einen
+      Die Landschaft als Baum: Ebene → Bereich → Prozess → Modell → Regelwerk. Ein Klick klappt einen
       Zweig auf oder zu, das <b>+</b> am Knoten legt direkt hier etwas Neues an.
     </div>
     <div class="view-toolbar">
       ${_vkAnsichtLeiste()}
       <label class="field-hint" style="margin:0 6px 0 10px">Wurzel</label>
       <select onchange="vbSetWurzel(this.value)" style="max-width:220px" aria-label="Wurzel des Baums">
-        <option value="wurzel"${wurzel === 'wurzel' ? ' selected' : ''}>Konzern (alle Werke)</option>
+        <option value="wurzel"${wurzel === 'wurzel' ? ' selected' : ''}>Konzern (alle Ebenen)</option>
         ${werke.map(w => `<option value="werk:${esc(w)}"${wurzel === 'werk:' + w ? ' selected' : ''}>${
           esc(lkWerkLabel(w))}</option>`).join('')}
       </select>

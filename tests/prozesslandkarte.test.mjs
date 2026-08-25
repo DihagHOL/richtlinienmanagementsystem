@@ -147,13 +147,16 @@ ok(/erst beim Öffnen, nicht für die ganze Karte/.test(lk),
 w("lkKachelVonId('vertrieb').prozessName = 'Vertrieb'; lkKachelVonId('produktion').prozessId = 'p-2';");
 w("_lkFilter = ''; renderLandkarte();");
 let html = mount.innerHTML;
-ok(/class="lk-band lk-band-fuehrung"/.test(html) && /class="lk-band lk-band-unterstuetzung"/.test(html),
+ok(/Führungsprozesse/.test(html) && /Unterstützungsprozesse/.test(html),
   'Führungs- und Unterstützungsband werden gezeichnet');
-ok(/lk-kern-klammer/.test(html) && (html.match(/class="lk-pfeil["\s]/g) || []).length === 3, 'Die Kernprozesse als drei Pfeile');
+ok(/lk-zeile lk-zeile-kern/.test(html) && (html.match(/class="lk-pfeil["\s]/g) || []).length === 3,
+  'Die Kernprozesse behalten ihre Form: drei Pfeile mit den Ergebnissen rechts');
+ok((html.match(/class="lk-zeile-titel"/g) || []).length === 3,
+  'Je Band eine Zeile mit Titelspalte – nicht mehr drei fest verdrahtete Bänder');
 ok((html.match(/lk-ergebnis-zeile/g) || []).length === 3, 'Rechts die drei Ergebnisse');
 ok(/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(html)
-  && /grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/.test(html),
-  'Jedes Band bekommt so viele Spalten wie Kacheln – eine Zeile, gleiche Breiten');
+  && !/grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/.test(html),
+  'Höchstens fünf Kacheln nebeneinander – neun in einer Zeile wären Streifen');
 ok(/lk-punkt-modell/.test(html) && /lk-punkt-offen/.test(html), 'Ein Punkt zeigt, ob ein Modell hinterlegt ist');
 ok(/2<\/b> von <b>17/.test(html), 'Und oben steht, wie viele Prozesse modelliert sind');
 
@@ -275,7 +278,7 @@ ok(/renderProzesseAktuell\(\)/.test(proz), 'Nach dem Laden wird die gewählte An
 ok(/<script src="js\/landkarte\.js/.test(lies('index.html')), 'Das Modul ist eingebunden');
 ok(/\.lk-reihe \{ display: grid/.test(css), 'Die Bänder sind ein Raster – Flexbox blies die letzte Zeile auf');
 ok(/hyphens: auto/.test(css), 'Lange Komposita werden getrennt statt überzulaufen');
-ok(/@media \(max-width: 780px\)[\s\S]{0,400}\.lk-kachel \{ clip-path: none/.test(css),
+ok(/@media \(max-width: 780px\)[\s\S]{0,400}\.lk-pfeil \{ clip-path: none/.test(css),
   'Auf schmalen Geräten fallen die Formen weg – Lesbarkeit gewinnt');
 
 /* ── 7d2) Übernahme einer fremden Landkarte ──
@@ -300,6 +303,51 @@ ok(w("lkKarte('WGC').kacheln.find(k => k.id === 'vertrieb').prozesse.length") ==
   'Mit Haken kommen sie mit – für Werke, die wirklich dasselbe Modell nutzen');
 ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
 w("lkSetWerk('HOL');");
+
+/* ── 10) Vorlagen: der Konzern ist kein Werk in klein ──
+   Eine Führungsholding steuert, finanziert, sichert ab, bündelt, kommuniziert
+   und verändert – sie produziert nicht. Deshalb eine eigene Landschaft. */
+ok(w('LK_VORLAGEN.length') === 2, 'Zwei Vorlagen: Konzernebene und produzierende Gesellschaft');
+ok(w("LK_KONZERN.baender.length") === 6, 'Die Konzernebene hat sechs Prozessbereiche');
+ok(w("LK_KONZERN.baender.map(b => b.titel).join('|')") === 'Strategie|Finanzen|Risiko & Compliance|Synergien|Kommunikation|Transformation',
+  'Genau die sechs aus der Prioritätenliste');
+ok(w('LK_KONZERN.kacheln.length') === 18, 'Achtzehn Hauptaufgaben');
+ok(w("LK_KONZERN.baender.every(b => LK_KONZERN.kacheln.filter(k => k.band === b.key).length === 3)"),
+  'Je Bereich drei – keine leere Zeile, keine Sammelzeile');
+ok(w("new Set(LK_KONZERN.kacheln.map(k => k.id)).size") === 18, 'Jede Kachel hat eine eigene Kennung');
+ok(w("LK_KONZERN.kacheln.every(k => k.unter && k.unter.length > 8)"),
+  'Und einen erklärenden Untertitel – „Treasury" allein sagt nicht jedem etwas');
+ok(w("LK_KONZERN.kacheln.some(k => k.name === 'Kapitalallokation') && LK_KONZERN.kacheln.some(k => k.name === 'Investor Relations')"),
+  'Die Aufgaben stehen so drin, wie sie abgestimmt wurden');
+
+/* Einsetzen: ersetzt die Landschaft, setzt den Geltungsbereich, lässt nichts hängen */
+w("_lkDaten = lkStartbestand(); _lkDaten.historie = []; lkSetWerk('KONZERN');");
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+ctx.document.querySelector = (sel) => (sel === 'input[name=\"lk-vorlage\"]:checked' ? { value: 'konzern' } : null);
+await vm.runInContext('lkVorlageAnwenden()', ctx);
+ok(w("lkKarte('KONZERN').kacheln.length") === 18, 'Die Vorlage landet in der Karte der gewählten Ebene');
+ok(w("lkBaenderVon('KONZERN').length") === 6, 'Samt ihrer sechs Bereiche');
+ok(w("lkKarte('KONZERN').kacheln.every(k => k.geltung.join(',') === 'ALLE')"),
+  'Konzernprozesse gelten konzernweit – nicht nur an einem Standort');
+ok(w("lkKarte('KONZERN').kacheln.every(k => !k.prozesse.length && !k.regelwerke.length)"),
+  'Ohne Modelle und Regelwerke – eine Vorlage bringt Struktur, keine erfundenen Verknüpfungen');
+ok(w("lkKarte('HOL').kacheln.length") === 17, 'Die Landkarte der anderen Ebene bleibt unberührt');
+ok(w("LK_KONZERN.kacheln[0].geltung") === undefined || w("!LK_KONZERN.kacheln[0].prozesse"),
+  'Die Vorlage selbst wird nicht verbogen – sie wird kopiert');
+ctx.document.querySelector = () => null;
+
+/* ── 11) Beliebig viele Bänder in der Ansicht ──
+   Vorher standen drei Bänder fest im Renderer; die Konzernebene hat sechs. */
+w("renderLandkarte();");
+const kHtml6 = mount.innerHTML;
+ok((kHtml6.match(/class="lk-zeile-titel"/g) || []).length === 7,
+  'Sechs Bereiche plus die Ergebniszeile werden gezeichnet');
+ok(/Risiko & Compliance|Risiko &amp; Compliance/.test(kHtml6), 'Auch Bänder, die es im Startbestand nie gab');
+ok(/Wertsteigerung/.test(kHtml6), 'Die Ergebnisse stehen ohne Kernband in einer eigenen Zeile');
+ok(!/lk-zeile-kern/.test(kHtml6), 'Ohne Kernprozesse keine Pfeilzeile');
+ok(w("LK_FARBEN.length") >= 6 && w("lkBandFarbe('finanzen')") === w('LK_FARBEN[1]'),
+  'Jeder Bereich bekommt seine Farbe nach seiner Position');
+w("lkSetWerk('HOL'); _lkDaten = lkStartbestand(); _lkDaten.historie = [];");
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

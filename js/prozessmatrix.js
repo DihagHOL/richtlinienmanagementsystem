@@ -111,8 +111,9 @@ function renderProzessMatrix() {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('matrix') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Prozesse als Zeilen, Werke als Spalten. <b>Zuständigkeiten</b> beantwortet „wer verantwortet
-      diesen Ablauf hier?", <b>Abdeckung</b> zeigt, wo Modell, Regelwerk oder Verantwortliche(r) fehlen.
+      Prozesse als Zeilen, <b>Konzern und Gesellschaften</b> als Spalten. <b>Zuständigkeiten</b>
+      beantwortet „wer verantwortet diesen Ablauf hier?", <b>Abdeckung</b> zeigt, wo Modell,
+      Regelwerk oder Verantwortliche(r) fehlen.
     </div>
     <div class="view-toolbar">
       ${tab('zustaendig', '👤 Zuständigkeiten', 'Wer verantwortet welchen Prozess in welchem Werk')}
@@ -159,7 +160,7 @@ function _pmKennzahlen(werke) {
       ${kachel(mitOwner, kacheln, 'mit Verantwortlichem')}
       ${kachel(mitModell, kacheln, 'mit BPMN-Modell')}
       ${kachel(mitRegelwerk, kacheln, 'mit Regelwerk')}
-      <div class="pm-kpi"><b>${zeilen.length}</b>Prozesse in ${werke.length} Werk${werke.length === 1 ? '' : 'en'}</div>
+      <div class="pm-kpi"><b>${zeilen.length}</b>Prozesse auf ${werke.length} Ebene${werke.length === 1 ? '' : 'n'}</div>
     </div>`;
 }
 
@@ -209,12 +210,12 @@ function _pmSpaltenSumme(werk, zeilen) {
 
 function _pmLegende() {
   return _pmTab === 'zustaendig'
-    ? `<div class="field-hint" style="margin-top:8px">„—" heißt: Der Prozess wird in diesem Werk geführt,
-        aber niemand verantwortet ihn. „·" heißt: Das Werk führt diesen Prozess nicht.
-        Ein Klick öffnet die Kachel im jeweiligen Werk.</div>`
+    ? `<div class="field-hint" style="margin-top:8px">„—" heißt: Der Prozess wird auf dieser Ebene geführt,
+        aber niemand verantwortet ihn. „·" heißt: Diese Ebene führt den Prozess nicht.
+        Ein Klick öffnet die Kachel dort.</div>`
     : `<div class="field-hint" style="margin-top:8px"><b>V</b> Verantwortliche(r) · <b>M</b> BPMN-Modell ·
-        <b>R</b> Regelwerk zugeordnet. Grün = vorhanden, blass = fehlt. „·" heißt: Das Werk führt
-        diesen Prozess nicht – das kann völlig richtig sein.</div>`;
+        <b>R</b> Regelwerk zugeordnet. Grün = vorhanden, blass = fehlt. „·" heißt: Diese Ebene führt
+        den Prozess nicht – das kann völlig richtig sein.</div>`;
 }
 
 /* ── Bedienung ───────────────────────────────────────────────────────── */

@@ -50,6 +50,7 @@ const FEATURES = [
   { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },
   { name: 'Zuständigkeitsmatrix',    code: () => /function pmZeilen/.test(read('js/prozessmatrix.js')),     begriffe: ['Matrix', 'Abdeckung'] },
   { name: 'Mindmap als Baum',        code: () => /function vbBaum/.test(read('js/mindmapbaum.js')),          begriffe: ['Baum', 'Nahsicht'] },
+  { name: 'Landkarten-Vorlagen',     code: () => /const LK_KONZERN/.test(read('js/landkarte.js')),           begriffe: ['Vorlage', 'Führungsholding'] },
   { name: 'Diagramm als Bild',       code: () => /function downloadProcessSvg/.test(prozesse),              begriffe: ['als Bild'] },
   { name: 'Reihenfolge Freigabe/MB', code: () => /function edSwapWorkflowOrder/.test(admin),         begriffe: ['Reihenfolge'] },
   { name: 'Einführungs-Schritte',    code: () => /const RW_SCHRITTE/.test(admin),                     begriffe: ['So wird ein Regelwerk eingeführt'] },
