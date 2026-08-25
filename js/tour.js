@@ -265,7 +265,11 @@ function tourSchritte() {
         if (!p) return;
         openPolicyEditor(p.id);
         // Beispieldokument wirklich ablegen – sonst ginge die Mail ohne Anhang raus.
-        if (typeof probelaufDokument === 'function' && !p.dokumentItemId
+        // Beim Annehmen erbt das Regelwerk die Skizze des Konzepts; die heißt aber
+        // noch „Konzept-Skizze …" und ist nicht das Regelwerk. Sie wird deshalb
+        // hier durch ein Dokument mit dem richtigen Namen ersetzt.
+        const nochSkizze = /^Konzept-Skizze/i.test(String(p.dokumentName || ''));
+        if (typeof probelaufDokument === 'function' && (!p.dokumentItemId || nochSkizze)
             && typeof _editing !== 'undefined' && _editing) {
           await probelaufDokument(_editing);
           renderPolicyEditor();

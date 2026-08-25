@@ -141,6 +141,8 @@ await new Promise(r => setTimeout(r, 30));
 ok(echt.dateiGeloescht.includes('f1'), 'Aufräumen löscht die Datei wieder');
 ok(/function spDeleteDriveItem/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann Dateien löschen');
 ok(/probelaufDokument/.test(tour), 'Auch die Führung legt beim Vormachen ein Dokument ab');
+ok(/nochSkizze = \/\^Konzept-Skizze\/i\.test/.test(tour),
+  'Die geerbte Konzept-Skizze wird am Regelwerk durch ein Dokument mit richtigem Namen ersetzt');
 ok(/Dokument in der Bibliothek abgelegt/.test(quelle), 'Der Selbsttest prüft das Dokument');
 
 /* ── 4c) Konzept-Anhang: die Skizze geht an die Geschäftsleitung mit ── */
