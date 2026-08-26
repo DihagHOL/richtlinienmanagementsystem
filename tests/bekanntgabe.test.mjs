@@ -73,6 +73,23 @@ const html = fg.slice(fg.indexOf('function _zielgruppeMailHtml'), fg.indexOf('as
 ok(/ab sofort gilt ein neues Regelwerk/.test(html), 'Die Mail sagt, worum es geht');
 ok(/quizErforderlich/.test(html) && /Wissenstest bestehen/.test(html), 'Und was zu tun ist – inklusive Wissenstest');
 ok(/richtlinie=\$\{encodeURIComponent\(p\.id\)\}/.test(html), 'Mit Direktlink auf das Regelwerk');
+ok(/ansicht=meine/.test(html),
+  'Und zwar in die Leseansicht – hier geht es ums Lesen und Bestätigen, nicht ums Freigeben');
+
+/* Der Router dahinter: ein blanker Link darf niemanden in die Freigabe schicken.
+   Vorher entschied die Rolle des Empfängers – wer prüfen darf, landete auch bei
+   einer Bekanntgabe im Freigabe-Reiter und suchte dort vergeblich nach der
+   Kenntnisnahme. */
+const app = lies('js/app.js');
+ok(/if \(ansicht === 'freigaben'\) \{/.test(app),
+  'Nur der ausdrückliche Freigabe-Link führt in den Freigabe-Reiter');
+ok(!/ansicht === '' && canReview/.test(app),
+  'Die Rolle des Empfängers entscheidet das nicht mehr');
+ok(/await switchView\('meine'\);\n    if \(State\.policies\.find\(p => p\.id === deepId\)\) openDetail\(deepId\)/.test(app),
+  'Ein blanker Link öffnet das Regelwerk in „Meine Regelwerke"');
+// Alle Mails, die wirklich in die Freigabe wollen, sagen es selbst
+ok(/ansicht=freigaben/.test(lies('js/admin.js')), 'Die Mitbestimmungs-Mail setzt ansicht=freigaben');
+ok(/ansicht=freigaben/.test(lies('scripts/erinnerungen.mjs')), 'Die Freigabe-Erinnerung ebenso');
 ok(/weil dieses Regelwerk für Ihren Bereich gilt/.test(html), 'Sie erklärt, warum man sie bekommt');
 
 /* ── 3) Beim Veröffentlichen ── */

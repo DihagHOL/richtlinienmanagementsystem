@@ -140,6 +140,14 @@ ctx._processes.pop();
 const lkCode = lk.split(/\r?\n/).filter(z => !/^\s*(\*|\/\*|\/\/)/.test(z)).join(' ');
 ok(!/policies=/.test(lkCode), 'Die Regelwerks-Verknüpfung wird hier NICHT gespeichert – sie steht im BPMN');
 ok(/_parsePolicyIds\(xml\)/.test(lk), 'Gelesen wird sie aus dem BPMN-XML');
+
+/* „Modell anlegen" schrieb das Ergebnis-OBJEKT von _bpmnFromText in die Datei.
+   fetch macht daraus „[object Object]" – die .bpmn war unbrauchbar, und der
+   Editor scheiterte beim Öffnen mit „missing start tag". */
+ok(/const erzeugt = \(typeof _bpmnFromText === 'function'\)/.test(lk)
+   && /\(erzeugt && erzeugt\.xml\)/.test(lk),
+  'Aus der Landkarte wird das XML gespeichert, nicht das Ergebnis-Objekt');
+ok(!/spSaveProcess\(name, _bpmnFromText/.test(lk), 'Und nirgends das Objekt direkt');
 ok(/erst beim Öffnen, nicht für die ganze Karte/.test(lk),
   'Und zwar erst beim Öffnen einer Kachel – 17 Dateien beim Zeichnen wären Unsinn');
 

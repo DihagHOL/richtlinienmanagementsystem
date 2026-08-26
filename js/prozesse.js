@@ -419,7 +419,7 @@ async function openProcessEditor(itemId, seed) {
   _destroyModeler();
   _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas' });
 
-  let xml = DEFAULT_BPMN, ids = [];
+  let xml = DEFAULT_BPMN, ids = [], unbrauchbar = false;
   if (itemId) {
     try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); _procDocs = _parseProcessDocs(xml); }
     catch (e) { toast('Prozess laden fehlgeschlagen: ' + e.message, 'error'); }
@@ -428,11 +428,20 @@ async function openProcessEditor(itemId, seed) {
     ids = (seed.policyIds && seed.policyIds.length) ? seed.policyIds : _parsePolicyIds(xml);
     if (!_procDocs.length) _procDocs = _parseProcessDocs(xml);
   }
+  // Enthält die Datei kein BPMN, darf das keine Sackgasse sein: leeres Diagramm
+  // laden, damit ein Speichern sie repariert. Die Kennung bleibt dabei – alle
+  // Verweise aus Landkarte und Mindmap überstehen die Reparatur.
+  if (!/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''))) {
+    unbrauchbar = true; xml = DEFAULT_BPMN; ids = []; _procDocs = [];
+  }
   try {
     await _bpmnModeler.importXML(xml);
     _bpmnModeler.get('canvas').zoom('fit-viewport');
     const st = document.getElementById('proc-status');
-    if (st) st.innerHTML = (proc || (seed && seed.xml)) ? '' : 'Neues Diagramm – ziehe Elemente aus der Palette links.';
+    if (st) st.innerHTML = unbrauchbar
+      ? `<span style="color:#b45309">Die Datei enthielt kein BPMN – ein leeres Diagramm wurde geladen.
+         <b>Speichern</b> repariert sie; Kennung und Verknüpfungen bleiben erhalten.</span>`
+      : ((proc || (seed && seed.xml)) ? '' : 'Neues Diagramm – ziehe Elemente aus der Palette links.');
   } catch (e) {
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = `<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`;

@@ -904,9 +904,10 @@ async function lkProzessAnlegen(id) {
   try {
     const name = _lkFreierModellName(k.name, _lkWerk);
     const text = [name, k.unter].filter(Boolean).join('\n');
-    const xml = (typeof _bpmnFromText === 'function')
-      ? _bpmnFromText(text, name, [])
-      : (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : '');
+    // _bpmnFromText liefert { name, xml, … } – ohne das „.xml" landete das
+    // Objekt im Rumpf der Anfrage und die Datei enthielt „[object Object]".
+    const erzeugt = (typeof _bpmnFromText === 'function') ? _bpmnFromText(text, name, []) : null;
+    const xml = (erzeugt && erzeugt.xml) || (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : '');
     // Das Modell gehört zum Werk dieser Landkarte – es landet in dessen Ordner.
     const item = await spSaveProcess(name, xml, _lkWerk);
     _lkVerweise(k).push({ id: (item && item.id) || '', name });

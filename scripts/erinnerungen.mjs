@@ -394,10 +394,12 @@ function kenntnisOffen(ack, quizNoetig, wiederholungMonate) {
   return false;
 }
 
-/** Direktlink auf ein Regelwerk in der Leseansicht. */
+/** Direktlink auf ein Regelwerk in der Leseansicht („Meine Regelwerke").
+ *  Die Ansicht steht ausdrücklich im Link – sonst hinge das Ziel an der Rolle
+ *  des Empfängers, und eine Geschäftsleitung landete in der Freigabe. */
 function regelwerkLink(id) {
   const sep = APP_URL.includes('?') ? '&' : '?';
-  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}`;
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=meine`;
 }
 
 function kenntnisMailHtml(name, posten) {

@@ -469,7 +469,9 @@ function _mailGeltungsbereich(p) {
    (ISO 27001 A.6.3, Klausel 7.3). */
 
 function _zielgruppeMailHtml(p) {
-  const url = `https://rms.dihag.de/?richtlinie=${encodeURIComponent(p.id)}`;
+  // „ansicht=meine": Hier geht es ums Lesen und Bestätigen. Ohne die Angabe
+  // hinge das Ziel an der Rolle des Empfängers.
+  const url = `https://rms.dihag.de/?richtlinie=${encodeURIComponent(p.id)}&ansicht=meine`;
   const wasTun = p.quizErforderlich
     ? 'lesen, die Kenntnisnahme bestätigen und den kurzen Wissenstest bestehen'
     : 'lesen und die Kenntnisnahme bestätigen';

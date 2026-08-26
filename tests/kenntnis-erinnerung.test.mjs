@@ -88,6 +88,14 @@ ok(/Bestaetigungen" nicht gefunden – übersprungen/.test(block), 'Ohne Bestät
 ok(/zusätzlich User\.Read\.All/.test(s), 'Der Dateikopf nennt das nötige Recht');
 
 /* ── 5) Einstellungen ── */
+// Der Link der Erinnerung: dieselbe Frage wie bei der Bekanntgabe. Eine
+// Geschäftsleitung, die zur Kenntnisnahme gemahnt wird, gehört in „Meine
+// Regelwerke" – nicht in den Freigabe-Reiter.
+ok(/function regelwerkLink[\s\S]*?ansicht=meine/.test(s),
+  'Die Kenntnisnahme-Erinnerung verlinkt ausdrücklich die Leseansicht');
+ok(/function policyLink[\s\S]*?ansicht=freigaben/.test(s),
+  'Der Freigabe-Link bleibt davon unberührt');
+
 const acc = lies('js/access.js');
 for (const [feld, wert] of [['kenntnisErsteNachTagen', '7'], ['kenntnisDannAlleTage', '7'], ['kenntnisEskalationAbTagen', '21']])
   ok(new RegExp(`${feld}:\\s+${wert},`).test(acc), `Standardwert gepflegt: ${feld} = ${wert}`);

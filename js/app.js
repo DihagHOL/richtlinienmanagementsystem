@@ -169,7 +169,12 @@ async function applyDeepLinkOrDefault() {
   const canReview = (typeof isCurrentUserPruefer === 'function' && isCurrentUserPruefer())
                  || (typeof isCurrentUserGeschaeftsleitung === 'function' && isCurrentUserGeschaeftsleitung());
 
-  if (ansicht === 'freigaben' || (ansicht === '' && canReview)) {
+  // Nur der ausdrückliche Freigabe-Link führt in den Freigabe-Reiter. Bisher
+  // landete dort jede:r Prüfer:in und die Geschäftsleitung auch bei einem
+  // blanken „?richtlinie=…" – also bei Bekanntgabe und Kenntnisnahme-Erinnerung,
+  // wo es ums Lesen und Bestätigen geht, nicht ums Freigeben. Alle Mails, die
+  // wirklich in die Freigabe wollen, setzen „ansicht=freigaben" selbst.
+  if (ansicht === 'freigaben') {
     const aktion = (params.get('aktion') || '').toLowerCase();
     const token = params.get('t') || '';
     // Die Mitbestimmung entscheidet der Betriebsrat – der ist weder Prüfer noch
