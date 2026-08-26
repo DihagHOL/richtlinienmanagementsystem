@@ -110,9 +110,11 @@ function _ckRenderFaellig() {
 function _ckRenderAbdeckung() {
   if (typeof _abdeckungData !== 'function' || typeof NORMEN === 'undefined') { _ckErr('abdeckung', 'Modul nicht geladen.'); return; }
   const data = _abdeckungData();
-  const ids = grp => NORMEN.filter(g => grp.test(g.group)).flatMap(g => g.items.map(i => i.id));
+  // Nach `art`, nicht nach dem Gruppennamen: sonst zählte „NIS2" auch die
+  // deutsche Umsetzung mit und die Kachel zeigte plötzlich eine andere Quote.
+  const ids = art => (typeof normIdsMitArt === 'function') ? normIdsMitArt(art) : [];
   const saved = list => list.filter(id => data[id] && data[id].saved.length).length;
-  const annex = ids(/Annex/), nis2 = ids(/NIS2/);
+  const annex = ids('annex'), nis2 = ids('nis2');
   const aPct = annex.length ? Math.round(saved(annex) / annex.length * 100) : 0;
   const nPct = nis2.length ? Math.round(saved(nis2) / nis2.length * 100) : 0;
   _ckSet('abdeckung',

@@ -85,20 +85,30 @@ function renderAbdeckung() {
   const provN  = id => (data[id] ? data[id].prov.length  : 0);
   const anyN   = id => savedN(id) + provN(id);
 
-  const annexIds = NORMEN.filter(g => /Annex/.test(g.group)).flatMap(g => g.items.map(i => i.id));
+  // Nach `art` statt nach dem Gruppennamen: „NIS2" steckt seit der Erweiterung
+  // auch im Namen der deutschen Umsetzung, ein Namensfilter zählte sie mit.
+  const idsMitArt = (...a) => (typeof normIdsMitArt === 'function') ? normIdsMitArt(a) : [];
+  const annexIds = idsMitArt('annex');
   const annexSaved = annexIds.filter(id => savedN(id) > 0).length;
   const annexAny   = annexIds.filter(id => anyN(id)  > 0).length;
   const pctSaved = annexIds.length ? Math.round(annexSaved / annexIds.length * 100) : 0;
   const pctAny   = annexIds.length ? Math.round(annexAny   / annexIds.length * 100) : 0;
 
-  const nis2Ids   = NORMEN.filter(g => /NIS2/.test(g.group)).flatMap(g => g.items.map(i => i.id));
+  const nis2Ids   = idsMitArt('nis2');
   const nis2Saved = nis2Ids.filter(id => savedN(id) > 0).length;
   const nis2Any   = nis2Ids.filter(id => anyN(id)  > 0).length;
   const nis2Pct   = nis2Ids.length ? Math.round(nis2Saved / nis2Ids.length * 100) : 0;
   const nis2PctAny= nis2Ids.length ? Math.round(nis2Any   / nis2Ids.length * 100) : 0;
 
-  const luecken = NORMEN.filter(g => !/NIS2/.test(g.group))
-    .flatMap(g => g.items).filter(it => anyN(it.id) === 0);
+  // Die Lückenliste ist die ISMS-Lückenliste: Klauseln und Annex A. Die
+  // Rechtsnormen daneben sind ein eigenes Bild – sie hier einzurechnen hieße,
+  // eine ISO-Quote mit Umwelt- und Steuerrecht zu verwässern.
+  const isoIds = new Set(idsMitArt('klausel', 'annex'));
+  const luecken = NORMEN.flatMap(g => g.items)
+    .filter(it => isoIds.has(it.id) && anyN(it.id) === 0);
+  const weitereIds = NORMEN.filter(g => !(typeof NORM_ISMS_ARTEN !== 'undefined' && NORM_ISMS_ARTEN.includes(g.art)))
+    .flatMap(g => g.items.map(i => i.id));
+  const weitereAb = weitereIds.filter(id => anyN(id) > 0).length;
   const unsaved = _abdeckungUnsaved();
   const missingCol = (typeof spMissingPolicyColumns === 'function')
     ? spMissingPolicyColumns().some(c => c.name === 'NormbezugJson') : false;
@@ -127,9 +137,11 @@ function renderAbdeckung() {
 
   mount.innerHTML = _abModeSwitcher('heatmap') + `
     <div class="view-desc" style="margin:0 0 12px">
-      Abdeckung der ISO-27001-/NIS2-Controls durch die Richtlinien.
+      Abdeckung der Normanforderungen durch die Regelwerke.
       <b>Annex-A: ${annexSaved}/${annexIds.length} gespeichert (${pctSaved}%)${annexAny > annexSaved ? ` · ${annexAny}/${annexIds.length} inkl. Review (${pctAny}%)` : ''}</b>
-      · <b>NIS2: ${nis2Saved}/${nis2Ids.length} gespeichert (${nis2Pct}%)${nis2Any > nis2Saved ? ` · ${nis2Any}/${nis2Ids.length} inkl. Review (${nis2PctAny}%)` : ''}</b>.
+      · <b>NIS2: ${nis2Saved}/${nis2Ids.length} gespeichert (${nis2Pct}%)${nis2Any > nis2Saved ? ` · ${nis2Any}/${nis2Ids.length} inkl. Review (${nis2PctAny}%)` : ''}</b>
+      ${weitereIds.length ? `· weitere Regelwerke (Datenschutz, KI, Lieferkette, Arbeits- und Umweltschutz, Recht, IKS):
+        <b>${weitereAb}/${weitereIds.length}</b> abgedeckt` : ''}.
       <label class="ack-check" style="display:inline-flex;font-weight:500;margin-left:12px">
         <input type="checkbox" ${_abdeckungPublishedOnly ? 'checked' : ''} onchange="abdeckungTogglePublished(this.checked)">
         <span>nur veröffentlichte</span></label>
@@ -151,7 +163,7 @@ function renderAbdeckung() {
       <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;${_abColor('luecke')};border:1px solid;vertical-align:-1px"></span> Lücke</span>
     </div>
     ${luecken.length ? `<div class="col-warning" style="display:block;margin-bottom:14px">
-      <b>${luecken.length} Control(s) ohne Abdeckung</b> (ohne NIS2): ${luecken.slice(0, 40).map(it => `<span class="ic-tag" title="${esc(it.label)}">${esc(it.id)}</span>`).join(' ')}${luecken.length > 40 ? ' …' : ''}
+      <b>${luecken.length} ISO-27001-Control(s) ohne Abdeckung</b>: ${luecken.slice(0, 40).map(it => `<span class="ic-tag" title="${esc(it.label)}">${esc(it.id)}</span>`).join(' ')}${luecken.length > 40 ? ' …' : ''}
     </div>` : `<div style="color:#166534;font-weight:600;margin-bottom:14px">✓ Alle Annex-A-Controls sind (inkl. Review) durch mindestens eine Richtlinie abgedeckt.</div>`}
     ${grid}`;
 }
@@ -227,8 +239,10 @@ function abdeckungExportReport() {
   const pols = _abdeckungPolicies().slice().sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
   const stamp = new Date().toLocaleString('de-DE');
 
-  const annexIds = NORMEN.filter(g => /Annex/.test(g.group)).flatMap(g => g.items.map(i => i.id));
-  const nis2Ids  = NORMEN.filter(g => /NIS2/.test(g.group)).flatMap(g => g.items.map(i => i.id));
+  const annexIds = (typeof normIdsMitArt === 'function') ? normIdsMitArt('annex') : [];
+  const nis2Ids  = (typeof normIdsMitArt === 'function') ? normIdsMitArt('nis2') : [];
+  const weitereIds = NORMEN.filter(g => !(typeof NORM_ISMS_ARTEN !== 'undefined' && NORM_ISMS_ARTEN.includes(g.art)))
+    .flatMap(g => g.items.map(i => i.id));
   const cov = ids => ids.filter(id => data[id] && (data[id].saved.length || data[id].prov.length)).length;
   const covSaved = ids => ids.filter(id => data[id] && data[id].saved.length).length;
 
@@ -277,11 +291,12 @@ function abdeckungExportReport() {
       <div><b>${cov(annexIds)}/${annexIds.length}</b><span class="muted">Annex-A inkl. Review</span></div>
       <div><b>${covSaved(nis2Ids)}/${nis2Ids.length}</b><span class="muted">NIS2 gespeichert</span></div>
       <div><b>${cov(nis2Ids)}/${nis2Ids.length}</b><span class="muted">NIS2 inkl. Review</span></div>
+      <div><b>${cov(weitereIds)}/${weitereIds.length}</b><span class="muted">weitere Regelwerke</span></div>
     </div>
     <h2>1 · Richtlinien – Konformität &amp; Normbezug</h2>
     <table><thead><tr><th>Richtlinie</th><th>Status</th><th>Konformitätsprüfung / Freigabe</th><th>Normbezug</th></tr></thead>
       <tbody>${policyRows || '<tr><td colspan="4">Keine Richtlinien.</td></tr>'}</tbody></table>
-    <h2>2 · Control-Abdeckung (ISO 27001 / NIS2)</h2>
+    <h2>2 · Abdeckung der Normanforderungen</h2>
     <table><thead><tr><th>Control</th><th>Bezeichnung</th><th>Status</th><th>Abgedeckt durch</th></tr></thead>
       <tbody>${controlRows}</tbody></table>
     <p class="muted" style="margin-top:18px">Erstellt aus dem DIHAG-Richtlinienmanagement – deterministisch, ohne KI. „gespeichert" = im Normbezug der Richtlinie hinterlegt; „vorläufig (Review)" = aus der ISB-Review-Zuordnung, noch nicht gespeichert.</p>

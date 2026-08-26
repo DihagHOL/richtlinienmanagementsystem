@@ -4,7 +4,14 @@
  * SoA – Erklärung zur Anwendbarkeit (Statement of Applicability)
  * ===============================================================
  * ISO 27001 Klausel 6.1.3 d): je Control Anwendbarkeit (ja/nein), Begründung
- * und Umsetzungsstatus. Zweiter Modus im Reiter „ISMS-Abdeckung" – die
+ * und Umsetzungsstatus.
+ *
+ * Entschieden wird nur über die 93 Annex-A-Controls – dafür ist die SoA da.
+ * Die Klauseln 4–10, NIS2 und die Rechtsnormen im Katalog stehen ebenfalls in
+ * der Tabelle, aber ohne Wahl: „Internes Audit" ist nicht „nicht anwendbar",
+ * und eine Verordnung gilt, ob sie einem passt oder nicht. Vorher zählte die
+ * Kennzahl über alle Einträge – „x von 215 entschieden" wäre im Audit eine
+ * Steilvorlage gewesen. Zweiter Modus im Reiter „ISMS-Abdeckung" – die
  * Abdeckung durch Richtlinien wird automatisch eingeblendet und kann die
  * SoA vorbelegen. Gespeichert in soa-config.json (Dokumentbibliothek,
  * neben access-config.json). Rein deterministisch, ohne KI.
@@ -23,24 +30,46 @@ function _soaCtl(id) {
   return (_soaData.controls[id] = _soaData.controls[id] || { anwendbar: null, begruendung: '', status: '' });
 }
 
+/** Wird über diese Anforderung überhaupt entschieden? Nur bei Annex A. */
+function _soaEntscheidbar(id) {
+  return (typeof normEntscheidbar === 'function') ? normEntscheidbar(id) : true;
+}
+
+/** Anwendbarkeit einer Anforderung: true | false | null (= noch offen).
+ *  Was nicht zur Wahl steht, ist anwendbar – auch wenn nichts gespeichert ist. */
+function _soaAnwendbar(id, c) {
+  if (!_soaEntscheidbar(id)) return true;
+  return c && c.anwendbar != null ? c.anwendbar : null;
+}
+
 /** Ein Control gilt als „gepflegt", wenn die Anwendbarkeit entschieden ist. */
 function _soaGepflegt(c) { return c && (c.anwendbar === true || c.anwendbar === false); }
 
 /** Ausschluss ohne Begründung? (ISO verlangt die Begründung für Ausschlüsse.) */
 function _soaBegruendungFehlt(c) { return c && c.anwendbar === false && !(c.begruendung || '').trim(); }
 
-/** Kennzahlen über den ganzen Katalog. */
+/**
+ * Kennzahlen der SoA. `total` sind die 93 Annex-A-Controls – nur über die wird
+ * entschieden. Was ohne Wahl gilt, wird getrennt gezählt (`immer`) und bei der
+ * Umsetzung mitgeführt: Ob eine DSGVO-Pflicht umgesetzt ist, will man wissen.
+ */
 function _soaKpis() {
-  const ids = NORMEN.flatMap(g => g.items.map(i => i.id));
+  const alle = NORMEN.flatMap(g => g.items.map(i => i.id));
   const cs = (_soaData && _soaData.controls) || {};
-  let gepflegt = 0, anwendbar = 0, ausgeschlossen = 0, umgesetzt = 0, begrFehlt = 0;
-  for (const id of ids) {
+  let total = 0, gepflegt = 0, anwendbar = 0, ausgeschlossen = 0, umgesetzt = 0, begrFehlt = 0, immer = 0;
+  for (const id of alle) {
     const c = cs[id];
+    if (!_soaEntscheidbar(id)) {
+      immer++; anwendbar++;
+      if (c && c.status === 'umgesetzt') umgesetzt++;
+      continue;
+    }
+    total++;
     if (_soaGepflegt(c)) gepflegt++;
     if (c && c.anwendbar === true) { anwendbar++; if (c.status === 'umgesetzt') umgesetzt++; }
     if (c && c.anwendbar === false) { ausgeschlossen++; if (_soaBegruendungFehlt(c)) begrFehlt++; }
   }
-  return { total: ids.length, gepflegt, anwendbar, ausgeschlossen, umgesetzt, begrFehlt };
+  return { total, gepflegt, anwendbar, ausgeschlossen, umgesetzt, begrFehlt, immer };
 }
 
 async function initSoa() {
@@ -80,33 +109,39 @@ function renderSoa() {
     const rows = g.items.filter(it => {
       if (q && !(it.id.toLowerCase().includes(q) || it.label.toLowerCase().includes(q))) return false;
       const c = _soaData.controls[it.id];
-      if (_soaFilter.nur === 'offen' && _soaGepflegt(c)) return false;
-      if (_soaFilter.nur === 'ausgeschlossen' && !(c && c.anwendbar === false)) return false;
+      // Was ohne Wahl gilt, ist weder offen noch ausschließbar.
+      if (_soaFilter.nur === 'offen' && (!_soaEntscheidbar(it.id) || _soaGepflegt(c))) return false;
+      if (_soaFilter.nur === 'ausgeschlossen' && !(_soaEntscheidbar(it.id) && c && c.anwendbar === false)) return false;
       return true;
     }).map(it => {
       const c = _soaData.controls[it.id] || { anwendbar: null, begruendung: '', status: '' };
       const d = cov[it.id] || { saved: [], prov: [] };
       const covTxt = d.saved.length ? d.saved.join(', ')
                    : (d.prov.length ? d.prov.map(t => t + ' (Review)').join(', ') : '—');
-      const begrWarn = _soaBegruendungFehlt(c);
+      const waehlbar = _soaEntscheidbar(it.id);
+      const begrWarn = waehlbar && _soaBegruendungFehlt(c);
       const dis = canWrite ? '' : ' disabled';
-      return `<tr${c.anwendbar === false ? ' style="background:#fafafa"' : ''}>
-        <td style="white-space:nowrap;vertical-align:top"><b>${esc(it.id)}</b></td>
-        <td style="vertical-align:top">${esc(it.label)}
-          <div style="font-size:.72rem;color:var(--c-faint)">${esc(covTxt)}</div></td>
-        <td style="vertical-align:top"><select class="sort-select" style="font-size:.78rem;padding:3px 6px"${dis}
+      const anwendbarZelle = waehlbar
+        ? `<select class="sort-select" style="font-size:.78rem;padding:3px 6px"${dis}
             onchange="soaSet('${esc(it.id)}','anwendbar',this.value)">
           <option value=""${c.anwendbar == null ? ' selected' : ''}>– offen –</option>
           <option value="ja"${c.anwendbar === true ? ' selected' : ''}>anwendbar</option>
           <option value="nein"${c.anwendbar === false ? ' selected' : ''}>ausgeschlossen</option>
-        </select></td>
-        <td style="vertical-align:top"><select class="sort-select" style="font-size:.78rem;padding:3px 6px"${c.anwendbar === false ? ' disabled' : dis}
+        </select>`
+        : `<span class="ic-tag" style="background:#eef2ff;color:#3730a3"
+            title="Klauseln, Gesetze und Verordnungen stehen nicht zur Wahl – sie gelten.">gilt immer</span>`;
+      return `<tr${waehlbar && c.anwendbar === false ? ' style="background:#fafafa"' : ''}>
+        <td style="white-space:nowrap;vertical-align:top"><b>${esc(it.id)}</b></td>
+        <td style="vertical-align:top">${esc(it.label)}
+          <div style="font-size:.72rem;color:var(--c-faint)">${esc(covTxt)}</div></td>
+        <td style="vertical-align:top">${anwendbarZelle}</td>
+        <td style="vertical-align:top"><select class="sort-select" style="font-size:.78rem;padding:3px 6px"${waehlbar && c.anwendbar === false ? ' disabled' : dis}
             onchange="soaSet('${esc(it.id)}','status',this.value)">
           <option value=""${!c.status ? ' selected' : ''}>–</option>
           ${SOA_STATUS.map(s => `<option value="${esc(s)}"${c.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
         </select></td>
         <td style="vertical-align:top"><input type="text" value="${esc(c.begruendung || '')}"${dis}
-          placeholder="${c.anwendbar === false ? 'Pflicht: warum ausgeschlossen?' : 'optional'}"
+          placeholder="${waehlbar && c.anwendbar === false ? 'Pflicht: warum ausgeschlossen?' : 'optional'}"
           oninput="soaSet('${esc(it.id)}','begruendung',this.value)"
           style="width:100%;border:1px solid ${begrWarn ? '#ef4444' : '#d1d5db'};border-radius:6px;padding:4px 8px;font-size:.78rem;font-family:inherit"></td>
       </tr>`;
@@ -120,11 +155,14 @@ function renderSoa() {
       <b>Erklärung zur Anwendbarkeit (SoA)</b> nach ISO 27001 Klausel 6.1.3 d): je Control Anwendbarkeit,
       Begründung und Umsetzungsstatus. Die Spalte „Abdeckung" (klein, grau) zeigt automatisch, welche Richtlinien
       das Control laut Normbezug abdecken. Für <b>ausgeschlossene</b> Controls ist die Begründung Pflicht.
+      <br>Entschieden wird über die <b>${k.total} Annex-A-Controls</b>. Klauseln, NIS2 und die Rechtsnormen
+      (${k.immer} Anforderungen) stehen mit „<b>gilt immer</b>" darin – sie lassen sich nicht ausschließen,
+      ihr Umsetzungsstatus wird aber mitgeführt.
       ${meta.updatedAt ? `<br><span style="color:var(--c-faint)">Zuletzt gespeichert: ${fmtDateTime(meta.updatedAt)}${meta.updatedBy ? ' von ' + esc(meta.updatedBy) : ''} · Version ${meta.version || 1}</span>` : ''}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      ${kpi(`${k.gepflegt}/${k.total}`, 'Anwendbarkeit entschieden', k.gepflegt === k.total ? '#15803d' : '#b45309')}
-      ${kpi(k.anwendbar, 'anwendbar', '#17509e')}
+      ${kpi(`${k.gepflegt}/${k.total}`, 'Annex A entschieden', k.gepflegt === k.total ? '#15803d' : '#b45309')}
+      ${kpi(k.anwendbar, 'anwendbar (inkl. „gilt immer")', '#17509e')}
       ${kpi(k.ausgeschlossen, 'ausgeschlossen', '#6b7280')}
       ${kpi(`${k.umgesetzt}/${k.anwendbar}`, 'davon umgesetzt', k.anwendbar && k.umgesetzt === k.anwendbar ? '#15803d' : '#b45309')}
       ${kpi(k.begrFehlt, 'Begründung fehlt', k.begrFehlt ? '#b91c1c' : '#15803d')}
@@ -153,6 +191,8 @@ function renderSoa() {
 /** Ein Feld eines Controls setzen (ohne Neu-Rendern der ganzen Tabelle beim Tippen). */
 function soaSet(id, field, value) {
   if (typeof canWriteTab === 'function' && !canWriteTab('abdeckung')) return;
+  // Über Klauseln, Gesetze und Verordnungen wird nicht abgestimmt.
+  if (field === 'anwendbar' && !_soaEntscheidbar(id)) return;
   const c = _soaCtl(id);
   if (field === 'anwendbar') {
     c.anwendbar = value === 'ja' ? true : value === 'nein' ? false : null;
@@ -174,9 +214,12 @@ function soaPrefill() {
   let n = 0;
   for (const g of NORMEN) for (const it of g.items) {
     const c = _soaCtl(it.id);
-    if (_soaGepflegt(c)) continue;   // manuell Gepflegtes nicht anfassen
+    const waehlbar = _soaEntscheidbar(it.id);
+    if (waehlbar && _soaGepflegt(c)) continue;   // manuell Gepflegtes nicht anfassen
     const d = cov[it.id] || { saved: [], prov: [] };
-    c.anwendbar = true;
+    // Bei „gilt immer" bleibt das Feld leer – der Wert steht nicht zur Wahl und
+    // stünde sonst als Entscheidung in der Datei, die niemand getroffen hat.
+    if (waehlbar) c.anwendbar = true;
     if (!c.status) c.status = d.saved.length ? 'umgesetzt' : (d.prov.length ? 'geplant' : 'nicht umgesetzt');
     n++;
   }
@@ -211,7 +254,8 @@ async function soaSave() {
 
 /* ── Exporte ── */
 
-function _soaWord(c) {
+function _soaWord(c, id) {
+  if (id != null && !_soaEntscheidbar(id)) return 'gilt immer';
   if (!c || c.anwendbar == null) return 'offen';
   return c.anwendbar ? 'anwendbar' : 'ausgeschlossen';
 }
@@ -228,8 +272,8 @@ function soaExportReport() {
       const c = _soaData.controls[it.id] || {};
       const d = cov[it.id] || { saved: [], prov: [] };
       const um = [...d.saved, ...d.prov.map(t => t + ' (Review)')].join(', ') || '—';
-      const w = _soaWord(c);
-      const col = w === 'anwendbar' ? '#166534' : w === 'ausgeschlossen' ? '#6b7280' : '#b45309';
+      const w = _soaWord(c, it.id);
+      const col = (w === 'anwendbar' || w === 'gilt immer') ? '#166534' : w === 'ausgeschlossen' ? '#6b7280' : '#b45309';
       return `<tr>
         <td style="white-space:nowrap"><b>${esc(it.id)}</b></td><td>${esc(it.label)}</td>
         <td style="color:${col};font-weight:600;white-space:nowrap">${esc(w)}</td>
@@ -258,7 +302,8 @@ function soaExportReport() {
       <div><b>${k.anwendbar}</b><span class="muted">anwendbar</span></div>
       <div><b>${k.ausgeschlossen}</b><span class="muted">ausgeschlossen</span></div>
       <div><b>${k.umgesetzt}/${k.anwendbar}</b><span class="muted">umgesetzt</span></div>
-      <div><b>${k.gepflegt}/${k.total}</b><span class="muted">entschieden</span></div>
+      <div><b>${k.gepflegt}/${k.total}</b><span class="muted">Annex A entschieden</span></div>
+      <div><b>${k.immer}</b><span class="muted">gilt immer (Klauseln, Gesetze)</span></div>
     </div>
     <table><thead><tr><th>Control</th><th>Bezeichnung</th><th>Anwendbarkeit</th><th>Umsetzung</th><th>Begründung</th><th>Umsetzung durch (Richtlinien)</th></tr></thead>
       <tbody>${rows}</tbody></table>
@@ -278,7 +323,7 @@ function soaExportCsv() {
   for (const g of NORMEN) for (const it of g.items) {
     const c = _soaData.controls[it.id] || {};
     const d = cov[it.id] || { saved: [], prov: [] };
-    rows.push([it.id, it.label, g.group, _soaWord(c), c.anwendbar === false ? '' : (c.status || ''),
+    rows.push([it.id, it.label, g.group, _soaWord(c, it.id), c.anwendbar === false ? '' : (c.status || ''),
       c.begruendung || '', [...d.saved, ...d.prov.map(t => t + ' (Review)')].join(', ')]);
   }
   const csv = '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
@@ -293,5 +338,5 @@ function soaExportCsv() {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { _soaGepflegt, _soaBegruendungFehlt, _soaWord };
+  module.exports = { _soaGepflegt, _soaBegruendungFehlt, _soaWord, _soaEntscheidbar, _soaAnwendbar };
 }
