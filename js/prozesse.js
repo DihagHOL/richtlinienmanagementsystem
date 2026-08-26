@@ -260,9 +260,11 @@ function _renderProcCards() {
   rows.forEach(p => {
     const key = p.itemId + '|' + p.modified;
     const e = _procLinkCache[key];
-    // Alte Cache-Einträge waren eine reine Id-Liste – die dürfen nicht
-    // durchfallen, sonst liest die App beim ersten Start alles neu.
-    if (e) _renderCardLink(p.itemId, Array.isArray(e) ? e : e.p, Array.isArray(e) ? 0 : e.d, !Array.isArray(e) && !!e.k);
+    // Nur ein vollständiger Eintrag darf den erneuten Griff zur Datei sparen.
+    // Ältere Stände kannten weder Anlagen noch die Frage, ob überhaupt ein
+    // Diagramm drinsteht – die werden einmal nachgelesen, sonst bliebe die
+    // Warnung bei genau den Modellen aus, die gerade im Cache liegen.
+    if (e && !Array.isArray(e) && 'k' in e) _renderCardLink(p.itemId, e.p, e.d, e.k);
     else _enrichProcessCard(p, key);
   });
 }

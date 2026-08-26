@@ -207,8 +207,8 @@ ok(/if \(_procEditing && _procEditing\.itemId\) await saveProcess\(\)/.test(pjs)
 ok(/Die Datei selbst bleibt in der Bibliothek/.test(pjs),
   'Entfernen löst nur die Verknüpfung – Löschen wäre eine andere Entscheidung');
 ok(/📎 \$\{docs\}/.test(pjs), 'Die Karte in der Liste zeigt, wie viele Anlagen dranhängen');
-ok(/Array\.isArray\(e\) \? e : e\.p/.test(pjs),
-  'Alte Cache-Einträge (reine Id-Liste) fallen nicht durch');
+ok(/if \(e && !Array\.isArray\(e\) && 'k' in e\)/.test(pjs),
+  'Nur ein vollständiger Cache-Eintrag spart den Griff zur Datei – ältere Stände werden nachgelesen');
 ok(/const kaputt = !\/<\(bpmn:\)\?definitions/.test(pjs),
   'Beim Lesen fällt gleich auf, ob die Datei überhaupt ein Diagramm enthält');
 ok(/⚠ kein Diagramm – öffnen und speichern/.test(pjs),
