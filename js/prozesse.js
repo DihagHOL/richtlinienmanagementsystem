@@ -262,7 +262,7 @@ function _renderProcCards() {
     const e = _procLinkCache[key];
     // Alte Cache-Einträge waren eine reine Id-Liste – die dürfen nicht
     // durchfallen, sonst liest die App beim ersten Start alles neu.
-    if (e) _renderCardLink(p.itemId, Array.isArray(e) ? e : e.p, Array.isArray(e) ? 0 : e.d);
+    if (e) _renderCardLink(p.itemId, Array.isArray(e) ? e : e.p, Array.isArray(e) ? 0 : e.d, !Array.isArray(e) && !!e.k);
     else _enrichProcessCard(p, key);
   });
 }
@@ -322,20 +322,29 @@ async function prozessAblageAufraeumen() {
 async function _enrichProcessCard(p, key) {
   try {
     const xml = await spGetProcessXml(p.itemId);
+    // Die Datei wird ohnehin gelesen – dann kann sie auch gleich sagen, ob sie
+    // überhaupt ein Diagramm enthält. Sonst merkt man es erst beim Öffnen,
+    // Modell für Modell.
+    const kaputt = !/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''));
     const ids = _parsePolicyIds(xml);
     const docs = _parseProcessDocs(xml).length;
-    procLinksMerken(key, { p: ids, d: docs });
-    _renderCardLink(p.itemId, ids, docs);
+    procLinksMerken(key, { p: ids, d: docs, k: kaputt });
+    _renderCardLink(p.itemId, ids, docs, kaputt);
   } catch (e) {
     const el = document.getElementById('proc-link-' + p.itemId);
     if (el) el.textContent = '';
   }
 }
 
-function _renderCardLink(itemId, ids, docs) {
+function _renderCardLink(itemId, ids, docs, kaputt) {
   const el = document.getElementById('proc-link-' + itemId);
   if (!el) return;
   const anlagen = docs ? `<span class="ic-tag" title="hinterlegte Dokumente">📎 ${docs}</span>` : '';
+  if (kaputt) {
+    el.innerHTML = `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
+      title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${anlagen}`;
+    return;
+  }
   if (!ids || !ids.length) {
     el.innerHTML = `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${anlagen}`;
     return;

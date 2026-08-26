@@ -209,6 +209,10 @@ ok(/Die Datei selbst bleibt in der Bibliothek/.test(pjs),
 ok(/📎 \$\{docs\}/.test(pjs), 'Die Karte in der Liste zeigt, wie viele Anlagen dranhängen');
 ok(/Array\.isArray\(e\) \? e : e\.p/.test(pjs),
   'Alte Cache-Einträge (reine Id-Liste) fallen nicht durch');
+ok(/const kaputt = !\/<\(bpmn:\)\?definitions/.test(pjs),
+  'Beim Lesen fällt gleich auf, ob die Datei überhaupt ein Diagramm enthält');
+ok(/⚠ kein Diagramm – öffnen und speichern/.test(pjs),
+  'Und die Karte sagt es – sonst müsste man Modell für Modell öffnen');
 ok(!/_setProcessPolicies/.test(pjs), 'Die alte Einzweck-Funktion ist restlos ersetzt');
 
 const sjs = lies('js/sharepoint.js');
