@@ -350,6 +350,8 @@ ok(/function probelaufBannerAktualisieren/.test(quelle), 'Der Streifen wird beim
 ok(/function probelaufNavFiltern/.test(quelle), 'Im Probelauf wird die Navigation aufgeräumt');
 ok(/'nav-verwaltung'/.test(quelle) === false && /'nav-freigaben'/.test(quelle) === false,
   'Dashboard und Freigaben bleiben stehen – ohne sie liefe die Vorführung nicht');
+ok(/'nav-vorschlaege'/.test(quelle) === false,
+  'Vorschläge ebenfalls – einen Änderungsvorschlag einzureichen tut jede:r, das gehört ins Video');
 ok(/'nav-einstellungen'/.test(quelle) && /'nav-risiken'/.test(quelle),
   'Was im Video nur verwirrt, wird ausgeblendet');
 ok(/if \(!_plAn\) return;/.test(quelle), 'Und nur, solange wirklich ein Probelauf läuft');
