@@ -658,7 +658,7 @@ async function openDocVersions() {
   }
 }
 
-/* ── Richtliniendokument direkt bearbeiten (On-Premise Office / Browser), wie bei ISMS-Dokumenten ── */
+/* ── Regelwerkdokument direkt bearbeiten (On-Premise Office / Browser), wie bei ISMS-Dokumenten ── */
 
 
 /** Zugeordnetes Dokument im Desktop-Office öffnen (speichert automatisch eine neue Version). */
@@ -689,7 +689,7 @@ function policyEditWeb() {
   toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
 }
 
-/* ── Richtliniendokument aus einer Karte öffnen (Prüfung/Freigabe) – per Policy-ID ── */
+/* ── Regelwerkdokument aus einer Karte öffnen (Prüfung/Freigabe) – per Policy-ID ── */
 function _policyById(id) { return (State.policies || []).find(p => String(p.id) === String(id)); }
 
 /** Dokument der Richtlinie im Desktop-Office öffnen (Karte). */
@@ -807,7 +807,7 @@ function renderPolicyEditor() {
           <span class="field-hint">Neue Version ⇒ alle müssen erneut bestätigen.</span>
         </div>
         <div class="form-group full">
-          <label>Richtliniendokument <span class="req">*</span></label>
+          <label>Regelwerkdokument <span class="req">*</span></label>
           <div id="ed-doc-display" class="doc-chip ${p.dokumentName ? '' : 'doc-chip-empty'}">
             ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
           </div>
@@ -1617,7 +1617,7 @@ function _mitMailHtml(p, label, attachmentName) {
           ? ` · <b>betroffene Werke:</b> ${esc(p.mitbestimmung.werke.join(', '))}` : ''}</p>` : ''}
     ${p.beschreibung ? `<p style="color:#374151">${esc(p.beschreibung)}</p>` : ''}
     ${attachmentName
-      ? `<p>📎 Das Richtliniendokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
+      ? `<p>📎 Das Regelwerkdokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
       : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar) – bitte bei der ISMS-Stelle anfordern.</p>`}
     ${(typeof _wfApprovalsHtml === 'function') ? _wfApprovalsHtml(p) : ''}
     <p style="margin-top:18px"><b>Rückmeldung – ein Klick genügt:</b></p>

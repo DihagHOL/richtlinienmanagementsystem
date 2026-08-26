@@ -56,4 +56,17 @@ ok(kctx.__modal.includes('_kEditing.regelwerkTyp=this.value'), 'Konzept-Editor: 
 const kjs = fs.readFileSync(ROOT+'/js/konzepte.js','utf8');
 ok(/rw\.regelwerkTyp = k\.regelwerkTyp/.test(kjs), 'Annahme übernimmt Typ ins Regelwerk');
 
+/* ── Ein Wort, das noch aus der Zeit vor der Umbenennung stammte ──
+   Die App heißt Regelwerk-Management; „Richtliniendokument" stand trotzdem als
+   Pflichtfeld im Editor, in der Mitbestimmungs-Mail und als Ersatzname in der
+   Leseansicht. Wer zwei Wörter für dieselbe Sache liest, sucht nach dem
+   Unterschied. */
+for (const datei of ['js/admin.js', 'js/app.js', 'js/sharepoint.js']) {
+  const inhalt = fs.readFileSync(ROOT + '/' + datei, 'utf8');
+  ok(!/Richtliniendokument/.test(inhalt), `${datei}: kein „Richtliniendokument" mehr`);
+}
+ok(/<label>Regelwerkdokument <span class="req">\*<\/span><\/label>/
+   .test(fs.readFileSync(ROOT + '/js/admin.js', 'utf8')),
+  'Das Pflichtfeld im Editor heißt „Regelwerkdokument"');
+
 console.log(`\n${fail?'✗':'✓'} ${pass} grün, ${fail} rot`); process.exit(fail?1:0);

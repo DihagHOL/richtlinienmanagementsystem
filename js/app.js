@@ -439,7 +439,7 @@ async function openDetail(policyId) {
     <div class="detail-grid">
       <div class="doc-frame-wrap">
         <div class="doc-frame-head">
-          <span class="t">📄 ${esc(p.dokumentName || 'Richtliniendokument')}</span>
+          <span class="t">📄 ${esc(p.dokumentName || 'Regelwerkdokument')}</span>
           ${p.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener" onclick="unlockReadGate()">In SharePoint öffnen ↗</a>` : ''}
         </div>
         <div id="doc-frame-host"><div class="doc-loading">Vorschau wird geladen …</div></div>

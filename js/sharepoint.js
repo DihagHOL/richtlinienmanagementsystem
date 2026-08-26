@@ -2,7 +2,7 @@
  * SharePoint / Microsoft Graph Datenschicht
  * =========================================
  * App-Daten (Listen + access-config) auf der App-Site (Default: sites/IT).
- * Richtliniendokumente bleiben in der ISMS-Bibliothek (sites/ISMS) und werden
+ * Regelwerkdokumente bleiben in der ISMS-Bibliothek (sites/ISMS) und werden
  * nur gelesen/eingebettet.
  *
  * Graph-Helper & availableFields-Muster übernommen aus e-rechnung/js/sharepoint.js.
@@ -19,7 +19,7 @@ const SP = {
   riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
-  // ── ISMS-Quelle: Richtliniendokumente (nur Lesezugriff) ──
+  // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
   ismsSiteHost: 'dihag.sharepoint.com:/sites/ISMS',
   assetsList:   'Assets',                  // Asset-/Werte-Inventar auf der ISMS-Site (nur lesen)
 
@@ -1699,7 +1699,7 @@ async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraD
   return true;
 }
 
-/** Richtliniendokument als E-Mail-Anhang (fileAttachment, base64) – oder null (zu groß/fehlt). */
+/** Regelwerkdokument als E-Mail-Anhang (fileAttachment, base64) – oder null (zu groß/fehlt). */
 async function spGetDocAttachment(driveId, itemId, fallbackName) {
   if (!driveId || !itemId) return null;
   const token = await acquireToken(SP.scopes);
@@ -1800,7 +1800,7 @@ function _docxXmlToText(xml) {
   return t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Klartext eines verknüpften .docx-Richtliniendokuments (Texterkennung für BPMN). */
+/** Klartext eines verknüpften .docx-Regelwerkdokuments (Texterkennung für BPMN). */
 async function spGetPolicyDocText(driveId, itemId) {
   if (!driveId || !itemId) return '';
   const token = await acquireToken(SP.scopes);
