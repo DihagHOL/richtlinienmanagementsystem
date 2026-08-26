@@ -482,7 +482,7 @@ const GOVERNABLE_TABS = [
   { view: 'governance',  label: 'Governance-Board' , kurz: 'Governance' },
   { view: 'govstruktur', label: 'Governance-Struktur', kurz: 'Gov-Struktur' },
   { view: 'prozesse',    label: 'Prozesse (BPMN)' , kurz: 'Prozesse' },
-  { view: 'abdeckung',   label: 'ISMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
+  { view: 'abdeckung',   label: 'IMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
   { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
   { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },
   { view: 'vorschlaege', label: 'Vorschläge' , kurz: 'Vorschläge' },

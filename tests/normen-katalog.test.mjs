@@ -161,5 +161,25 @@ ok(/idsMitArt\('klausel', 'annex'\)/.test(ab),
 ok(/weitereIds/.test(ab), 'Die neuen Regelwerke werden getrennt ausgewiesen');
 ok(/_soaEntscheidbar/.test(so) && /gilt immer/.test(so), 'Die SoA kennt den Unterschied');
 
+/* ══════════════════════════════════════════════════════════════════
+   Teil 4 – der Reiter heißt nach dem, was er zeigt
+   ══════════════════════════════════════════════════════════════════ */
+
+// „IMS-Dokumente" trägt seinen Namen schon aus demselben Grund: der Reiter
+// führt alle Normen, nicht nur die Informationssicherheit. Mit 15 Gruppen von
+// Datenschutz bis Steuerrecht gilt das für die Abdeckung genauso.
+const html = lies('index.html');
+ok(/IMS-Abdeckung/.test(html) && !/ISMS-Abdeckung/.test(html), 'Die Navigation sagt „IMS-Abdeckung"');
+ok(/label: 'IMS-Abdeckung \(inkl\. SoA\)'/.test(lies('js/access.js')), 'Die Reiterliste ebenso');
+ok(/abdeckung: 'IMS-Abdeckung'/.test(lies('js/app.js')), 'Und der Seitentitel');
+ok(/Normen &amp; Recht – Abdeckung durch Regelwerke/.test(html),
+  'Die Überschrift nennt nicht mehr nur ISO 27001 und NIS2');
+const restlich = ['js/abdeckung.js', 'js/soa.js', 'js/reifegrad.js', 'js/cockpit.js',
+  'js/dokumentation.js', 'js/clevelreport.js', 'js/prozesse.js', 'docs/BENUTZERHANDBUCH.md']
+  .filter(f => /ISMS-Abdeckung/.test(lies(f)));
+ok(restlich.length === 0, `Kein „ISMS-Abdeckung" mehr übrig${restlich.length ? ': ' + restlich.join(', ') : ''}`);
+ok(!/Normbezug \(ISO 27001 \/ NIS2\)/.test(lies('js/admin.js')),
+  'Auch der Normbezug im Editor heißt nicht mehr nach zwei von fünfzehn Gruppen');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

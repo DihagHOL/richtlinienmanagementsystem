@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * Reiter „ISMS-Abdeckung" (Admin)
+ * Reiter „IMS-Abdeckung" (Admin)
  * ===============================
- * Zeigt über alle Richtlinien hinweg, welche ISO-27001-/NIS2-Controls durch
+ * Zeigt über alle Regelwerke hinweg, welche Normanforderungen durch
  * mindestens eine Richtlinie abgedeckt sind. Zwei Quellen:
  *   • GESPEICHERT: das Feld `normbezug` der Richtlinie (grün).
  *   • VORLÄUFIG:   Seed aus der Review-Zuordnung (normbezugSeedFor), solange
@@ -186,7 +186,7 @@ function abdeckungShowControl(id) {
 /** Review-Seeds auf alle passenden Richtlinien anwenden und speichern. */
 async function abdeckungApplySeeds() {
   if (typeof canWriteTab === 'function' && !canWriteTab('abdeckung')) {
-    if (typeof toast === 'function') toast('Nur Lesezugriff auf „ISMS-Abdeckung".', 'error'); return;
+    if (typeof toast === 'function') toast('Nur Lesezugriff auf „IMS-Abdeckung".', 'error'); return;
   }
   const targets = _abdeckungUnsaved();
   if (!targets.length) return;
@@ -273,7 +273,7 @@ function abdeckungExportReport() {
   }).join('');
 
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>ISMS-Abdeckung & Konformität – DIHAG (${esc(stamp)})</title>
+    <title>IMS-Abdeckung & Konformität – DIHAG (${esc(stamp)})</title>
     <style>
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:28px;font-size:12px;line-height:1.45}
       h1{font-size:18px;margin:0 0 2px} h2{font-size:14px;margin:22px 0 8px;border-bottom:2px solid #111827;padding-bottom:3px}
@@ -284,7 +284,7 @@ function abdeckungExportReport() {
       @media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
-    <h1>ISMS-Abdeckung &amp; Konformitätsstatus</h1>
+    <h1>IMS-Abdeckung &amp; Konformitätsstatus</h1>
     <div class="muted">DIHAG · Richtlinienmanagement · Stand ${esc(stamp)} · ${pols.length} Richtlinien${_abdeckungPublishedOnly ? ' (nur veröffentlichte)' : ''}</div>
     <div class="kpi">
       <div><b>${covSaved(annexIds)}/${annexIds.length}</b><span class="muted">Annex-A gespeichert</span></div>
@@ -321,7 +321,7 @@ function abdeckungExportCsv() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `ISMS-Abdeckung_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `IMS-Abdeckung_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   if (typeof toast === 'function') toast('CSV heruntergeladen ✓', 'success');

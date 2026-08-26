@@ -43,7 +43,7 @@ ok(/@page\s*\{[^}]*margin/.test(css), 'Seitenrand ist gesetzt');
 
 /* ── 4) Berichts-Fenster (eigenes HTML) ── */
 const berichte = {
-  'abdeckung.js': 'ISMS-Abdeckung',
+  'abdeckung.js': 'IMS-Abdeckung',
   'clevelreport.js': 'C-Level-Bericht',
   'dokumentation.js': 'Benutzerhandbuch',
   'risiken.js': 'Risiko-Report',

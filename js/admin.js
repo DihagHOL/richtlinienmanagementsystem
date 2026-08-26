@@ -1037,7 +1037,7 @@ function zgToggleRole(ri, checked) {
   if (checked) _editing.zielgruppen.push(r);
 }
 
-/* ── Normbezug (ISO 27001 / NIS2) im Editor ── */
+/* ── Normbezug (Normen & Recht) im Editor ── */
 
 function renderNormbezugSection() {
   if (typeof NORMEN === 'undefined') return '';
@@ -1051,13 +1051,13 @@ function renderNormbezugSection() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div onclick="nbToggleOpen()" style="font-weight:700;font-size:.9rem;cursor:pointer;user-select:none">
           <span id="nb-caret" style="display:inline-block;width:1em;color:var(--c-muted)">${open ? '▾' : '▸'}</span>
-          Normbezug (ISO 27001 / NIS2) <span id="nb-count" style="color:var(--c-muted);font-weight:500">(${_editing.normbezug.length} ausgewählt)</span></div>
+          Normbezug (Normen &amp; Recht) <span id="nb-count" style="color:var(--c-muted);font-weight:500">(${_editing.normbezug.length} ausgewählt)</span></div>
         <div style="flex:1"></div>
         ${seed ? `<button class="btn btn-outline btn-sm" onclick="nbApplySeed()" title="Vorschlag aus der Review-Zuordnung übernehmen">↩ Aus Review übernehmen${seedNeu ? ' (+' + seedNeu + ')' : ''}</button>` : ''}
         ${_editing.normbezug.length ? `<button class="btn btn-ghost btn-sm" onclick="nbClear()">Leeren</button>` : ''}
       </div>
       <div id="nb-body" style="${open ? '' : 'display:none'}">
-        <div class="field-hint" style="margin-bottom:8px">Welche ISO-27001-Klauseln/Annex-A-Controls (und optional NIS2-Artikel) diese Richtlinie abdeckt. Grundlage für die ISMS-Abdeckungs-Heatmap.</div>
+        <div class="field-hint" style="margin-bottom:8px">Welche Anforderungen dieses Regelwerk abdeckt – ISO 27001 (Klauseln, Annex A), NIS2, Datenschutz, KI-Verordnung, Lieferkette, Hinweisgeberschutz, Arbeits- und Umweltschutz, Recht und IKS. Grundlage für die IMS-Abdeckungs-Heatmap.</div>
         <input type="text" id="nb-filter" placeholder="Filtern (z. B. „A.8", „Audit", „Krypto") …" oninput="nbRenderList()"
           style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.85rem;font-family:inherit;margin-bottom:8px">
         <div id="nb-list" style="max-height:320px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${nbListHtml('')}</div>

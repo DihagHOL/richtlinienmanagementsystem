@@ -35,7 +35,7 @@ function initCockpit() {
       ${tile('policies',  '📄', 'Richtlinien',            'verwaltung')}
       ${tile('workflow',  '✅', 'Prüfung & Freigabe',      'freigaben')}
       ${tile('faellig',   '📅', 'Fälligkeiten / Reviews',  'faelligkeit')}
-      ${tile('abdeckung', '🗺️', 'ISMS-Abdeckung',          'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
+      ${tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
       ${tile('soa',       '📋', 'SoA – Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}

@@ -957,7 +957,7 @@ const RMS_PROCESS_SEEDS = [
 4. Dokument korrigieren (neue Version)
 5. Prüfung wiederholen
 6. Dokumente in Ordnung` },
-  { name: 'ISMS-Abdeckung & SoA (RMS)', steps: `
+  { name: 'IMS-Abdeckung & SoA (RMS)', steps: `
 1. ISO-27001-Controls sichten
 2. Abdeckung je Control bewerten
 3. Lücke vorhanden?

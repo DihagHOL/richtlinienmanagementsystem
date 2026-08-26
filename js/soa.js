@@ -11,7 +11,7 @@
  * der Tabelle, aber ohne Wahl: „Internes Audit" ist nicht „nicht anwendbar",
  * und eine Verordnung gilt, ob sie einem passt oder nicht. Vorher zählte die
  * Kennzahl über alle Einträge – „x von 215 entschieden" wäre im Audit eine
- * Steilvorlage gewesen. Zweiter Modus im Reiter „ISMS-Abdeckung" – die
+ * Steilvorlage gewesen. Zweiter Modus im Reiter „IMS-Abdeckung" – die
  * Abdeckung durch Richtlinien wird automatisch eingeblendet und kann die
  * SoA vorbelegen. Gespeichert in soa-config.json (Dokumentbibliothek,
  * neben access-config.json). Rein deterministisch, ohne KI.

@@ -16,7 +16,7 @@ const expectGw = {
   'Risiko-Management (RMS)': 1,
   'KI-System beantragen (RMS)': 1,
   'Dokument-Health-Check (RMS)': 1,
-  'ISMS-Abdeckung & SoA (RMS)': 1,
+  'IMS-Abdeckung & SoA (RMS)': 1,
   'Fälligkeit / Wiedervorlage (RMS)': 2,
   'Governance-Übernahme (RMS)': 1,
   'Audit-Report / C-Level (RMS)': 1,

@@ -4,7 +4,7 @@
  * C-Level-/Management-Bericht (im Reiter „Audit Report")
  * =====================================================
  * Fasst den ISMS-Status auf Führungsebene zusammen: die wesentlichen Kennzahlen
- * (Richtlinien, Kenntnisnahme-Quote, ISMS-Abdeckung ISO/NIS2, SoA, Risiken,
+ * (Richtlinien, Kenntnisnahme-Quote, IMS-Abdeckung ISO/NIS2, SoA, Risiken,
  * Reifegrad IT/OT, Fälligkeiten) plus eine deterministische Normkonformitäts-
  * Prüfung (ISO/IEC 27001 & NIS2). Der Bericht lässt sich ansehen, drucken/als
  * PDF speichern und per Mausklick an die in den Einstellungen hinterlegte
@@ -67,7 +67,7 @@ async function _clevelGather() {
     m.compliance = { soll, done, quote: soll ? Math.round(done / soll * 100) : 100 };
   } catch (e) { m.compliance = null; m.fehler.push('Kenntnisnahme-Quote: ' + e.message); }
 
-  // ISMS-Abdeckung (Annex-A / NIS2)
+  // IMS-Abdeckung – die Kennzahl bleibt bewusst ISO/NIS2 (Annex-A / NIS2)
   try {
     if (typeof _abdeckungData === 'function' && typeof NORMEN !== 'undefined') {
       const data = _abdeckungData();

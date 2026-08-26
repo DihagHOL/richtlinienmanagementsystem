@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Reifegrad / Gap-Analyse „IT und OT Betrieb" (im Reiter ISMS-Abdeckung)
+ * Reifegrad / Gap-Analyse „IT und OT Betrieb" (im Reiter IMS-Abdeckung)
  * =====================================================================
  * Bewertet jede Maßnahme des ISMS-Betriebs-Katalogs (REIFEGRAD_KATALOG) je
  * Werk (DIHAG/EIS/DSO) mit einer Ampel (🔴 nicht gelebt · 🟡 teilweise ·
@@ -415,7 +415,7 @@ function reifegradRestoreHidden() {
 }
 
 async function saveReifegrad() {
-  if (!_rgCanWrite()) { toast('Nur Lesezugriff auf „ISMS-Abdeckung".', 'error'); return; }
+  if (!_rgCanWrite()) { toast('Nur Lesezugriff auf „IMS-Abdeckung".', 'error'); return; }
   const btn = document.getElementById('rg-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {

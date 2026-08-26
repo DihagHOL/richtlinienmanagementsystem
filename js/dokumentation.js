@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════
    Dokumentation – vollständiges Benutzerhandbuch (für alle sichtbar)
    Rein statische Inhalte; rendert in #doku-mount. Ergänzt die kurze
-   „Anleitung" um alle Funktionen inkl. Health-Check, ISMS-Abdeckung,
+   „Anleitung" um alle Funktionen inkl. Health-Check, IMS-Abdeckung,
    Fälligkeiten, pro-Regelwerk-Prüfer/Freigeber und Export.
    Druckansicht über dokuPrint() (eigenständiges Fenster).
 ═══════════════════════════════════════════════════ */
@@ -42,7 +42,7 @@ const _DOKU_TOC = [
   ['konzepte',      'Regelwerk-Konzepte'],
   ['freigabe',      'Konformitätsprüfung & Freigabe'],
   ['health',        'Dokument-Health-Check'],
-  ['abdeckung',     'ISMS-Abdeckung & SoA'],
+  ['abdeckung',     'IMS-Abdeckung & SoA'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['risiken',       'Risiko-Register'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
@@ -91,7 +91,7 @@ function _dokuSections() {
         ['Konformitätsprüfer', 'Prüfen Regelwerke fachlich auf Konformität (ISO 27001 / NIS2) und markieren „konform / nicht konform". Global oder pro Regelwerk hinterlegbar.'],
         ['Geschäftsleitung', 'Gibt die geprüften Regelwerke frei → Veröffentlichung. Global oder pro Regelwerk hinterlegbar.'],
         ['Genehmiger', 'App-interne Freigabeberechtigung (wie GL); sieht den Reiter „Freigaben".'],
-        ['Administration', 'Regelwerke &amp; IMS-Dokumente verwalten, Health-Check, ISMS-Abdeckung, Fälligkeiten, Compliance-Auswertung, Einstellungen.'],
+        ['Administration', 'Regelwerke &amp; IMS-Dokumente verwalten, Health-Check, IMS-Abdeckung, Fälligkeiten, Compliance-Auswertung, Einstellungen.'],
         ['ISMS-Verantwortliche / Vorschlags-Empfänger', 'Erhalten und bearbeiten die Änderungsvorschläge (Reiter „Vorschläge").'],
         ['KI-Gremium', 'Entscheidet über KI-Anträge im KI-Dashboard (leer = Genehmiger-Liste gilt).'],
       ])}`,
@@ -178,7 +178,7 @@ function _dokuSections() {
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Regelwerke</b> (aktiv/veröffentlicht/Entwürfe/im Workflow) · <b>Prüfung &amp; Freigabe</b> (inkl. Alter des ältesten Vorgangs) · <b>Fälligkeiten</b> (überfällig / ≤ 30 Tage).</li>
-        <li style="${li}"><b>ISMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen).</li>
+        <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen).</li>
         <li style="${li}"><b>Audit Report</b> (Erfüllungsquote, offene Kenntnisnahmen) · <b>Vorschläge</b> (offen / in Bearbeitung).</li>
       </ul>
       <div style="${hint}">💡 Schnelle Kennzahlen erscheinen sofort; aufwendigere (Compliance-Quote, SoA, Risiken) laden im Hintergrund nach und füllen ihre Kachel, sobald sie da sind.</div>`,
@@ -211,7 +211,7 @@ function _dokuSections() {
         <li style="${li}"><b>Pflichtlektüre</b>, <b>Wissenstest</b> (Fragen + Bestehensquote), <b>Lernvideos</b>, <b>Wiederholungspflicht</b>.</li>
         <li style="${li}"><b>Dokumentenart und Kategorie</b> kommen beide aus der <b>Governance-Struktur</b> – dieselbe Systematik, in der das Konzernregelwerk geführt wird. Die <b>Dokumentenart</b> (Pflichtangabe) sind die <b>Spalten</b> der Matrix, also die Ebenen der Pyramide: Handbuch, Policy, Konzernrichtlinie … Unter dem Feld steht die Erklärung der gewählten Ebene. Die <b>Kategorie</b> sind die <b>Zeilen</b>, also das Themenfeld: Allgemein, Compliance, Security/Cyber Security … Wer dort umbenennt oder ergänzt, ändert damit die Auswahl im Editor. Ein bisheriger Wert bleibt wählbar, bis er ersetzt wird.</li>
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
-        <li style="${li}"><b>Normbezug</b> (eingeklappt, für jedes Regelwerk verfügbar): welche Controls/Artikel aus ISO 27001 bzw. NIS2 das Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „ISMS-Abdeckung").</li>
+        <li style="${li}"><b>Normbezug</b> (eingeklappt, für jedes Regelwerk verfügbar): welche Anforderungen aus Normen und Recht das Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „IMS-Abdeckung").</li>
         <li style="${li}"><b>Freigabe-Workflow</b> (ausklappbare Abschnitte): eigene <b>Prüfer</b> bzw. <b>Freigeber</b> nur für dieses Regelwerk (leer = globale Einstellung) und die <b>Mitbestimmung</b> (KBR / Betriebsräte je Werk). Die Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> lässt sich mit ▲▼ pro Regelwerk tauschen.</li>
         <li style="${li}"><b>Änderungshistorie</b> – ausklappbar, schreibgeschützt: wer wann was geändert oder entschieden hat (siehe unten).</li>
       </ul>
@@ -314,8 +314,8 @@ function _dokuSections() {
       </ul>`,
       'ISO 27001 Klausel 7.5.2/7.5.3 (Angemessenheit &amp; Lenkung dokumentierter Information), A.5.1 (Konsistenz der Regelwerke).'),
 
-    sec('abdeckung', 'ISMS-Abdeckung & SoA', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„ISMS-Abdeckung"</b> zeigt als Heatmap, welche ISO-27001-/NIS2-Controls durch mindestens eine Regelwerk abgedeckt sind.</p>
+    sec('abdeckung', 'IMS-Abdeckung & SoA', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„IMS-Abdeckung"</b> zeigt als Heatmap, welche der 215 Anforderungen aus Normen und Recht durch mindestens ein Regelwerk abgedeckt sind – ISO 27001 und NIS2, dazu Datenschutz, KI-Verordnung, Lieferkette, Hinweisgeberschutz, Arbeits- und Umweltschutz, Recht und IKS.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Grün = gespeichert</b> (im Normbezug einer Regelwerk hinterlegt), <b>Gelb ◔ = vorläufig</b> aus der Review-Zuordnung (noch nicht gespeichert), <b>Rot = Lücke</b>.</li>
         <li style="${li}">Oben die Kennzahlen <b>Annex-A</b> und <b>NIS2</b> (gespeichert bzw. inkl. Review), darunter die <b>Lückenliste</b>.</li>
@@ -486,7 +486,7 @@ function _dokuSections() {
         <li style="${li}">Die Ansicht liest beim Öffnen alle Modelle einmal ein (dafür der kurze Ladehinweis) und legt <b>keine eigenen Daten</b> an. Zuordnungen schreibt sie dorthin, wo sie hingehören: in die <b>BPMN-Datei</b> – dieselbe Stelle, die auch der Prozess-Editor beschreibt.</li>
       </ul>
       <div style="${h3}">📋 Standard-Prozesse</div>
-      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>13 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, KI-Antrag, Dokument-Health-Check, ISMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>13 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, KI-Antrag, Dokument-Health-Check, IMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
       <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: bereits vorhandene Prozesse werden übersprungen, angelegt wird erst nach Bestätigung. Die Diagramme sind saubere <b>Startvorlagen</b> mit Aufgaben und Entscheidungs-Gateways – danach frei anpassbar.</div>
       <div style="${h3}">„Aus Regelwerk" – so entsteht der Entwurf</div>
       <ul style="${ol}">
@@ -612,7 +612,7 @@ function dokumentationHtml() {
       <h2 style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">Dokumentation &amp; Benutzerhandbuch
         <button class="btn btn-outline btn-sm" onclick="dokuPrint()" title="Als PDF drucken">🖨 Drucken / PDF</button>
       </h2>
-      <p class="view-desc">Vollständige Anleitung zum Regelwerk-Management – von der Kenntnisnahme bis zu Konformitätsprüfung, Freigabe, ISMS-Abdeckung und Fälligkeiten. Welche Abschnitte für Sie relevant sind, zeigen die farbigen Rollen-Marker. Kurzfassung: Reiter <a href="#" onclick="event.preventDefault();switchView('anleitung')" style="color:var(--c-primary);font-weight:600">„Anleitung"</a>.</p>
+      <p class="view-desc">Vollständige Anleitung zum Regelwerk-Management – von der Kenntnisnahme bis zu Konformitätsprüfung, Freigabe, IMS-Abdeckung und Fälligkeiten. Welche Abschnitte für Sie relevant sind, zeigen die farbigen Rollen-Marker. Kurzfassung: Reiter <a href="#" onclick="event.preventDefault();switchView('anleitung')" style="color:var(--c-primary);font-weight:600">„Anleitung"</a>.</p>
     </div>
     <div class="doku-grid">
       <nav class="doku-toc">
