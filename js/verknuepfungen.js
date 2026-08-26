@@ -582,13 +582,22 @@ function vkModellOeffnen(knotenId) {
 /** Marker im BPMN-XML setzen/ersetzen/entfernen. Die Dokumentation des Prozesses
  *  ist laut Schema sein erstes Kindelement – dort steht sie auch beim Modeler. */
 function vkXmlMitRegelwerken(xml, ids) {
-  const namen = ids.map(id => {
-    const p = (typeof State !== 'undefined' && (State.policies || [])).find(x => String(x.id) === String(id));
-    return p ? p.title : ('Regelwerk ' + id);
-  });
-  const text = ids.length
-    ? `Im Einklang mit den Richtlinien: ${namen.join('; ')}\n[[rms:policies=${ids.join(',')}]]`
-    : '';
+  // Die Anlagen des Modells stehen in derselben Dokumentation, die hier neu
+  // geschrieben wird. Ohne sie vorher auszulesen, löschte ein Klick auf
+  // „Regelwerk zuordnen" jedes hinterlegte Dokument mit.
+  const anlagen = (typeof _parseProcessDocs === 'function') ? _parseProcessDocs(xml) : [];
+  let text;
+  if (typeof _procDokuText === 'function') {
+    text = _procDokuText(ids, anlagen);
+  } else {
+    const namen = ids.map(id => {
+      const p = (typeof State !== 'undefined' && (State.policies || [])).find(x => String(x.id) === String(id));
+      return p ? p.title : ('Regelwerk ' + id);
+    });
+    text = ids.length
+      ? `Im Einklang mit den Richtlinien: ${namen.join('; ')}\n[[rms:policies=${ids.join(',')}]]`
+      : '';
+  }
   const esc2 = (t) => (typeof _xmlEsc === 'function') ? _xmlEsc(t)
     : String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

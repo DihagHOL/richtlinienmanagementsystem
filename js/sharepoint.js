@@ -1875,6 +1875,9 @@ async function spSaveLandkarte(daten) {
    liegt im BPMN-XML selbst (Prozess-Dokumentation), keine Extra-Liste nötig.
 ═══════════════════════════════════════════════════ */
 const PROCESS_FOLDER = 'Prozesse';
+// Anlagen liegen neben den Modellen, nicht zwischen ihnen: ein eigener
+// Unterordner haelt die Prozessliste sauber (sie liest nur .bpmn).
+const PROC_DOC_FOLDER = 'Anlagen';
 const PROC_FELDER = '?$select=id,name,size,webUrl,folder,lastModifiedDateTime,lastModifiedBy&$top=200';
 
 /** Werk-Kürzel auf einen unbedenklichen Ordnernamen eindampfen ('' = ohne Werk). */
@@ -1948,7 +1951,7 @@ async function spListProcesses() {
   const kinder = wurzel.value || [];
   // Jeder Unterordner ist ein Werk. Ein Ordner, der keinem bekannten Werk
   // entspricht, wird trotzdem gelesen - lieber anzeigen als verschlucken.
-  const unter = await Promise.all(kinder.filter(f => f.folder).map(async (o) => {
+  const unter = await Promise.all(kinder.filter(f => f.folder && f.name !== PROC_DOC_FOLDER).map(async (o) => {
     try {
       const d = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${o.id}/children${PROC_FELDER}`, token);
       return bpmn(d.value, o.name);
@@ -2023,6 +2026,44 @@ async function spMoveProcess(itemId, werk, neuerName) {
       : `Verschieben fehlgeschlagen (${res.status})`);
   }
   return res.json();
+}
+
+/**
+ * Ein Dokument an einem Prozess hinterlegen. Die Datei landet neben dem Modell
+ * in „Prozesse/<Werk>/Anlagen". Zurück kommt die Kennung, nicht der Pfad:
+ * verschiebt jemand die Datei später, hält der Verweis trotzdem.
+ */
+async function spUploadProcessDoc(werk, filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const eltern = ordner
+    ? `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(ordner)}`
+    : encodeURIComponent(PROCESS_FOLDER);
+  const angelegt = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${eltern}:/children`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: PROC_DOC_FOLDER, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+  });
+  // 409 heißt: gibt es schon – der Normalfall ab der zweiten Anlage.
+  if (!angelegt.ok && angelegt.status !== 409) console.warn(`Ordner „${PROC_DOC_FOLDER}" nicht angelegt (${angelegt.status})`);
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_').trim() || 'dokument';
+  const teile = [PROCESS_FOLDER];
+  if (ordner) teile.push(ordner);
+  teile.push(PROC_DOC_FOLDER, safe);
+  const pfad = teile.map(encodeURIComponent).join('/');
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${pfad}:/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(`Hochladen fehlgeschlagen (${res.status}): ${String(t).slice(0, 200)}`);
+  }
+  const d = await res.json();
+  return { driveId: _sp.ismsDriveId, itemId: d.id, name: d.name, url: d.webUrl || '' };
 }
 
 /** Prozessdatei löschen. */

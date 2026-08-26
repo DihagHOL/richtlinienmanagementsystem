@@ -44,6 +44,66 @@ function procLinksMerken(key, ids) {
 
 const PROC_POLICY_MARKER = /\[\[rms:policies=([^\]]*)\]\]/;
 
+/* ── Hinterlegte Dokumente ──
+   Ein Modell zeigt den Ablauf, aber nicht das Beiwerk: Merkblatt, Formular,
+   Kundeninformation. Diese Verweise stehen – wie die Richtlinien – im BPMN
+   selbst. Wer die Datei exportiert oder in ein anderes Werk verschiebt, nimmt
+   sie mit; eine zusätzliche SharePoint-Liste braucht es dafür nicht.
+   Format je Dokument: [[rms:doc=Name|Adresse|Bibliothek|Kennung]] */
+const PROC_DOC_MARKER = /\[\[rms:doc=([^\]]*)\]\]/g;
+let _procDocs = [];             // Anlagen des gerade offenen Modells
+
+/** Ein Feld für den Marker tauglich machen: Trenner und Klammern raus. */
+function _docFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, ' ').trim(); }
+
+/** Gegenstück zu _xmlEsc – im gespeicherten XML stehen die Entitäten. */
+function _xmlUnesc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');   // zuletzt, sonst entstehen aus &amp;lt; spitze Klammern
+}
+
+/** Die Anlagen eines Modells aus seinem BPMN-XML lesen. */
+function _parseProcessDocs(xml) {
+  const re = new RegExp(PROC_DOC_MARKER.source, 'g');
+  const out = [];
+  let m;
+  while ((m = re.exec(String(xml || '')))) {
+    const t = _xmlUnesc(m[1]).split('|').map(x => (x || '').trim());
+    if (t[0] || t[1]) out.push({ name: t[0] || 'Dokument', url: t[1] || '', driveId: t[2] || '', itemId: t[3] || '' });
+  }
+  return out;
+}
+
+function _procDocMarker(d) {
+  return `[[rms:doc=${_docFeld(d.name)}|${_docFeld(d.url)}|${_docFeld(d.driveId)}|${_docFeld(d.itemId)}]]`;
+}
+
+/**
+ * Der Text, der Verknüpfungen und Anlagen im Modell festhält: erst im Klartext
+ * (damit auch ein fremder Modeler sie zeigt), dann als Marker.
+ */
+function _procDokuText(ids, docs) {
+  ids = (ids || []).map(String);
+  docs = (docs || []).filter(d => d && (d.name || d.url));
+  const zeilen = [];
+  if (ids.length) {
+    const pols = (typeof State !== 'undefined' && State.policies) || [];
+    const namen = ids.map(id => {
+      const pol = pols.find(x => String(x.id) === String(id));
+      return pol ? pol.title : ('Richtlinie ' + id);
+    });
+    zeilen.push(`Im Einklang mit den Richtlinien: ${namen.join('; ')}`);
+    zeilen.push(`[[rms:policies=${ids.join(',')}]]`);
+  }
+  if (docs.length) {
+    zeilen.push(`Hinterlegte Dokumente: ${docs.map(d => _docFeld(d.name)).join('; ')}`);
+    docs.forEach(d => zeilen.push(_procDocMarker(d)));
+  }
+  return zeilen.join('\n');
+}
+
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
 const DEFAULT_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -199,7 +259,10 @@ function _renderProcCards() {
   // Verknüpfte Richtlinien pro Karte (aus dem BPMN-XML) – progressiv, mit Cache.
   rows.forEach(p => {
     const key = p.itemId + '|' + p.modified;
-    if (_procLinkCache[key]) _renderCardLink(p.itemId, _procLinkCache[key]);
+    const e = _procLinkCache[key];
+    // Alte Cache-Einträge waren eine reine Id-Liste – die dürfen nicht
+    // durchfallen, sonst liest die App beim ersten Start alles neu.
+    if (e) _renderCardLink(p.itemId, Array.isArray(e) ? e : e.p, Array.isArray(e) ? 0 : e.d);
     else _enrichProcessCard(p, key);
   });
 }
@@ -260,22 +323,27 @@ async function _enrichProcessCard(p, key) {
   try {
     const xml = await spGetProcessXml(p.itemId);
     const ids = _parsePolicyIds(xml);
-    procLinksMerken(key, ids);
-    _renderCardLink(p.itemId, ids);
+    const docs = _parseProcessDocs(xml).length;
+    procLinksMerken(key, { p: ids, d: docs });
+    _renderCardLink(p.itemId, ids, docs);
   } catch (e) {
     const el = document.getElementById('proc-link-' + p.itemId);
     if (el) el.textContent = '';
   }
 }
 
-function _renderCardLink(itemId, ids) {
+function _renderCardLink(itemId, ids, docs) {
   const el = document.getElementById('proc-link-' + itemId);
   if (!el) return;
-  if (!ids || !ids.length) { el.innerHTML = '<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span>'; return; }
+  const anlagen = docs ? `<span class="ic-tag" title="hinterlegte Dokumente">📎 ${docs}</span>` : '';
+  if (!ids || !ids.length) {
+    el.innerHTML = `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${anlagen}`;
+    return;
+  }
   el.innerHTML = '🔗 ' + ids.map(id => {
     const pol = (State.policies || []).find(x => String(x.id) === String(id));
     return `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(pol ? pol.title : 'Richtlinie ' + id)}</span>`;
-  }).join(' ');
+  }).join(' ') + (anlagen ? ' ' + anlagen : '');
 }
 
 function _parsePolicyIds(xml) {
@@ -323,10 +391,23 @@ async function openProcessEditor(itemId, seed) {
         <div class="form-group full"><label>Verknüpfte Richtlinien</label>
           <div id="proc-policy-list" style="max-height:230px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
           <span class="field-hint">Welche Richtlinien dieser Prozess umsetzt. Wird in der BPMN-Datei gespeichert und im Prozess dokumentiert.</span></div>
+        <div class="form-group full"><label>Hinterlegte Dokumente</label>
+          <div id="proc-doc-list" style="border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
+          ${canWrite ? `<div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-doc-input').click()"
+              title="Datei hochladen und an diesem Prozess hinterlegen">📎 Datei</button>
+            <button class="btn btn-outline btn-sm" onclick="prozessDokLink()"
+              title="Dokument verlinken, das bereits abgelegt ist">🔗 Link</button>
+            <input type="file" id="proc-doc-input" style="display:none" onchange="prozessDokHochladen(this)">
+          </div>` : ''}
+          <span class="field-hint">Merkblatt, Formular, Kundeninformation – was zum Ablauf gehört, aber nicht ins Diagramm passt.
+            Hochgeladene Dateien liegen in „Prozesse/&lt;Kürzel&gt;/Anlagen"; verknüpft wird ihre Kennung, nicht der Pfad.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
       </div>
     </div>`;
+  _procDocs = (seed && Array.isArray(seed.docs)) ? seed.docs.slice() : [];
   _renderPolicyPicker([], canWrite);
+  _renderProcDocs(canWrite);
 
   try {
     await _ensureBpmnLib();
@@ -340,11 +421,12 @@ async function openProcessEditor(itemId, seed) {
 
   let xml = DEFAULT_BPMN, ids = [];
   if (itemId) {
-    try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); }
+    try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); _procDocs = _parseProcessDocs(xml); }
     catch (e) { toast('Prozess laden fehlgeschlagen: ' + e.message, 'error'); }
   } else if (seed && seed.xml) {
     xml = seed.xml;
     ids = (seed.policyIds && seed.policyIds.length) ? seed.policyIds : _parsePolicyIds(xml);
+    if (!_procDocs.length) _procDocs = _parseProcessDocs(xml);
   }
   try {
     await _bpmnModeler.importXML(xml);
@@ -356,6 +438,87 @@ async function openProcessEditor(itemId, seed) {
     if (st) st.innerHTML = `<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`;
   }
   _renderPolicyPicker(ids, canWrite);
+  _renderProcDocs(canWrite);
+}
+
+/* ── Anlagen im Editor ── */
+
+function _renderProcDocs(canWrite) {
+  const host = document.getElementById('proc-doc-list');
+  if (!host) return;
+  if (!_procDocs.length) { host.innerHTML = '<span class="field-hint">Noch kein Dokument hinterlegt.</span>'; return; }
+  host.innerHTML = _procDocs.map((d, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:.82rem">
+      <span>📎</span>
+      ${d.url
+        ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
+        : `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</span>`}
+      ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px"
+        title="Verknüpfung entfernen – die Datei selbst bleibt in der Bibliothek"
+        onclick="prozessDokEntfernen(${i})">×</button>` : ''}
+    </div>`).join('');
+}
+
+/**
+ * Eine Datei hochladen und am Prozess hinterlegen. Ist das Modell schon
+ * gespeichert, wird die Verknüpfung gleich mitgeschrieben – sonst läge die
+ * Datei zwar in der Bibliothek, aber niemand fände sie.
+ */
+async function prozessDokHochladen(input) {
+  const file = input && input.files && input.files[0];
+  if (input) input.value = '';
+  if (!file) return;
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  if (file.size > 4 * 1024 * 1024) {
+    toast('Die Datei ist größer als 4 MB – bitte in der Bibliothek ablegen und hier als „🔗 Link" hinterlegen.', 'error');
+    return;
+  }
+  const st = document.getElementById('proc-status');
+  if (st) st.textContent = `„${file.name}" wird hochgeladen …`;
+  try {
+    const werk = (document.getElementById('proc-werk') || {}).value || '';
+    const bytes = await file.arrayBuffer();
+    const d = await spUploadProcessDoc(werk, file.name, bytes, file.type || 'application/octet-stream');
+    // Dieselbe Datei ein zweites Mal hochgeladen: ersetzen statt verdoppeln.
+    _procDocs = _procDocs.filter(x => !x.itemId || String(x.itemId) !== String(d.itemId));
+    _procDocs.push({ name: d.name, url: d.url, driveId: d.driveId, itemId: d.itemId });
+    _renderProcDocs(true);
+    if (st) st.textContent = '';
+    if (_procEditing && _procEditing.itemId) await saveProcess();
+    else toast('Dokument hinterlegt – es wird beim Speichern des Prozesses verknüpft.', 'success');
+  } catch (e) {
+    if (st) st.textContent = '';
+    toast('Hochladen fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+/** Ein bereits abgelegtes Dokument nur verlinken (auch für Dateien über 4 MB). */
+async function prozessDokLink() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const url = await uiPrompt('Adresse (URL) des Dokuments:', {
+    title: 'Dokument verlinken', okLabel: 'Weiter', multiline: false,
+    placeholder: 'https://dihag.sharepoint.com/…' });
+  if (!url || !url.trim()) return;
+  const vorschlag = decodeURIComponent(String(url).split(/[?#]/)[0].split('/').pop() || '').trim();
+  const name = await uiPrompt('Anzeigename:', {
+    title: 'Dokument verlinken', okLabel: 'Hinterlegen', multiline: false, value: vorschlag });
+  if (name === null) return;
+  _procDocs.push({ name: (name || vorschlag || 'Dokument').trim(), url: url.trim(), driveId: '', itemId: '' });
+  _renderProcDocs(true);
+  if (_procEditing && _procEditing.itemId) await saveProcess();
+  else toast('Link hinterlegt – er wird beim Speichern des Prozesses verknüpft.', 'success');
+}
+
+/** Nur die Verknüpfung lösen. Die Datei zu löschen ist eine andere
+ *  Entscheidung – sie kann anderswo gebraucht werden. */
+async function prozessDokEntfernen(i) {
+  const d = _procDocs[i];
+  if (!d) return;
+  if (!await uiConfirm(`„${esc(d.name)}" vom Prozess lösen?<br><span class="field-hint">Die Datei selbst bleibt in der Bibliothek liegen.</span>`,
+    { title: 'Dokument lösen', okLabel: 'Lösen' })) return;
+  _procDocs.splice(i, 1);
+  _renderProcDocs(true);
+  if (_procEditing && _procEditing.itemId) await saveProcess();
 }
 
 function _renderPolicyPicker(selectedIds, canWrite) {
@@ -376,22 +539,18 @@ function _selectedPolicyIds() {
   return [...document.querySelectorAll('#proc-policy-list input[type=checkbox]:checked')].map(c => c.value);
 }
 
-/** Richtlinien-Verknüpfung in die Prozess-Dokumentation schreiben (Marker + Klartext). */
-function _setProcessPolicies(ids) {
+/** Richtlinien und Anlagen in die Prozess-Dokumentation schreiben (Klartext + Marker). */
+function _setProcessDoku(ids, docs) {
   if (!_bpmnModeler) return;
   try {
     const root = _bpmnModeler.get('canvas').getRootElement();
     const bo = root && root.businessObject;
     if (!bo) return;
     const moddle = _bpmnModeler.get('moddle');
-    if (!ids || !ids.length) { bo.documentation = undefined; return; }
-    const names = ids.map(id => {
-      const p = (State.policies || []).find(x => String(x.id) === String(id));
-      return p ? p.title : ('Richtlinie ' + id);
-    });
-    const text = `Im Einklang mit den Richtlinien: ${names.join('; ')}\n[[rms:policies=${ids.join(',')}]]`;
+    const text = _procDokuText(ids, docs);
+    if (!text) { bo.documentation = undefined; return; }
     bo.documentation = [moddle.create('bpmn:Documentation', { text })];
-  } catch (e) { console.warn('Richtlinien-Verknüpfung nicht gesetzt:', e.message); }
+  } catch (e) { console.warn('Prozess-Dokumentation nicht gesetzt:', e.message); }
 }
 
 async function saveProcess() {
@@ -402,7 +561,7 @@ async function saveProcess() {
   const btn = document.getElementById('proc-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {
-    _setProcessPolicies(_selectedPolicyIds());
+    _setProcessDoku(_selectedPolicyIds(), _procDocs);
     const { xml } = await _bpmnModeler.saveXML({ format: true });
     const werk = (document.getElementById('proc-werk') || {}).value || '';
     const newFname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';
@@ -430,7 +589,7 @@ async function saveProcess() {
 async function downloadProcessXml() {
   if (!_bpmnModeler) return;
   try {
-    _setProcessPolicies(_selectedPolicyIds());
+    _setProcessDoku(_selectedPolicyIds(), _procDocs);
     const { xml } = await _bpmnModeler.saveXML({ format: true });
     const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
     const fname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';
@@ -602,8 +761,14 @@ function _parseSteps(text) {
     let role = '';
     const m = l.match(/^([A-Za-zÄÖÜäöüß./&-]{2,28}?):\s+(.+)$/);
     if (m && m[2] && m[2].length >= 2 && !/\d/.test(m[1])) { role = m[1].trim(); l = m[2].trim(); }
+    // „…? | nein: Text" benennt den Nein-Zweig. Ohne die Angabe endet jede
+    // Entscheidung in „Abweichung behandeln" – bei einer Frage wie „Kann der
+    // Kunde betroffen sein?" ist das schlicht falsch.
+    let nein = '';
+    const nm2 = l.match(/\|\s*nein\s*:\s*(.+)$/i);
+    if (nm2) { nein = nm2[1].trim(); l = l.slice(0, nm2.index).trim(); }
     const isDecision = (/\?\s*$/.test(l) || (decWord.test(l) && l.length < 70));
-    steps.push({ kind: isDecision ? 'decision' : 'task', label: l, role });
+    steps.push({ kind: isDecision ? 'decision' : 'task', label: l, role, nein });
   }
   return steps;
 }
@@ -612,7 +777,7 @@ function _parseSteps(text) {
  * Standards-konformes BPMN 2.0 aus Freitext bauen (Aufgaben + Entscheidungs-
  * Gateways mit ja/nein-Zweig, inkl. DI-Layout). @returns { name, xml, policyIds }
  */
-function _bpmnFromText(text, name, policyIds) {
+function _bpmnFromText(text, name, policyIds, docs) {
   let steps = _parseSteps(text);
   if (!steps.length) steps = [
     { kind: 'task', label: 'Richtlinie anwenden/prüfen', role: '' },
@@ -645,8 +810,8 @@ function _bpmnFromText(text, name, policyIds) {
       // Nein-Zweig nach unten
       const cxGw = x + 25;
       const rid = 'Rej' + i, reid = 'RejEnd' + i, by = MY + 130;
-      shapes.push({ id: rid, type: 'task', name: 'Abweichung behandeln', x: cxGw - 60, y: by, w: 120, h: 80 });
-      shapes.push({ id: reid, type: 'endEvent', name: 'Nachbessern', x: cxGw - 60 + 120 + 40, y: by + 22, w: 36, h: 36 });
+      shapes.push({ id: rid, type: 'task', name: _clipLabel(s.nein, '') || 'Abweichung behandeln', x: cxGw - 60, y: by, w: 120, h: 80 });
+      shapes.push({ id: reid, type: 'endEvent', name: s.nein ? 'Beendet' : 'Nachbessern', x: cxGw - 60 + 120 + 40, y: by + 22, w: 36, h: 36 });
       addFlow(gid, rid, 'nein');
       addFlow(rid, reid, '');
       prev = gid; prevGw = true;
@@ -663,13 +828,8 @@ function _bpmnFromText(text, name, policyIds) {
   shapes.push({ id: 'End', type: 'endEvent', name: 'Abgeschlossen', x: x, y: MY - 18, w: 36, h: 36 });
   addFlow(prev, 'End', prevGw ? 'ja' : '');
 
-  // Prozess-Dokumentation mit Richtlinien-Marker
-  const names = policyIds.map(id => {
-    const p = (State.policies || []).find(x2 => String(x2.id) === id);
-    return p ? p.title : ('Richtlinie ' + id);
-  });
-  const docText = (names.length ? ('Im Einklang mit den Richtlinien: ' + names.join('; ') + '\n') : '')
-    + (policyIds.length ? `[[rms:policies=${policyIds.join(',')}]]` : '');
+  // Prozess-Dokumentation mit Richtlinien- und Anlagen-Markern
+  const docText = _procDokuText(policyIds, docs);
 
   // Prozess-Kinder serialisieren (mit incoming/outgoing – für bpmn-js nötig)
   const byId = {}; shapes.forEach(sh => byId[sh.id] = sh);
@@ -715,7 +875,7 @@ ${di.join('\n')}
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-  return { name: name || 'Prozess', xml, policyIds };
+  return { name: name || 'Prozess', xml, policyIds, docs: (docs || []) };
 }
 
 /* ── Standard-Prozesse aus den dokumentierten RMS-Abläufen ──
@@ -849,5 +1009,6 @@ async function seedStandardProcesses() {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS };
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
+    _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc };
 }
