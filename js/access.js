@@ -481,7 +481,7 @@ const GOVERNABLE_TABS = [
   { view: 'ismsdocs',    label: 'IMS-Dokumente', kurz: 'IMS-Dok.' },
   { view: 'governance',  label: 'Governance-Board' , kurz: 'Governance' },
   { view: 'govstruktur', label: 'Governance-Struktur', kurz: 'Gov-Struktur' },
-  { view: 'prozesse',    label: 'Prozesse (BPMN)' , kurz: 'Prozesse' },
+  { view: 'prozesse',    label: 'Prozesse & Landkarte' , kurz: 'Prozesse' },
   { view: 'abdeckung',   label: 'IMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
   { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
   { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },

@@ -173,6 +173,175 @@ const LK_KONZERN = {
   ],
 };
 
+/**
+ * Aufbau einer Holdinggesellschaft – nach der Skizze der Geschäftsführung.
+ * Nicht Führungs-/Kern-/Unterstützungsprozesse, sondern die Funktionen einer
+ * Holding: was sie steuert, finanziert, überwacht – und was die Töchter tun.
+ * Jeder Kasten der Skizze ist ein Band, seine Punkte sind die Kacheln.
+ */
+const LK_HOLDING = {
+  baender: [
+    { key: 'strategie',     titel: 'Strategie' },
+    { key: 'finanzierung',  titel: 'Finanzierung' },
+    { key: 'controlling',   titel: 'Konzern-Controlling' },
+    { key: 'personal',      titel: 'Personalwesen und Organisation' },
+    { key: 'beteiligungen', titel: 'Beteiligungsverwaltung' },
+    { key: 'beratung',      titel: 'Beratung' },
+    { key: 'ueberwachung',  titel: 'Überwachung' },
+    { key: 'toechter',      titel: 'Tochterunternehmen (operatives Geschäft)' },
+  ],
+  kacheln: [
+    { id: 'hd-vision',      band: 'strategie', name: 'Vision & Leitbild', unter: '' },
+    { id: 'hd-regelwerke',  band: 'strategie', name: 'Regelwerke', unter: 'Konzernregelungen erstellen und in Kraft setzen' },
+    { id: 'hd-portfolio',   band: 'strategie', name: 'Portfolio', unter: '' },
+    { id: 'hd-orgmass',     band: 'strategie', name: 'Organisatorische Maßnahmen', unter: '' },
+
+    { id: 'hd-budget',      band: 'finanzierung', name: 'Budgetplanung', unter: '' },
+    { id: 'hd-liquiditaet', band: 'finanzierung', name: 'Liquiditätsplanung', unter: '' },
+    { id: 'hd-treasury',    band: 'finanzierung', name: 'Treasury', unter: '' },
+    { id: 'hd-kapital',     band: 'finanzierung', name: 'Kapitalstruktur', unter: '' },
+    { id: 'hd-aussenfin',   band: 'finanzierung', name: 'Außenfinanzierung', unter: '' },
+
+    { id: 'hd-planung',     band: 'controlling', name: 'Planungssysteme', unter: '' },
+    { id: 'hd-kontrolle',   band: 'controlling', name: 'Kontrollsysteme', unter: '' },
+    { id: 'hd-bericht',     band: 'controlling', name: 'Berichtswesen', unter: '' },
+    { id: 'hd-risiko',      band: 'controlling', name: 'Risikomanagement', unter: '' },
+
+    { id: 'hd-perstrat',    band: 'personal', name: 'Konzernweite Personalstrategie', unter: '' },
+    { id: 'hd-persentw',    band: 'personal', name: 'Personalentwicklung', unter: '' },
+    { id: 'hd-fuehrkraft',  band: 'personal', name: 'Führungskräfteentwicklung', unter: '' },
+    { id: 'hd-persentsch',  band: 'personal', name: 'Konzernweite Personalentscheidungen', unter: '' },
+
+    { id: 'hd-erwerb',      band: 'beteiligungen', name: 'Erwerb von Beteiligungen', unter: '' },
+    { id: 'hd-verwaltung',  band: 'beteiligungen', name: 'Verwaltung von Beteiligungen', unter: '' },
+    { id: 'hd-portanp',     band: 'beteiligungen', name: 'Portfolioanpassung', unter: '' },
+    { id: 'hd-ressourcen',  band: 'beteiligungen', name: 'Konzerninterne Ressourcenallokation', unter: '' },
+
+    { id: 'hd-recht',       band: 'beratung', name: 'Rechtsberatung', unter: '' },
+    { id: 'hd-vertrag',     band: 'beratung', name: 'Vertragsmanagement', unter: '' },
+    { id: 'hd-ma',          band: 'beratung', name: 'M&A-Unterstützung', unter: '' },
+    { id: 'hd-govern',      band: 'beratung', name: 'Corporate Governance', unter: '' },
+    { id: 'hd-regulierung', band: 'beratung', name: 'Regulierungsmanagement', unter: '' },
+
+    { id: 'hd-compliance',  band: 'ueberwachung', name: 'Compliance-Management', unter: '' },
+    { id: 'hd-datenschutz', band: 'ueberwachung', name: 'Datenschutz', unter: '' },
+    { id: 'hd-export',      band: 'ueberwachung', name: 'Exportkontrolle', unter: '' },
+    { id: 'hd-revision',    band: 'ueberwachung', name: 'Interne Revision', unter: '' },
+    { id: 'hd-frueh',       band: 'ueberwachung', name: 'Risikofrüherkennung', unter: '' },
+
+    { id: 'hd-tagesgesch',  band: 'toechter', name: 'Operative Tagesgeschäftsführung', unter: '' },
+    { id: 'hd-ergebnis',    band: 'toechter', name: 'Ergebnisverantwortung', unter: '' },
+    { id: 'hd-umsetzung',   band: 'toechter', name: 'Umsetzung der Konzernstrategie', unter: '' },
+  ],
+};
+
+/**
+ * Die abgestimmte Konzern-Prozesslandkarte – Führung, Kernprozesse,
+ * Unterstützungsprozesse mit den Teilprozessen je Kachel. Das ist der ganze
+ * Konzern inklusive Gießerei, nicht nur die Holding.
+ */
+const LK_KONZERNKARTE = {
+  baender: [
+    { key: 'fuehrung',       titel: 'Führung' },
+    { key: 'kern',           titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    { id: 'kk-strategie', band: 'fuehrung', name: 'Strategie- und Konzernentwicklung',
+      unter: 'Strategieentwicklung · Markt- und Wettbewerbsanalyse · Portfolio & Standortstrategie · Technologie- & Innovationsstrategie · Investitionsstrategie' },
+    { id: 'kk-transform', band: 'fuehrung', name: 'Strategieumsetzung & Transformation',
+      unter: 'Strategische Projekte · Projektportfolio · Lean, Operational Excellence, KVP (TRIPLE-FIVE) · Change Management · Best-Practice-Transfer' },
+    { id: 'kk-finanzen', band: 'fuehrung', name: 'Finanzielle Unternehmenssteuerung',
+      unter: 'Konzernplanung & Budget · Forecast · KPI, Performance Management, Management Reporting · Liquiditätsmanagement · Investitionscontrolling · Banken-/Finanzierungsmanagement' },
+    { id: 'kk-governance', band: 'fuehrung', name: 'Corporate Governance, Risk & Compliance',
+      unter: 'Governance-System · Konzernrichtlinien · Risikomanagement · Compliance · Datenschutz-Governance · Internes Kontrollsystem · Krisenmanagement' },
+    { id: 'kk-recht', band: 'fuehrung', name: 'Recht- & Vertragsmanagement',
+      unter: 'Gesellschaftsrecht · Vertragsmanagement · Legal Claims · M&A · Restrukturierung · regulatorische Anforderungen' },
+    { id: 'kk-organisation', band: 'fuehrung', name: 'Organisation, Führung & Personalstrategie',
+      unter: 'Organisationsentwicklung · Führungsmodell · Personalstrategie · Führungskräfte- und Mitarbeiterentwicklung · Nachfolgeplanung · Kompetenzentwicklung · Unternehmenskultur, Leitbild' },
+    { id: 'kk-kommunikation', band: 'fuehrung', name: 'Kommunikation & Stakeholder Management',
+      unter: 'Kommunikationsstrategie · Interne Kommunikation · Externe Kommunikation, Corporate Identity · Krisenkommunikation · Stakeholdermanagement' },
+
+    { id: 'kk-markt', band: 'kern', name: 'Markt- u. Geschäftsentwicklung',
+      unter: 'Marktanalyse · Zielmärkte · Kundenentwicklung · Business Development' },
+    { id: 'kk-engineering', band: 'kern', name: 'Engineering & Produktentwicklung',
+      unter: 'Kundenanforderungen · Konstruktion (perspektivisch) · Gießsimulation + Prozessentwicklung · Kalkulation' },
+    { id: 'kk-vertrieb', band: 'kern', name: 'Vertrieb & Angebotsmanagement',
+      unter: 'Anfrage · Angebot · Verhandlung · Auftrag' },
+    { id: 'kk-auftrag', band: 'kern', name: 'Auftragsabwicklung & Produktionsplanung',
+      unter: 'Produktionsplanung · Kapazitätsplanung · Materialplanung · Terminplanung' },
+    { id: 'kk-produktion', band: 'kern', name: 'Produktion & Wertschöpfung',
+      unter: 'Modellbereitstellung · Kerne fertigen · Formen · Schmelzen & Gießen · Putzen · Wärmebehandlung · Bearbeitung' },
+    { id: 'kk-qs', band: 'kern', name: 'Qualitätssicherung',
+      unter: 'Prüfung · Qualitätsplanung · Reklamationsmanagement · 8D · Kundenfreigaben' },
+    { id: 'kk-versand', band: 'kern', name: 'Versand & Logistik', unter: '' },
+
+    { id: 'kk-personal', band: 'unterstuetzung', name: 'Personalmanagement',
+      unter: 'Recruiting · Personaladministration · Payroll · Ausbildung · Weiterbildung' },
+    { id: 'kk-it', band: 'unterstuetzung', name: 'IT & Digitalisierung',
+      unter: 'IT-Infrastruktur · ERP – SAP S/4HANA · Power BI / Reporting-Applikationen · Digital Workplace · KI und Automatisierung' },
+    { id: 'kk-einkauf', band: 'unterstuetzung', name: 'Einkauf & Supply Management',
+      unter: 'Strategischer Einkauf · Energiebeschaffung · Operativer Einkauf · Lead-Buyer-Konzept / Warengruppenmanagement · Lieferantenmanagement · Lieferantenentwicklung' },
+    { id: 'kk-rewe', band: 'unterstuetzung', name: 'Rechnungswesen & Administration',
+      unter: 'Kreditoren · Debitoren · Hauptbuch · Anlagenbuchhaltung · internes Rechnungswesen · Zahlungsverkehr · Konzernabschluss · Steuerwesen' },
+    { id: 'kk-qm', band: 'unterstuetzung', name: 'Qualitätsmanagement & Systeme',
+      unter: 'QM-System · Zertifizierungen · Audits · Standards · KVP' },
+    { id: 'kk-wissen', band: 'unterstuetzung', name: 'Wissensmanagement',
+      unter: 'Best Practices · Lessons Learned · Know-how-Transfer · Dokumentenmanagement / SharePoint' },
+    { id: 'kk-technik', band: 'unterstuetzung', name: 'Technische Services, Instandhaltung & Umwelt',
+      unter: 'Instandhaltungsmanagement · Gebäudemanagement · Energiemanagement · Umweltmanagement · Arbeitssicherheit & Gesundheitsschutz · Technische Investitionen · Genehmigungen & technische Compliance' },
+  ],
+};
+
+/**
+ * Gesamtbild einer Führungsholding – aus den drei Vorlagen zusammengeführt.
+ * Die Form der Prozesslandkarte (Bänder statt Kästen), gefüllt mit dem, was
+ * eine Holding tatsächlich tut, und mit der Schnittstelle zu den Töchtern als
+ * eigenem Band: Ohne sie endet jede Konzernlandkarte dort, wo die Arbeit
+ * anfängt. Die Kernprozesse einer Holding sind nicht Gießen, sondern
+ * Beteiligungen führen und Kapital verteilen.
+ */
+const LK_KONZERN_GESAMT = {
+  baender: [
+    { key: 'steuern',     titel: 'Steuern & Ausrichten' },
+    { key: 'kapital',     titel: 'Kapital & Beteiligungen (Kernprozesse der Holding)' },
+    { key: 'ueberwachen', titel: 'Überwachen & Absichern' },
+    { key: 'services',    titel: 'Konzernservices' },
+    { key: 'umsetzen',    titel: 'Umsetzung in den Gesellschaften' },
+  ],
+  kacheln: [
+    { id: 'kg-strategie',  band: 'steuern', name: 'Strategie & Portfolio', unter: 'Vision, Leitbild, Zielmärkte, Standortstrategie' },
+    { id: 'kg-regelwerk',  band: 'steuern', name: 'Konzernregelwerk', unter: 'Regelungen erstellen, freigeben, überwachen (RMS)' },
+    { id: 'kg-planung',    band: 'steuern', name: 'Konzernplanung & Budget', unter: 'Planung, Forecast, Investitionsentscheidungen' },
+    { id: 'kg-controlling',band: 'steuern', name: 'Konzern-Controlling', unter: 'Planungs- und Kontrollsysteme, Berichtswesen, KPI' },
+    { id: 'kg-transform',  band: 'steuern', name: 'Transformation', unter: 'Programme, Change, Best-Practice-Transfer' },
+
+    { id: 'kg-finanzierung', band: 'kapital', name: 'Finanzierung & Treasury', unter: 'Kapitalstruktur, Liquidität, Banken, Außenfinanzierung' },
+    { id: 'kg-beteiligung',  band: 'kapital', name: 'Beteiligungsverwaltung', unter: 'Erwerb, Verwaltung, Portfolioanpassung' },
+    { id: 'kg-ma',           band: 'kapital', name: 'M&A und Restrukturierung', unter: 'Transaktionen, Integration, Legal Claims' },
+    { id: 'kg-ressourcen',   band: 'kapital', name: 'Ressourcenallokation', unter: 'Mittel und Kapazitäten zwischen den Gesellschaften' },
+
+    { id: 'kg-compliance', band: 'ueberwachen', name: 'Compliance-Management', unter: 'Verhaltenskodex, Kartellrecht, Antikorruption' },
+    { id: 'kg-iks',        band: 'ueberwachen', name: 'Risikofrüherkennung & IKS', unter: 'Risiken, Kontrollen, Krisenmanagement' },
+    { id: 'kg-sicherheit', band: 'ueberwachen', name: 'Datenschutz & Informationssicherheit', unter: 'DSGVO, ISO 27001, NIS2' },
+    { id: 'kg-export',     band: 'ueberwachen', name: 'Exportkontrolle', unter: 'Außenwirtschaft, Dual-Use, Sanktionslisten' },
+    { id: 'kg-revision',   band: 'ueberwachen', name: 'Interne Revision', unter: 'Prüfungen und Nachverfolgung' },
+    { id: 'kg-nachhalt',   band: 'ueberwachen', name: 'Nachhaltigkeit & Lieferkette', unter: 'LkSG, CSRD, Menschenrechte' },
+
+    { id: 'kg-recht',    band: 'services', name: 'Recht & Vertragsmanagement', unter: 'Gesellschaftsrecht, Verträge, Governance' },
+    { id: 'kg-personal', band: 'services', name: 'Personal & Führung', unter: 'Personalstrategie, Führungskräfte, Nachfolge' },
+    { id: 'kg-it',       band: 'services', name: 'IT & Digitalisierung', unter: 'Infrastruktur, ERP, Reporting, KI' },
+    { id: 'kg-einkauf',  band: 'services', name: 'Einkauf & Supply Management', unter: 'Lead Buyer, Energie, Lieferanten' },
+    { id: 'kg-rewe',     band: 'services', name: 'Rechnungswesen & Steuern', unter: 'Konzernabschluss, Zahlungsverkehr, Steuerwesen' },
+    { id: 'kg-wissen',   band: 'services', name: 'Wissen & Kommunikation', unter: 'Best Practices, interne und externe Kommunikation' },
+
+    { id: 'kg-tagesgesch', band: 'umsetzen', name: 'Operative Geschäftsführung', unter: 'Tagesgeschäft der Gesellschaften' },
+    { id: 'kg-ergebnis',   band: 'umsetzen', name: 'Ergebnisverantwortung', unter: 'Ergebnis- und Zielerreichung je Gesellschaft' },
+    { id: 'kg-strategieum',band: 'umsetzen', name: 'Umsetzung der Konzernstrategie', unter: 'Vorgaben in den Werken wirksam machen' },
+    { id: 'kg-bericht',    band: 'umsetzen', name: 'Berichtslinie an die Holding', unter: 'Kennzahlen, Abweichungen, Eskalation' },
+  ],
+};
+
 /* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
    null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
 const LK_VORLAGEN = [
@@ -182,6 +351,15 @@ const LK_VORLAGEN = [
   { key: 'gesellschaft', titel: 'Produzierende Gesellschaft',
     zweck: 'Führungs-, Kern- und Unterstützungsprozesse eines Werks – die abgestimmte Landschaft mit Vertrieb, Produktion und Auftragsabwicklung.',
     karte: LK_START },
+  { key: 'konzernkarte', titel: 'Konzern-Prozesslandkarte (abgestimmt)',
+    zweck: 'Die abgestimmte Landkarte des Konzerns: Führung, Kernprozesse und Unterstützungsprozesse mit allen Teilprozessen je Kachel – von der Strategie bis zum Schmelzen und Gießen.',
+    karte: LK_KONZERNKARTE },
+  { key: 'holding', titel: 'Holdinggesellschaft (Aufbau)',
+    zweck: 'Der Aufbau einer Holding nach der Skizze der Geschäftsführung: Strategie, Finanzierung, Konzern-Controlling, Personal, Beteiligungsverwaltung, Beratung, Überwachung – und das operative Geschäft der Töchter.',
+    karte: LK_HOLDING },
+  { key: 'konzern-gesamt', titel: 'Führungsholding – Gesamtbild',
+    zweck: 'Aus den drei Vorlagen zusammengeführt: die Form der Prozesslandkarte, gefüllt mit dem, was eine Holding tut – Steuern, Kapital & Beteiligungen als Kernprozesse, Überwachen, Konzernservices und die Umsetzung in den Gesellschaften.',
+    karte: LK_KONZERN_GESAMT },
 ];
 
 function lkStartbestand() {

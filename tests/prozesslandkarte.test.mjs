@@ -312,10 +312,57 @@ ok(w("lkKarte('WGC').kacheln.find(k => k.id === 'vertrieb').prozesse.length") ==
 ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
 w("lkSetWerk('HOL');");
 
+/* Der Reiter trägt vier Ansichten – Landkarte, Verknüpfungen, Matrix, Modelle.
+   „Prozesse (BPMN)" nannte davon eine. */
+ok(/label: 'Prozesse & Landkarte'/.test(fs.readFileSync(path.join(ROOT, 'js/access.js'), 'utf8')),
+  'Der Reiter heißt „Prozesse & Landkarte"');
+ok(/prozesse: 'Prozesse & Landkarte'/.test(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8')),
+  'Der Seitentitel ebenso');
+
 /* ── 10) Vorlagen: der Konzern ist kein Werk in klein ──
    Eine Führungsholding steuert, finanziert, sichert ab, bündelt, kommuniziert
    und verändert – sie produziert nicht. Deshalb eine eigene Landschaft. */
-ok(w('LK_VORLAGEN.length') === 2, 'Zwei Vorlagen: Konzernebene und produzierende Gesellschaft');
+ok(w('LK_VORLAGEN.length') === 5, 'Fünf Vorlagen zur Auswahl');
+ok(w("LK_VORLAGEN.map(v => v.key).join('|')") === 'konzern|gesellschaft|konzernkarte|holding|konzern-gesamt',
+  'Die beiden ersten bleiben, wo sie waren – wer die Reihenfolge kennt, findet sie wieder');
+ok(w('LK_VORLAGEN.every(v => v.key && v.titel && v.zweck && v.karte)'),
+  'Jede Vorlage nennt Kennung, Titel, Zweck und Karte');
+ok(w("LK_VORLAGEN.every(v => v.karte.baender.length && v.karte.kacheln.length)"),
+  'Und keine ist leer');
+ok(w("LK_VORLAGEN.every(v => v.karte.kacheln.every(k => v.karte.baender.some(b => b.key === k.band)))"),
+  'Jede Kachel hängt an einem Band, das es gibt – sonst fiele sie aus der Karte');
+ok(w("LK_VORLAGEN.every(v => new Set(v.karte.kacheln.map(k => k.id)).size === v.karte.kacheln.length)"),
+  'Kennungen sind je Karte eindeutig');
+ok(w("LK_VORLAGEN.every(v => v.karte.baender.every(b => v.karte.kacheln.some(k => k.band === b.key)))"),
+  'Kein Band ohne Kacheln – eine leere Zeile erklärt nichts');
+
+/* Die Holding-Skizze der Geschäftsführung: acht Kästen, jeder wird ein Band */
+ok(w('LK_HOLDING.baender.length') === 8, 'Holding: acht Bereiche wie in der Skizze');
+ok(w("LK_HOLDING.baender.map(b => b.titel).join('|').includes('Tochterunternehmen')"),
+  'Das operative Geschäft der Töchter steht mit drin – dort endet die Holding nicht, dort wirkt sie');
+ok(w("LK_HOLDING.kacheln.some(k => k.name === 'Exportkontrolle') && LK_HOLDING.kacheln.some(k => k.name === 'Treasury')"),
+  'Die Punkte der Skizze sind die Kacheln');
+
+/* Die abgestimmte Konzern-Prozesslandkarte */
+ok(w('LK_KONZERNKARTE.baender.length') === 3, 'Konzernkarte: Führung, Kern, Unterstützung');
+ok(w('LK_KONZERNKARTE.kacheln.length') === 21, 'Einundzwanzig Prozessgruppen');
+ok(w("LK_KONZERNKARTE.baender.every(b => LK_KONZERNKARTE.kacheln.filter(k => k.band === b.key).length === 7)"),
+  'Sieben je Band – genau wie in der Vorlage');
+ok(w("LK_KONZERNKARTE.kacheln.some(k => k.unter.includes('Schmelzen & Gießen'))"),
+  'Die Teilprozesse hängen an der Kachel, nicht in einer zweiten Ebene');
+ok(w("LK_KONZERNKARTE.kacheln.some(k => k.name === 'Corporate Governance, Risk & Compliance')"),
+  'Auch die Führungsprozesse stehen so drin, wie sie abgestimmt wurden');
+
+/* Das Gesamtbild aus allen dreien */
+ok(w('LK_KONZERN_GESAMT.baender.length') === 5, 'Gesamtbild: fünf Bänder');
+ok(w("LK_KONZERN_GESAMT.baender.map(b => b.key).includes('umsetzen')"),
+  'Mit der Schnittstelle zu den Gesellschaften als eigenem Band');
+ok(w("LK_KONZERN_GESAMT.baender.find(b => b.key === 'kapital').titel.includes('Kernprozesse')"),
+  'Die Kernprozesse einer Holding sind Kapital und Beteiligungen, nicht Gießen');
+ok(w("LK_KONZERN_GESAMT.kacheln.every(k => k.unter && k.unter.length > 8)"),
+  'Jede Kachel erklärt sich – die Vorlage soll ohne Rückfrage verständlich sein');
+ok(w("LK_KONZERN_GESAMT.kacheln.some(k => k.name === 'Konzernregelwerk')"),
+  'Das Regelwerk selbst ist ein Konzernprozess – dafür gibt es dieses System');
 ok(w("LK_KONZERN.baender.length") === 6, 'Die Konzernebene hat sechs Prozessbereiche');
 ok(w("LK_KONZERN.baender.map(b => b.titel).join('|')") === 'Strategie|Finanzen|Risiko & Compliance|Synergien|Kommunikation|Transformation',
   'Genau die sechs aus der Prioritätenliste');
@@ -356,6 +403,26 @@ ok(!/lk-zeile-kern/.test(kHtml6), 'Ohne Kernprozesse keine Pfeilzeile');
 ok(w("LK_FARBEN.length") >= 6 && w("lkBandFarbe('finanzen')") === w('LK_FARBEN[1]'),
   'Jeder Bereich bekommt seine Farbe nach seiner Position');
 w("lkSetWerk('HOL'); _lkDaten = lkStartbestand(); _lkDaten.historie = [];");
+
+/* ── Jede Vorlage muss sich auch zeichnen lassen ──
+   Eine Vorlage, die nur als Datenstruktur stimmt, hilft niemandem: Sie wird
+   eingesetzt und im selben Moment gezeichnet. Acht Bänder und lange
+   Teilprozess-Listen sind der Belastungstest dafür. */
+for (const v of w('LK_VORLAGEN')) {
+  let fehler = '';
+  try {
+    w(`lkKarte('HOL').baender = JSON.parse(JSON.stringify(LK_VORLAGEN.find(x => x.key === '${v.key}').karte.baender));
+       lkKarte('HOL').kacheln = JSON.parse(JSON.stringify(LK_VORLAGEN.find(x => x.key === '${v.key}').karte.kacheln));
+       _lkFilter = ''; renderLandkarte();`);
+  } catch (e) { fehler = e.message; }
+  const bild = mount.innerHTML;
+  ok(!fehler, `[${v.key}] zeichnet ohne Fehler${fehler ? ': ' + fehler : ''}`);
+  // Im Bild steht HTML: aus "&" wird "&amp;".
+  const wieImBild = (t) => String(t).split('&').join('&amp;');
+  const fehlend = v.karte.baender.filter(b => !bild.includes(wieImBild(b.titel.split(' (')[0])));
+  ok(fehlend.length === 0, `[${v.key}] jedes Band steht im Bild${fehlend.length ? ' – fehlt: ' + fehlend.map(b => b.titel).join(', ') : ''}`);
+  ok(bild.includes(wieImBild(v.karte.kacheln[0].name)), `[${v.key}] und die Kacheln ebenso`);
+}
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
