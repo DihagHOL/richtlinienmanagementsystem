@@ -132,6 +132,7 @@ function _dokuSections() {
         <li style="${li}">Videos aus <b>Stream/SharePoint</b> sowie YouTube und Vimeo werden <b>in der Seite abgespielt</b>; alles andere bekommt einen Knopf, der in einem neuen Tab öffnet.</li>
         <li style="${li}">Die <b>Rechte am Video</b> vergibt SharePoint. Wer das Video dort nicht sehen darf, sieht es auch hier nicht.</li>
       </ul>
+      <div style="${hint}">📌 <b>Quelle bei fremdem Material:</b> Stammt ein Video nicht aus dem eigenen Haus (YouTube, Vimeo, andere externe Anbieter), steht die Quellenangabe unter dem Video – z. B. <i>Quelle: Bundesamt für Sicherheit in der Informationstechnik (BSI)</i>. Bei externen Videos ist das Feld Pflicht; ohne Quelle lässt sich das Regelwerk nicht speichern. Eigenes Material aus Stream/SharePoint braucht keine.</div>
       <div style="${hint}">🎬 <b>Für die Administration:</b> Im Regelwerk-Editor unter <b>„🎬 Lernvideos"</b> Titel und Adresse eintragen. Am einfachsten in Stream/SharePoint auf <b>Teilen → Einbetten</b> klicken und den Code einfügen – die App holt sich die Adresse heraus und zeigt sofort an, ob abgespielt oder verlinkt wird. Fragen und Bestehensgrenze stehen im selben Editor unter <b>„Wissenstest"</b> (mindestens zwei Antwortoptionen je Frage, genau eine richtige).</div>`,
       'ISO 27001 Klausel 7.2 (Kompetenz), 7.3 (Bewusstsein), A.6.3 (Schulung &amp; Sensibilisierung); NIS2 Art. 21(2g).'),
 

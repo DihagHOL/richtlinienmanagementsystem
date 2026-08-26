@@ -246,8 +246,10 @@ function tourSchritte() {
             _editing.quizBestehenProzent = 80;
           }
           if (!Array.isArray(_editing.videos) || !_editing.videos.length) {
+            // Mit Quelle: Ohne sie hielte das Speichern an – und das zu Recht.
             _editing.videos = [{ titel: 'Regelwerke im Konzern – kurz erklärt',
-              url: 'https://www.youtube.com/shorts/8hKPmMOMuz8' }];
+              url: 'https://www.youtube.com/shorts/8hKPmMOMuz8',
+              quelle: 'Bundesamt für Sicherheit in der Informationstechnik (BSI)' }];
           }
           if (typeof renderPolicyEditor === 'function') renderPolicyEditor();
         }, 300);

@@ -98,5 +98,72 @@ ok(/\['wissenstest',\s+'Wissenstest & Lernvideos'\]/.test(doku), 'Und er steht i
 ok(/Rechte am Video<\/b> vergibt SharePoint/.test(doku), 'Sie erklärt, wer das Video sehen darf');
 ok(/Wissenstest & Lernvideos/.test(lies('docs/BENUTZERHANDBUCH.md')), 'Das Handbuch ebenfalls');
 
+/* ══════════════════════════════════════════════════════════════════
+   youtube-nocookie: ausgerechnet die datenschutzfreundliche Adresse
+   ══════════════════════════════════════════════════════════════════ */
+
+// Wer bei YouTube den erweiterten Datenschutzmodus wählt, bekommt genau diese
+// Adresse in den Einbetten-Code. Vorher fiel sie durch und lief als bloßer Link.
+const nc = deute('https://www.youtube-nocookie.com/embed/8hKPmMOMuz8');
+ok(nc && nc.art === 'einbetten' && nc.src === 'https://www.youtube-nocookie.com/embed/8hKPmMOMuz8',
+  'youtube-nocookie.com wird eingebettet, nicht verlinkt');
+ok(deute('<iframe src="https://www.youtube-nocookie.com/embed/abc123XYZ?start=7"></iframe>')?.src
+   === 'https://www.youtube-nocookie.com/embed/abc123XYZ',
+  'Auch aus dem Einbetten-Code samt Parametern');
+ok(deute('https://www.youtube.com/watch?v=8hKPmMOMuz8')?.src === 'https://www.youtube-nocookie.com/embed/8hKPmMOMuz8',
+  'Eine gewöhnliche YouTube-Adresse landet weiterhin auf der nocookie-Fassung');
+
+/* ══════════════════════════════════════════════════════════════════
+   Herkunft und Quellenangabe
+   ══════════════════════════════════════════════════════════════════ */
+
+const herkunft = (x) => vm.runInContext('videoHerkunft(' + JSON.stringify(x) + ')', ctx);
+ok(herkunft(sp).extern === false, 'Was in SharePoint/Stream liegt, ist kein fremdes Material');
+ok(herkunft('https://dihag.sharepoint.com/sites/x/video.mp4').extern === false, 'Der eigene Mandant ebenso wenig');
+ok(herkunft('https://www.youtube.com/watch?v=8hKPmMOMuz8').extern === true
+   && herkunft('https://www.youtube.com/watch?v=8hKPmMOMuz8').dienst === 'YouTube', 'YouTube ist extern');
+ok(herkunft('https://www.youtube-nocookie.com/embed/8hKPmMOMuz8').dienst === 'YouTube',
+  'Die nocookie-Fassung ebenfalls – dieselbe Quelle, nur höflicher');
+ok(herkunft('https://vimeo.com/12345').dienst === 'Vimeo', 'Vimeo wird erkannt');
+ok(herkunft('https://beispiel.test/film.mp4').extern === true, 'Alles Unbekannte gilt als extern');
+ok(herkunft('kein link').dienst === '', 'Ohne Adresse keine Herkunft');
+
+const ohne = (v) => vm.runInContext('videosOhneQuelle(' + JSON.stringify(v) + ')', ctx);
+ok(ohne([{ url: 'https://www.youtube.com/watch?v=8hKPmMOMuz8', quelle: '' }]).length === 1,
+  'Ein externes Video ohne Quelle wird gemeldet');
+ok(ohne([{ url: 'https://www.youtube.com/watch?v=8hKPmMOMuz8', quelle: 'Bundesamt für Sicherheit in der Informationstechnik (BSI)' }]).length === 0,
+  'Mit Quelle nicht mehr');
+ok(ohne([{ url: sp, quelle: '' }]).length === 0, 'Eigenes Material braucht keine');
+ok(ohne([{ url: '', quelle: '' }]).length === 0, 'Und eine leere Zeile ist kein Verstoß');
+ok(ohne([{ url: 'https://vimeo.com/1', quelle: '   ' }]).length === 1, 'Leerzeichen sind keine Quelle');
+ok(ohne(null).length === 0 && ohne([]).length === 0, 'Ohne Videos nichts zu melden');
+ok(ohne([{ url: sp }, { url: 'https://vimeo.com/1' }])[0].i === 1,
+  'Gemeldet wird die Nummer des betroffenen Videos, nicht irgendeine');
+
+/* ══════════════════════════════════════════════════════════════════
+   Verdrahtung: Editor, Speichern, Leseansicht
+   ══════════════════════════════════════════════════════════════════ */
+
+const appjs = app, tourjs = lies('js/tour.js');
+ok(/vidSet\(\$\{i\},'quelle',this\.value\)/.test(adm), 'Der Editor hat ein Quellenfeld');
+ok(/Bundesamt für Sicherheit in der Informationstechnik \(BSI\)/.test(adm),
+  'Mit dem Beispiel im Platzhalter – ein leeres Feld sagt niemandem, was gemeint ist');
+ok(/quelleFehlt/.test(adm) && /Fremdes Material/.test(adm),
+  'Fehlt sie bei fremdem Material, steht es sichtbar am Video');
+ok(/videos\.push\(\{ titel: '', url: '', quelle: '' \}\)/.test(adm), 'Neue Videos bringen das Feld gleich mit');
+ok(/const ohne = videosOhneQuelle\(p\.videos\);/.test(adm) && /Bitte die Quelle angeben/.test(adm),
+  'Das Speichern hält an, solange fremdes Material ohne Quelle darin steht');
+ok(adm.indexOf('videosOhneQuelle(p.videos)') < adm.indexOf('pruefeFremdaenderung'),
+  'Und zwar vor dem Schreibzugriff, nicht danach');
+
+ok(/lernvideo-quelle/.test(appjs) && /Quelle: \$\{esc\(quelle\)\}/.test(appjs),
+  'In der Leseansicht steht die Quelle unter dem Video');
+ok(/Eingebettet über \$\{esc\(h\.dienst\)\}/.test(appjs),
+  'Fehlt sie im Altbestand, nennt die Zeile wenigstens den Dienst – stumm einbetten wäre schlechter');
+ok(/\.lernvideo-quelle/.test(lies('css/style.css')), 'Und hat ein eigenes Format');
+
+ok(/quelle: 'Bundesamt für Sicherheit in der Informationstechnik \(BSI\)'/.test(tourjs),
+  'Die Vorführung legt ihr Video mit Quelle an – sonst hielte ihr eigenes Speichern an');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

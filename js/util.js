@@ -80,11 +80,41 @@ function videoEinbettung(eingabe) {
 
   // „shorts/" gehört dazu: Kurzvideos sind genau das Format, das man für eine
   // Regel-Erklärung dreht – ohne den Zweig liefe der Link nur als Verweis raus.
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?[^#]*\bv=|embed\/|live\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
+  // „youtube-nocookie.com" ebenso: Genau diese Adresse steht im Einbetten-Code,
+  // wenn jemand bei YouTube den erweiterten Datenschutzmodus wählt – also im
+  // besseren Fall. Ohne den Zweig wäre ausgerechnet der nur ein Link gewesen.
+  const yt = url.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?[^#]*\bv=|embed\/|live\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
   if (yt) return { art: 'einbetten', src: 'https://www.youtube-nocookie.com/embed/' + yt[1] };
 
   const vi = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
   if (vi) return { art: 'einbetten', src: 'https://player.vimeo.com/video/' + vi[1] };
 
   return { art: 'link', src: url };
+}
+
+/* Was im eigenen Haus liegt, braucht keine Quellenangabe – wer dort ablegt,
+   ist ohnehin bekannt. Alles andere ist fremdes Material. */
+const VIDEO_INTERN = /(\.sharepoint\.com|\/_layouts\/15\/embed\.aspx|\.dihag\.(?:de|com))/i;
+
+/**
+ * Woher stammt ein Video? Für fremdes Material gehört eine Quelle dazu –
+ * urheberrechtlich und damit die Leserin weiß, wessen Aussage sie gerade hört.
+ * @returns {{extern:boolean, dienst:string}} dienst='' wenn keine Adresse erkannt
+ */
+function videoHerkunft(eingabe) {
+  const e = videoEinbettung(eingabe);
+  if (!e) return { extern: false, dienst: '' };
+  const src = String(e.src || '');
+  if (VIDEO_INTERN.test(src)) return { extern: false, dienst: 'SharePoint / Stream' };
+  if (/youtube(?:-nocookie)?\.com|youtu\.be/i.test(src)) return { extern: true, dienst: 'YouTube' };
+  if (/vimeo\.com/i.test(src)) return { extern: true, dienst: 'Vimeo' };
+  return { extern: true, dienst: 'externe Quelle' };
+}
+
+/** Externe Videos ohne Quellenangabe – die Liste, die das Speichern anhält. */
+function videosOhneQuelle(videos) {
+  return (videos || [])
+    .map((v, i) => ({ v, i }))
+    .filter(({ v }) => v && String(v.url || '').trim()
+      && videoHerkunft(v.url).extern && !String(v.quelle || '').trim());
 }

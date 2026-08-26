@@ -460,15 +460,25 @@ function renderLernvideos(p) {
     const e = (typeof videoEinbettung === 'function') ? videoEinbettung(v.url) : null;
     if (!e) return '';
     const titel = esc(v.titel || `Video ${i + 1}`);
+    // Wer spricht hier? Bei fremdem Material gehört die Antwort unter das Video.
+    // Fehlt die Angabe an einem Altbestand, nennt die Zeile wenigstens den Dienst –
+    // eine stumme Einbettung wäre die schlechtere Auskunft.
+    const h = (typeof videoHerkunft === 'function') ? videoHerkunft(v.url) : { extern: false, dienst: '' };
+    const quelle = String(v.quelle || '').trim();
+    const quellzeile = quelle
+      ? `<div class="lernvideo-quelle">Quelle: ${esc(quelle)}</div>`
+      : (h.extern ? `<div class="lernvideo-quelle">Eingebettet über ${esc(h.dienst)}</div>` : '');
     return e.art === 'einbetten'
       ? `<div class="lernvideo">
            <div class="lernvideo-titel">▶ ${titel}</div>
            <div class="lernvideo-rahmen"><iframe src="${esc(e.src)}" title="${titel}"
              allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+           ${quellzeile}
          </div>`
       : `<div class="lernvideo">
            <div class="lernvideo-titel">▶ ${titel}</div>
            <a class="btn btn-outline btn-sm" href="${esc(e.src)}" target="_blank" rel="noopener">Video ansehen ↗</a>
+           ${quellzeile}
          </div>`;
   }).join('');
   if (!karten) return '';

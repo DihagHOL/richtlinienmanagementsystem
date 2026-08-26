@@ -904,6 +904,8 @@ function renderVideoEditorSection() {
         (YouTube und Vimeo werden ebenfalls direkt abgespielt), sonst öffnet ein Knopf das Video
         in einem neuen Tab. Rechte am Video vergibt SharePoint – wer es nicht sehen darf, sieht es
         auch hier nicht.
+        <br><b>Fremdes Material braucht eine Quelle.</b> Bei Videos von YouTube, Vimeo oder anderen
+        externen Anbietern ist die Quellenangabe Pflicht – sie steht später unter dem Video.
       </div>
       <div id="vid-list">${renderVideoItems()}</div>
     </div>`;
@@ -914,6 +916,8 @@ function renderVideoItems() {
   if (!vids.length) return '<div class="field-hint" style="margin-bottom:10px">Noch kein Video hinterlegt.</div>';
   return vids.map((v, i) => {
     const e = (typeof videoEinbettung === 'function') ? videoEinbettung(v.url) : null;
+    const herkunft = (typeof videoHerkunft === 'function') ? videoHerkunft(v.url) : { extern: false, dienst: '' };
+    const quelleFehlt = herkunft.extern && !String(v.quelle || '').trim();
     const status = !String(v.url || '').trim()
       ? '<span class="field-hint">Adresse oder Einbetten-Code einfügen</span>'
       : e && e.art === 'einbetten'
@@ -935,13 +939,22 @@ function renderVideoItems() {
           <input type="text" value="${esc(v.url || '')}" placeholder="Adresse oder Einbetten-Code aus Stream/SharePoint"
             oninput="vidSet(${i},'url',this.value)" onchange="vidRefresh()">
         </div>
-        ${status}
+        <div class="form-group full" style="margin-bottom:6px">
+          <input type="text" value="${esc(v.quelle || '')}"
+            placeholder="Quelle, z. B. Bundesamt für Sicherheit in der Informationstechnik (BSI)"
+            oninput="vidSet(${i},'quelle',this.value)" onchange="vidRefresh()"
+            style="${quelleFehlt ? 'border-color:#f59e0b' : ''}">
+        </div>
+        ${status}${quelleFehlt
+          ? `<div class="field-hint" style="color:#b45309">⚠ Fremdes Material (${esc(herkunft.dienst)}) – bitte die Quelle angeben.
+             Ohne sie lässt sich das Regelwerk nicht speichern.</div>`
+          : (v.quelle ? `<div class="field-hint">Quelle: ${esc(v.quelle)}</div>` : '')}
       </div>`;
   }).join('');
 }
 
 function vidRefresh() { const el = document.getElementById('vid-list'); if (el) el.innerHTML = renderVideoItems(); }
-function vidAdd() { if (!Array.isArray(_editing.videos)) _editing.videos = []; _editing.videos.push({ titel: '', url: '' }); vidRefresh(); }
+function vidAdd() { if (!Array.isArray(_editing.videos)) _editing.videos = []; _editing.videos.push({ titel: '', url: '', quelle: '' }); vidRefresh(); }
 function vidRemove(i) { (_editing.videos || []).splice(i, 1); vidRefresh(); }
 function vidSet(i, feld, wert) {
   if (!Array.isArray(_editing.videos) || !_editing.videos[i]) return;
@@ -1334,6 +1347,16 @@ async function savePolicy(newStatus) {
   }
   if (p._zgSpecific && (!p.zielgruppen || !p.zielgruppen.length)) {
     toast('Bitte mindestens eine Rolle wählen oder „Für alle Mitarbeiter" auswählen.', 'error'); return;
+  }
+  // Fremdes Material ohne Quelle veröffentlicht man nicht – weder rechtlich
+  // noch gegenüber den Lesenden, die wissen sollen, wessen Aussage sie hören.
+  if (typeof videosOhneQuelle === 'function') {
+    const ohne = videosOhneQuelle(p.videos);
+    if (ohne.length) {
+      const nr = ohne.map(x => x.i + 1).join(', ');
+      toast(`Externes Video ${nr}: Bitte die Quelle angeben (z. B. „Bundesamt für Sicherheit in der Informationstechnik (BSI)").`, 'error');
+      return;
+    }
   }
   if (p.quizErforderlich) {
     if (!p.quiz.length) { toast('Wissenstest aktiv, aber keine Fragen angelegt.', 'error'); return; }
