@@ -80,7 +80,17 @@ ok(!ctx.__zu.includes('Anna Admin'), 'Anzeige: eingeklappt zeigt keine Einträge
 
 /* ── 4) Editor bindet die Historie ein (nur bei gespeichertem Regelwerk) ── */
 const adm = ADMIN_DATEIEN.map(f => fs.readFileSync(ROOT + '/js/' + f, 'utf8')).join('\n');
-ok(/\$\{p\.id \? renderHistorieSection\(p\) : ''\}/.test(adm), 'Editor: Historie nur bei vorhandener id');
+ok(/\$\{p\.id \? `<div class="form-group full">\$\{renderHistorieSection\(p\)\}<\/div>` : ''\}/.test(adm),
+  'Editor: Historie nur bei vorhandener id');
+/* Sie steht bei der Version, nicht am Ende des Formulars: Wer die Versionsnummer
+   hochsetzt, will sehen, was seit der letzten passiert ist. */
+const iVersion = adm.indexOf('<label>Version');
+const iHist    = adm.indexOf('${renderHistorieSection(p)}');   // der Aufruf, nicht die Deklaration
+const iDok     = adm.indexOf('<label>Regelwerkdokument');
+ok(iVersion > 0 && iHist > iVersion && iHist < iDok,
+  'Editor: Die Historie steht direkt unter der Version');
+ok((adm.match(/\$\{renderHistorieSection\(p\)\}/g) || []).length === 1,
+  'Und nur dort – nicht zusätzlich am alten Platz');
 
 /* ── 5) Alle Mutationspfade protokollieren ── */
 for (const [fn, marker] of [

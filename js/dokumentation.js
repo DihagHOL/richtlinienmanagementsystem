@@ -214,7 +214,7 @@ function _dokuSections() {
         <li style="${li}"><b>Nächste Überprüfung (Review)</b> – interner Wiedervorlage-Termin (siehe „Fälligkeiten / Wiedervorlage").</li>
         <li style="${li}"><b>Normbezug</b> (eingeklappt, für jedes Regelwerk verfügbar): welche Anforderungen aus Normen und Recht das Regelwerk abdeckt; „↩ Aus Review übernehmen" befüllt bekannte Zuordnungen (siehe „IMS-Abdeckung").</li>
         <li style="${li}"><b>Freigabe-Workflow</b> (ausklappbare Abschnitte): eigene <b>Prüfer</b> bzw. <b>Freigeber</b> nur für dieses Regelwerk (leer = globale Einstellung) und die <b>Mitbestimmung</b> (KBR / Betriebsräte je Werk). Die Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> lässt sich mit ▲▼ pro Regelwerk tauschen.</li>
-        <li style="${li}"><b>Änderungshistorie</b> – ausklappbar, schreibgeschützt: wer wann was geändert oder entschieden hat (siehe unten).</li>
+        <li style="${li}"><b>Änderungshistorie</b> – direkt unter der Version, ausklappbar und schreibgeschützt: wer wann was geändert oder entschieden hat (siehe unten).</li>
       </ul>
       <div style="${hint}">🔒 <b>Pro-Regelwerk-Prüfer/-Freigeber ersetzen</b> die globalen für genau dieses Regelwerk (nicht additiv). Karten-Tags „👤 eigene Prüfer" / „👤 eigene Freigeber" zeigen an, wo das gesetzt ist.</div>
       <div style="${h3}">Änderungshistorie (Nachweis)</div>

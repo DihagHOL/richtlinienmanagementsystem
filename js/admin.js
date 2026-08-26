@@ -806,6 +806,12 @@ function renderPolicyEditor() {
           <input type="text" value="${esc(p.version)}" oninput="_editing.version=this.value" placeholder="1.0">
           <span class="field-hint">Neue Version ⇒ alle müssen erneut bestätigen.</span>
         </div>
+        ${/* Die Historie gehört zur Version: Wer eine Versionsnummer hochsetzt,
+              will wissen, was seit der letzten passiert ist. Ganz unten – hinter
+              Workflow, Videos und Wissenstest – hat sie kaum jemand gesehen.
+              Über die ganze Breite, sonst quetscht das Raster sie in eine
+              halbe Spalte. Eingeklappt bleibt sie wie bisher. */''}
+        ${p.id ? `<div class="form-group full">${renderHistorieSection(p)}</div>` : ''}
         <div class="form-group full">
           <label>Regelwerkdokument <span class="req">*</span></label>
           <div id="ed-doc-display" class="doc-chip ${p.dokumentName ? '' : 'doc-chip-empty'}">
@@ -861,7 +867,6 @@ function renderPolicyEditor() {
         (typeof renderNormbezugSection === 'function') ? renderNormbezugSection() : ''}
       ${renderWorkflowSections()}
       ${renderVideoEditorSection()}
-      ${p.id ? renderHistorieSection(p) : ''}
       ${p.quizErforderlich ? renderQuizEditorSection() : ''}
     </div>
     <div class="modal-footer">
