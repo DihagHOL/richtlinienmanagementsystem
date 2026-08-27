@@ -489,7 +489,9 @@ function _mailGeltungsbereich(p) {
 function _zielgruppeMailHtml(p) {
   // „ansicht=meine": Hier geht es ums Lesen und Bestätigen. Ohne die Angabe
   // hinge das Ziel an der Rolle des Empfängers.
-  const url = `https://rms.dihag.de/?richtlinie=${encodeURIComponent(p.id)}&ansicht=meine`;
+  const url = p.id
+    ? `https://rms.dihag.de/?richtlinie=${encodeURIComponent(p.id)}&ansicht=meine`
+    : 'https://rms.dihag.de/?ansicht=meine';
   const wasTun = p.quizErforderlich
     ? 'lesen, die Kenntnisnahme bestätigen und den kurzen Wissenstest bestehen'
     : 'lesen und die Kenntnisnahme bestätigen';
@@ -990,7 +992,11 @@ async function freigabeZuruecknehmen(id) {
 
 function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
   const base = 'https://rms.dihag.de/';
-  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
+  // Ohne Kennung gibt es keinen brauchbaren Link – „?richtlinie=undefined"
+  // zeigt beim Klick nur „Regelwerk nicht gefunden". Dann lieber der Reiter.
+  const url = p.id
+    ? `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`
+    : `${base}?ansicht=freigaben`;
   // Das Token macht aus dem Link eine Ein-Klick-Entscheidung – ohne ihn bleibt es
   // beim gewohnten Weg mit Rückfrage (z. B. bei Mails aus einer früheren Runde).
   const tok = (p.aktionToken && p.aktionToken.wert) ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
@@ -999,7 +1005,10 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
   const hint = String(empfaenger || '').trim() ? `&u=${encodeURIComponent(String(empfaenger).trim())}` : '';
   const act = (a) => `${url}&aktion=${a}${tok}${hint}`;
   const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
-  const actions = phase === 'freigabe'
+  // Ein-Klick nur mit Kennung: Ein Knopf, der zuverlässig in eine Fehlermeldung
+  // führt, ist schlimmer als keiner.
+  const actions = !p.id ? ''
+    : phase === 'freigabe'
     ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
     : phase === 'pruefung'
       ? btn(act('konform'), '#16a34a', '✓ Konform') + btn(act('nicht_konform'), '#dc2626', '✗ Nicht konform')

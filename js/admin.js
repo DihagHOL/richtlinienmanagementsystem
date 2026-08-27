@@ -1395,7 +1395,12 @@ async function savePolicy(newStatus) {
   }
 
   try {
-    await spSavePolicy(p);
+    const gespeichert = await spSavePolicy(p);
+    // Bei einem NEUEN Eintrag vergibt SharePoint die Kennung erst mit dem POST.
+    // Ohne diese Zeile bleibt p.id undefined – und die Mail an die Prüfer trüge
+    // „?richtlinie=undefined". Der Klick landete dann bei „Regelwerk nicht
+    // gefunden", obwohl das Regelwerk längst angelegt war.
+    if (!p.id && gespeichert && gespeichert.id) p.id = String(gespeichert.id);
     await reloadData();
     closeModal();
     renderAdminList();
@@ -1604,7 +1609,11 @@ function dpSelect(idx) {
 
 function _mitMailHtml(p, label, attachmentName) {
   const base = 'https://rms.dihag.de/';
-  const url = `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`;
+  // Ohne Kennung gibt es keinen brauchbaren Link – „?richtlinie=undefined"
+  // zeigt beim Klick nur „Regelwerk nicht gefunden". Dann lieber der Reiter.
+  const url = p.id
+    ? `${base}?richtlinie=${encodeURIComponent(p.id)}&ansicht=freigaben`
+    : `${base}?ansicht=freigaben`;
   // Entscheiden aus der Mail – wie bei Prüfung und Freigabe. Bewusst OHNE
   // Anmelde-Hinweis (&u=): Empfänger ist ein Betriebsrats-Postfach, angemeldet
   // wird sich mit dem persönlichen Konto. Wer dahinter steht, erkennt die App an
