@@ -85,8 +85,12 @@ ok(/if \(ansicht === 'freigaben'\) \{/.test(app),
   'Nur der ausdrückliche Freigabe-Link führt in den Freigabe-Reiter');
 ok(!/ansicht === '' && canReview/.test(app),
   'Die Rolle des Empfängers entscheidet das nicht mehr');
-ok(/await switchView\('meine'\);\n    if \(State\.policies\.find\(p => p\.id === deepId\)\) openDetail\(deepId\)/.test(app),
+ok(/await switchView\('meine'\);\s*\n\s*if \([^\n]*deepId[^\n]*\) openDetail\(deepId\)/.test(app),
   'Ein blanker Link öffnet das Regelwerk in „Meine Regelwerke"');
+// Wie verglichen wird, steht bewusst nicht mehr hier: Seit dem Mail-Deeplink
+// wird als Text verglichen (siehe tests/mail-deeplink-id.test.mjs).
+ok(/String\(p\.id\) === String\(deepId\)/.test(app),
+  'Und findet das Regelwerk auch, wenn die Kennung als Zahl gespeichert ist');
 // Alle Mails, die wirklich in die Freigabe wollen, sagen es selbst
 ok(/ansicht=freigaben/.test(lies('js/admin.js')), 'Die Mitbestimmungs-Mail setzt ansicht=freigaben');
 ok(/ansicht=freigaben/.test(lies('scripts/erinnerungen.mjs')), 'Die Freigabe-Erinnerung ebenso');

@@ -144,6 +144,24 @@ function setFreigabenScope(s) {
 }
 
 /** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
+/**
+ * Regelwerk zu einer Kennung aus einem Link.
+ *
+ * Bewusst ueber String(): Aus der URL kommt immer Text, gespeicherte Verweise
+ * koennen Zahlen sein. Ein strikter Vergleich findet dann nichts und die
+ * Oberflaeche behauptet, es gaebe das Regelwerk nicht mehr.
+ */
+function policyZuId(id) {
+  const gesucht = String(id);
+  return (State.policies || []).find(x => String(x.id) === gesucht) || null;
+}
+
+/** Dasselbe fuer Konzepte - sie liegen seit der Trennung in State.konzepte. */
+function konzeptZuId(id) {
+  const gesucht = String(id);
+  return (State.konzepte || []).find(x => String(x.id) === gesucht) || null;
+}
+
 function focusPolicyCard(id) {
   let el = document.getElementById('fg-' + id);
   // Steht der Vorgang unter „Alle Vorgänge" statt „Mir zugewiesen"? Dann dorthin
@@ -164,7 +182,7 @@ function focusPolicyCard(id) {
  * konform"), wird weiterhin abgefragt.
  */
 function handleMailAction(id, aktion) {
-  const p = State.policies.find(x => x.id === id);
+  const p = policyZuId(id);
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
   setTimeout(async () => {
     if (aktion === 'konform') {
@@ -825,9 +843,41 @@ const _ekSchliessen = `<div style="margin-top:16px"><button class="btn btn-outli
  * Ohne gültiges Token bleibt es beim gewohnten Weg mit Rückfrage.
  */
 async function einKlickAktion(id, aktion, token, adressatAusLink) {
-  const p = State.policies.find(x => x.id === id);
-  if (!p) { _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
-    <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>${_ekSchliessen}`); return; }
+  let p = policyZuId(id);
+
+  // Nichts gefunden heisst nicht "geloescht". Beim Start wird ein Fehler beim
+  // Laden absichtlich verschluckt (bootApp); dann ist die Liste schlicht leer.
+  // Also einmal nachladen, bevor wir etwas ueber den Verbleib behaupten.
+  if (!p && typeof reloadData === 'function') {
+    try {
+      await reloadData({ rendern: false });
+    } catch (e) {
+      _ekPanel(`<h3>Die Regelwerke konnten nicht geladen werden</h3>
+        <p style="line-height:1.55">${esc(e.message || 'Unbekannter Fehler')}</p>
+        <p style="line-height:1.55">Ihre Entscheidung ist damit <b>nicht</b> gespeichert.
+        Bitte die Seite neu laden und den Link noch einmal anklicken.</p>${_ekSchliessen}`);
+      return;
+    }
+    p = policyZuId(id);
+  }
+
+  if (!p) {
+    // Konzepte liegen seit der Trennung in State.konzepte. Ein Link darauf
+    // fand hier nie etwas - und bekam faelschlich "geloescht" zu hoeren.
+    const k = konzeptZuId(id);
+    if (k) {
+      _ekPanel(`<h3>Das ist noch ein Konzept</h3>
+        <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor – entschieden wird
+        darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
+        <div style="margin-top:16px"><button class="btn btn-primary"
+          onclick="closeModal();if(typeof setAdminMode==='function')setAdminMode('konzepte');switchView('verwaltung').then(()=>{if(typeof focusKonzeptCard==='function')focusKonzeptCard('${esc(String(id))}')})">Konzept öffnen</button></div>`);
+      return;
+    }
+    _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
+      <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>
+      <p style="color:#6b7280;font-size:12px;margin-top:10px">Kennung aus dem Link: <b>${esc(String(id))}</b></p>${_ekSchliessen}`);
+    return;
+  }
 
   // Der Link nennt seinen Adressaten. Weil der Konto-Cache über Tabs geteilt wird,
   // könnte an einem Rechner sonst die Entscheidung unter einem fremden Namen landen –

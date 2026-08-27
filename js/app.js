@@ -182,7 +182,7 @@ async function applyDeepLinkOrDefault() {
     // sonst käme er nie bis zur Entscheidung.
     const mbDarf = (aktion === 'mb_konform' || aktion === 'mb_nicht_konform') && !!token
       && typeof darfMitbestimmung === 'function'
-      && darfMitbestimmung(State.policies.find(x => x.id === deepId) || {});
+      && darfMitbestimmung((State.policies || []).find(x => String(x.id) === String(deepId)) || {});
     if (!canReview && !mbDarf) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
     await switchView(canReview ? 'freigaben' : 'meine');
     // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
@@ -195,7 +195,7 @@ async function applyDeepLinkOrDefault() {
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {
     await switchView('meine');
-    if (State.policies.find(p => p.id === deepId)) openDetail(deepId);
+    if ((State.policies || []).find(p => String(p.id) === String(deepId))) openDetail(deepId);
     else toast('Das verlinkte Regelwerk ist für Sie aktuell nicht sichtbar.');
   }
 }
