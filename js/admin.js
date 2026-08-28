@@ -1619,8 +1619,8 @@ function _mitMailHtml(p, label, attachmentName) {
   // der Adresse bzw. der Gruppenmitgliedschaft.
   const tok = (p.aktionToken && p.aktionToken.wert && p.aktionToken.art === 'mitbestimmung')
     ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
-  const mbBtn = (a, bg, label2) => `<a href="${esc(url + '&aktion=' + a + tok)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label2}</a>`;
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  const mbBtn = (a, farbe, label) => mailBtn(url + '&aktion=' + a + tok, farbe, label);
+  return mailRumpf(`
     <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
     <p>Empfänger: <b>${esc(label)}</b></p>
     <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
@@ -1639,7 +1639,7 @@ function _mitMailHtml(p, label, attachmentName) {
     wird nichts gespeichert. Die Entscheidung wird unter Ihrem Namen protokolliert; angemeldet werden Sie
     dabei mit Ihrem DIHAG-Konto.</p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
-  </div>`;
+  `);
 }
 
 async function initCompliance() {
@@ -1927,14 +1927,14 @@ async function remindOpenForCurrent() {
 
 function reminderHtml(p) {
   const url = 'https://rms.dihag.de/';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  return mailRumpf(`
     <p>Hallo,</p>
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>
     ${geltungsbereichLabel(p.geltungsbereich) ? `<p style="color:#6b7280;font-size:14px">Gilt für: ${esc(geltungsbereichLabel(p.geltungsbereich))}</p>` : ''}
     <p>Bitte holen Sie das zeitnah nach:</p>
     <p><a href="${url}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Erinnerung vom DIHAG Richtlinienmanagementsystem.</p>
-  </div>`;
+  `);
 }
 
 function exportComplianceCsv() {

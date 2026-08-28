@@ -480,7 +480,7 @@ function _zielgruppeMailHtml(p) {
   const wasTun = p.quizErforderlich
     ? 'lesen, die Kenntnisnahme bestätigen und den kurzen Wissenstest bestehen'
     : 'lesen und die Kenntnisnahme bestätigen';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  return mailRumpf(`
     <p>Guten Tag,</p>
     <p>ab sofort gilt ein neues Regelwerk:</p>
     <p style="font-size:17px"><b>${esc(p.title)}</b><br>
@@ -492,7 +492,7 @@ function _zielgruppeMailHtml(p) {
     <p style="margin:18px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht des DIHAG Regelwerk-Managements.
       Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.</p>
-  </div>`;
+  `);
 }
 
 /* ── Rückfrage vor der Bekanntgabe ──
@@ -1004,16 +1004,15 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
   // App merkt es, wenn jemand anders auf den weitergeleiteten Link klickt.
   const hint = String(empfaenger || '').trim() ? `&u=${encodeURIComponent(String(empfaenger).trim())}` : '';
   const act = (a) => `${url}&aktion=${a}${tok}${hint}`;
-  const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
   // Ein-Klick nur mit Kennung: Ein Knopf, der zuverlässig in eine Fehlermeldung
   // führt, ist schlimmer als keiner.
   const actions = !p.id ? ''
     : phase === 'freigabe'
-    ? btn(act('freigeben'), '#16a34a', '✓ Freigeben') + btn(act('zurueck'), '#dc2626', '✗ Zurück (nicht konform)')
+    ? mailBtn(act('freigeben'), MAIL_FARBE.ja, '✓ Freigeben') + mailBtn(act('zurueck'), MAIL_FARBE.nein, '✗ Zurück (nicht konform)')
     : phase === 'pruefung'
-      ? btn(act('konform'), '#16a34a', '✓ Konform') + btn(act('nicht_konform'), '#dc2626', '✗ Nicht konform')
+      ? mailBtn(act('konform'), MAIL_FARBE.ja, '✓ Konform') + mailBtn(act('nicht_konform'), MAIL_FARBE.nein, '✗ Nicht konform')
       : '';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  return mailRumpf(`
     <p><b>${esc(headline)}</b></p>
     <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ', ' + esc(p.regelwerkTyp) : ''})</p>
     ${_mailGeltungsbereich(p) ? `<p style="margin:0 0 10px"><b>Geltungsbereich:</b> ${esc(_mailGeltungsbereich(p))}${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? ` · <b>Zielgruppe:</b> ${esc(p.zielgruppen.join(', '))}` : ''}</p>` : ''}
@@ -1022,7 +1021,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
-  </div>`;
+  `);
 }
 
 

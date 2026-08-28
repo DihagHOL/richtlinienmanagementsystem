@@ -42,6 +42,7 @@ const fctx = {
 };
 fctx.window = fctx; fctx.globalThis = fctx;
 vm.createContext(fctx);
+vm.runInContext(lies('js/mailbau.js'), fctx);   // Rumpf und Knopf
 vm.runInContext(lies('js/freigaben.js'), fctx);
 const run = (s) => vm.runInContext(s, fctx);
 

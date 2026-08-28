@@ -7,6 +7,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 let pass=0, fail=0; const ok=(c,m)=>{ if(c){pass++;console.log('  ✓',m);}else{fail++;console.log('  ✗',m);} };
 const kctx={ console, esc, fmtDate:()=> '', emptyState:()=> '', toast:()=>{}, State:{user:{}}, openModal:()=>{}, isCurrentUserGeschaeftsleitung:()=>false, canWriteTab:()=>true };
 kctx.window=kctx; kctx.globalThis=kctx; vm.createContext(kctx);
+vm.runInContext(fs.readFileSync(ROOT+'/js/mailbau.js','utf8'), kctx);   // Rumpf und Knopf
 vm.runInContext(fs.readFileSync(ROOT+'/js/konzepte.js','utf8'), kctx);
 const run=(s)=>vm.runInContext(s,kctx);
 

@@ -635,11 +635,10 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
       : '');
   const url = `${base}?konzept=${encodeURIComponent(k.id || '')}`;
   const act = (a) => `${url}&aktion=${a}`;
-  const btn = (href, bg, label) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
   const actions = k.id
-    ? btn(act('annehmen'), '#16a34a', '✓ Annehmen → Regelwerk') + btn(act('zurueckstellen'), '#64748b', '⏸ Zurückstellen') + btn(act('ablehnen'), '#dc2626', '✗ Ablehnen')
+    ? mailBtn(act('annehmen'), MAIL_FARBE.ja, '✓ Annehmen → Regelwerk') + mailBtn(act('zurueckstellen'), MAIL_FARBE.warten, '⏸ Zurückstellen') + mailBtn(act('ablehnen'), MAIL_FARBE.nein, '✗ Ablehnen')
     : '';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  return mailRumpf(`
     <p><b>Neues Regelwerk-Konzept zur Prüfung durch die Geschäftsleitung</b></p>
     <p>Titel: <b>${esc(k.title)}</b>${k.kategorie ? ' (' + esc(k.kategorie) + ')' : ''}<br>
        ${(typeof geltungsbereichLabel === 'function' && geltungsbereichLabel(k.geltungsbereich))
@@ -652,7 +651,7 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
       ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>`
       : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button öffnet das Konzept in der App und führt die Entscheidung nach kurzer Rückfrage aus (Ablehnen/Zurückstellen mit Begründung; Anmeldung nötig, nur Geschäftsleitung). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
-  </div>`;
+  `);
 }
 
 
@@ -724,7 +723,7 @@ async function notifyKonzeptErsteller(k, entscheidung) {
   };
   const [titel, text, farbe] = texte[entscheidung] || texte.angenommen;
   const e = ko.entscheidung || {};
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;font-size:15px;line-height:1.6;color:#1e2939">
+  const html = mailRumpf(`
     <p><b>${esc(titel)}: ${esc(k.title)}</b></p>
     <p>${esc(text)}</p>
     <div style="margin:14px 0;padding:10px 14px;border-left:3px solid ${farbe};background:#f8fafc;border-radius:0 8px 8px 0;font-size:14px">
@@ -744,7 +743,7 @@ async function notifyKonzeptErsteller(k, entscheidung) {
       : `<p><a href="https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}"
           style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Konzept öffnen →</a></p>`}
     <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht vom DIHAG Regelwerk-Management.</p>
-  </div>`;
+  `);
   try {
     await spSendMail([an], `${titel}: ${k.title}`, html);
   } catch (err) { console.warn('Ersteller-Info:', err.message); }
