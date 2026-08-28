@@ -217,6 +217,24 @@ async function reloadData(opt) {
   if (rendern) renderMeine();
 }
 
+/**
+ * Regelwerk zu einer Kennung – auch wenn sie aus einem Link kommt.
+ *
+ * Bewusst über String(): Aus der URL kommt die Kennung immer als Text, in
+ * `DatenJson` gespeicherte Verweise sind Zahlen. `7 === "7"` ist falsch, und
+ * die Oberfläche behauptet dann, es gäbe das Regelwerk nicht mehr.
+ */
+function policyZuId(id) {
+  const gesucht = String(id);
+  return (State.policies || []).find(x => String(x.id) === gesucht) || null;
+}
+
+/** Dasselbe für Konzepte – sie liegen seit der Trennung in State.konzepte. */
+function konzeptZuId(id) {
+  const gesucht = String(id);
+  return (State.konzepte || []).find(x => String(x.id) === gesucht) || null;
+}
+
 async function reloadAcks() {
   State.acks = await spGetAcknowledgements(State.user.upn);
 }

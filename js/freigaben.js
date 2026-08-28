@@ -144,24 +144,6 @@ function setFreigabenScope(s) {
 }
 
 /** Aus dem Mail-Deeplink: zur Karte der Richtlinie scrollen und kurz hervorheben. */
-/**
- * Regelwerk zu einer Kennung aus einem Link.
- *
- * Bewusst ueber String(): Aus der URL kommt immer Text, gespeicherte Verweise
- * koennen Zahlen sein. Ein strikter Vergleich findet dann nichts und die
- * Oberflaeche behauptet, es gaebe das Regelwerk nicht mehr.
- */
-function policyZuId(id) {
-  const gesucht = String(id);
-  return (State.policies || []).find(x => String(x.id) === gesucht) || null;
-}
-
-/** Dasselbe fuer Konzepte - sie liegen seit der Trennung in State.konzepte. */
-function konzeptZuId(id) {
-  const gesucht = String(id);
-  return (State.konzepte || []).find(x => String(x.id) === gesucht) || null;
-}
-
 function focusPolicyCard(id) {
   let el = document.getElementById('fg-' + id);
   // Steht der Vorgang unter „Alle Vorgänge" statt „Mir zugewiesen"? Dann dorthin
@@ -841,45 +823,60 @@ function _ekPanel(inhalt) {
 const _ekSchliessen = `<div style="margin-top:16px"><button class="btn btn-outline" onclick="closeModal()">Schließen</button></div>`;
 
 /**
+ * Regelwerk für die Ein-Klick-Entscheidung holen – oder erklären, warum nicht.
+ *
+ * Ein leeres Ergebnis hat drei Ursachen, und nur eine davon heißt „gelöscht":
+ * die Liste ist noch gar nicht geladen, die Kennung gehört zu einem Konzept,
+ * oder es ist wirklich weg. Früher bekam man in allen drei Fällen dieselbe
+ * Auskunft – und die war zweimal von drei Malen falsch.
+ *
+ * @returns {Promise<object|null>} das Regelwerk – oder null, dann steht die
+ *          passende Meldung bereits auf dem Schirm.
+ */
+async function _ekRegelwerkHolen(id) {
+  let p = policyZuId(id);
+  if (p) return p;
+
+  // Beim Start wird ein Fehler beim Laden absichtlich verschluckt (bootApp);
+  // dann ist die Liste schlicht leer. Einmal nachladen, bevor wir etwas über
+  // den Verbleib behaupten.
+  try {
+    await reloadData({ rendern: false });
+  } catch (e) {
+    _ekPanel(`<h3>Die Regelwerke konnten nicht geladen werden</h3>
+      <p style="line-height:1.55">${esc(e.message || 'Unbekannter Fehler')}</p>
+      <p style="line-height:1.55">Ihre Entscheidung ist damit <b>nicht</b> gespeichert.
+      Bitte die Seite neu laden und den Link noch einmal anklicken.</p>${_ekSchliessen}`);
+    return null;
+  }
+  p = policyZuId(id);
+  if (p) return p;
+
+  // Konzepte liegen seit der Trennung in State.konzepte. Ein Link darauf fand
+  // hier nie etwas – und bekam fälschlich „gelöscht" zu hören.
+  const k = konzeptZuId(id);
+  if (k) {
+    _ekPanel(`<h3>Das ist noch ein Konzept</h3>
+      <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor – entschieden wird
+      darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
+      <div style="margin-top:16px"><button class="btn btn-primary"
+        onclick="closeModal();konzeptOeffnen('${esc(String(id))}')">Konzept öffnen</button></div>`);
+    return null;
+  }
+
+  _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
+    <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>
+    <p style="color:#6b7280;font-size:12px;margin-top:10px">Kennung aus dem Link: <b>${esc(String(id))}</b></p>${_ekSchliessen}`);
+  return null;
+}
+
+/**
  * Landung aus der Mail: prüfen, ausführen, Ergebnis zeigen.
  * Ohne gültiges Token bleibt es beim gewohnten Weg mit Rückfrage.
  */
 async function einKlickAktion(id, aktion, token, adressatAusLink) {
-  let p = policyZuId(id);
-
-  // Nichts gefunden heisst nicht "geloescht". Beim Start wird ein Fehler beim
-  // Laden absichtlich verschluckt (bootApp); dann ist die Liste schlicht leer.
-  // Also einmal nachladen, bevor wir etwas ueber den Verbleib behaupten.
-  if (!p && typeof reloadData === 'function') {
-    try {
-      await reloadData({ rendern: false });
-    } catch (e) {
-      _ekPanel(`<h3>Die Regelwerke konnten nicht geladen werden</h3>
-        <p style="line-height:1.55">${esc(e.message || 'Unbekannter Fehler')}</p>
-        <p style="line-height:1.55">Ihre Entscheidung ist damit <b>nicht</b> gespeichert.
-        Bitte die Seite neu laden und den Link noch einmal anklicken.</p>${_ekSchliessen}`);
-      return;
-    }
-    p = policyZuId(id);
-  }
-
-  if (!p) {
-    // Konzepte liegen seit der Trennung in State.konzepte. Ein Link darauf
-    // fand hier nie etwas - und bekam faelschlich "geloescht" zu hoeren.
-    const k = konzeptZuId(id);
-    if (k) {
-      _ekPanel(`<h3>Das ist noch ein Konzept</h3>
-        <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor – entschieden wird
-        darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
-        <div style="margin-top:16px"><button class="btn btn-primary"
-          onclick="closeModal();if(typeof setAdminMode==='function')setAdminMode('konzepte');switchView('verwaltung').then(()=>{if(typeof focusKonzeptCard==='function')focusKonzeptCard('${esc(String(id))}')})">Konzept öffnen</button></div>`);
-      return;
-    }
-    _ekPanel(`<h3>Regelwerk nicht gefunden</h3>
-      <p style="line-height:1.55">Es wurde vermutlich zwischenzeitlich gelöscht oder archiviert.</p>
-      <p style="color:#6b7280;font-size:12px;margin-top:10px">Kennung aus dem Link: <b>${esc(String(id))}</b></p>${_ekSchliessen}`);
-    return;
-  }
+  const p = await _ekRegelwerkHolen(id);
+  if (!p) return;
 
   // Der Link nennt seinen Adressaten. Weil der Konto-Cache über Tabs geteilt wird,
   // könnte an einem Rechner sonst die Entscheidung unter einem fremden Namen landen –

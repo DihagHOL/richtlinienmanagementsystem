@@ -562,6 +562,19 @@ function openPolicyFromKonzept(regelwerkId) {
 }
 
 /** Konzept-Karte hervorheben (Deep-Link ohne Aktion). */
+/**
+ * Ins Regelwerk Dashboard wechseln und dort das Konzept zeigen.
+ *
+ * `_adminMode` wird direkt gesetzt statt über setAdminMode(): das würde die
+ * Liste rendern, bevor die Ansicht überhaupt sichtbar ist – switchView() holt
+ * das gleich danach nach.
+ */
+async function konzeptOeffnen(id) {
+  _adminMode = 'konzepte';
+  await switchView('verwaltung');
+  focusKonzeptCard(id);
+}
+
 function focusKonzeptCard(id) {
   const el = document.getElementById('konzept-' + id);
   if (!el) { toast('Dieses Konzept ist gerade nicht in der Liste (evtl. schon entschieden).'); return; }
