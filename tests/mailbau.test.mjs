@@ -64,12 +64,34 @@ const eigenerKnopf = jsDateien.filter(f => KNOPF.test(lies('js/' + f)));
 ok(eigenerKnopf.length === 0,
   'Kein eigener Mail-Knopf mehr in js/' + (eigenerKnopf.length ? ' – noch in: ' + eigenerKnopf.join(', ') : ''));
 
-/* ── 3) Die Datei ist eingehängt ── */
+/* ── 3) Der Erinnerungs-Cron steht allein – aber nicht beliebig ──
+   scripts/erinnerungen.mjs läuft als GitHub-Action ohne die Browser-Dateien
+   und baut seinen Entscheidungs-Knopf selbst. Entdoppeln geht dort nicht;
+   was geht, ist die Farben aneinander zu binden. Ohne das driften die
+   Portal-Mail und die Erinnerungs-Mail zum selben Vorgang auseinander –
+   und beide landen im selben Postfach. */
+const cron = lies('scripts/erinnerungen.mjs');
+// Das Ziel enthält selbst Kommas (policyLink(id, 'freigeben', token, empf)),
+// deshalb nicht auf das erste Komma stoppen.
+const cronFarben = new Set([...cron.matchAll(/_btn\([\s\S]{0,200}?'(#[0-9a-fA-F]{6})'/g)]
+  .map(m => m[1].toLowerCase()));
+const entscheidung = ['ja', 'nein', 'warten'].map(k => run(`MAIL_FARBE.${k}`).toLowerCase());
+ok(entscheidung.every(c => cronFarben.has(c)),
+  'Der Cron entscheidet in denselben drei Farben wie das Portal');
+
+// Bekannter Unterschied, hier festgehalten statt stillschweigend angeglichen:
+// Die neutralen Knöpfe des Cron tragen das CSS-Primärblau, die Mails der App
+// MAIL_FARBE.neutral (DIHAG-Azur). Kommt eine weitere Farbe dazu, fällt es auf.
+const neutralImCron = [...cronFarben].filter(c => !entscheidung.includes(c));
+ok(neutralImCron.length === 1 && neutralImCron[0] === '#1a56db',
+  `Neutrale Cron-Knöpfe: ${neutralImCron.join(', ')} – App-Mails nehmen dafür ${run('MAIL_FARBE.neutral')}`);
+
+/* ── 4) Die Datei ist eingehängt ── */
 const html = lies('index.html');
 ok(/<script src="js\/mailbau\.js\?v=/.test(html), 'mailbau.js ist in index.html eingehängt');
 ok(html.indexOf('js/mailbau.js') < html.indexOf('js/freigaben.js'), 'Und wird vor den Mail-Bauern geladen');
 
-/* ── 4) Die Mails selbst sind unverändert (Stichprobe) ── */
+/* ── 5) Die Mails selbst sind unverändert (Stichprobe) ── */
 const mctx = {
   console, URLSearchParams,
   document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },

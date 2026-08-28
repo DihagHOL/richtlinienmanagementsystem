@@ -561,7 +561,6 @@ function openPolicyFromKonzept(regelwerkId) {
   if (typeof openPolicyEditor === 'function') openPolicyEditor(regelwerkId);
 }
 
-/** Konzept-Karte hervorheben (Deep-Link ohne Aktion). */
 /**
  * Ins Regelwerk Dashboard wechseln und dort das Konzept zeigen.
  *
@@ -575,6 +574,7 @@ async function konzeptOeffnen(id) {
   focusKonzeptCard(id);
 }
 
+/** Konzept-Karte hervorheben (Deep-Link ohne Aktion). */
 function focusKonzeptCard(id) {
   const el = document.getElementById('konzept-' + id);
   if (!el) { toast('Dieses Konzept ist gerade nicht in der Liste (evtl. schon entschieden).'); return; }

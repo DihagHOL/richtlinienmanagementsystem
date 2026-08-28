@@ -745,6 +745,10 @@ function newPolicy() {
 function openPolicyEditor(policyId) {
   if (policyId) {
     const src = policyZuId(policyId);
+    // Erst schauen, dann klonen. Solange find() undefined lieferte, warf
+    // JSON.parse sofort; seit policyZuId() null zurückgibt, würde _editing
+    // still null und renderPolicyEditor() eine Zeile später umfallen.
+    if (!src) { toast('Regelwerk nicht gefunden.', 'error'); return; }
     _editing = JSON.parse(JSON.stringify(src));
   } else {
     _editing = newPolicy();
@@ -1634,7 +1638,7 @@ function _mitMailHtml(p, label, attachmentName) {
       : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar) – bitte bei der ISMS-Stelle anfordern.</p>`}
     ${(typeof _wfApprovalsHtml === 'function') ? _wfApprovalsHtml(p) : ''}
     <p style="margin-top:18px"><b>Rückmeldung – ein Klick genügt:</b></p>
-    <p>${mbBtn('mb_konform', '#16a34a', '✓ Konform')}${mbBtn('mb_nicht_konform', '#dc2626', '✗ Nicht konform')}</p>
+    <p>${mbBtn('mb_konform', MAIL_FARBE.ja, '✓ Konform')}${mbBtn('mb_nicht_konform', MAIL_FARBE.nein, '✗ Nicht konform')}</p>
     <p style="color:#6b7280;font-size:13px">Bei <b>„Nicht konform"</b> fragt die Seite nach der Begründung – ohne sie
     wird nichts gespeichert. Die Entscheidung wird unter Ihrem Namen protokolliert; angemeldet werden Sie
     dabei mit Ihrem DIHAG-Konto.</p>

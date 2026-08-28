@@ -781,9 +781,6 @@ function _wfDokumentHtml(p, attachmentName) {
    Ein Fehlklick lässt sich zurücknehmen (siehe freigabeZuruecknehmen) – auch das
    wird protokolliert. */
 
-/* Läuft gerade eine Entscheidung aus der Mail? Dann gehört der Weg ins Protokoll –
-   im Audit ist es ein Unterschied, ob jemand im Portal saß oder aus der Mail heraus
-   entschieden hat. */
 /** Neues Einmal-Token für eine Runde. */
 function neuerAktionToken(art) {
   let wert = '';
