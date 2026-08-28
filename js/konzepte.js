@@ -177,7 +177,7 @@ function openKonzeptEditor(id) {
     toast('Nur Lesezugriff – Konzepte können nicht angelegt/bearbeitet werden.', 'error'); return;
   }
   if (id) {
-    const src = (State.konzepte || []).find(x => x.id === id);
+    const src = konzeptZuId(id);
     if (!src) { toast('Konzept nicht gefunden.', 'error'); return; }
     _kEditing = JSON.parse(JSON.stringify(src));
     if (!_kEditing.konzept) _kEditing.konzept = newKonzept().konzept;
@@ -360,7 +360,7 @@ async function konzeptDelete(id) {
 /* ── Einreichen & GF-Entscheidung (von den Karten) ── */
 
 function _kClone(id) {
-  const src = (State.konzepte || []).find(x => x.id === id);
+  const src = konzeptZuId(id);
   if (!src) { toast('Konzept nicht gefunden.', 'error'); return null; }
   const k = JSON.parse(JSON.stringify(src));
   k.typ = 'Konzept';
@@ -585,7 +585,7 @@ function focusKonzeptCard(id) {
 
 /** Aus dem Mail-Button (?konzept=…&aktion=…): Entscheidung direkt ausführen (mit Rückfrage/Begründung). */
 function handleKonzeptMailAction(id, aktion) {
-  const k = (State.konzepte || []).find(x => x.id === id);
+  const k = konzeptZuId(id);
   if (!k) { toast('Konzept nicht gefunden (evtl. schon entschieden).'); return; }
   const map = { annehmen: 'angenommen', zurueckstellen: 'zurueckgestellt', zuruckstellen: 'zurueckgestellt', ablehnen: 'abgelehnt' };
   const decision = map[String(aktion || '').toLowerCase()];
@@ -667,7 +667,7 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
  * ist und wer jetzt am Zug ist.
  */
 function konzeptWeiche(k, rwId) {
-  const p = (State.policies || []).find(x => String(x.id) === String(rwId));
+  const p = policyZuId(rwId);
   const ko = k.konzept || {};
   openModal(`
     <div class="modal-header">
@@ -691,12 +691,12 @@ function konzeptWeiche(k, rwId) {
 
 /** Den frisch entstandenen Entwurf ohne Umweg in die Konformitätsprüfung schicken. */
 async function konzeptDirektZurPruefung(rwId) {
-  const p = (State.policies || []).find(x => String(x.id) === String(rwId));
+  const p = policyZuId(rwId);
   if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
   try {
     await setStatus(rwId, 'Konformitätsprüfung', 'Direkt aus dem angenommenen Konzept eingereicht');
     await reloadData();
-    const frisch = (State.policies || []).find(x => String(x.id) === String(rwId));
+    const frisch = policyZuId(rwId);
     if (typeof notifyPruefer === 'function') await notifyPruefer(frisch || p);
     if (typeof mitbestimmungPflicht === 'function' && mitbestimmungPflicht(frisch || p)
         && typeof notifyMitbestimmung === 'function') await notifyMitbestimmung(frisch || p);

@@ -987,7 +987,7 @@ async function _lkRegelwerkeLaden(modelle, kachel) {
       const xml = await spGetProcessXml(m.itemId);
       const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
       ids.forEach(id => {
-        const pol = (State.policies || []).find(x => String(x.id) === String(id));
+        const pol = policyZuId(id);
         if (!pol) return;
         if (!treffer.has(String(id))) treffer.set(String(id), { pol, quellen: [] });
         treffer.get(String(id)).quellen.push(m.title);

@@ -114,15 +114,31 @@ const fg = lies('js/freigaben.js');
 ok(/function policyZuId/.test(appjs) && /function konzeptZuId/.test(appjs),
   'Beide Helfer stehen in app.js, wo auch State liegt');
 ok(!/function policyZuId/.test(fg), 'Und nicht mehr in freigaben.js');
-ok(/String\(x\.id\) === String\(deepId\)/.test(appjs), 'app.js: Mitbestimmungs-Prüfung vergleicht als Text');
-ok(/String\(p\.id\) === String\(deepId\)/.test(appjs), 'app.js: Sichtbarkeitsprüfung vergleicht als Text');
+ok(/darfMitbestimmung\(policyZuId\(deepId\) \|\| \{\}\)/.test(appjs),
+  'app.js: Mitbestimmungs-Prüfung geht über den Helfer');
+ok(/if \(policyZuId\(deepId\)\) openDetail\(deepId\)/.test(appjs),
+  'app.js: Sichtbarkeitsprüfung geht über den Helfer');
 
-/* ── 7) einKlickAktion ist wieder auf Entscheidung reduziert ── */
+/* ── 7) Nur noch EIN Weg, ein Regelwerk zu finden ──
+   Vorgefunden wurden vier: strikter Vergleich (35x), händisches String()
+   (19x), _policyById() und _plPolicy(). Der strikte ist der gefährliche –
+   kommt die Kennung aus einer URL oder aus DatenJson, stimmt der Typ nicht. */
+const jsDateien = fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js'));
+const strikt = jsDateien.filter(f =>
+  /State\.(policies|konzepte)[^\n]*\.find\([^\n]*\.id === /.test(lies('js/' + f)));
+ok(strikt.length === 0,
+  'Kein strikter id-Vergleich mehr auf State.policies/State.konzepte' + (strikt.length ? ' – noch in: ' + strikt.join(', ') : ''));
+ok(!/function _policyById/.test(lies('js/admin.js')),
+  '_policyById() ist weg – zwei Namen für dieselbe Sache waren das Problem');
+ok(/function _plPolicy\(id\) \{ return policyZuId\(id\) \|\| \{\}; \}/.test(lies('js/probelauf.js')),
+  '_plPolicy() leitet weiter und behält nur seine eigene Rückgabe-Regel');
+
+/* ── 8) einKlickAktion ist wieder auf Entscheidung reduziert ── */
 const ekLaenge = (fg.match(/async function einKlickAktion[\s\S]*?\n}\n/) || [''])[0].split('\n').length;
 ok(ekLaenge < 90, `einKlickAktion ist ${ekLaenge} Zeilen lang – das Nachschlagen steckt in _ekRegelwerkHolen()`);
 ok(/async function _ekRegelwerkHolen\(id\)/.test(fg), '_ekRegelwerkHolen() trägt die drei Erklärungen');
 
-/* ── 8) konzeptOeffnen() gibt es wirklich ── */
+/* ── 9) konzeptOeffnen() gibt es wirklich ── */
 ok(/async function konzeptOeffnen\(id\)/.test(lies('js/konzepte.js')),
   'konzeptOeffnen() steht bei den Konzepten');
 

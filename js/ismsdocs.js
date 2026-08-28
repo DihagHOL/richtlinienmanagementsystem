@@ -873,7 +873,7 @@ function proposeIsmsChange(driveItemId) {
 
 /** Aus dem Detail-Reader (jeder Mitarbeiter): Vorschlag zu einer Richtlinie. */
 function proposePolicyChange(policyId) {
-  const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === policyId) : null;
+  const p = (typeof State !== 'undefined' && State.policies) ? policyZuId(policyId) : null;
   openProposalModal(p ? p.title : 'Richtlinie', { policy: p || null, betreff: p ? (p.dokumentName || p.title) : '' });
 }
 

@@ -34,7 +34,7 @@ function shuffleQuiz(quiz) {
 }
 
 function startQuiz(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (!p || !Array.isArray(p.quiz) || !p.quiz.length) {
     toast('Kein Wissenstest hinterlegt.', 'error');
     return;
@@ -88,7 +88,7 @@ function markSel(qi, oi) {
 }
 
 async function submitQuiz(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (!p) return;
   const qs = _quiz.questions;
   const total = qs.length;

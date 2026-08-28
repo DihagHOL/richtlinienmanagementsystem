@@ -303,7 +303,7 @@ async function runHealthCheck() {
       if (ids.length < 2) continue;
       for (const id of ids) {
         const others = ids.filter(x => x !== id)
-          .map(x => (State.policies.find(p => p.id === x) || {}).title || x);
+          .map(x => (policyZuId(x) || {}).title || x);
         HealthState.results[id].findings.push({ sev: 'error', text: 'Dokumentinhalt ist identisch mit: ' + others.join(', ') });
       }
     }
@@ -353,7 +353,7 @@ function showHealthReport() {
   const SEV = { error: ['🔴', '#b91c1c'], warn: ['🟡', '#b45309'], info: ['ℹ️', '#6b7280'] };
   const order = { error: 0, warn: 1, na: 2, ok: 3 };
   const rows = ids
-    .map(id => ({ id, p: State.policies.find(x => x.id === id), r: HealthState.results[id] }))
+    .map(id => ({ id, p: policyZuId(id), r: HealthState.results[id] }))
     .filter(x => x.p)
     .sort((a, b) => (order[a.r.status] ?? 9) - (order[b.r.status] ?? 9));
   const counts = rows.reduce((a, x) => { a[x.r.status] = (a[x.r.status] || 0) + 1; return a; }, {});
@@ -406,7 +406,7 @@ function hcFindingAction(f) {
 /** Aus den Health-Befunden einer Richtlinie einen vorausgefüllten Vorschlag öffnen. */
 function proposeFromHealth(id) {
   const r = HealthState.results[id];
-  const p = (typeof State !== 'undefined' && State.policies) ? State.policies.find(x => x.id === id) : null;
+  const p = (typeof State !== 'undefined' && State.policies) ? policyZuId(id) : null;
   if (!r || !p) return;
   if (typeof openProposalModal !== 'function') {
     if (typeof toast === 'function') toast('Vorschlagsfunktion nicht verfügbar.', 'error');

@@ -352,7 +352,7 @@ function _renderCardLink(itemId, ids, docs, kaputt) {
     return;
   }
   el.innerHTML = '🔗 ' + ids.map(id => {
-    const pol = (State.policies || []).find(x => String(x.id) === String(id));
+    const pol = policyZuId(id);
     return `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(pol ? pol.title : 'Richtlinie ' + id)}</span>`;
   }).join(' ') + (anlagen ? ' ' + anlagen : '');
 }
@@ -698,7 +698,7 @@ function openProcessDraftPicker() {
 
 async function createProcessDraft() {
   const id = document.getElementById('proc-draft-policy')?.value;
-  const p = (State.policies || []).find(x => String(x.id) === String(id));
+  const p = policyZuId(id);
   if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
   const body = document.querySelector('.modal-body');
   if (body) body.innerHTML = '<div class="doc-loading">Richtlinien-Dokument wird ausgelesen …</div>';
@@ -729,7 +729,7 @@ function _procDraftShowText(p, text, err) {
 }
 
 function procGenerateFromText(pid) {
-  const p = (State.policies || []).find(x => String(x.id) === String(pid));
+  const p = policyZuId(pid);
   if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
   const text = document.getElementById('proc-draft-text')?.value || '';
   const title = String(p.title || 'Richtlinie').replace(/\.docx?$/i, '');

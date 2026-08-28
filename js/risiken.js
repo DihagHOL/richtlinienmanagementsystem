@@ -611,7 +611,7 @@ function risikenExportCsv() {
   if (!all.length) { if (typeof toast === 'function') toast('Keine Risiken zu exportieren.', 'error'); return; }
   const q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
   const rows = [['Risiko', 'Beschreibung', 'Kategorie', 'Eigner', 'Schutzziele (CIA)', 'Brutto E', 'Brutto A', 'Brutto Score', 'Netto E', 'Netto A', 'Netto Score', 'Stufe (effektiv)', 'Behandlung', 'Begründung', 'Maßnahmen (offen/gesamt)', 'Status', 'Nächste Überprüfung', 'Controls', 'Richtlinien', 'Assets']];
-  const polTitle = id => { const p = (State.policies || []).find(x => x.id === id); return p ? p.title : id; };
+  const polTitle = id => { const p = policyZuId(id); return p ? p.title : id; };
   for (const r of all) {
     const eff = _riskEff(r);
     rows.push([r.titel, r.beschreibung, r.kategorie, r.eigner, (r.schutzziele || []).join('/'),

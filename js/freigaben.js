@@ -290,8 +290,9 @@ function mitbestimmungBestaetigt(p) {
 }
 
 async function markKonform(policyId, konform) {
-  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
-  if (!p) return;
+  const src = policyZuId(policyId);
+  if (!src) return;
+  const p = JSON.parse(JSON.stringify(src));   // Arbeitskopie, damit State unberührt bleibt
   // Anmerkung aus dem Karten-Textfeld (Fallback prompt, falls Karte nicht im DOM, z. B. Mail-Aktion)
   const field = document.getElementById('fg-kom-' + policyId);
   let anmerkung = (field ? field.value : '').trim();
@@ -362,8 +363,9 @@ async function _ismsWriteback(p, kind) {
 /** Mitbestimmung (Betriebsverfassung) entscheiden – wie die Konformitätsprüfung:
  *  konform → weiter zur GL-Freigabe; nicht konform (mit Pflicht-Begründung) → zurück in die Prüfung. */
 async function markMitbestimmung(policyId, konform) {
-  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
-  if (!p) return;
+  const src = policyZuId(policyId);
+  if (!src) return;
+  const p = JSON.parse(JSON.stringify(src));   // Arbeitskopie, damit State unberührt bleibt
   const field = document.getElementById('fg-kom-' + policyId);
   let anmerkung = (field ? field.value : '').trim();
   if (!konform && !anmerkung) {
@@ -400,13 +402,14 @@ async function markMitbestimmung(policyId, konform) {
 
 /** Mitbestimmungs-Mail (KBR/BR) für eine Richtlinie erneut senden. */
 function resendMitbestimmung(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (p && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);
 }
 
 async function markFreigabe(policyId) {
-  const p = JSON.parse(JSON.stringify(State.policies.find(x => x.id === policyId)));
-  if (!p) return;
+  const src = policyZuId(policyId);
+  if (!src) return;
+  const p = JSON.parse(JSON.stringify(src));   // Arbeitskopie, damit State unberührt bleibt
   const field = document.getElementById('fg-kom-' + policyId);
   const anmerkung = (field ? field.value : '').trim();   // bei Freigabe optional
   p.freigaben = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() !== State.user.upn.toLowerCase());
@@ -604,7 +607,7 @@ async function notifyZielgruppe(p, opts) {
 
 /** Bekanntgabe im Regelwerk vermerken (eigener Speichervorgang, damit sie im Audit steht). */
 async function zielgruppeBekanntgabeVermerken(id, adressen) {
-  const src = State.policies.find(x => x.id === id);
+  const src = policyZuId(id);
   if (!src) return;
   const p = JSON.parse(JSON.stringify(src));
   p.bekanntgabeAm = new Date().toISOString();
@@ -615,7 +618,7 @@ async function zielgruppeBekanntgabeVermerken(id, adressen) {
 
 /** „Zielgruppe informieren" von Hand (Nachzügler, vergessene Bekanntgabe, neue Version). */
 async function zielgruppeInformieren(id) {
-  const p = State.policies.find(x => x.id === id);
+  const p = policyZuId(id);
   if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
   const { adressen, fehlend } = mailsFuerZielgruppen(p.zielgruppen);
   if (!adressen.length) {
@@ -947,7 +950,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     else await markKonform(id, false);
   } finally { _ekAusMail = false; }
 
-  const danach = State.policies.find(x => x.id === id) || p;
+  const danach = policyZuId(id) || p;
   const fertig = aktion === 'freigeben'
     ? (danach.status === 'Veröffentlicht'
       ? `<div style="font-size:2rem">🎉</div><h3>Freigegeben und veröffentlicht</h3>
@@ -964,7 +967,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
 
 /** Fehlklick zurücknehmen: Freigabe entfernen, Veröffentlichung aufheben – protokolliert. */
 async function freigabeZuruecknehmen(id) {
-  const src = State.policies.find(x => x.id === id);
+  const src = policyZuId(id);
   if (!src) return;
   const p = JSON.parse(JSON.stringify(src));
   const meine = (p.freigaben || []).filter(v => (v.upn || '').toLowerCase() === State.user.upn.toLowerCase());
@@ -1025,7 +1028,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
 
 
 async function setStatus(id, status, historienText) {
-  const src = State.policies.find(x => x.id === id);
+  const src = policyZuId(id);
   if (!src) { toast('Regelwerk nicht gefunden.', 'error'); return; }
   const p = JSON.parse(JSON.stringify(src));
   const vorher = p.status;
@@ -1044,7 +1047,7 @@ async function setStatus(id, status, historienText) {
 /** Veröffentlichtes Regelwerk außer Kraft setzen (bleibt für Audits erhalten). */
 async function archivierePolicy(id) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
-  const p = State.policies.find(x => x.id === id);
+  const p = policyZuId(id);
   if (!p) return;
   const grund = await uiPrompt(
     `„${p.title}" archivieren? Es erscheint dann nicht mehr unter „Meine Regelwerke", bleibt aber mit allen Bestätigungen und der Historie erhalten.\n\nGrund (optional, z. B. „abgelöst durch …"):`,
@@ -1057,7 +1060,7 @@ async function archivierePolicy(id) {
 /** Archiviertes Regelwerk zurück in den Entwurf holen. */
 async function reaktivierePolicy(id) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff auf „Regelwerk Dashboard".', 'error'); return; }
-  const p = State.policies.find(x => x.id === id);
+  const p = policyZuId(id);
   if (!p) return;
   if (!await uiConfirm(`„${p.title}" reaktivieren? Es geht zurück in den Status „Entwurf" und muss den Freigabeprozess erneut durchlaufen, bevor es wieder sichtbar wird.`,
     { title: 'Regelwerk reaktivieren', okLabel: 'Reaktivieren' })) return;

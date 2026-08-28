@@ -690,11 +690,10 @@ function policyEditWeb() {
 }
 
 /* ── Regelwerkdokument aus einer Karte öffnen (Prüfung/Freigabe) – per Policy-ID ── */
-function _policyById(id) { return (State.policies || []).find(p => String(p.id) === String(id)); }
 
 /** Dokument der Richtlinie im Desktop-Office öffnen (Karte). */
 async function policyCardOpenOffice(id) {
-  const p = _policyById(id);
+  const p = policyZuId(id);
   if (!p) return;
   const scheme = officeScheme(p.dokumentName || p.dokumentUrl);
   if (!scheme || !p.dokumentDriveId || !p.dokumentItemId) { policyCardOpenWeb(id); return; }
@@ -709,7 +708,7 @@ async function policyCardOpenOffice(id) {
 
 /** Dokument der Richtlinie in SharePoint/Office-Web öffnen (Karte). */
 function policyCardOpenWeb(id) {
-  const p = _policyById(id);
+  const p = policyZuId(id);
   if (!p || !p.dokumentUrl) { toast('Diesem Eintrag ist kein Dokument zugeordnet.', 'error'); return; }
   let u = p.dokumentUrl;
   if (/Doc\.aspx/i.test(u)) {
@@ -745,7 +744,7 @@ function newPolicy() {
 
 function openPolicyEditor(policyId) {
   if (policyId) {
-    const src = State.policies.find(x => x.id === policyId);
+    const src = policyZuId(policyId);
     _editing = JSON.parse(JSON.stringify(src));
   } else {
     _editing = newPolicy();
@@ -1375,7 +1374,7 @@ async function savePolicy(newStatus) {
   if (!await pruefeFremdaenderung(p, newStatus ? 'einreichst' : 'speicherst')) return;
 
   // Änderungen gegen den zuletzt geladenen Stand protokollieren (vor Statuswechsel diffen)
-  const alt = p.id ? State.policies.find(x => x.id === p.id) : null;
+  const alt = p.id ? policyZuId(p.id) : null;
   const aenderungen = alt ? policyDiff(alt, p) : [];
 
   if (newStatus) p.status = newStatus;
@@ -1434,7 +1433,7 @@ function darfGeloeschtWerden(p) {
 }
 
 function deletePolicyConfirm(id) {
-  const p = State.policies.find(x => x.id === id);
+  const p = policyZuId(id);
   if (!darfGeloeschtWerden(p)) {
     const gruende = [];
     if (p.status !== 'Entwurf') gruende.push(`Status <b>${esc(p.status)}</b>`);
@@ -1474,7 +1473,7 @@ function deletePolicyConfirm(id) {
 }
 
 async function doDeletePolicy(id) {
-  const p = State.policies.find(x => String(x.id) === String(id));
+  const p = policyZuId(id);
   if (!darfGeloeschtWerden(p)) {   // zweite Schranke: auch ein direkter Aufruf greift nicht durch
     toast('Dieses Regelwerk trägt einen Nachweis und kann nur archiviert werden.', 'error');
     return;
@@ -1849,7 +1848,7 @@ function renderComplianceDetail() {
   const sel = document.getElementById('compliance-policy');
   const body = document.getElementById('compliance-body');
   if (!body) return;
-  const p = State.policies.find(x => x.id === (sel ? sel.value : null));
+  const p = policyZuId(sel ? sel.value : null);
   if (!p) { body.innerHTML = emptyState('Keine veröffentlichte Pflicht-Richtlinie.'); return; }
 
   const rows = _complianceRowsFor(p);

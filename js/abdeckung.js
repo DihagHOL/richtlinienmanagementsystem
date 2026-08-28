@@ -194,7 +194,7 @@ async function abdeckungApplySeeds() {
   if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
   let ok = 0, fail = 0;
   for (const p of targets) {
-    const src = State.policies.find(x => x.id === p.id);
+    const src = policyZuId(p.id);
     if (!src) continue;
     const seed = normbezugSeedFor(src.title) || [];
     src.normbezug = [...new Set([...(src.normbezug || []), ...seed])];

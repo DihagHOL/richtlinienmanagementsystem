@@ -118,7 +118,7 @@ async function _faelligApplyReview(id, iso, okMsg) {
   if (typeof canWriteTab === 'function' && !canWriteTab('faelligkeit')) {
     if (typeof toast === 'function') toast('Nur Lesezugriff auf „Fälligkeiten".', 'error'); return;
   }
-  const src = State.policies.find(x => x.id === id);
+  const src = policyZuId(id);
   if (!src) return;
   try {
     await spSetPolicyReview(id, iso);   // eigener PATCH: kann auch leeren

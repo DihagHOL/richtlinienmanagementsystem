@@ -182,7 +182,7 @@ async function applyDeepLinkOrDefault() {
     // sonst käme er nie bis zur Entscheidung.
     const mbDarf = (aktion === 'mb_konform' || aktion === 'mb_nicht_konform') && !!token
       && typeof darfMitbestimmung === 'function'
-      && darfMitbestimmung((State.policies || []).find(x => String(x.id) === String(deepId)) || {});
+      && darfMitbestimmung(policyZuId(deepId) || {});
     if (!canReview && !mbDarf) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
     await switchView(canReview ? 'freigaben' : 'meine');
     // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
@@ -195,7 +195,7 @@ async function applyDeepLinkOrDefault() {
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {
     await switchView('meine');
-    if ((State.policies || []).find(p => String(p.id) === String(deepId))) openDetail(deepId);
+    if (policyZuId(deepId)) openDetail(deepId);
     else toast('Das verlinkte Regelwerk ist für Sie aktuell nicht sichtbar.');
   }
 }
@@ -433,7 +433,7 @@ function memberBadge(st) {
 ═══════════════════════════════════════════════════ */
 
 async function openDetail(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (!p) return;
   switchView('detail');
   const v = document.getElementById('view-detail');
@@ -620,7 +620,7 @@ function renderAckCard(p, a, st) {
 }
 
 async function confirmRead(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (!p) return;
   const btn = document.getElementById('ack-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Speichern …'; }
@@ -653,7 +653,7 @@ async function confirmRead(policyId) {
 
 /* ── #8 Nachweis/Zertifikat per Mail an den Benutzer ── */
 async function sendCertificate(policyId) {
-  const p = State.policies.find(x => x.id === policyId);
+  const p = policyZuId(policyId);
   if (!p) return;
   const a = State.acks.find(x => x.richtlinieId === p.id && x.version === p.version);
   const when = (a && (a.abgeschlossenAm || a.gelesenAm)) || new Date().toISOString();

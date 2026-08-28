@@ -595,7 +595,7 @@ function _plOk(name, bedingung, detail) {
   return !!bedingung;
 }
 
-function _plPolicy(id) { return (State.policies || []).find(p => String(p.id) === String(id)) || {}; }
+function _plPolicy(id) { return policyZuId(id) || {}; }
 
 /**
  * Legt einen echten Vorgang an und führt ihn durch alle Stufen, mit Prüfung
@@ -650,7 +650,7 @@ async function probelaufSelbsttest() {
     _plOk('Konzept-Freigabe steht in der Historie',
       (entstanden.historie || []).some(h => h.aktion === 'Konzept freigegeben'));
     _plOk('Verweis vom Konzept auf das Regelwerk',
-      ((State.konzepte || []).find(x => x.id === kEing.id) || {}).konzept?.regelwerkId === rwId);
+      (konzeptZuId(kEing.id) || {}).konzept?.regelwerkId === rwId);
 
     // Dokument und Mitbestimmung ergänzen – wie beim Ausarbeiten im Editor
     const entwurf = JSON.parse(JSON.stringify(entstanden));
