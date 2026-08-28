@@ -42,6 +42,9 @@ function procLinksMerken(key, ids) {
   } catch (e) { /* Speicher voll oder gesperrt – der Cache lebt dann nur im Tab */ }
 }
 
+/** Nachschlagen im Cache; die Form macht procLinkEintrag() (js/util.js). */
+function procLinksVon(key) { return procLinkEintrag(_procLinkCache[key]); }
+
 const PROC_POLICY_MARKER = /\[\[rms:policies=([^\]]*)\]\]/;
 
 /* ── Hinterlegte Dokumente ──
@@ -259,12 +262,12 @@ function _renderProcCards() {
   // Verknüpfte Richtlinien pro Karte (aus dem BPMN-XML) – progressiv, mit Cache.
   rows.forEach(p => {
     const key = p.itemId + '|' + p.modified;
-    const e = _procLinkCache[key];
+    const e = procLinksVon(key);
     // Nur ein vollständiger Eintrag darf den erneuten Griff zur Datei sparen.
     // Ältere Stände kannten weder Anlagen noch die Frage, ob überhaupt ein
     // Diagramm drinsteht – die werden einmal nachgelesen, sonst bliebe die
     // Warnung bei genau den Modellen aus, die gerade im Cache liegen.
-    if (e && !Array.isArray(e) && 'k' in e) _renderCardLink(p.itemId, e.p, e.d, e.k);
+    if (e && !e.alt) _renderCardLink(p.itemId, e.p, e.d, e.k);
     else _enrichProcessCard(p, key);
   });
 }

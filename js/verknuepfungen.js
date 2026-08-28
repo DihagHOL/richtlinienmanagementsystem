@@ -45,12 +45,28 @@ const VK_ARTEN = {
 /** Alle Regelwerks-Verknüpfungen der Modelle holen (mit dem Cache aus prozesse.js). */
 async function _vkModellLinks(p) {
   const key = p.itemId + '|' + p.modified;
-  if (typeof _procLinkCache !== 'undefined' && _procLinkCache[key]) return _procLinkCache[key];
+  // Über denselben Leser wie die Prozessliste: Der Cache liegt in
+  // localStorage und enthält je nach Alter zwei Formen. Wer ihn selbst
+  // auspackt, bekommt irgendwann ein Objekt, wo er eine Liste erwartet.
+  // Absichtlich ohne Rücksicht auf `alt`: Das Flag heißt „unvollständig für
+  // die Kartenansicht" – dort fehlen Anlagenzahl und Diagramm-Warnung. Die
+  // Kennungen selbst stehen in beiden Formen vollständig drin, und mehr
+  // braucht die Mindmap nicht. Sonst läse sie jedes gecachte Modell erneut.
+  const gemerkt = (typeof _procLinkCache !== 'undefined' && typeof procLinkEintrag === 'function')
+    ? procLinkEintrag(_procLinkCache[key]) : null;
+  if (gemerkt) return gemerkt.p;
   try {
     const xml = await spGetProcessXml(p.itemId);
     const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
-    if (typeof procLinksMerken === 'function') procLinksMerken(key, ids);
-    else if (typeof _procLinkCache !== 'undefined') _procLinkCache[key] = ids;
+    // Dieselbe Form wie in prozesse.js schreiben – sonst vergiftet diese
+    // Ansicht den Cache für die Prozessliste und umgekehrt.
+    const eintrag = {
+      p: ids,
+      d: (typeof _parseProcessDocs === 'function') ? _parseProcessDocs(xml).length : 0,
+      k: !/<(bpmn:)?definitions[\s>]/i.test(String(xml || '')),
+    };
+    if (typeof procLinksMerken === 'function') procLinksMerken(key, eintrag);
+    else if (typeof _procLinkCache !== 'undefined') _procLinkCache[key] = eintrag;
     return ids;
   } catch (e) { return []; }
 }

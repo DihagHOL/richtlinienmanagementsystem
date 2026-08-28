@@ -55,6 +55,7 @@ const ctx = {
 };
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(ROOT + '/js/util.js', 'utf8'), ctx);   // procLinkEintrag
 vm.runInContext(lies('js/landkarte.js'), ctx);
 vm.runInContext(vk, ctx);
 const w = (a) => vm.runInContext(a, ctx);

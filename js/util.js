@@ -10,6 +10,36 @@
  * Korrekturen landeten dadurch schnell nur in einer davon.
  */
 
+/**
+ * Ein Eintrag des Prozess-Verknüpfungs-Caches, auf eine Form gebracht.
+ *
+ * Der Cache (`_procLinkCache` in `js/prozesse.js`, gespiegelt in
+ * `localStorage`) hält heute `{ p: [Kennung,…], d: Anlagen, k: kein Diagramm }`.
+ * Ältere Stände legten dort nur die Liste der Kennungen ab. Weil der Speicher
+ * die Sitzung überlebt, treffen beide Formen aufeinander – genau daran ist die
+ * Mindmap mit „ids.forEach is not a function" gescheitert.
+ *
+ * Bewusst eine reine Funktion über den Eintrag statt über den Schlüssel: So
+ * kennt sie keinen globalen Zustand und liegt hier, wo jede Datei sie erreicht.
+ * Die Ablage selbst bleibt bei ihrem Eigentümer.
+ *
+ * `alt: true` heißt „unvollständig für die Kartenansicht" – dort fehlen
+ * Anlagenzahl und Diagramm-Warnung. Die Kennungen selbst stehen in beiden
+ * Formen vollständig drin.
+ *
+ * @returns {{p: string[], d: number, k: boolean, alt: boolean}|null}
+ */
+function procLinkEintrag(e) {
+  if (!e) return null;
+  if (Array.isArray(e)) return { p: e, d: 0, k: false, alt: true };
+  return {
+    p: Array.isArray(e.p) ? e.p : [],
+    d: Number(e.d) || 0,
+    k: !!e.k,
+    alt: !('k' in e),
+  };
+}
+
 /** Dateiendung in Kleinbuchstaben (ohne Punkt), '' wenn keine erkennbar. */
 function fileExt(name) {
   const s = String(name || '');

@@ -167,6 +167,7 @@ const pctx = {
 };
 pctx.window = pctx; pctx.globalThis = pctx;
 vm.createContext(pctx);
+vm.runInContext(lies('js/util.js'), pctx);       // procLinkEintrag
 vm.runInContext(lies('js/landkarte.js'), pctx);
 vm.runInContext(lies('js/prozesse.js'), pctx);
 const p = (code) => vm.runInContext(code, pctx);
