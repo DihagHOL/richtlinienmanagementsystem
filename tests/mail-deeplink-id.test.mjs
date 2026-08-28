@@ -123,18 +123,53 @@ ok(/if \(policyZuId\(deepId\)\) openDetail\(deepId\)/.test(appjs),
    Vorgefunden wurden vier: strikter Vergleich (35x), händisches String()
    (19x), _policyById() und _plPolicy(). Der strikte ist der gefährliche –
    kommt die Kennung aus einer URL oder aus DatenJson, stimmt der Typ nicht. */
+// Das erste Muster forderte `.id ===` unmittelbar benachbart und alles in
+// einer Zeile. Damit blieb `String(p.id) === id` unsichtbar – und genau so
+// ist probelauf.js durchgerutscht. Jetzt mehrzeilig und beidseitig.
+//
+// Zwei Klassen, und die zweite ist Absicht:
+//   * Dateien, die app.js voraussetzen → policyZuId()/konzeptZuId().
+//   * landkarte.js, prozesse.js und verknuepfungen.js werden in Tests einzeln
+//     geladen, ohne app.js. Sie kommen an den Helfer nicht heran und schlagen
+//     selbst nach – kenntlich am Vorbehalt `typeof State !== 'undefined'`.
+// Die zweite Klasse weist sich also selbst aus, statt in einer Liste zu stehen.
+// Fällt der Vorbehalt weg, greift die Wache wieder.
 const jsDateien = fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js'));
-const strikt = jsDateien.filter(f =>
-  /State\.(policies|konzepte)[^\n]*\.find\([^\n]*\.id === /.test(lies('js/' + f)));
-ok(strikt.length === 0,
-  'Kein strikter id-Vergleich mehr auf State.policies/State.konzepte' + (strikt.length ? ' – noch in: ' + strikt.join(', ') : ''));
+const NACHBAU = /State\.(?:policies|konzepte)[\s\S]{0,300}?\.find\([\s\S]{0,160}?\.id\b[\s\S]{0,24}?===[\s\S]{0,20}/g;
+const nachbau = [];
+for (const f of jsDateien) {
+  const quelle = lies('js/' + f);
+  for (const t of quelle.matchAll(NACHBAU)) {
+    if (/===\s*gesucht/.test(t[0])) continue;                       // die Helfer selbst
+    const davor = quelle.slice(Math.max(0, t.index - 200), t.index);
+    if (/typeof State !== 'undefined'/.test(davor)) continue;      // bewusst eigenständig
+    nachbau.push(f);
+  }
+}
+ok(nachbau.length === 0,
+  'Kein selbstgebautes id-Nachschlagen mehr, wo der Helfer erreichbar ist'
+  + (nachbau.length ? ' – noch in: ' + [...new Set(nachbau)].join(', ') : ''));
+
+// Gegenprobe: Das Muster muss überhaupt etwas finden können, sonst bewacht es
+// nichts. Die drei eigenständigen Dateien sind der Beleg dafür.
+const eigenstaendig = jsDateien.filter(f => {
+  const quelle = lies('js/' + f);
+  return [...quelle.matchAll(NACHBAU)].some(t =>
+    /typeof State !== 'undefined'/.test(quelle.slice(Math.max(0, t.index - 200), t.index)));
+});
+ok(eigenstaendig.length >= 3,
+  `Das Muster greift überhaupt – ${eigenstaendig.length} eigenständige Fundstellen: ${eigenstaendig.join(', ')}`);
 ok(!/function _policyById/.test(lies('js/admin.js')),
   '_policyById() ist weg – zwei Namen für dieselbe Sache waren das Problem');
 ok(/function _plPolicy\(id\) \{ return policyZuId\(id\) \|\| \{\}; \}/.test(lies('js/probelauf.js')),
   '_plPolicy() leitet weiter und behält nur seine eigene Rückgabe-Regel');
 
 /* ── 8) einKlickAktion ist wieder auf Entscheidung reduziert ── */
-const ekLaenge = (fg.match(/async function einKlickAktion[\s\S]*?\n}\n/) || [''])[0].split('\n').length;
+// Erst nachweisen, dass gemessen wurde. Ohne das ergibt ein Fehltreffer die
+// Laenge 1, und `1 < 90` ist gruen, ohne dass je etwas gezaehlt wurde.
+const ekTreffer = fg.match(/async function einKlickAktion[\s\S]*?\n}\n/);
+ok(!!ekTreffer, 'einKlickAktion ist im Quelltext auffindbar');
+const ekLaenge = ekTreffer ? ekTreffer[0].split('\n').length : Infinity;
 ok(ekLaenge < 90, `einKlickAktion ist ${ekLaenge} Zeilen lang – das Nachschlagen steckt in _ekRegelwerkHolen()`);
 ok(/async function _ekRegelwerkHolen\(id\)/.test(fg), '_ekRegelwerkHolen() trägt die drei Erklärungen');
 

@@ -258,8 +258,9 @@ function probelaufAnzahl() { return _plSpur.policies.length + _plSpur.acks.lengt
 ═══════════════════════════════════════════════════ */
 
 function probelaufAufraeumen() {
+  // Die Spur haelt Regelwerke UND Konzepte, deshalb beide Helfer.
   const eintraege = _plSpur.policies
-    .map(id => (State.policies || []).concat(State.konzepte || []).find(p => String(p.id) === id))
+    .map(id => policyZuId(id) || konzeptZuId(id))
     .filter(Boolean);
   const verwaist = _plSpur.policies.length - eintraege.length;
 

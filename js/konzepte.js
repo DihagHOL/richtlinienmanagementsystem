@@ -733,15 +733,15 @@ async function notifyKonzeptErsteller(k, entscheidung) {
     ${(entscheidung === 'angenommen' && ko.regelwerkId) ? `
       <p style="margin:18px 0 6px"><b>Wie soll es weitergehen?</b></p>
       <p>
-        <a href="https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf"
-          style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">Entwurf bearbeiten</a>
-        <a href="https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf&aktion=pruefung"
-          style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">Direkt zur Konformitätsprüfung</a>
+        ${mailBtn(`https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf`,
+          MAIL_FARBE.neutral, 'Entwurf bearbeiten')}
+        ${mailBtn(`https://rms.dihag.de/?richtlinie=${encodeURIComponent(ko.regelwerkId)}&ansicht=entwurf&aktion=pruefung`,
+          MAIL_FARBE.ja, 'Direkt zur Konformitätsprüfung')}
       </p>
       <p style="color:#6b7280;font-size:13px;margin:0">Ausarbeiten heißt: Dokument ergänzen, Zielgruppe,
       Wissenstest und Mitbestimmung festlegen.</p>`
-      : `<p><a href="https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}"
-          style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Konzept öffnen →</a></p>`}
+      : `<p>${mailBtn(`https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}`,
+          MAIL_FARBE.neutral, 'Konzept öffnen →')}</p>`}
     ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management.`)}
   `);
   try {

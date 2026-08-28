@@ -130,7 +130,9 @@ ok(/Entwurf bearbeiten/.test(kq) && /Direkt zur Konformitätsprüfung/.test(kq),
 ok(/Wie soll es weitergehen\?/.test(kq), 'Die Info-Mail stellt die Frage');
 ok(/ansicht=entwurf&aktion=pruefung/.test(kq),
   'Und bietet den direkten Weg als Schaltfläche an');
-ok(/ansicht=entwurf"/.test(kq), 'Ebenso das Bearbeiten');
+// Nicht mehr an das Anführungszeichen des href gebunden: Der Knopf kommt
+// seit der Zusammenlegung aus mailBtn(), das Ziel steht in einem Template.
+ok(/ansicht=entwurf[`"]/.test(kq), 'Ebenso das Bearbeiten');
 ok(/async function konzeptDirektZurPruefung/.test(kq), 'Der direkte Weg ist umgesetzt');
 ok(/setStatus\(rwId, 'Konformitätsprüfung'/.test(kq), 'Er setzt den Status');
 ok(/notifyPruefer/.test(kq), 'Und benachrichtigt die Prüfer');

@@ -20,9 +20,18 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
 /* ── 1) Die Bausteine tun, was sie sollen ── */
-const ctx = { console, esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) };
+// Das echte esc() aus app.js, nicht ein schwächerer Nachbau: Der Nachbau
+// hier maskierte kein Apostroph und prüfte damit einen anderen Vertrag
+// als den ausgelieferten.
+const ctx = {
+  console, URLSearchParams,
+  document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },
+  sessionStorage: { getItem: () => null, removeItem() {}, setItem() {} },
+  location: { search: '' },
+};
 ctx.window = ctx; ctx.globalThis = ctx;
 vm.createContext(ctx);
+vm.runInContext(lies('js/app.js'), ctx);        // esc
 vm.runInContext(lies('js/mailbau.js'), ctx);
 const run = (s) => vm.runInContext(s, ctx);
 
@@ -31,6 +40,8 @@ ok(run(`mailRumpf('X')`).endsWith('X</div>'), 'Und schließt ihn auch wieder');
 
 const knopf = run(`mailBtn('https://rms.dihag.de/?a=1&b=2', MAIL_FARBE.ja, '✓ Konform')`);
 ok(knopf.includes('&amp;b=2'), 'mailBtn() maskiert das Ziel – dort steckt eine Kennung aus den Daten');
+ok(run(`mailBtn("x?t=o'r", MAIL_FARBE.ja, 'A')`).includes('&#39;'),
+  'Und zwar mit dem echten esc() – das Apostroph gehört dazu');
 ok(knopf.includes('>✓ Konform</a>'), 'Die Beschriftung bleibt unverändert – sie kommt aus dem Quelltext');
 ok(knopf.includes('background:#16a34a'), 'Die Farbe kommt aus MAIL_FARBE');
 ok(run(`MAIL_FARBE.nein`) === '#dc2626' && run(`MAIL_FARBE.warten`) === '#64748b',
@@ -44,10 +55,14 @@ const eigenerRumpf = jsDateien.filter(f =>
 ok(eigenerRumpf.length === 0,
   'Kein eigener Mail-Rumpf mehr' + (eigenerRumpf.length ? ' – noch in: ' + eigenerRumpf.join(', ') : ''));
 
-const eigenerKnopf = jsDateien.filter(f =>
-  /display:inline-block;background:\$\{(bg|farbe)\};color:#fff/.test(lies('js/' + f)));
+// Das erste Muster hing an der Farb-Interpolation (`background:${bg}`) und
+// sah damit nur Knöpfe, deren Farbe eine Variable ist. Ein wiedereingebauter
+// Knopf mit fester Farbe rutschte durch. Jetzt wird die Auszeichnung selbst
+// gesucht, unabhängig davon, woher die Farbe kommt.
+const KNOPF = /text-decoration:none;padding:10px 18px/;
+const eigenerKnopf = jsDateien.filter(f => KNOPF.test(lies('js/' + f)));
 ok(eigenerKnopf.length === 0,
-  'Kein eigener Mail-Knopf mehr' + (eigenerKnopf.length ? ' – noch in: ' + eigenerKnopf.join(', ') : ''));
+  'Kein eigener Mail-Knopf mehr in js/' + (eigenerKnopf.length ? ' – noch in: ' + eigenerKnopf.join(', ') : ''));
 
 /* ── 3) Die Datei ist eingehängt ── */
 const html = lies('index.html');
