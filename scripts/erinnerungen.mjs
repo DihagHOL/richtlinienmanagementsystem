@@ -302,7 +302,7 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
   const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
     <p>Guten Tag,</p>
-    <p>für ${gegenstand} <a href="${esc(link)}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(title)}</a>
+    <p>für ${gegenstand} <a href="${esc(link)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(title)}</a>
        steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
     ${geltung ? `<p><b>Geltungsbereich:</b> ${esc(geltung)}</p>` : ''}
     <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
@@ -312,7 +312,7 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
     <p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p>
     <p>${actions}</p>
     <p style="color:#6b7280;font-size:12px">Der Button öffnet den Vorgang in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).
-       Oder <a href="${esc(link)}" style="color:#1a56db">nur ansehen &amp; bearbeiten</a>.<br>Automatische Erinnerung des DIHAG Richtlinienmanagements.</p>
+       Oder <a href="${esc(link)}" style="color:#17509e">nur ansehen &amp; bearbeiten</a>.<br>Automatische Erinnerung vom DIHAG Regelwerk-Management-System.</p>
   </div>`;
 }
 
@@ -404,7 +404,7 @@ function regelwerkLink(id) {
 
 function kenntnisMailHtml(name, posten) {
   const zeilen = posten.map((x) => `<li style="margin-bottom:6px">
-      <a href="${esc(regelwerkLink(x.id))}" style="color:#1a56db;font-weight:700;text-decoration:none">${esc(x.title)}</a>
+      <a href="${esc(regelwerkLink(x.id))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(x.title)}</a>
       <span style="color:#6b7280"> – seit ${x.tage} Tag(en) veröffentlicht${x.quizNoetig ? ', mit Wissenstest' : ''}${x.geltung ? ' · gilt für ' + esc(x.geltung) : ''}</span></li>`).join('');
   const eins = posten.length === 1;
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
@@ -413,8 +413,8 @@ function kenntnisMailHtml(name, posten) {
     <ul style="padding-left:18px">${zeilen}</ul>
     <p>Bitte öffnen, lesen und die Kenntnisnahme bestätigen${posten.some((x) => x.quizNoetig) ? ' – bei Regelwerken mit Wissenstest zusätzlich den Test bestehen' : ''}.
        Das dauert meist wenige Minuten.</p>
-    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=meine`, '#1a56db', 'Meine Regelwerke öffnen →')}</p>
-    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung des DIHAG Regelwerk-Managements.
+    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=meine`, '#17509e', 'Meine Regelwerke öffnen →')}</p>
+    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung vom DIHAG Regelwerk-Management-System.
        Ist etwas bereits erledigt, kreuzt sich diese Mail nur mit Ihrer Bestätigung – dann bitte ignorieren.</p>
   </div>`;
 }
@@ -429,9 +429,9 @@ function kenntnisEskalationHtml(posten) {
     <p><b>Offene Kenntnisnahmen – Eskalation</b></p>
     <p>Bei folgenden Regelwerken fehlen Bestätigungen deutlich über die vorgesehene Frist hinaus:</p>
     <table style="border-collapse:collapse;width:100%">${rows}</table>
-    <p style="margin-top:16px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=compliance`, '#1a56db', 'Audit Report öffnen →')}</p>
+    <p style="margin-top:16px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=compliance`, '#17509e', 'Audit Report öffnen →')}</p>
     <p style="color:#6b7280;font-size:12px">Zweck ist der Nachweis der Unterweisung, keine Leistungskontrolle.
-       Automatische Nachricht des DIHAG Regelwerk-Managements.</p>
+       Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p>
   </div>`;
 }
 
@@ -649,8 +649,8 @@ function kenntnisEskalationHtml(posten) {
           <p><b>Fällige Richtlinien-Überprüfungen (Wiedervorlage)</b></p>
           <p>Folgende Richtlinien sind überfällig oder werden in den nächsten ${reviewVorlauf} Tagen zur internen Überprüfung fällig (ISO&nbsp;27001 A.5.1):</p>
           <table style="border-collapse:collapse;width:100%">${rows}</table>
-          <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=faelligkeit" style="background:#1a56db;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Fälligkeiten öffnen →</a></p>
-          <p style="color:#6b7280;font-size:12px">Automatische Nachricht des DIHAG Richtlinienmanagements.</p></div>`;
+          <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=faelligkeit" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Fälligkeiten öffnen →</a></p>
+          <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
         const ok = await sendMail(admins, `Richtlinien-Überprüfung: ${due.length} fällig/überfällig${overdue ? ` (davon ${overdue} überfällig)` : ''}`, html, []);
         if (ok) sent++;
         console.log(`Review-Digest: ${due.length} fällige Überprüfung(en) (${overdue} überfällig) an ${admins.join(', ')}`);
@@ -703,8 +703,8 @@ function kenntnisEskalationHtml(posten) {
             <p><b>Risiko-Register: überfällige Maßnahmen und Reviews</b></p>
             <p>Im Risiko-Register sind Fristen abgelaufen (ISO&nbsp;27001 6.1.3/8.3):</p>
             <table style="border-collapse:collapse;width:100%">${rows}</table>
-            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=risiken" style="background:#1a56db;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Risiko-Register öffnen →</a></p>
-            <p style="color:#6b7280;font-size:12px">Automatische Nachricht des DIHAG Richtlinienmanagements.</p></div>`;
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=risiken" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Risiko-Register öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
           const ok = await sendMail(admins, `Risiko-Register: ${rowsOut.length} überfällige Frist(en)`, html, []);
           if (ok) sent++;
           console.log(`Risiko-Digest: ${rowsOut.length} überfällige Frist(en) an ${admins.join(', ')}`);

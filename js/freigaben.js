@@ -332,7 +332,8 @@ async function markKonform(policyId, konform) {
   historieAdd(p, konform ? 'Konformitätsprüfung: konform' : 'Konformitätsprüfung: nicht konform',
     (anmerkung ? 'Anmerkung: ' + anmerkung : '') +
     (toBR ? (anmerkung ? '\n' : '') + 'Weiter an die Mitbestimmung (Betriebsrat).'
-     : toGL ? (anmerkung ? '\n' : '') + 'Weiter an die Freigabe (Geschäftsleitung).' : ''));
+     : toGL ? (anmerkung ? '\n' : '') + 'Weiter an die Freigabe (Geschäftsleitung).' : '')
+    + ekKanalHinweis());
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -390,7 +391,8 @@ async function markMitbestimmung(policyId, konform) {
   if (!await pruefeFremdaenderung(p, 'die Mitbestimmung abschließt')) return;
   historieAdd(p, konform ? 'Mitbestimmung: konform' : 'Mitbestimmung: nicht konform',
     (anmerkung ? 'Begründung: ' + anmerkung + '\n' : '') +
-    (konform ? 'Weiter an die Freigabe (Geschäftsleitung).' : 'Zurück in die Konformitätsprüfung.'));
+    (konform ? 'Weiter an die Freigabe (Geschäftsleitung).' : 'Zurück in die Konformitätsprüfung.')
+    + ekKanalHinweis());
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -431,7 +433,8 @@ async function markFreigabe(policyId) {
   if (!await pruefeFremdaenderung(p, 'freigibst')) return;
   historieAdd(p, published ? 'Freigegeben & veröffentlicht' : 'Freigabe erteilt',
     (anmerkung ? 'Anmerkung: ' + anmerkung + '\n' : '') +
-    (published ? `Version ${p.version} veröffentlicht.` : 'Weitere Freigaben stehen noch aus.'));
+    (published ? `Version ${p.version} veröffentlicht.` : 'Weitere Freigaben stehen noch aus.')
+    + ekKanalHinweis());
   try {
     await spSavePolicy(p);
     await reloadData();
@@ -490,7 +493,7 @@ function _zielgruppeMailHtml(p) {
     <p>${p.pflicht !== false ? `Bitte das Regelwerk <b>${wasTun}</b>.` : 'Das Regelwerk steht Ihnen zur Kenntnis bereit.'}
        Das dauert meist wenige Minuten.</p>
     <p style="margin:18px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
-    ${mailFuss(`Automatische Nachricht des DIHAG Regelwerk-Managements.
+    ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management-System.
       Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.`)}
   `);
 }
@@ -781,6 +784,16 @@ function _wfDokumentHtml(p, attachmentName) {
    Ein Fehlklick lässt sich zurücknehmen (siehe freigabeZuruecknehmen) – auch das
    wird protokolliert. */
 
+/* Läuft die Entscheidung gerade aus der Mail? Im Audit ist es ein Unterschied,
+   ob jemand im Portal saß oder mit einem Klick aus der Benachrichtigung heraus
+   entschieden hat. Der Merker wird in einKlickAktion() gesetzt und von den drei
+   mark*-Funktionen beim Protokollieren gelesen – die werden aus beiden Wegen
+   aufgerufen und sollen den Unterschied nicht kennen müssen. */
+let _ekAusMail = false;
+function ekKanalHinweis() {
+  return _ekAusMail ? '\nEntschieden per Ein-Klick aus der Benachrichtigungs-Mail.' : '';
+}
+
 /** Neues Einmal-Token für eine Runde. */
 function neuerAktionToken(art) {
   let wert = '';
@@ -933,13 +946,18 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
   const inVertretung = fuer ? `<div class="field-hint" style="margin-top:6px">in Vertretung für ${esc(fuer)}</div>` : '';
   _ekPanel(`<div class="doc-loading">Entscheidung wird gespeichert …</div>`);
 
-  if (aktion === 'freigeben') await markFreigabe(id);
-  else if (aktion === 'konform') await markKonform(id, true);
-  else if (aktion === 'mb_konform') await markMitbestimmung(id, true);
-  // „Nicht konform" fragt in beiden Fällen nach der Begründung – markKonform und
-  // markMitbestimmung greifen ohne Eingabefeld auf die Rückfrage zurück.
-  else if (aktion === 'mb_nicht_konform') await markMitbestimmung(id, false);
-  else await markKonform(id, false);
+  // Das finally ist kein Fehlerfänger: Es reicht eine Ablehnung unverändert
+  // weiter und stellt nur sicher, dass der Merker nicht stehen bleibt.
+  _ekAusMail = true;
+  try {
+    if (aktion === 'freigeben') await markFreigabe(id);
+    else if (aktion === 'konform') await markKonform(id, true);
+    else if (aktion === 'mb_konform') await markMitbestimmung(id, true);
+    // „Nicht konform" fragt in beiden Fällen nach der Begründung – markKonform und
+    // markMitbestimmung greifen ohne Eingabefeld auf die Rückfrage zurück.
+    else if (aktion === 'mb_nicht_konform') await markMitbestimmung(id, false);
+    else await markKonform(id, false);
+  } finally { _ekAusMail = false; }
 
   const danach = policyZuId(id) || p;
   const fertig = aktion === 'freigeben'
@@ -1011,7 +1029,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
-    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.`)}
+    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 

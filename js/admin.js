@@ -1642,7 +1642,7 @@ function _mitMailHtml(p, label, attachmentName) {
     <p style="color:#6b7280;font-size:13px">Bei <b>„Nicht konform"</b> fragt die Seite nach der Begründung – ohne sie
     wird nichts gespeichert. Die Entscheidung wird unter Ihrem Namen protokolliert; angemeldet werden Sie
     dabei mit Ihrem DIHAG-Konto.</p>
-    ${mailFuss(`Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.`)}
+    ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 
@@ -1937,7 +1937,7 @@ function reminderHtml(p) {
     ${geltungsbereichLabel(p.geltungsbereich) ? `<p style="color:#6b7280;font-size:14px">Gilt für: ${esc(geltungsbereichLabel(p.geltungsbereich))}</p>` : ''}
     <p>Bitte holen Sie das zeitnah nach:</p>
     <p><a href="${url}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
-    ${mailFuss(`Automatische Erinnerung vom DIHAG Richtlinienmanagementsystem.`)}
+    ${mailFuss(`Automatische Erinnerung vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 

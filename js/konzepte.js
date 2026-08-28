@@ -650,7 +650,7 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
     ${actions
       ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>`
       : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Regelwerk-Dashboard öffnen → 💡 Konzepte</a></p>`}
-    ${mailFuss(`Der Button öffnet das Konzept in der App und führt die Entscheidung nach kurzer Rückfrage aus (Ablehnen/Zurückstellen mit Begründung; Anmeldung nötig, nur Geschäftsleitung). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management.`)}
+    ${mailFuss(`Der Button öffnet das Konzept in der App und führt die Entscheidung nach kurzer Rückfrage aus (Ablehnen/Zurückstellen mit Begründung; Anmeldung nötig, nur Geschäftsleitung). Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 
@@ -742,7 +742,7 @@ async function notifyKonzeptErsteller(k, entscheidung) {
       Wissenstest und Mitbestimmung festlegen.</p>`
       : `<p>${mailBtn(`https://rms.dihag.de/?konzept=${encodeURIComponent(k.id || '')}`,
           MAIL_FARBE.neutral, 'Konzept öffnen →')}</p>`}
-    ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management.`)}
+    ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
   try {
     await spSendMail([an], `${titel}: ${k.title}`, html);

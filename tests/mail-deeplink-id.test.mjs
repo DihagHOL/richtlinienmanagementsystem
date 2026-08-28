@@ -170,8 +170,13 @@ ok(/function _plPolicy\(id\) \{ return policyZuId\(id\) \|\| \{\}; \}/.test(lies
 const ekTreffer = fg.match(/async function einKlickAktion[\s\S]*?\n}\n/);
 ok(!!ekTreffer, 'einKlickAktion ist im Quelltext auffindbar');
 const ekLaenge = ekTreffer ? ekTreffer[0].split('\n').length : Infinity;
-ok(ekLaenge < 90, `einKlickAktion ist ${ekLaenge} Zeilen lang – das Nachschlagen steckt in _ekRegelwerkHolen()`);
+// Die Eigenschaft, um die es geht – die Länge war dafür nur ein Stellvertreter.
 ok(/async function _ekRegelwerkHolen\(id\)/.test(fg), '_ekRegelwerkHolen() trägt die drei Erklärungen');
+ok(/const p = await _ekRegelwerkHolen\(id\);/.test(fg),
+  'Und einKlickAktion überlässt ihr das Nachschlagen');
+// Die Länge bleibt als Abdrift-Melder stehen, mit rundem Wert: Sie soll auffallen,
+// wenn die Funktion wieder alles an sich zieht, nicht bei jeder Zeile mahnen.
+ok(ekLaenge < 110, `einKlickAktion ist ${ekLaenge} Zeilen lang`);
 
 /* ── 9) konzeptOeffnen() gibt es wirklich ── */
 ok(/async function konzeptOeffnen\(id\)/.test(lies('js/konzepte.js')),

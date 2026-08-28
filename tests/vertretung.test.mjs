@@ -165,13 +165,17 @@ ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe'[\s\S]{0,40}'mitbestimmung
   'Passend zur Etappe – Prüfung, Mitbestimmung und Freigabe sind eigene Runden');
 
 /* ── 8) Was die Entscheidung aus der Mail absichert ── */
-// Der Merker _ekAusMail wurde beim Ein-Klick gesetzt und im finally wieder
-// zurückgenommen – gelesen hat ihn nur ekKanalHinweis(), und die rief niemand.
-// Der Hinweis „Entschieden per Ein-Klick" war für die Historie gedacht und nie
-// angeschlossen. Beides ist entfernt; kommt der Hinweis zurück, gehört er in
-// historieAdd() statt in einen Merker, den keiner liest.
-ok(!/_ekAusMail/.test(fg) && !/ekKanalHinweis/.test(fg),
-  'Kein Merker mehr, der gesetzt, aber nie gelesen wird');
+// Der Merker _ekAusMail wurde lange gesetzt, aber von niemandem gelesen – der
+// Hinweis „Entschieden per Ein-Klick" war für die Historie gedacht und nie
+// angeschlossen. Jetzt ist er es: Die drei mark*-Funktionen hängen ihn beim
+// Protokollieren an. Im Audit ist es ein Unterschied, ob jemand im Portal saß
+// oder mit einem Klick aus der Benachrichtigung heraus entschieden hat.
+ok(/let _ekAusMail = false;/.test(fg) && /function ekKanalHinweis/.test(fg),
+  'Der Merker für den Entscheidungsweg ist da');
+ok((fg.match(/\+ ekKanalHinweis\(\)\);/g) || []).length === 3,
+  'Und alle drei Protokolleinträge lesen ihn – Prüfung, Mitbestimmung, Freigabe');
+ok(/_ekAusMail = true;[\s\S]{0,800}finally \{ _ekAusMail = false; \}/.test(fg),
+  'Er gilt nur für die eine Entscheidung – auch wenn sie fehlschlägt');
 const zurueck = fg.slice(fg.indexOf('async function freigabeZuruecknehmen'));
 ok(/p\.aktionToken = neuerAktionToken\('freigabe'\)/.test(zurueck.slice(0, 1200)),
   'Nach einer Rücknahme gilt ein neues Token – der alte Link ist tot');

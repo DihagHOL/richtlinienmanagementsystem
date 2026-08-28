@@ -79,19 +79,31 @@ const entscheidung = ['ja', 'nein', 'warten'].map(k => run(`MAIL_FARBE.${k}`).to
 ok(entscheidung.every(c => cronFarben.has(c)),
   'Der Cron entscheidet in denselben drei Farben wie das Portal');
 
-// Bekannter Unterschied, hier festgehalten statt stillschweigend angeglichen:
-// Die neutralen Knöpfe des Cron tragen das CSS-Primärblau, die Mails der App
-// MAIL_FARBE.neutral (DIHAG-Azur). Kommt eine weitere Farbe dazu, fällt es auf.
-const neutralImCron = [...cronFarben].filter(c => !entscheidung.includes(c));
-ok(neutralImCron.length === 1 && neutralImCron[0] === '#1a56db',
-  `Neutrale Cron-Knöpfe: ${neutralImCron.join(', ')} – App-Mails nehmen dafür ${run('MAIL_FARBE.neutral')}`);
+// Die neutralen Knöpfe des Cron trugen das CSS-Primärblau #1a56db, während die
+// Mails der App MAIL_FARBE.neutral (DIHAG-Azur) nehmen – zwei Blautöne für
+// dieselbe Sache. Seit der Angleichung kommt im Cron keine fremde Farbe mehr vor.
+const ausMailbau = new Set(Object.values(run('MAIL_FARBE')).map(c => c.toLowerCase()));
+const fremd = [...cronFarben].filter(c => !ausMailbau.has(c));
+ok(fremd.length === 0,
+  'Der Cron nimmt ausschließlich Farben aus MAIL_FARBE' + (fremd.length ? ' – fremd: ' + fremd.join(', ') : ''));
 
-/* ── 4) Die Datei ist eingehängt ── */
+/* ── 4) Eine Absenderzeile, nicht vier ──
+   Vorgefunden: „DIHAG Richtlinienmanagementsystem", „DIHAG Richtlinienmanagements",
+   „DIHAG Regelwerk-Managements" und „DIHAG Regelwerk-Management" – drei davon aus
+   der Zeit vor der Umbenennung. */
+const MAIL_DATEIEN = ['js/app.js', 'js/admin.js', 'js/freigaben.js', 'js/konzepte.js', 'scripts/erinnerungen.mjs'];
+const veraltet = MAIL_DATEIEN.filter(f => /DIHAG (?:Richtlinienmanagement|Regelwerk-Managements?\.)/.test(lies(f)));
+ok(veraltet.length === 0,
+  'Kein alter Produktname mehr in den Mails' + (veraltet.length ? ' – noch in: ' + veraltet.join(', ') : ''));
+const absender = MAIL_DATEIEN.reduce((n, f) => n + (lies(f).match(/DIHAG Regelwerk-Management-System\./g) || []).length, 0);
+ok(absender >= 12, `${absender} Absenderzeilen tragen denselben Namen`);
+
+/* ── 5) Die Datei ist eingehängt ── */
 const html = lies('index.html');
 ok(/<script src="js\/mailbau\.js\?v=/.test(html), 'mailbau.js ist in index.html eingehängt');
 ok(html.indexOf('js/mailbau.js') < html.indexOf('js/freigaben.js'), 'Und wird vor den Mail-Bauern geladen');
 
-/* ── 5) Die Mails selbst sind unverändert (Stichprobe) ── */
+/* ── 6) Die Mails selbst sind unverändert (Stichprobe) ── */
 const mctx = {
   console, URLSearchParams,
   document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [] },

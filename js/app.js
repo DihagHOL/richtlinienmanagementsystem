@@ -668,7 +668,7 @@ async function sendCertificate(policyId) {
 function certificateHtml(p, a, when) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e9ef;border-radius:12px;overflow:hidden">
     <div style="background:#17509e;color:#fff;padding:24px 28px">
-      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.85">DIHAG Richtlinienmanagement</div>
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.85">DIHAG Regelwerk-Management-System</div>
       <div style="font-size:22px;font-weight:700;margin-top:6px">Teilnahmenachweis</div>
     </div>
     <div style="padding:24px 28px;color:#1e2939;font-size:15px;line-height:1.6">
@@ -681,7 +681,7 @@ function certificateHtml(p, a, when) {
         ${p.quizErforderlich && a ? `<tr><td style="padding:6px 0;color:#6b7280">Testergebnis</td><td style="padding:6px 0">${a.quizScore}%</td></tr>` : ''}
         <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0">${fmtDate(when)}</td></tr>
       </table>
-      ${mailFuss(`Automatisch erzeugt vom DIHAG Richtlinienmanagementsystem.`)}
+      ${mailFuss(`Automatisch erzeugt vom DIHAG Regelwerk-Management-System.`)}
     </div>
   </div>`;
 }
