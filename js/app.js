@@ -681,7 +681,7 @@ function certificateHtml(p, a, when) {
         ${p.quizErforderlich && a ? `<tr><td style="padding:6px 0;color:#6b7280">Testergebnis</td><td style="padding:6px 0">${a.quizScore}%</td></tr>` : ''}
         <tr><td style="padding:6px 0;color:#6b7280">Datum</td><td style="padding:6px 0">${fmtDate(when)}</td></tr>
       </table>
-      <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatisch erzeugt vom DIHAG Richtlinienmanagementsystem.</p>
+      ${mailFuss(`Automatisch erzeugt vom DIHAG Richtlinienmanagementsystem.`)}
     </div>
   </div>`;
 }

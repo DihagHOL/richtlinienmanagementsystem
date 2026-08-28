@@ -63,9 +63,6 @@ ok(w(`vertretungAktiv({ vertreter: 'a@b.de', von: '', bis: '2026-01-01' }, '${im
 ok(w(`vertreterVon('chef@dihag.com', '${imZeitraum}')`) === 'vize@dihag.com', 'Der Vertreter ist auffindbar');
 ok(w(`vertreterVon('chef@dihag.com', '${davor}')`) === '', 'Außerhalb des Zeitraums keiner');
 ok(w(`vertrittGerade('vize@dihag.com', 'chef@dihag.com', '${imZeitraum}')`) === true, 'Und die Gegenrichtung stimmt');
-ok(w(`vertretungenVon('vize@dihag.com', '${imZeitraum}')`).length === 1, 'Für wen jemand einspringt, ist abfragbar');
-ok(w(`vertretungenVon('vize@dihag.com', '${davor}')`).length === 0, 'Außerhalb des Zeitraums für niemanden');
-ok(w("vertretungenVon('')").length === 0, 'Ohne Kennung keine Treffer');
 
 /* ── 2) Wer darf entscheiden ── */
 ok(w(`isGeschaeftsleitung('vize@dihag.com')`) === false || true, 'Die Rollenprüfung kennt die Vertretung');
@@ -168,10 +165,13 @@ ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe'[\s\S]{0,40}'mitbestimmung
   'Passend zur Etappe – Prüfung, Mitbestimmung und Freigabe sind eigene Runden');
 
 /* ── 8) Was die Entscheidung aus der Mail absichert ── */
-ok(/let _ekAusMail = false;/.test(fg) && /ekKanalHinweis\(\)/.test(fg),
-  'Im Protokoll steht, dass aus der Mail heraus entschieden wurde');
-ok(/_ekAusMail = true;[\s\S]{0,600}finally \{ _ekAusMail = false; \}/.test(fg),
-  'Das Kennzeichen gilt nur für die eine Entscheidung – auch bei einem Fehler');
+// Der Merker _ekAusMail wurde beim Ein-Klick gesetzt und im finally wieder
+// zurückgenommen – gelesen hat ihn nur ekKanalHinweis(), und die rief niemand.
+// Der Hinweis „Entschieden per Ein-Klick" war für die Historie gedacht und nie
+// angeschlossen. Beides ist entfernt; kommt der Hinweis zurück, gehört er in
+// historieAdd() statt in einen Merker, den keiner liest.
+ok(!/_ekAusMail/.test(fg) && !/ekKanalHinweis/.test(fg),
+  'Kein Merker mehr, der gesetzt, aber nie gelesen wird');
 const zurueck = fg.slice(fg.indexOf('async function freigabeZuruecknehmen'));
 ok(/p\.aktionToken = neuerAktionToken\('freigabe'\)/.test(zurueck.slice(0, 1200)),
   'Nach einer Rücknahme gilt ein neues Token – der alte Link ist tot');

@@ -108,12 +108,6 @@ function _tourFreigabenAbschnitt(key) {
   if (typeof focusPolicyCard === 'function') focusPolicyCard(p.id);
 }
 
-/** Selektor auf die Karte des Vorgangs im Freigaben-Reiter. */
-function _tourKarteSel(inner) {
-  const p = _tourRegelwerk();
-  return p ? `#fg-${p.id}${inner ? ' ' + inner : ''}` : null;
-}
-
 /* ═══════════════════════════════════════════════════
    Die Schritte
 ═══════════════════════════════════════════════════ */

@@ -74,7 +74,7 @@ ok(w("LK_WERKE[0]") === 'KONZERN' && w("LK_WERKE.includes('SHB')"),
   'Zur Auswahl stehen die Konzern-Ebene und alle Werke');
 ok(w("lkWerkLabel('KONZERN')") === 'Konzern / Holding' && w("lkWerkLabel('SHB')") === 'SHB',
   'Die Konzern-Ebene heißt auch so');
-ok(w('lkWerk()') === 'HOL' && w('lkKacheln().length') === 17, 'Geöffnet ist zunächst HOL');
+ok(w('_lkWerk') === 'HOL' && w('lkKacheln().length') === 17, 'Geöffnet ist zunächst HOL');
 w("lkSetWerk('SHB')");
 ok(w('lkKacheln().length') === 0, 'SHB hat noch keine Karte – und leiht sich keine');
 ok(w("lkBaender().length") === 3, 'Die drei Bänder gibt es trotzdem – sonst ließe sich nichts einsortieren');
@@ -400,7 +400,7 @@ ok((kHtml6.match(/class="lk-zeile-titel"/g) || []).length === 6,
 ok(/Risiko & Compliance|Risiko &amp; Compliance/.test(kHtml6), 'Auch Bänder, die es im Startbestand nie gab');
 ok(!/Ergebnisse/.test(kHtml6), 'Und keine Ergebniszeile mehr');
 ok(!/lk-zeile-kern/.test(kHtml6), 'Ohne Kernprozesse keine Pfeilzeile');
-ok(w("LK_FARBEN.length") >= 6 && w("lkBandFarbe('finanzen')") === w('LK_FARBEN[1]'),
+ok(w("LK_FARBEN.length") >= 6 && w("LK_FARBEN[0]") === '#17509E',
   'Jeder Bereich bekommt seine Farbe nach seiner Position');
 w("lkSetWerk('HOL'); _lkDaten = lkStartbestand(); _lkDaten.historie = [];");
 

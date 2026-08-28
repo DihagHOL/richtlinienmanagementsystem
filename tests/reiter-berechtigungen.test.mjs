@@ -62,8 +62,6 @@ wert('State.myGroups = [{ id: "aaa-111" }]');
 ok(wert('istGruppenEintrag("gruppe:aaa-111")') === true && wert('istGruppenEintrag("max@dihag.com")') === false,
   'Gruppen-Einträge sind an ihrem Präfix erkennbar');
 ok(wert('gruppenIdVon("gruppe:AAA-111")') === 'aaa-111', 'Die Objekt-ID lässt sich herauslösen');
-ok(wert('gruppenName("aaa-111")') === 'IT-Sicherheit', 'Der Anzeigename kommt aus der Konfiguration');
-ok(wert('gruppenName("ccc-333")') === 'ccc-333', 'Ohne gepflegten Namen bleibt die ID stehen');
 ok(/Die ID\n\s+statt des Namens/.test(acc), 'Gespeichert wird die ID, nicht der Name (Umbenennen bricht nichts)');
 
 /* ══ 2) Datenschicht: eigene Gruppen, Suche ══ */
@@ -209,9 +207,9 @@ w3("State.myGroups = [{ id: 'vvv-111', name: 'Einkauf (Verteiler)', art: 'vertei
 ok(w3('canReadTab("risiken")') === true, 'Eine Verteilergruppe berechtigt genauso wie eine Sicherheitsgruppe');
 w3("State.myGroups = [{ id: 'mmm-222', name: 'Projekt Nord', art: 'm365' }]");
 ok(w3('canWriteTab("abdeckung")') === true, 'Eine Microsoft-365-Gruppe ebenso');
-ok(w3('gruppenArt("vvv-111")') === 'verteiler' && w3('gruppenArt("mmm-222")') === 'm365',
+ok(w3('_cfg().gruppenTypen["vvv-111"]') === 'verteiler' && w3('_cfg().gruppenTypen["mmm-222"]') === 'm365',
   'Die Art wird zur Anzeige mitgeführt');
-ok(w3('gruppenArt("unbekannt")') === '' && w3('gruppenArtLabel("")') === 'Gruppe',
+ok(w3('_cfg().gruppenTypen["unbekannt"] || ""') === '' && w3('gruppenArtLabel("")') === 'Gruppe',
   'Ohne bekannte Art heißt es schlicht „Gruppe"');
 ok(w3('gruppenArtLabel("verteiler")') === 'Verteilergruppe'
   && w3('gruppenArtLabel("sicherheit")') === 'Sicherheitsgruppe'

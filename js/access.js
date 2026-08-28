@@ -253,15 +253,6 @@ function vertrittGerade(vertreter, fuer, jetzt) {
   return !!v && v === String(vertreter || '').toLowerCase().trim();
 }
 
-/** Für wen springt diese Person gerade ein? (Liste von UPNs) */
-function vertretungenVon(upn, jetzt) {
-  const u = String(upn || '').toLowerCase().trim();
-  if (!u) return [];
-  return Object.entries(getVertretungen())
-    .filter(([, e]) => vertretungAktiv(e, jetzt) && String(e.vertreter || '').toLowerCase() === u)
-    .map(([fuer]) => fuer);
-}
-
 /** Empfängerliste um die gerade aktiven Vertretungen erweitern (ohne Dubletten). */
 function mitVertretern(liste, jetzt) {
   const out = [];
@@ -401,11 +392,6 @@ function _has(list, upn) {
 function isAdmin(upn)      { return _has(_cfg().admins, upn); }
 function isGenehmiger(upn) { return _has(_cfg().genehmiger, upn) || isAdmin(upn); }
 
-/* ── Probelauf ──
-   Eng gefasst, weil ein Probelauf echte Einträge anlegt und echte E-Mails
-   versendet. Admins sind immer freigeschaltet, weitere Personen über die
-   Einstellungen. */
-function getProbelaufUser()  { return [...(_cfg().probelaufUser || [])]; }
 function darfProbelauf(upn)  { const u = upn || _currentUpn(); return isAdmin(u) || _has(_cfg().probelaufUser, u); }
 
 function _currentUpn() {
@@ -511,12 +497,6 @@ const RECHT_GRUPPE = 'gruppe:';
 function istGruppenEintrag(x) { return String(x || '').toLowerCase().startsWith(RECHT_GRUPPE); }
 /** Objekt-ID aus einem Gruppen-Eintrag. */
 function gruppenIdVon(x) { return String(x || '').toLowerCase().slice(RECHT_GRUPPE.length); }
-/** Anzeigename einer Gruppe (beim Hinzufügen gemerkt; sonst die ID). */
-function gruppenName(id) { return (_cfg().gruppenNamen || {})[String(id).toLowerCase()] || id; }
-
-/** Art der Gruppe, soweit beim Hinzufügen bekannt ('' = unbekannt). */
-function gruppenArt(id) { return (_cfg().gruppenTypen || {})[String(id).toLowerCase()] || ''; }
-
 /** Beschriftung der Gruppenart. */
 const GRUPPEN_ARTEN = {
   sicherheit: 'Sicherheitsgruppe',

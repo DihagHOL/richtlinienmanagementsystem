@@ -490,8 +490,8 @@ function _zielgruppeMailHtml(p) {
     <p>${p.pflicht !== false ? `Bitte das Regelwerk <b>${wasTun}</b>.` : 'Das Regelwerk steht Ihnen zur Kenntnis bereit.'}
        Das dauert meist wenige Minuten.</p>
     <p style="margin:18px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Automatische Nachricht des DIHAG Regelwerk-Managements.
-      Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.</p>
+    ${mailFuss(`Automatische Nachricht des DIHAG Regelwerk-Managements.
+      Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.`)}
   `);
 }
 
@@ -784,9 +784,6 @@ function _wfDokumentHtml(p, attachmentName) {
 /* Läuft gerade eine Entscheidung aus der Mail? Dann gehört der Weg ins Protokoll –
    im Audit ist es ein Unterschied, ob jemand im Portal saß oder aus der Mail heraus
    entschieden hat. */
-let _ekAusMail = false;
-function ekKanalHinweis() { return _ekAusMail ? '\nEntschieden per Ein-Klick aus der Benachrichtigungs-Mail.' : ''; }
-
 /** Neues Einmal-Token für eine Runde. */
 function neuerAktionToken(art) {
   let wert = '';
@@ -939,16 +936,13 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
   const inVertretung = fuer ? `<div class="field-hint" style="margin-top:6px">in Vertretung für ${esc(fuer)}</div>` : '';
   _ekPanel(`<div class="doc-loading">Entscheidung wird gespeichert …</div>`);
 
-  _ekAusMail = true;
-  try {
-    if (aktion === 'freigeben') await markFreigabe(id);
-    else if (aktion === 'konform') await markKonform(id, true);
-    else if (aktion === 'mb_konform') await markMitbestimmung(id, true);
-    // „Nicht konform" fragt in beiden Fällen nach der Begründung – markKonform und
-    // markMitbestimmung greifen ohne Eingabefeld auf die Rückfrage zurück.
-    else if (aktion === 'mb_nicht_konform') await markMitbestimmung(id, false);
-    else await markKonform(id, false);
-  } finally { _ekAusMail = false; }
+  if (aktion === 'freigeben') await markFreigabe(id);
+  else if (aktion === 'konform') await markKonform(id, true);
+  else if (aktion === 'mb_konform') await markMitbestimmung(id, true);
+  // „Nicht konform" fragt in beiden Fällen nach der Begründung – markKonform und
+  // markMitbestimmung greifen ohne Eingabefeld auf die Rückfrage zurück.
+  else if (aktion === 'mb_nicht_konform') await markMitbestimmung(id, false);
+  else await markKonform(id, false);
 
   const danach = policyZuId(id) || p;
   const fertig = aktion === 'freigeben'
@@ -1020,7 +1014,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
-    <p style="color:#9ca3af;font-size:12px;margin-top:20px">Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.</p>
+    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Richtlinienmanagementsystem.`)}
   `);
 }
 

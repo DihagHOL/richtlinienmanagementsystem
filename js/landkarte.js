@@ -28,25 +28,9 @@
 const LK_WERKE = ['KONZERN'].concat(typeof STANDORTE !== 'undefined' ? STANDORTE : []);
 function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
 
-/** Ebene in Worten – für Texte, die sonst „Werk" sagen müssten. */
-function lkEbeneLabel(w) { return w === 'KONZERN' ? 'die Konzernebene' : `die Gesellschaft ${w}`; }
-
 /* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – die Kachel
    trägt sie als Kante, damit die Zugehörigkeit ohne Legende lesbar bleibt. */
 const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
-
-/** Farbe eines Bandes – nach seiner Position in der Landkarte. */
-function lkBandFarbe(key) {
-  const i = lkBaender().findIndex(b => b.key === key);
-  return LK_FARBEN[(i < 0 ? 0 : i) % LK_FARBEN.length];
-}
-
-/** Hex-Farbe mit Deckkraft. */
-function _lkTon(hex, deckung) {
-  const h = String(hex || '#17509E').replace('#', '');
-  const z = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
-  return `rgba(${(z >> 16) & 255},${(z >> 8) & 255},${z & 255},${deckung})`;
-}
 
 /* ── Startbestand: die abgestimmte Landschaft – sie gehört zu HOL ── */
 const LK_START_WERK = 'HOL';
@@ -371,9 +355,6 @@ function lkLeereKarte() {
   return { baender: JSON.parse(JSON.stringify(LK_START.baender)), kacheln: [] };
 }
 
-/** Das gerade gewählte Werk. */
-function lkWerk() { return _lkWerk; }
-
 /** Karte eines Werks (legt sie im Arbeitsstand an, wenn sie fehlt). */
 function lkKarte(werk) {
   const w = werk || _lkWerk;
@@ -391,8 +372,6 @@ function lkWerkeMitKarte() {
 
 function lkBaender()    { const k = lkKarte(); return (Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender; }
 function lkKacheln()    { const k = lkKarte(); return Array.isArray(k.kacheln) ? k.kacheln : []; }
-function lkDatenGeladen() { return _lkGeladen; }
-
 /** Alle Kacheln aller Werke – für die Mindmap, die über die Werke hinweg schaut. */
 function lkAlleKacheln() {
   const karten = (_lkDaten && _lkDaten.karten) || {};
