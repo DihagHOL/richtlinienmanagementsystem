@@ -365,6 +365,171 @@ function _parsePolicyIds(xml) {
   return m ? m[1].split(',').map(s => s.trim()).filter(Boolean) : [];
 }
 
+/* ═══════════════════════════════════════════════════
+   Übergänge auf Element-Ebene
+   ═══════════════════════════════════════════════════
+   Ein Verweis an der Landkarten-Kachel sagt „nach dem Vertrieb kommt die
+   Fertigung". Er sagt nicht, an welcher Stelle. Genau das steht im Modell: an
+   der Aufgabe, mit der der Ablauf das Haus verlässt.
+
+   Der Marker liegt deshalb in der Dokumentation des Elements – wie die
+   Richtlinien in der des Prozesses. Er wandert mit der Datei, übersteht Export
+   und Umzug in ein anderes Werk und braucht keine zusätzliche Liste.
+   Format: [[rms:prozess=WERK:KACHEL]] */
+const PROC_KACHEL_MARKER = /\[\[rms:prozess=([^\]]*)\]\]/;
+const PROC_SPRUNG_TYP = 'rms-sprung';       // Overlay-Kennung im Modeler
+const PROC_SPRUNG_TEXTZEILE = 'Weiter im Prozess: ';
+
+/** Dokumentationstext eines Elements (BPMN erlaubt mehrere – wir führen eine). */
+function _elemDokuText(el) {
+  const d = el && el.businessObject && el.businessObject.documentation;
+  return (Array.isArray(d) && d.length && d[0].text) ? String(d[0].text) : '';
+}
+
+/** Das Sprungziel eines Elements ('' = keins). */
+function procElementZiel(el) {
+  const m = String(_elemDokuText(el)).match(PROC_KACHEL_MARKER);
+  return m ? m[1].trim() : '';
+}
+
+/** Ein Element, das der Nutzer meint: bei einem Textfeld das beschriftete Element. */
+function _procGemeint(el) { return (el && el.labelTarget) ? el.labelTarget : el; }
+
+/**
+ * Ziel setzen oder lösen. Die übrige Dokumentation bleibt stehen – dort steht
+ * womöglich der Text, der die Aufgabe erklärt.
+ */
+function procElementZielSetzen(el, ziel) {
+  if (!_bpmnModeler || !el || !el.businessObject) return false;
+  const behalten = _elemDokuText(el).split('\n')
+    .filter(z => !PROC_KACHEL_MARKER.test(z) && z.indexOf(PROC_SPRUNG_TEXTZEILE) !== 0);
+  if (ziel) {
+    const treffer = (typeof lkKachelVonZiel === 'function') ? lkKachelVonZiel(ziel) : null;
+    behalten.push(PROC_SPRUNG_TEXTZEILE + (treffer ? treffer.kachel.name : ziel));
+    behalten.push('[[rms:prozess=' + ziel + ']]');
+  }
+  const text = behalten.join('\n').trim();
+  const moddle = _bpmnModeler.get('moddle');
+  // Über den commandStack, damit Rückgängig funktioniert und das Modell als
+  // geändert gilt – eine direkte Zuweisung ginge beim Speichern zwar mit, wäre
+  // aber nicht widerrufbar.
+  _bpmnModeler.get('modeling').updateProperties(el, {
+    documentation: text ? [moddle.create('bpmn:Documentation', { text })] : undefined,
+  });
+  return true;
+}
+
+/** Alle Elemente des offenen Modells, die ein Sprungziel tragen. */
+function procSprungElemente() {
+  if (!_bpmnModeler) return [];
+  try {
+    return _bpmnModeler.get('elementRegistry')
+      .filter(el => !el.labelTarget && el.type !== 'label' && !!procElementZiel(el));
+  } catch (e) { return []; }
+}
+
+/**
+ * Das sichtbare Zeichen: ein ↦ am Element. Ohne das wüsste niemand, dass dort
+ * etwas anklickbar ist – ein Verweis, den man nicht sieht, ist keiner.
+ */
+function procSprungMarker() {
+  if (!_bpmnModeler) return;
+  let overlays;
+  try { overlays = _bpmnModeler.get('overlays'); } catch (e) { return; }
+  try { overlays.remove({ type: PROC_SPRUNG_TYP }); } catch (e) { /* noch keine */ }
+  procSprungElemente().forEach(el => {
+    const ziel = procElementZiel(el);
+    const treffer = (typeof lkKachelVonZiel === 'function') ? lkKachelVonZiel(ziel) : null;
+    const name = treffer ? treffer.kachel.name : ziel;
+    const werk = treffer ? treffer.werk : '';
+    const titel = treffer
+      ? ('Weiter zu „' + name + '"' + (werk ? ' (' + ((typeof lkWerkLabel === 'function') ? lkWerkLabel(werk) : werk) + ')' : ''))
+      : ('Ziel „' + ziel + '" gibt es nicht mehr');
+    try {
+      overlays.add(el.id, PROC_SPRUNG_TYP, {
+        position: { top: -10, right: 10 },
+        html: `<div onclick="procSprungOeffnen('${esc(ziel)}')" title="${esc(titel)}"
+                 style="cursor:pointer;background:${treffer ? '#17509E' : '#b45309'};color:#fff;border-radius:11px;
+                        padding:1px 7px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);
+                        white-space:nowrap">↦ ${esc(name)}</div>`,
+      });
+    } catch (e) { /* Element ohne Darstellung – dann eben ohne Zeichen */ }
+  });
+}
+
+/**
+ * Dem Sprung folgen. Vorher fragen, wenn im Editor etwas ungespeichert ist:
+ * Die Landkarte ersetzt die Ansicht, das Diagramm wäre weg.
+ */
+async function procSprungOeffnen(ziel) {
+  const teile = (typeof lkZielTeile === 'function') ? lkZielTeile(ziel) : null;
+  if (!teile) return;
+  if (typeof lkKachelVonZiel === 'function' && !lkKachelVonZiel(ziel)) {
+    toast('Dieser Prozess steht nicht mehr in der Landkarte – vielleicht wurde er gelöscht.', 'error');
+    return;
+  }
+  let offen = false;
+  try { offen = !!(_bpmnModeler && _bpmnModeler.get('commandStack').canUndo()); } catch (e) { /* egal */ }
+  if (offen && typeof uiConfirm === 'function') {
+    const weiter = await uiConfirm(
+      'Im Diagramm gibt es ungespeicherte Änderungen.<br><span class="field-hint">Der Sprung in die Landkarte verwirft sie.</span>',
+      { title: 'Weiterspringen?', okLabel: 'Trotzdem springen' });
+    if (!weiter) return;
+  }
+  if (typeof lkDeepLink === 'function') await lkDeepLink(teile.werk, teile.id);
+}
+
+/** Auswahlliste aller Kacheln – über alle Werke, ein Übergang darf die Gesellschaft wechseln. */
+function _procZielOptionen(aktuell) {
+  const alle = (typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [];
+  return alle
+    .map(x => ({ ziel: lkZielSchluessel(x.werk, x.kachel.id), werk: x.werk, name: x.kachel.name }))
+    .sort((a, b) => (a.werk + a.name).localeCompare(b.werk + b.name, 'de'))
+    .map(x => `<option value="${esc(x.ziel)}"${x.ziel === aktuell ? ' selected' : ''}>${
+      esc(x.name)}${x.werk ? ' · ' + esc((typeof lkWerkLabel === 'function') ? lkWerkLabel(x.werk) : x.werk) : ''}</option>`)
+    .join('');
+}
+
+/** Der Kasten in der Seitenspalte – er folgt der Auswahl im Diagramm. */
+function _renderElementSprung(canWrite) {
+  const host = document.getElementById('proc-elem-link');
+  if (!host) return;
+  let auswahl = [];
+  try { auswahl = _bpmnModeler ? _bpmnModeler.get('selection').get() : []; } catch (e) { /* kein Modeler */ }
+  const el = _procGemeint(auswahl.length === 1 ? auswahl[0] : null);
+
+  if (!el) {
+    const wieviele = procSprungElemente().length;
+    host.innerHTML = `<span class="field-hint">${auswahl.length > 1
+      ? 'Mehrere Elemente ausgewählt – bitte genau eines anklicken.'
+      : 'Ein Element im Diagramm anklicken.'}${
+      wieviele ? ` Aktuell ${wieviele} Übergang${wieviele > 1 ? 'e' : ''} im Modell.` : ''}</span>`;
+    return;
+  }
+  const ziel = procElementZiel(el);
+  const name = (el.businessObject && el.businessObject.name) || el.id;
+  host.innerHTML = `
+    <div style="font-weight:600;font-size:.82rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
+    <select id="proc-elem-ziel" onchange="procElementSprungWaehlen(this.value)" ${canWrite ? '' : 'disabled'}>
+      <option value="">— kein Übergang —</option>
+      ${_procZielOptionen(ziel)}
+    </select>
+    ${ziel ? `<button class="btn btn-outline btn-sm" style="margin-top:6px"
+        onclick="procSprungOeffnen('${esc(ziel)}')">↦ Dorthin springen</button>` : ''}`;
+}
+
+/** Auswahl im Kasten übernehmen: Marker schreiben, Zeichen neu setzen. */
+function procElementSprungWaehlen(ziel) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  let auswahl = [];
+  try { auswahl = _bpmnModeler ? _bpmnModeler.get('selection').get() : []; } catch (e) { /* kein Modeler */ }
+  const el = _procGemeint(auswahl.length === 1 ? auswahl[0] : null);
+  if (!el) return;
+  procElementZielSetzen(el, ziel || '');
+  procSprungMarker();
+  _renderElementSprung(true);
+}
+
 /* ── Editor (bpmn-js Modeler) ── */
 
 async function openProcessEditor(itemId, seed) {
@@ -416,6 +581,11 @@ async function openProcessEditor(itemId, seed) {
           </div>` : ''}
           <span class="field-hint">Merkblatt, Formular, Kundeninformation – was zum Ablauf gehört, aber nicht ins Diagramm passt.
             Hochgeladene Dateien liegen in „Prozesse/&lt;Kürzel&gt;/Anlagen"; verknüpft wird ihre Kennung, nicht der Pfad.</span></div>
+        <div class="form-group full"><label>Übergang zu einem anderen Prozess</label>
+          <div id="proc-elem-link" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
+          <span class="field-hint">Ein Element im Diagramm anklicken und hier den Prozess wählen, in den der Ablauf
+            an dieser Stelle übergeht. Am Element erscheint dann ein ↦ zum Weiterklicken – so steht der Übergang
+            dort, wo er passiert, und nicht nur an der Kachel.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
       </div>
     </div>`;
@@ -462,6 +632,19 @@ async function openProcessEditor(itemId, seed) {
   }
   _renderPolicyPicker(ids, canWrite);
   _renderProcDocs(canWrite);
+
+  // Die Landkarte liefert die Auswahlliste der Ziele. Sie ist gecacht; ohne sie
+  // stünde im Kasten nur „keine Prozesse" – und niemand wüsste, warum.
+  if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* dann eben ohne Ziele */ } }
+  try {
+    const bus = _bpmnModeler.get('eventBus');
+    bus.on('selection.changed', () => _renderElementSprung(canWrite));
+    // Nach jeder Änderung neu zeichnen: ein verschobenes Element nimmt sein
+    // Zeichen sonst nicht mit, ein gelöschtes ließe es zurück.
+    bus.on('elements.changed', () => procSprungMarker());
+  } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
+  procSprungMarker();
+  _renderElementSprung(canWrite);
 }
 
 /* ── Anlagen im Editor ── */
