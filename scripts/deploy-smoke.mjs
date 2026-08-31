@@ -84,11 +84,11 @@ async function checkPage(label, pageUrl, mustContain) {
     else fail(`HTTP ${r.status}`);
     if (/umgezogen/i.test(r.body)) ok('zeigt Umzugsseite');
     else fail('Umzugsseite-Marker "umgezogen" fehlt');
-    // Die Umzugsseite liegt in einem anderen Repo. Während der Domain-Umstellung
-    // zählt beides als richtig – sie verweist entweder schon auf rms.dihag.de
-    // oder noch auf die alte Domain, die ihrerseits weiterleitet.
-    if (r.body.includes('rms.dihag.de/ki/')) ok('verweist auf /ki/ (neue Domain)');
-    else if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) ok('verweist auf /ki/ (noch alte Domain – bitte umstellen)');
+    // Die Umzugsseite liegt in einem anderen Repo. Die alte Domain
+    // richtlinienmanagement.dihag-extern.com ist abgeschaltet und liefert 404 –
+    // ein Verweis dorthin schickt Besucher also ins Leere und zählt als Fehler.
+    if (r.body.includes('rms.dihag.de/ki/')) ok('verweist auf /ki/ (aktuelle Domain)');
+    else if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) fail('verweist noch auf die abgeschaltete Domain – die Weiterleitung endet im 404');
     else fail('Verweis auf /ki/ fehlt');
   } catch (e) { fail(`alte KI-URL nicht erreichbar: ${e.message}`); }
 

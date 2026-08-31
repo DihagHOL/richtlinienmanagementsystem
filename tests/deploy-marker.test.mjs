@@ -44,9 +44,22 @@ ok(alteMarker.length === 0, 'Kein Marker mit dem alten Namen „Richtlinienmanag
 ok(/rms\.dihag\.de/.test(smoke), 'Deploy-Smoke prüft die aktuelle Domain rms.dihag.de');
 
 /* Die Domain steckt auch in den Deep-Links der Workflow-Mails und im
-   Erinnerungs-Job. Bleibt dort die alte stehen, führen Mail-Buttons ins Leere. */
-const domainDateien = ['js/freigaben.js', 'js/konzepte.js', 'js/admin.js', 'js/anleitung.js',
-                       'js/dokumentation.js', 'scripts/erinnerungen.mjs', 'playwright.config.js'];
+   Erinnerungs-Job. Bleibt dort die alte stehen, führen Mail-Buttons ins Leere –
+   die Adresse ist abgeschaltet und liefert 404.
+
+   Geprüft wird alles, was ausgeliefert oder als Job ausgeführt wird, statt einer
+   gepflegten Dateiliste: Die veraltet still, sobald eine Datei dazukommt – und
+   ausgerechnet die neue enthielte dann die alte Adresse. */
+const domainDateien = [
+  ...fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f),
+  ...fs.readdirSync(path.join(ROOT, 'scripts')).filter(f => /\.m?js$/.test(f)).map(f => 'scripts/' + f),
+  'index.html', 'ki/index.html', 'playwright.config.js',
+]
+  // Der Deploy-Smoke muss die alte Adresse nennen dürfen: Er ist der Melder,
+  // der prüft, ob die Umzugsseite noch dorthin zeigt.
+  .filter(f => f !== 'scripts/deploy-smoke.mjs')
+  .filter(f => fs.existsSync(path.join(ROOT, f)));
+ok(domainDateien.length > 20, `Der Wächter schaut über ${domainDateien.length} ausgelieferte Dateien`);
 const alteDomain = domainDateien.filter(f => /richtlinienmanagement\.dihag-extern\.com/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
 ok(alteDomain.length === 0, 'Keine alte Domain mehr im Code' + (alteDomain.length ? ': ' + alteDomain.join(', ') : ''));
 
