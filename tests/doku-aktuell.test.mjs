@@ -61,6 +61,9 @@ const FEATURES = [
   { name: 'Übergänge im Diagramm',   code: () => /const PROC_KACHEL_MARKER/.test(prozesse),                   begriffe: ['Übergang zu einem anderen Prozess', 'Dokumentation des Elements'] },
   { name: 'Trennung n. Gesellschaft',code: () => /const RECHT_DOMAENE/.test(read('js/access.js')),            begriffe: ['Trennung nach Gesellschaft', 'E-Mail-Domäne', 'Administratoren sind ausgenommen'] },
   { name: 'Inhalte getrennt',        code: () => /function filterNachGesellschaft/.test(read('js/access.js')),  begriffe: ['Konzernsicht', 'Geltungsbereich', 'trennt die <b>Sicht</b>, nicht den Zugriff'] },
+  { name: 'Geteilte Unterprozesse',  code: () => /function lkHauptprozesseVon/.test(read('js/landkarte.js')),   begriffe: ['einmal gepflegt', 'Eine Änderung hier wirkt in allen'] },
+  { name: 'Gliederung ausklappbar',  code: () => /function _lkUnterbaumHtml/.test(read('js/landkarte.js')),     begriffe: ['Ausklappbare Gliederung', 'Kreise', 'eingeordnet'] },
+  { name: 'Werks-Landkarten',        code: () => /const LK_WGC/.test(read('js/landkarte.js')),                  begriffe: ['Coswig (WGC)', 'Zaigler (ZAI)', 'Schmiedeberg (SCH)'] },
 ];
 
 for (const f of FEATURES) {

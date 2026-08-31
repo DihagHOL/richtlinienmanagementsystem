@@ -16,9 +16,14 @@ const OLD_KI   = process.env.OLD_KI || 'https://ki-dashboard.dihag-extern.com';
 const TIMEOUT  = 15000;
 
 const failures = [];
+const warnungen = [];
 let passed = 0;
 const ok   = (m) => { passed++; console.log('   \x1b[32m✓\x1b[0m ' + m); };
 const fail = (m) => { failures.push(m); console.log('   \x1b[31m✗ ' + m + '\x1b[0m'); };
+/* Fremdes Revier: Was ein anderes Repo ausliefert, wird gemeldet, macht diesen
+   Lauf aber nicht rot. Ein Build, den hier niemand grün bekommen kann, steht
+   sonst dauerhaft auf rot – und dann schaut niemand mehr hin. */
+const warn = (m) => { warnungen.push(m); console.log('   \x1b[33m⚠ ' + m + '\x1b[0m'); };
 const head = (m) => console.log('\n\x1b[1m' + m + '\x1b[0m');
 
 async function get(url) {
@@ -88,13 +93,21 @@ async function checkPage(label, pageUrl, mustContain) {
     // richtlinienmanagement.dihag-extern.com ist abgeschaltet und liefert 404 –
     // ein Verweis dorthin schickt Besucher also ins Leere und zählt als Fehler.
     if (r.body.includes('rms.dihag.de/ki/')) ok('verweist auf /ki/ (aktuelle Domain)');
-    else if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) fail('verweist noch auf die abgeschaltete Domain – die Weiterleitung endet im 404');
+    else if (r.body.includes('richtlinienmanagement.dihag-extern.com/ki/')) warn(
+      'verweist noch auf die abgeschaltete Domain – die Weiterleitung endet im 404. '
+      + 'Zu ändern in dfedorov12/ki-dashboard (index.html, 3 Stellen); das Repo ist archiviert '
+      + 'und muss dafür kurz entarchiviert werden.');
     else fail('Verweis auf /ki/ fehlt');
   } catch (e) { fail(`alte KI-URL nicht erreichbar: ${e.message}`); }
 
   console.log(`\n${'─'.repeat(54)}`);
+  if (warnungen.length) {
+    console.log(`\x1b[33m⚠ ${warnungen.length} Hinweis(e) außerhalb dieses Repos:\x1b[0m`);
+    warnungen.forEach(w => console.log('   • ' + w));
+  }
   if (failures.length === 0) {
-    console.log(`\x1b[32m\x1b[1m✓ Deployment-Smoke bestanden\x1b[0m – ${passed} Prüfungen grün.`);
+    console.log(`\x1b[32m\x1b[1m✓ Deployment-Smoke bestanden\x1b[0m – ${passed} Prüfungen grün${
+      warnungen.length ? `, ${warnungen.length} Hinweis(e)` : ''}.`);
     process.exit(0);
   } else {
     console.log(`\x1b[31m\x1b[1m✗ ${failures.length} Fehler\x1b[0m (${passed} grün):`);

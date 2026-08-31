@@ -594,6 +594,519 @@ const LK_SAP = {
   ],
 };
 
+/**
+ * Coswig (WGC) – die IMS-Prozesslandschaft.
+ *
+ * Aus „Integriertes Managementsystem – Prozesslandschaft", IMS-4.4, Revision 7 vom
+ * 25.08.2026. Sechzehn Hauptprozesse, darunter die Gruppen und Teilprozesse der
+ * Tabelle – jeder mit seiner Dokumentennummer, denn die ist in einer
+ * QM-Landschaft die eigentliche Kennung. Die Kette der Gießerei steht in der
+ * Reihenfolge der Landschaft: Formerei → Schmelzbetrieb → Gießen → … →
+ * mechanische Bearbeitung.
+ */
+const LK_WGC = {
+  baender: [
+    { key: 'fuehrung', titel: 'Managementprozesse (Führungsprozesse)' },
+    { key: 'kern', titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    { id: 'wgc-01', band: 'fuehrung', name: '1 Integriertes Managementsystem',
+      unter: 'IMS-4.4 · Qualität, Umwelt, Energie, Arbeits- und Gesundheitsschutz',
+      verweise: [
+        { ziel: 'wgc-g-qualitaet', art: 'unterprozess' },
+        { ziel: 'wgc-g-umwelt', art: 'unterprozess' },
+        { ziel: 'wgc-g-energie', art: 'unterprozess' },
+        { ziel: 'wgc-g-arbeits-und-gesundheitssch', art: 'unterprozess' },
+        { ziel: 'wgc-12', art: 'nutzt' },
+      ] },
+    { id: 'wgc-g-qualitaet', band: 'unterstuetzung', name: 'Qualität',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-anwendungsbereich-des-ims', art: 'unterprozess' },
+        { ziel: 'wgc-t-rollen-verantwortlichkeite', art: 'unterprozess' },
+        { ziel: 'wgc-t-integriertes-managementsys', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-anwendungsbereich-des-ims', band: 'unterstuetzung', name: 'Anwendungsbereich des IMS',
+      unter: 'IMS-4.3' },
+    { id: 'wgc-t-rollen-verantwortlichkeite', band: 'unterstuetzung', name: 'Rollen, Verantwortlichkeiten und Befugnisse im IMS',
+      unter: 'IMS-5.3' },
+    { id: 'wgc-t-integriertes-managementsys', band: 'unterstuetzung', name: 'Integriertes Managementsystem – Aufzeichnungen',
+      unter: 'IMS-VA-16.1' },
+    { id: 'wgc-g-umwelt', band: 'unterstuetzung', name: 'Umwelt',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-erfassung-und-analysieren-', art: 'unterprozess' },
+        { ziel: 'wgc-t-notfallmanagement', art: 'unterprozess' },
+        { ziel: 'wgc-t-erfassung-und-bewertung-de', art: 'unterprozess' },
+        { ziel: 'wgc-t-emissionen', art: 'unterprozess' },
+        { ziel: 'wgc-t-umgang-mit-gefahrstoffen', art: 'unterprozess' },
+        { ziel: 'wgc-t-abfallmanagement', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-erfassung-und-analysieren-', band: 'unterstuetzung', name: 'Erfassung und Analysieren von Qualitäts- und Umweltabweichungen',
+      unter: 'IMS-VA-14.1' },
+    { id: 'wgc-t-notfallmanagement', band: 'unterstuetzung', name: 'Notfallmanagement',
+      unter: 'IMS-VA-20.1' },
+    { id: 'wgc-t-erfassung-und-bewertung-de', band: 'unterstuetzung', name: 'Erfassung und Bewertung der Umweltauswirkungen',
+      unter: 'IMS-VA-21.1' },
+    { id: 'wgc-t-emissionen', band: 'unterstuetzung', name: 'Emissionen',
+      unter: 'VA-22.1' },
+    { id: 'wgc-t-umgang-mit-gefahrstoffen', band: 'unterstuetzung', name: 'Umgang mit Gefahrstoffen',
+      unter: 'IMS-VA-23.1' },
+    { id: 'wgc-t-abfallmanagement', band: 'unterstuetzung', name: 'Abfallmanagement',
+      unter: 'IMS-VA-25.1' },
+    { id: 'wgc-g-energie', band: 'unterstuetzung', name: 'Energie',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-energiemanagement', art: 'unterprozess' },
+        { ziel: 'wgc-t-energetische-bewertung-und', art: 'unterprozess' },
+        { ziel: 'wgc-t-energiemessung-und-energie', art: 'unterprozess' },
+        { ziel: 'wgc-t-zaehlerverzeichnis', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-energiemanagement', band: 'unterstuetzung', name: 'Energiemanagement',
+      unter: 'IMS-VA-26.1' },
+    { id: 'wgc-t-energetische-bewertung-und', band: 'unterstuetzung', name: 'Energetische Bewertung und Ausgangsbasis',
+      unter: 'IMS-VA-35.1' },
+    { id: 'wgc-t-energiemessung-und-energie', band: 'unterstuetzung', name: 'Energiemessung und Energiedatensammlung',
+      unter: 'IMS-VA-36.1' },
+    { id: 'wgc-t-zaehlerverzeichnis', band: 'unterstuetzung', name: 'Zählerverzeichnis',
+      unter: 'IMS-E-6.4' },
+    { id: 'wgc-g-arbeits-und-gesundheitssch', band: 'unterstuetzung', name: 'Arbeits- und Gesundheitsschutz',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-umgang-mit-besuchern-und-f', art: 'unterprozess' },
+        { ziel: 'wgc-t-standardisierung-und-erste', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-umgang-mit-besuchern-und-f', band: 'unterstuetzung', name: 'Umgang mit Besuchern und Fremdfirmen',
+      unter: 'IMS-VA-32.1' },
+    { id: 'wgc-t-standardisierung-und-erste', band: 'unterstuetzung', name: 'Standardisierung und Erstellen von Betriebsanweisungen',
+      unter: 'IMS-VA-34.1' },
+    { id: 'wgc-02', band: 'fuehrung', name: '2 Unternehmensführung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-g-unternehmensfuehrung-grund', art: 'unterprozess' },
+        { ziel: 'wgc-g-strategische-unternehmensp', art: 'unterprozess' },
+        { ziel: 'wgc-g-bewertung-des-managementsy', art: 'unterprozess' },
+        { ziel: 'wgc-g-compliance-rechtssicherhei', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-g-unternehmensfuehrung-grund', band: 'unterstuetzung', name: 'Unternehmensführung (Grundlagen)',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-kontext-der-organisation', art: 'unterprozess' },
+        { ziel: 'wgc-t-grundsatzerklaerung', art: 'unterprozess' },
+        { ziel: 'wgc-t-unternehmenspolitik', art: 'unterprozess' },
+        { ziel: 'wgc-t-geschaeftsverteilung', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-kontext-der-organisation', band: 'unterstuetzung', name: 'Kontext der Organisation',
+      unter: 'IMS-4.1' },
+    { id: 'wgc-t-grundsatzerklaerung', band: 'unterstuetzung', name: 'Grundsatzerklärung',
+      unter: 'IMS-5.1' },
+    { id: 'wgc-t-unternehmenspolitik', band: 'unterstuetzung', name: 'Unternehmenspolitik',
+      unter: 'IMS-5.2' },
+    { id: 'wgc-t-geschaeftsverteilung', band: 'unterstuetzung', name: 'Geschäftsverteilung',
+      unter: 'IMS-VA-1.1' },
+    { id: 'wgc-g-strategische-unternehmensp', band: 'unterstuetzung', name: 'Strategische Unternehmensplanung',
+      unter: 'Budgetplanung',
+      verweise: [
+        { ziel: 'wgc-t-massnahmenplan-ims-cos', art: 'unterprozess' },
+        { ziel: 'wgc-t-unternehmensziele', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-massnahmenplan-ims-cos', band: 'unterstuetzung', name: 'Maßnahmenplan IMS (COS)',
+      unter: 'IMS-6.1' },
+    { id: 'wgc-t-unternehmensziele', band: 'unterstuetzung', name: 'Unternehmensziele',
+      unter: 'IMS-6.2' },
+    { id: 'wgc-g-bewertung-des-managementsy', band: 'unterstuetzung', name: 'Bewertung des Managementsystems',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-managementbewertung', art: 'unterprozess' },
+        { ziel: 'wgc-t-umweltbericht', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-managementbewertung', band: 'unterstuetzung', name: 'Managementbewertung',
+      unter: '' },
+    { id: 'wgc-t-umweltbericht', band: 'unterstuetzung', name: 'Umweltbericht',
+      unter: '' },
+    { id: 'wgc-g-compliance-rechtssicherhei', band: 'unterstuetzung', name: 'Compliance / Rechtssicherheit',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-einhaltung-bindender-verpf', art: 'unterprozess' },
+        { ziel: 'wgc-t-liste-der-genehmigungen-ba', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-einhaltung-bindender-verpf', band: 'unterstuetzung', name: 'Einhaltung bindender Verpflichtungen (Rechtsvorschriften)',
+      unter: 'IMS-VA-24.1' },
+    { id: 'wgc-t-liste-der-genehmigungen-ba', band: 'unterstuetzung', name: 'Liste der Genehmigungen, Baugenehmigungen',
+      unter: 'IMS-5.9' },
+    { id: 'wgc-03', band: 'fuehrung', name: '3 Risikomanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-risikomanagement-verfahren', art: 'unterprozess' },
+        { ziel: 'wgc-t-erfordernisse-und-erwartun', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-risikomanagement-verfahren', band: 'unterstuetzung', name: 'Risikomanagement (Verfahren)',
+      unter: 'IMS-VA-28.1' },
+    { id: 'wgc-t-erfordernisse-und-erwartun', band: 'unterstuetzung', name: 'Erfordernisse und Erwartungen interessierter Parteien und deren Bewertung hinsichtlich Chancen und Risiken',
+      unter: 'IMS-4.2' },
+    { id: 'wgc-04', band: 'fuehrung', name: '4 Auditmanagement',
+      unter: 'interne / externe Audits',
+      verweise: [
+        { ziel: 'wgc-t-internes-audit', art: 'unterprozess' },
+        { ziel: 'wgc-t-internes-auditprogramm', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-internes-audit', band: 'unterstuetzung', name: 'Internes Audit',
+      unter: 'IMS-VA-17.1' },
+    { id: 'wgc-t-internes-auditprogramm', band: 'unterstuetzung', name: 'Internes Auditprogramm',
+      unter: 'IMS-9.2.1' },
+    { id: 'wgc-05', band: 'fuehrung', name: '5 Investitionsmanagement',
+      unter: 'Investitionsplanung',
+      verweise: [
+        { ziel: 'wgc-t-invest-und-energieteam', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-invest-und-energieteam', band: 'unterstuetzung', name: 'Invest- und Energieteam',
+      unter: 'IMS-5.6' },
+    { id: 'wgc-06', band: 'kern', name: '6 Verkauf (Vertrieb und After-Sales)',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-g-angebote', art: 'unterprozess' },
+        { ziel: 'wgc-g-auftraege', art: 'unterprozess' },
+        { ziel: 'wgc-t-bearbeitung-von-kundenrekl', art: 'unterprozess' },
+        { ziel: 'wgc-t-kooperation-von-fremdbaute', art: 'unterprozess' },
+        { ziel: 'wgc-07', art: 'folgt' },
+      ] },
+    { id: 'wgc-g-angebote', band: 'unterstuetzung', name: 'Angebote',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-erarbeitung-von-angeboten-', art: 'unterprozess' },
+        { ziel: 'wgc-t-erarbeitung-von-angeboten--2', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-erarbeitung-von-angeboten-', band: 'unterstuetzung', name: 'Erarbeitung von Angeboten im Handformguss',
+      unter: 'IMS-VA-3.1A' },
+    { id: 'wgc-t-erarbeitung-von-angeboten--2', band: 'unterstuetzung', name: 'Erarbeitung von Angeboten im Walzenguss',
+      unter: 'IMS-VA-3.1B' },
+    { id: 'wgc-g-auftraege', band: 'unterstuetzung', name: 'Aufträge',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-auftragspruefung-im-handfo', art: 'unterprozess' },
+        { ziel: 'wgc-t-pruefung-von-auftraegen-im', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-auftragspruefung-im-handfo', band: 'unterstuetzung', name: 'Auftragsprüfung im Handformguss',
+      unter: 'IMS-VA-3.2A' },
+    { id: 'wgc-t-pruefung-von-auftraegen-im', band: 'unterstuetzung', name: 'Prüfung von Aufträgen im Walzenguss',
+      unter: 'IMS-VA-3.2B' },
+    { id: 'wgc-t-bearbeitung-von-kundenrekl', band: 'unterstuetzung', name: 'Bearbeitung von Kundenreklamationen',
+      unter: 'IMS-VA-19.1' },
+    { id: 'wgc-t-kooperation-von-fremdbaute', band: 'unterstuetzung', name: 'Kooperation von Fremdbauteilen bzw. Dienstleistungen (ausgelagerte Prozesse)',
+      unter: 'IMS-VA-27.1' },
+    { id: 'wgc-07', band: 'kern', name: '7 Arbeitsvorbereitung und Forschung & Entwicklung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-allgemeiner-entwicklungspr', art: 'unterprozess' },
+        { ziel: 'wgc-t-allgemeiner-entwicklungspr-2', art: 'unterprozess' },
+        { ziel: 'wgc-08', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-allgemeiner-entwicklungspr', band: 'unterstuetzung', name: 'Allgemeiner Entwicklungsprozess für ein Gussteil',
+      unter: 'IMS-VA-30.1' },
+    { id: 'wgc-t-allgemeiner-entwicklungspr-2', band: 'unterstuetzung', name: 'Allgemeiner Entwicklungsprozess einer Gießtechnologie',
+      unter: 'IMS-VA-31.1' },
+    { id: 'wgc-08', band: 'kern', name: '8 Fertigung (Gießerei)',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-formerei', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-schmelzbetrieb', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-giessen', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-auspacken', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-strahlen', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-putzen', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-waermebehandlung', art: 'unterprozess' },
+        { ziel: 'wgc-t-prozess-mechanische-bearbe', art: 'unterprozess' },
+        { ziel: 'wgc-15', art: 'nutzt' },
+        { ziel: 'wgc-11', art: 'nutzt' },
+        { ziel: 'wgc-09', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-formerei', band: 'unterstuetzung', name: 'Prozess Formerei',
+      unter: 'Handformguss · Walzenguss',
+      verweise: [
+        { ziel: 'wgc-t-prozess-schmelzbetrieb', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-schmelzbetrieb', band: 'unterstuetzung', name: 'Prozess Schmelzbetrieb',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-giessen', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-giessen', band: 'unterstuetzung', name: 'Prozess Gießen',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-auspacken', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-auspacken', band: 'unterstuetzung', name: 'Prozess Auspacken',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-strahlen', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-strahlen', band: 'unterstuetzung', name: 'Prozess Strahlen',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-putzen', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-putzen', band: 'unterstuetzung', name: 'Prozess Putzen',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-waermebehandlung', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-waermebehandlung', band: 'unterstuetzung', name: 'Prozess Wärmebehandlung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-prozess-mechanische-bearbe', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-prozess-mechanische-bearbe', band: 'unterstuetzung', name: 'Prozess mechanische Bearbeitung',
+      unter: '' },
+    { id: 'wgc-09', band: 'kern', name: '9 Qualitätssicherung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-planung-ueberwachung-und-p', art: 'unterprozess' },
+        { ziel: 'wgc-t-zwischenpruefungen', art: 'unterprozess' },
+        { ziel: 'wgc-t-endpruefungen', art: 'unterprozess' },
+        { ziel: 'wgc-t-pruefstatus', art: 'unterprozess' },
+        { ziel: 'wgc-t-behandlung-fehlerhafter-te', art: 'unterprozess' },
+        { ziel: 'wgc-08', art: 'nutzt' },
+        { ziel: 'wgc-10', art: 'folgt' },
+      ] },
+    { id: 'wgc-t-planung-ueberwachung-und-p', band: 'unterstuetzung', name: 'Planung, Überwachung und Prüfung während der Fertigung',
+      unter: 'VA 09.1' },
+    { id: 'wgc-t-zwischenpruefungen', band: 'unterstuetzung', name: 'Zwischenprüfungen',
+      unter: 'IMS-VA-10.2' },
+    { id: 'wgc-t-endpruefungen', band: 'unterstuetzung', name: 'Endprüfungen',
+      unter: 'IMS-VA-10.3' },
+    { id: 'wgc-t-pruefstatus', band: 'unterstuetzung', name: 'Prüfstatus',
+      unter: 'IMS-VA-12.1' },
+    { id: 'wgc-t-behandlung-fehlerhafter-te', band: 'unterstuetzung', name: 'Behandlung fehlerhafter Teile',
+      unter: 'IMS-VA-13.1' },
+    { id: 'wgc-10', band: 'kern', name: '10 Versand / Exportmanagement',
+      unter: '' },
+    { id: 'wgc-11', band: 'unterstuetzung', name: '11 Beschaffung, Wareneingang und Logistik',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-g-einkauf-beschaffung', art: 'unterprozess' },
+        { ziel: 'wgc-g-lieferantenmanagement', art: 'unterprozess' },
+        { ziel: 'wgc-g-wareneingang', art: 'unterprozess' },
+        { ziel: 'wgc-g-logistik', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-g-einkauf-beschaffung', band: 'unterstuetzung', name: 'Einkauf / Beschaffung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-energieeffizienz-bei-der-b', art: 'unterprozess' },
+        { ziel: 'wgc-t-kennzeichnung-von-grund-hi', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-energieeffizienz-bei-der-b', band: 'unterstuetzung', name: 'Energieeffizienz bei der Beschaffung',
+      unter: 'IMS-VA-29.1' },
+    { id: 'wgc-t-kennzeichnung-von-grund-hi', band: 'unterstuetzung', name: 'Kennzeichnung von Grund-, Hilfs- und Verschleißmaterialien',
+      unter: 'VA 08.1' },
+    { id: 'wgc-g-lieferantenmanagement', band: 'unterstuetzung', name: 'Lieferantenmanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-lieferantenauswahl-und-bew', art: 'unterprozess' },
+        { ziel: 'wgc-t-ablauf-bei-bestellungen', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-lieferantenauswahl-und-bew', band: 'unterstuetzung', name: 'Lieferantenauswahl und -bewertung',
+      unter: 'IMS-VA-6.1' },
+    { id: 'wgc-t-ablauf-bei-bestellungen', band: 'unterstuetzung', name: 'Ablauf bei Bestellungen',
+      unter: 'VA 06.02' },
+    { id: 'wgc-g-wareneingang', band: 'unterstuetzung', name: 'Wareneingang',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-verantwortlichkeiten-beim-', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-verantwortlichkeiten-beim-', band: 'unterstuetzung', name: 'Verantwortlichkeiten beim Wareneingang und bei der Warenannahme',
+      unter: 'IMS-VA-10.1' },
+    { id: 'wgc-g-logistik', band: 'unterstuetzung', name: 'Logistik',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-lagerung', art: 'unterprozess' },
+        { ziel: 'wgc-t-innerbetrieblicher-transpo', art: 'unterprozess' },
+        { ziel: 'wgc-t-transport-lagerung-verpack', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-lagerung', band: 'unterstuetzung', name: 'Lagerung',
+      unter: 'VA 15.1' },
+    { id: 'wgc-t-innerbetrieblicher-transpo', band: 'unterstuetzung', name: 'Innerbetrieblicher Transport von Gusserzeugnissen',
+      unter: 'VA 15.2' },
+    { id: 'wgc-t-transport-lagerung-verpack', band: 'unterstuetzung', name: 'Transport, Lagerung, Verpackung, Versand von Fertigerzeugnissen und Fremdbauteilen',
+      unter: 'IMS-VA-15.3' },
+    { id: 'wgc-12', band: 'unterstuetzung', name: '12 Dokumente und Dokumentierte Informationen',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-informationssysteme', art: 'unterprozess' },
+        { ziel: 'wgc-t-uebersicht-dokumentierte-i', art: 'unterprozess' },
+        { ziel: 'wgc-t-uebersicht-fachabteilungsb', art: 'unterprozess' },
+        { ziel: 'wgc-t-formblaetter', art: 'unterprozess' },
+        { ziel: 'wgc-g-dokumentenlenkung', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-informationssysteme', band: 'unterstuetzung', name: 'Informationssysteme',
+      unter: 'VA 01.2' },
+    { id: 'wgc-t-uebersicht-dokumentierte-i', band: 'unterstuetzung', name: 'Übersicht dokumentierte Informationen',
+      unter: 'IMS-7.5' },
+    { id: 'wgc-t-uebersicht-fachabteilungsb', band: 'unterstuetzung', name: 'Übersicht fachabteilungsbezogene Arbeitsanweisungen',
+      unter: 'IMS-7.5.1' },
+    { id: 'wgc-t-formblaetter', band: 'unterstuetzung', name: 'Formblätter',
+      unter: '' },
+    { id: 'wgc-g-dokumentenlenkung', band: 'unterstuetzung', name: 'Dokumentenlenkung',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-system-dokumentation', art: 'unterprozess' },
+        { ziel: 'wgc-t-technische-dokumentation', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-system-dokumentation', band: 'unterstuetzung', name: 'System-Dokumentation',
+      unter: 'IMS-VA-5.1' },
+    { id: 'wgc-t-technische-dokumentation', band: 'unterstuetzung', name: 'Technische Dokumentation',
+      unter: 'IMS-VA-5.2' },
+    { id: 'wgc-13', band: 'unterstuetzung', name: '13 Datenschutzmanagement / Informationstechnik',
+      unter: '' },
+    { id: 'wgc-14', band: 'unterstuetzung', name: '14 Finanzbuchhaltung',
+      unter: '' },
+    { id: 'wgc-15', band: 'unterstuetzung', name: '15 Technik / Instandhaltung',
+      unter: 'Wartung / Instandhaltung · Prüfmittel- und Messmittelmanagement',
+      verweise: [
+        { ziel: 'wgc-t-arbeiten-mit-pruefmitteln', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-arbeiten-mit-pruefmitteln', band: 'unterstuetzung', name: 'Arbeiten mit Prüfmitteln',
+      unter: 'IMS-VA-11.1' },
+    { id: 'wgc-16', band: 'unterstuetzung', name: '16 Personalmanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-g-einstellung-neuer-mitarbei', art: 'unterprozess' },
+        { ziel: 'wgc-g-wissen-der-organisation-ko', art: 'unterprozess' },
+        { ziel: 'wgc-g-betriebliches-eingliederun', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-g-einstellung-neuer-mitarbei', band: 'unterstuetzung', name: 'Einstellung neuer Mitarbeiter',
+      unter: 'Onboardingprozess' },
+    { id: 'wgc-g-wissen-der-organisation-ko', band: 'unterstuetzung', name: 'Wissen der Organisation / Kompetenz',
+      unter: '',
+      verweise: [
+        { ziel: 'wgc-t-auswahl-und-schulung-von-p', art: 'unterprozess' },
+        { ziel: 'wgc-t-organigramm', art: 'unterprozess' },
+        { ziel: 'wgc-t-schulungsplan', art: 'unterprozess' },
+      ] },
+    { id: 'wgc-t-auswahl-und-schulung-von-p', band: 'unterstuetzung', name: 'Auswahl und Schulung von Personal',
+      unter: 'IMS-VA-18.1' },
+    { id: 'wgc-t-organigramm', band: 'unterstuetzung', name: 'Organigramm',
+      unter: 'IMS-5.4' },
+    { id: 'wgc-t-schulungsplan', band: 'unterstuetzung', name: 'Schulungsplan',
+      unter: '' },
+    { id: 'wgc-g-betriebliches-eingliederun', band: 'unterstuetzung', name: 'Betriebliches Eingliederungsmanagement (BEM)',
+      unter: 'IMS-VA-33.1' },
+  ],
+};
+
+/**
+ * Zaigler (ZAI) – Netzwerk der Geschäftsprozesse.
+ *
+ * Aus „Netzwerk der Geschäftsprozesse der DIHAG Zaigler GmbH", F_01_005,
+ * Revision 5, Druckdatum 26.08.2025. Die Kernprozesse laufen von der
+ * Kundenanforderung zur Kundenzufriedenheit; ihre Reihenfolge ist die der
+ * Landschaft. Die Verfahrensanweisungen stehen im Untertitel.
+ */
+const LK_ZAI = {
+  baender: [
+    { key: 'fuehrung', titel: 'Managementprozesse (Führungsprozesse)' },
+    { key: 'kern', titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    { id: 'zai-management', band: 'fuehrung', name: 'Management',
+      unter: 'VA 02:010 – VA 05:010' },
+    { id: 'zai-personal', band: 'fuehrung', name: 'Personal / Schulung',
+      unter: 'VA 18:010' },
+    { id: 'zai-kvp', band: 'fuehrung', name: 'Datenanalyse / KVP',
+      unter: 'VA 01:010 – VA 14:020' },
+    { id: 'zai-audits', band: 'fuehrung', name: 'Audits',
+      unter: 'VA 17:010' },
+    { id: 'zai-verkauf', band: 'kern', name: 'Verkaufsprozess',
+      unter: 'VA 15:010 – VA 07:010',
+      verweise: [
+        { ziel: 'zai-auftrag', art: 'folgt' },
+      ] },
+    { id: 'zai-auftrag', band: 'kern', name: 'Kundenauftrag',
+      unter: '',
+      verweise: [
+        { ziel: 'zai-bearbeitung', art: 'folgt' },
+      ] },
+    { id: 'zai-bearbeitung', band: 'kern', name: 'Auftragsbearbeitung',
+      unter: 'VA 03:010',
+      verweise: [
+        { ziel: 'zai-produktion', art: 'folgt' },
+      ] },
+    { id: 'zai-produktion', band: 'kern', name: 'Produktion',
+      unter: 'VA 09:010',
+      verweise: [
+        { ziel: 'zai-abnahme', art: 'folgt' },
+        { ziel: 'zai-beschaffung', art: 'nutzt' },
+        { ziel: 'zai-werkzeuge', art: 'nutzt' },
+      ] },
+    { id: 'zai-abnahme', band: 'kern', name: 'Produkt-Abnahme',
+      unter: 'VA 12:010 – VA 10:010',
+      verweise: [
+        { ziel: 'zai-versand', art: 'folgt' },
+        { ziel: 'zai-sofort', art: 'nutzt' },
+        { ziel: 'zai-fehlerhaft', art: 'nutzt' },
+      ] },
+    { id: 'zai-versand', band: 'kern', name: 'Versand',
+      unter: 'PB 01:001',
+      verweise: [
+        { ziel: 'zai-reklamation', art: 'nutzt' },
+      ] },
+    { id: 'zai-sofort', band: 'kern', name: 'Sofortmaßnahmen',
+      unter: 'VA 13.010 – VA 14.010' },
+    { id: 'zai-beschaffung', band: 'unterstuetzung', name: 'Beschaffung und Wareneingang',
+      unter: 'VA 16:010 – VA 07:010 – VA 06:010' },
+    { id: 'zai-werkzeuge', band: 'unterstuetzung', name: 'Werkzeuge, Messmittel',
+      unter: 'VA 08:010 – VA 11:010 – VA 06:010' },
+    { id: 'zai-fehlerhaft', band: 'unterstuetzung', name: 'Lenkung fehlerhafter Produkte',
+      unter: 'VA 08:010 – VA 13:010 – VA 10:010 – VA 10:020' },
+    { id: 'zai-reklamation', band: 'unterstuetzung', name: 'Bearbeitung von Kundenreklamationen',
+      unter: 'VA 10:030' },
+  ],
+};
+
+/**
+ * Schmiedeberg (SCH) – Prozesslandkarte.
+ *
+ * Aus „Prozesslandkarte_Schmiedeberg", Stand 14.07.2026. Acht Prozesse in den
+ * drei üblichen Bändern – bewusst grob gehalten; die Verfeinerung entsteht in
+ * der App, wenn Teilprozesse und Modelle dazukommen.
+ */
+const LK_SCH = {
+  baender: [
+    { key: 'fuehrung', titel: 'Managementprozesse (Führungsprozesse)' },
+    { key: 'kern', titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    { id: 'sch-gf', band: 'fuehrung', name: 'Geschäftsführung',
+      unter: '' },
+    { id: 'sch-personal', band: 'fuehrung', name: 'Personalmanagement',
+      unter: '' },
+    { id: 'sch-ms', band: 'fuehrung', name: 'Managementsysteme',
+      unter: '' },
+    { id: 'sch-vertrieb', band: 'kern', name: 'Vertrieb',
+      unter: '',
+      verweise: [
+        { ziel: 'sch-einkauf', art: 'folgt' },
+      ] },
+    { id: 'sch-einkauf', band: 'kern', name: 'Einkauf',
+      unter: '',
+      verweise: [
+        { ziel: 'sch-produktion', art: 'folgt' },
+      ] },
+    { id: 'sch-produktion', band: 'kern', name: 'Produktion',
+      unter: '',
+      verweise: [
+        { ziel: 'sch-logistik', art: 'folgt' },
+        { ziel: 'sch-infra', art: 'nutzt' },
+      ] },
+    { id: 'sch-infra', band: 'unterstuetzung', name: 'Infrastruktur & Instandhaltung',
+      unter: '' },
+    { id: 'sch-logistik', band: 'unterstuetzung', name: 'Logistik & Versand',
+      unter: '' },
+  ],
+};
+
 /* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
    null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
 const LK_VORLAGEN = [
@@ -615,6 +1128,15 @@ const LK_VORLAGEN = [
   { key: 'sap', titel: 'SAP End-to-End-Prozesse',
     zweck: 'Der Konzern als Ablauf statt als Aufbau: Lead to Cash, Source to Pay, Design to Operate und Recruit to Retire – mit den Ketten quer durch Vertrieb, Gießerei, Einkauf und Buchhaltung. Die einzige Vorlage, die schon verknüpft ist: Klammern als Unterprozesse, Ketten als „Danach folgt", Übergänge als „Nutzt".',
     karte: LK_SAP },
+  { key: 'wgc', titel: 'Coswig (WGC) – IMS-Prozesslandschaft',
+    zweck: 'Die Landschaft aus IMS-4.4, Revision 7: sechzehn Hauptprozesse in Management-, Kern- und Unterstützungsprozessen – mit den Gruppen und Teilprozessen der Tabelle samt Dokumentennummer. Die Gießerei-Kette steht in ihrer Reihenfolge.',
+    karte: LK_WGC },
+  { key: 'zai', titel: 'Zaigler (ZAI) – Netzwerk der Geschäftsprozesse',
+    zweck: 'Aus F_01_005, Revision 5: Führungs-, Kern- und Unterstützungsprozesse mit ihren Verfahrensanweisungen. Die Kernprozesse laufen als Kette von der Kundenanforderung bis zum Versand.',
+    karte: LK_ZAI },
+  { key: 'sch', titel: 'Schmiedeberg (SCH) – Prozesslandkarte',
+    zweck: 'Aus der Prozesslandkarte vom 14.07.2026: acht Prozesse in drei Bändern – bewusst grob, die Verfeinerung entsteht mit Teilprozessen und Modellen in der App.',
+    karte: LK_SCH },
 ];
 
 function lkStartbestand() {
@@ -870,6 +1392,12 @@ function renderLandkarte() {
       ${lkKacheln().some(k => lkUnterprozesse(k).length) ? `<button class="btn btn-ghost btn-sm"
         onclick="lkAlleAufklappen(${_lkAufgeklappt.size ? 'false' : 'true'})"
         title="Die Gliederung aller Prozesse auf einmal">${_lkAufgeklappt.size ? '⤡ Zuklappen' : '⤢ Gliederung'}</button>` : ''}
+      ${lkKacheln().some(k => lkIstTeilprozess(_lkWerk, k)) ? `<button class="btn btn-ghost btn-sm"
+        onclick="lkTeilprozesseZeigen(${_lkNurHaupt ? 'true' : 'false'})"
+        title="${_lkNurHaupt
+          ? 'Teilprozesse zusätzlich einzeln im Band zeigen'
+          : 'Teilprozesse wieder unter ihren Hauptprozessen einordnen'}">${
+          _lkNurHaupt ? '☰ Teilprozesse' : '☰ nur Hauptprozesse'}</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageDialog()" title="Fertige Prozesslandschaft einsetzen">📋 Vorlage</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
@@ -911,10 +1439,14 @@ function _lkLeeresBand() {
 /** Eine Bandzeile. „Kern" behält seine Form: die Prozesse als Pfeile. */
 function _lkZeileHtml(band, nr, schreiben) {
   const alle = lkKacheln();
-  const idx = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === band.key);
+  const imBand = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === band.key);
+  // Der Index i bleibt der in lkKacheln() – daran hängt das Ziehen und Ablegen.
+  const idx = _lkNurHaupt ? imBand.filter(x => !lkIstTeilprozess(_lkWerk, x.k)) : imBand;
+  const eingeordnet = imBand.length - idx.length;
   const farbe = LK_FARBEN[nr % LK_FARBEN.length];
   const titel = `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${idx.length} ${
-    idx.length === 1 ? 'Prozess' : 'Prozesse'}</i></div>`;
+    idx.length === 1 ? 'Prozess' : 'Prozesse'}${eingeordnet
+      ? ` · ${eingeordnet} eingeordnet` : ''}</i></div>`;
   if (band.key === 'kern') {
     return `<div class="lk-zeile lk-zeile-kern" style="--lk-c:${farbe}">
         ${titel}
@@ -1031,7 +1563,11 @@ function lkWerkSetzenStill(w) {
 function lkVorlageDialog() {
   if (!lkDarfSchreiben()) return;
   const vorhanden = lkKacheln().length;
-  const vorgabe = (_lkWerk === 'KONZERN' || _lkWerk === 'HOL') ? 'konzern' : 'gesellschaft';
+  // Für ein Werk mit eigener Vorlage steht diese zur Wahl vorne – sonst sucht
+  // man sie zwischen den Konzernlandschaften.
+  const jeWerk = { WGC: 'wgc', ZAI: 'zai', SCH: 'sch' };
+  const vorgabe = jeWerk[_lkWerk]
+    || ((_lkWerk === 'KONZERN' || _lkWerk === 'HOL') ? 'konzern' : 'gesellschaft');
   openModal(`
     <div class="modal-header"><h3>Vorlage verwenden</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
@@ -1226,11 +1762,19 @@ function lkVerweiseVon(k) {
  * geändert werden, und genau da laufen solche Beziehungen auseinander.
  */
 function lkVerweiseAuf(werk, id) {
-  const ziel = lkZielSchluessel(werk, id);
+  const gesuchtWerk = String(werk), gesuchtId = String(id);
   const out = [];
   lkAlleKacheln().forEach(({ werk: w, kachel }) => {
     (Array.isArray(kachel.verweise) ? kachel.verweise : []).forEach(v => {
-      if (v.ziel === ziel) out.push({ art: v.art || 'nutzt', werk: w, kachel });
+      // Nicht die Zeichenketten vergleichen, sondern die Ziele: Ein Eintrag ohne
+      // Werk („angebot" statt „HOL:angebot") gehört zur Karte, in der er steht.
+      // Verglich man stumpf, fände die Gegenrichtung ihn nie – und ein geteilter
+      // Unterprozess wüsste nicht, dass jemand auf ihn zeigt.
+      const s = String(v.ziel || '');
+      const i = s.indexOf(':');
+      const zWerk = i < 0 ? w : s.slice(0, i);
+      const zId = i < 0 ? s : s.slice(i + 1);
+      if (zWerk === gesuchtWerk && zId === gesuchtId) out.push({ art: v.art || 'nutzt', werk: w, kachel });
     });
   });
   return out;
@@ -1278,6 +1822,26 @@ function lkVerweisSetzen(kachelId, ziel, art) {
 
 /** Aufgeklappte Prozesse – Schlüssel „WERK:KACHEL". */
 let _lkAufgeklappt = new Set();
+
+/* Die Coswiger Landschaft hat 16 Hauptprozesse und darunter über 80 Gruppen und
+   Teilprozesse. Alle nebeneinander ins Band zu legen wäre unbrauchbar: Die Karte
+   zeigt deshalb die Hauptprozesse, alles Weitere erscheint beim Aufklappen.
+   Versteckt ist nichts – der Schalter holt die Teilprozesse einzeln zurück, und
+   die Suche findet sie ohnehin. */
+let _lkNurHaupt = true;
+
+/**
+ * Hängt dieser Prozess als Unterprozess an einem anderen DESSELBEN Werks?
+ *
+ * Bewusst nur im eigenen Werk: Ein Prozess, den eine andere Gesellschaft als
+ * Unterprozess führt, verschwände sonst aus seiner eigenen Karte – und dort
+ * gäbe es keinen Hauptprozess, unter dem man ihn wiederfände.
+ */
+function lkIstTeilprozess(werk, k) {
+  return lkHauptprozesseVon(werk, k.id).some(v => v.werk === werk);
+}
+
+function lkTeilprozesseZeigen(an) { _lkNurHaupt = !an; renderLandkarte(); }
 
 /** Die Unterprozesse einer Kachel, aufgelöst. */
 function lkUnterprozesse(k) {
