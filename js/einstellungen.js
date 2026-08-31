@@ -32,6 +32,7 @@ function renderEinstellungen() {
   _rrOffen = new Set();
   _rrSuche = '';
   _rrReiterFilter = '';
+  _rrGefunden = [];
   _cfgRenderBereich();
 }
 
@@ -62,7 +63,7 @@ function _cfgRenderBereich() {
         <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
       </div>
     </div>`;
-  if (reiter) { rrRenderBody(); return; }
+  if (reiter) { rrRenderBody(); rrRenderDomaenen(); return; }
   renderCfgLists();
   renderZielgruppenMails();
   renderVertretungen();
@@ -359,8 +360,9 @@ function _reiterBereichHtml() {
   if (typeof GOVERNABLE_TABS === 'undefined') return '';
   return `
     <div class="col-warning" style="display:block">
-      <b>Zusätzlicher</b> Zugriff auf einzelne Reiter – für einzelne Personen <b>und für
-      Gruppen</b> (Sicherheits-, Verteiler- und Microsoft-365-Gruppen). Additiv zu den
+      <b>Zusätzlicher</b> Zugriff auf einzelne Reiter – für einzelne Personen, <b>für
+      Gruppen</b> (Sicherheits-, Verteiler- und Microsoft-365-Gruppen) und <b>für ganze
+      Gesellschaften</b> (E-Mail-Domäne). Additiv zu den
       Standardrechten: <b>Admins</b> haben immer Zugriff,
       <b>Schreiben</b> schließt <b>Lesen</b> ein (nur Lesen = Reiter sichtbar, aber nicht
       bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
@@ -383,11 +385,36 @@ function _reiterBereichHtml() {
             onkeydown="if(event.key==='Enter')rrAddUser()" style="flex:1;min-width:200px;${_rrFeldStil}">
           <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Person</button>
           <button class="btn btn-outline btn-sm" onclick="rrPicker()">👥 + Gruppe</button>
+          <button class="btn btn-outline btn-sm" onclick="cfgBereichZuDomaenen()"
+            title="Eine ganze Gesellschaft berechtigen – weiter unten bei der Trennung nach Gesellschaft">🏭 + Gesellschaft</button>
         </div>
         <div id="rr-picker" style="display:none;margin-top:12px;border:1px solid var(--c-border);border-radius:10px;padding:12px"></div>
         <div class="field-hint" id="rr-gruppen-status" style="margin-top:12px">${_rrGruppenStatus()}</div>
       </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header"><h2>Trennung nach Gesellschaft</h2></div>
+      <div class="card-body">
+        <div class="field-hint" style="margin-bottom:10px">
+          Die Freigaben oben <b>geben</b> etwas dazu. Hier wird <b>getrennt</b>: Ist bei einem Reiter
+          mindestens eine Gesellschaft angehakt, sehen ihn nur noch Konten aus diesen Domänen –
+          auch dann, wenn ihnen der Reiter oben freigegeben wurde. Ohne Haken bleibt der Reiter
+          offen für alle. Maßgeblich ist die Domäne des Kontos (Anmeldename und Mailadresse),
+          nicht ein gepflegtes Feld: Sie lässt sich nicht vergessen.
+          <b>Administratoren sind ausgenommen</b> – sonst käme niemand mehr in die Einstellungen,
+          um eine falsch gesetzte Trennung zurückzunehmen.
+        </div>
+        <div id="rr-domaenen"></div>
+      </div>
     </div>`;
+}
+
+/** Zur Gesellschafts-Karte springen – dort wird sie angelegt. */
+function cfgBereichZuDomaenen() {
+  const el = document.getElementById('rr-domaenen');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const inp = document.getElementById('rr-input-domaene');
+  if (inp) inp.focus();
 }
 
 /** Hinweis, ob gruppenbasierte Freigaben überhaupt greifen können. */
@@ -426,13 +453,22 @@ function _rrEintraege() {
     (v.lesen || []).forEach(x => set.add(String(x).toLowerCase()));
     (v.schreiben || []).forEach(x => set.add(String(x).toLowerCase()));
   }
+  const rang = { gesellschaft: 0, gruppe: 1, person: 2 };
   return [...set]
-    .map(key => (typeof istGruppenEintrag === 'function' && istGruppenEintrag(key))
-      ? { key, art: 'gruppe', name: _rrGruppenName(gruppenIdVon(key)) }
-      : { key, art: 'person', name: key })
+    .map(key => {
+      if (typeof istDomaenenEintrag === 'function' && istDomaenenEintrag(key)) {
+        const d = domaeneIdVon(key);
+        return { key, art: 'gesellschaft', name: gesellschaftLabel(d), domaene: d };
+      }
+      return (typeof istGruppenEintrag === 'function' && istGruppenEintrag(key))
+        ? { key, art: 'gruppe', name: _rrGruppenName(gruppenIdVon(key)) }
+        : { key, art: 'person', name: key };
+    })
+    // Gesellschaften zuerst, dann Gruppen, dann Personen: nach der Zahl der
+    // Betroffenen – wer viele betrifft, gehört nach oben.
     .sort((a, b) => (a.art === b.art)
       ? String(a.name).localeCompare(String(b.name), 'de')
-      : (a.art === 'gruppe' ? -1 : 1));      // Gruppen zuerst: sie betreffen mehrere
+      : rang[a.art] - rang[b.art]);
 }
 
 /** Recht eines Trägers auf einem Reiter: '-' | 'L' | 'S'. */
@@ -511,14 +547,16 @@ function rrRenderBody() {
     const offen = _rrOffen.has(e.key);
     const anzahl = GOVERNABLE_TABS.filter(t => _rrStufe(t.view, e.key) !== '-').length;
     const zusatz = e.art === 'gruppe'
-      ? `<span class="field-hint" style="font-weight:400"> · ${esc(_rrGruppenArtLabel(gruppenIdVon(e.key)))}</span>` : '';
+      ? `<span class="field-hint" style="font-weight:400"> · ${esc(_rrGruppenArtLabel(gruppenIdVon(e.key)))}</span>`
+      : e.art === 'gesellschaft'
+      ? `<span class="field-hint" style="font-weight:400"> · alle @${esc(e.domaene)}</span>` : '';
     return `<tr>
         <td style="padding:5px 8px;position:sticky;left:0;background:var(--c-bg)">
           <div style="display:flex;align-items:center;gap:6px">
             <button type="button" onclick="rrToggleOffen('${esc(e.key)}')" aria-expanded="${offen}"
               title="Einzelne Reiter mit Beschriftung anzeigen"
               style="border:0;background:none;cursor:pointer;font:inherit;color:var(--c-muted);padding:0 2px">${offen ? '▾' : '▸'}</button>
-            <span>${e.art === 'gruppe' ? '👥' : '👤'}</span>
+            <span>${e.art === 'gesellschaft' ? '🏭' : e.art === 'gruppe' ? '👥' : '👤'}</span>
             <span style="min-width:0;overflow-wrap:anywhere"><b>${esc(e.name)}</b>${zusatz}
               <span class="field-hint" style="font-weight:400"> · ${anzahl} Reiter</span></span>
           </div></td>
@@ -529,10 +567,11 @@ function rrRenderBody() {
   }).join('');
 
   const personen = alle.filter(e => e.art === 'person').length;
-  const gruppen = alle.length - personen;
+  const gesellschaften = alle.filter(e => e.art === 'gesellschaft').length;
+  const gruppen = alle.length - personen - gesellschaften;
   const freigaben = alle.reduce((n, e) => n + GOVERNABLE_TABS.filter(t => _rrStufe(t.view, e.key) !== '-').length, 0);
   const kopfzeile = `<div class="field-hint" style="margin-bottom:8px">
-      ${personen} Person(en), ${gruppen} Gruppe(n) · ${freigaben} Freigabe(n)
+      ${personen} Person(en), ${gruppen} Gruppe(n), ${gesellschaften} Gesellschaft(en) · ${freigaben} Freigabe(n)
       ${zeilen.length !== alle.length ? ` · <b>${zeilen.length}</b> passen zum Filter` : ''}
       · <b>L</b> = Lesen, <b>S</b> = Schreiben</div>`;
 
@@ -585,6 +624,174 @@ function rrRemove(key) {
     if (_cfgEdit.gruppenTypen) delete _cfgEdit.gruppenTypen[gid];
   }
   rrRenderBody();
+}
+
+/* ── Gesellschaften: Träger von Rechten und Sperre je Reiter ──
+   Die DIHAG-Gruppe sind mehrere Gesellschaften mit eigenen Mail-Domänen. Wer
+   eine ganze Gesellschaft berechtigen wollte, musste bisher jede Person
+   einzeln eintragen – und bei jedem Eintritt daran denken. */
+
+let _rrGefunden = [];   // beim Verzeichnis-Scan gefundene Domänen (Vorschläge)
+
+/** Alle Domänen, die hier eine Rolle spielen: gepflegte, berechtigte, gesperrte, die eigene. */
+function _rrDomaenen() {
+  const set = new Set();
+  const nimm = (d) => { const n = (typeof domaeneNormal === 'function') ? domaeneNormal(d) : String(d || '').toLowerCase(); if (n) set.add(n); };
+  Object.keys((_cfgEdit && _cfgEdit.gesellschaften) || {}).forEach(nimm);
+  _rrEintraege().forEach(e => { if (e.art === 'gesellschaft') nimm(domaeneIdVon(e.key)); });
+  for (const v of Object.values((_cfgEdit && _cfgEdit.reiterRechte) || {})) (v.domaenen || []).forEach(nimm);
+  if (typeof meineDomaene === 'function') nimm(meineDomaene());
+  return [...set].sort();
+}
+
+/** Gesperrte Domänen eines Reiters aus dem Entwurf ([] = offen für alle). */
+function _rrSperre(view) {
+  const e = (((_cfgEdit && _cfgEdit.reiterRechte) || {})[view]) || {};
+  return Array.isArray(e.domaenen) ? e.domaenen.map(d => domaeneNormal(d)).filter(Boolean) : [];
+}
+
+function rrSperreToggle(view, dom, an) {
+  if (!_cfgEdit.reiterRechte) _cfgEdit.reiterRechte = {};
+  const e = _cfgEdit.reiterRechte[view] = _cfgEdit.reiterRechte[view] || { lesen: [], schreiben: [] };
+  const d = domaeneNormal(dom);
+  const ohne = (Array.isArray(e.domaenen) ? e.domaenen : []).map(x => domaeneNormal(x)).filter(x => x && x !== d);
+  e.domaenen = an ? ohne.concat(d) : ohne;
+  rrRenderDomaenen();
+}
+
+/** Anzeigename einer Gesellschaft im Entwurf ändern. */
+function rrGesellschaftName(dom, name) {
+  if (!_cfgEdit.gesellschaften) _cfgEdit.gesellschaften = {};
+  const d = domaeneNormal(dom);
+  const n = String(name || '').trim();
+  if (n) _cfgEdit.gesellschaften[d] = n; else delete _cfgEdit.gesellschaften[d];
+}
+
+/** Eine Gesellschaft aus der Pflege nehmen – Sperren und Freigaben gehen mit. */
+function rrGesellschaftEntfernen(dom) {
+  const d = domaeneNormal(dom);
+  if (_cfgEdit.gesellschaften) delete _cfgEdit.gesellschaften[d];
+  for (const v of Object.values(_cfgEdit.reiterRechte || {})) {
+    if (Array.isArray(v.domaenen)) v.domaenen = v.domaenen.filter(x => domaeneNormal(x) !== d);
+  }
+  rrRemove(RECHT_DOMAENE + d);   // rendert die Matrix gleich mit neu
+  rrRenderDomaenen();
+}
+
+/** Eine Gesellschaft als Träger von Rechten aufnehmen. */
+function rrAddDomaene(vorgabe) {
+  const inp = document.getElementById('rr-input-domaene');
+  const roh = (vorgabe !== undefined && vorgabe !== null) ? vorgabe : ((inp && inp.value) || '');
+  const d = domaeneNormal(roh);
+  if (!/^[^@\s]+\.[^@\s]+$/.test(d)) { toast('Bitte eine Domäne angeben, z. B. dihag.com.', 'error'); return; }
+  const key = RECHT_DOMAENE + d;
+  if (!_cfgEdit.gesellschaften) _cfgEdit.gesellschaften = {};
+  if (!_cfgEdit.gesellschaften[d]) _cfgEdit.gesellschaften[d] = d.split('.')[0].replace(/^./, c => c.toUpperCase());
+  if (inp) inp.value = '';
+  _rrGefunden = _rrGefunden.filter(g => g.domaene !== d);
+  if (_rrEintraege().some(e => e.key === key)) { rrRenderDomaenen(); toast('Diese Gesellschaft steht schon in der Liste.', 'error'); return; }
+  _rrExtra.push(key);
+  _rrOffen.add(key);          // gleich aufgeklappt: die Reiter müssen ja noch gewählt werden
+  rrRenderBody();
+  rrRenderDomaenen();
+}
+
+/**
+ * Welche Domänen gibt es im Mandanten? Gezählt wird über die ohnehin geladene
+ * Mitarbeiterliste – dafür braucht es keine zusätzliche Berechtigung. Gefundene
+ * werden vorgeschlagen, nicht eingetragen: Nicht jede Domäne im Verzeichnis ist
+ * eine Gesellschaft.
+ */
+async function rrDomaenenScan() {
+  const host = document.getElementById('rr-domaenen-scan');
+  if (host) host.innerHTML = '<span class="field-hint">Verzeichnis wird gelesen …</span>';
+  try {
+    const leute = (typeof spGetMembers === 'function') ? await spGetMembers() : [];
+    const zaehler = {};
+    leute.forEach(p => {
+      const d = domaeneVon(p.mail || p.upn);
+      if (d) zaehler[d] = (zaehler[d] || 0) + 1;
+    });
+    const schon = new Set(_rrDomaenen());
+    _rrGefunden = Object.entries(zaehler)
+      .map(([domaene, anzahl]) => ({ domaene, anzahl }))
+      .filter(g => !schon.has(g.domaene))
+      .sort((a, b) => b.anzahl - a.anzahl);
+    rrRenderDomaenen();
+    if (!_rrGefunden.length) toast('Keine weiteren Domänen gefunden.', 'success');
+  } catch (e) {
+    if (host) host.innerHTML = `<span class="field-hint">Verzeichnis nicht lesbar: ${esc(e.message)} – Domäne bitte von Hand eintragen.</span>`;
+  }
+}
+
+/** Die Tabelle „welcher Reiter für welche Gesellschaft" plus die Pflege der Namen. */
+function rrRenderDomaenen() {
+  const host = document.getElementById('rr-domaenen');
+  if (!host || typeof GOVERNABLE_TABS === 'undefined') return;
+  const doms = _rrDomaenen();
+  const eigen = (typeof meineDomaene === 'function') ? meineDomaene() : '';
+
+  const vorschlaege = _rrGefunden.length
+    ? `<div class="field-hint" style="margin-top:10px">Im Verzeichnis gefunden – anklicken zum Übernehmen:
+        ${_rrGefunden.slice(0, 12).map(g => `<button type="button" class="btn btn-ghost btn-sm"
+          onclick="rrAddDomaene('${esc(g.domaene)}')">${esc(g.domaene)} <span style="opacity:.6">· ${g.anzahl}</span></button>`).join(' ')}</div>`
+    : '';
+
+  const werkzeug = `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <input type="text" id="rr-input-domaene" placeholder="gienanth.de"
+        onkeydown="if(event.key==='Enter')rrAddDomaene()" style="flex:1;min-width:200px;${_rrFeldStil}">
+      <button class="btn btn-outline btn-sm" onclick="rrAddDomaene()">+ Gesellschaft</button>
+      <button class="btn btn-outline btn-sm" onclick="rrDomaenenScan()"
+        title="Zählt die Domänen der Mitarbeiterliste – ohne zusätzliche Berechtigung">🔍 Im Verzeichnis suchen</button>
+    </div>
+    <div id="rr-domaenen-scan"></div>${vorschlaege}`;
+
+  if (!doms.length) {
+    host.innerHTML = '<div class="field-hint">Noch keine Gesellschaft gepflegt – unten eine Domäne '
+      + 'eintragen. Solange keine da ist, bleibt jeder Reiter offen für alle.</div>' + werkzeug;
+    return;
+  }
+
+  const namen = `<table style="border-collapse:collapse;width:100%;font-size:.83rem;margin-bottom:14px">
+      <thead><tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
+        <th style="padding:6px 8px">Domäne</th><th style="padding:6px 8px">Gesellschaft</th><th style="width:38px"></th></tr></thead>
+      <tbody>${doms.map(d => `<tr>
+        <td style="padding:4px 8px"><code>@${esc(d)}</code>${d === eigen
+          ? ' <span class="ic-tag" title="So sind Sie gerade angemeldet">Ihre</span>' : ''}</td>
+        <td style="padding:4px 8px"><input type="text" value="${esc(((_cfgEdit && _cfgEdit.gesellschaften) || {})[d] || '')}"
+          placeholder="${esc(d)}" onchange="rrGesellschaftName('${esc(d)}',this.value)"
+          style="width:100%;${_rrFeldStil}"></td>
+        <td style="padding:4px 4px;text-align:right"><button class="btn btn-ghost btn-sm"
+          onclick="rrGesellschaftEntfernen('${esc(d)}')" title="Gesellschaft entfernen – ihre Freigaben und Sperren gehen mit">✕</button></td>
+      </tr>`).join('')}</tbody></table>`;
+
+  const kopf = `<tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
+      <th style="padding:6px 8px;min-width:200px">Reiter</th>
+      ${doms.map(d => `<th title="@${esc(d)}" style="padding:6px 4px;text-align:center;font-weight:600">${
+        esc((typeof gesellschaftLabel === 'function') ? gesellschaftLabel(d) : d)}</th>`).join('')}
+      <th style="padding:6px 8px;font-weight:400">Wirkung</th></tr>`;
+
+  const zeilen = GOVERNABLE_TABS.map(t => {
+    const gesperrt = _rrSperre(t.view);
+    return `<tr>
+      <td style="padding:4px 8px">${esc(t.label)}</td>
+      ${doms.map(d => `<td style="padding:4px;text-align:center">
+        <input type="checkbox" ${gesperrt.includes(d) ? 'checked' : ''}
+          title="${esc(t.label)} für ${esc((typeof gesellschaftLabel === 'function') ? gesellschaftLabel(d) : d)}"
+          onchange="rrSperreToggle('${t.view}','${esc(d)}',this.checked)"></td>`).join('')}
+      <td style="padding:4px 8px" class="field-hint">${gesperrt.length
+        ? 'nur ' + esc(gesperrt.map(d => (typeof gesellschaftLabel === 'function') ? gesellschaftLabel(d) : d).join(', '))
+        : 'offen für alle'}</td></tr>`;
+  }).join('');
+
+  const wieviele = GOVERNABLE_TABS.filter(t => _rrSperre(t.view).length).length;
+  host.innerHTML = namen
+    + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.83rem">
+         <thead>${kopf}</thead><tbody>${zeilen}</tbody></table></div>`
+    + `<div class="field-hint" style="margin-top:8px">${wieviele
+        ? `<b>${wieviele}</b> Reiter sind auf bestimmte Gesellschaften beschränkt.`
+        : 'Kein Reiter ist beschränkt – alles offen für alle.'}</div>`
+    + werkzeug;
 }
 
 function rrAddUser() {

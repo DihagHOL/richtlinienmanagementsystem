@@ -1540,6 +1540,7 @@ async function spGetMembers() {
           out.push({
             name: u.displayName || u.mail,
             upn: (u.userPrincipalName || u.mail),
+            mail: String(u.mail || '').toLowerCase(),
             department: u.department || '',
           });
         }
@@ -1558,15 +1559,25 @@ async function spGetMembers() {
 
 /** Azure-AD-Abteilung des angemeldeten Users (für die automatische Rollen-Zuordnung). */
 let _meineAbteilung = null;   // Antwort gilt für die ganze Sitzung
+let _meineMail = '';         // Mailadresse aus demselben Aufruf (Domäne = Gesellschaft)
 
 async function spGetMyDepartment() {
   if (_meineAbteilung !== null) return _meineAbteilung;
   const token = await acquireToken(SP.scopes);
   if (!token) return '';
-  const me = await _get(`${SP.graphBase}/me?$select=department,jobTitle`, token);
+  const me = await _get(`${SP.graphBase}/me?$select=department,jobTitle,mail`, token);
   _meineAbteilung = me.department || '';
+  // Die Mailadresse kommt gratis mit: Für die Trennung nach Gesellschaft zählt
+  // die Domäne, und die kann sich vom Anmeldenamen unterscheiden (dieser endet
+  // in manchen Mandanten auf .onmicrosoft.com).
+  _meineMail = String(me.mail || '').toLowerCase();
   return _meineAbteilung;
 }
+
+/** Mailadresse des angemeldeten Kontos, soweit schon gelesen ('' = noch nicht).
+ *  Bewusst synchron: Die Rechteprüfung läuft bei jedem Reiterwechsel und darf
+ *  nicht auf einen Graph-Aufruf warten – spGetMyDepartment() lief beim Start. */
+function spMeineMail() { return _meineMail || ''; }
 
 /* ═══════════════════════════════════════════════════
    Gruppen (Entra ID)

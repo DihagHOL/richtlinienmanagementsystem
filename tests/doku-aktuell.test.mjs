@@ -56,6 +56,10 @@ const FEATURES = [
   { name: 'Einführungs-Schritte',    code: () => /const RW_SCHRITTE/.test(admin),                     begriffe: ['So wird ein Regelwerk eingeführt'] },
   { name: 'Probelauf',               code: () => /function probelaufAktivieren/.test(read('js/probelauf.js')), begriffe: ['Probelauf', 'echten Vorgang', 'Aufräumen', 'Selbsttest'] },
   { name: 'Geführte Vorführung',     code: () => /function tourSchritte/.test(read('js/tour.js')),      begriffe: ['Geführte Vorführung', 'Vormachen'] },
+  { name: 'Verweise zw. Prozessen',  code: () => /const LK_VERWEIS_ARTEN/.test(read('js/landkarte.js')),      begriffe: ['Prozesslandschaft', 'Danach folgt', 'Zeigt hierher'] },
+  { name: 'SAP-Landkarte',           code: () => /const LK_SAP/.test(read('js/landkarte.js')),                begriffe: ['Lead to Cash', 'Source to Pay', 'Design to Operate'] },
+  { name: 'Übergänge im Diagramm',   code: () => /const PROC_KACHEL_MARKER/.test(prozesse),                   begriffe: ['Übergang zu einem anderen Prozess', 'Dokumentation des Elements'] },
+  { name: 'Trennung n. Gesellschaft',code: () => /const RECHT_DOMAENE/.test(read('js/access.js')),            begriffe: ['Trennung nach Gesellschaft', 'E-Mail-Domäne', 'Administratoren sind ausgenommen'] },
 ];
 
 for (const f of FEATURES) {

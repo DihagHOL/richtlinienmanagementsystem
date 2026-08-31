@@ -23,6 +23,10 @@ const ACCESS_CONFIG_DEFAULT = {
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
   gruppenNamen: {},   // Objekt-ID → Anzeigename der Gruppe (nur zur Anzeige)
+  // Gesellschaften der Gruppe: E-Mail-Domäne → Anzeigename. Nur zur Anzeige –
+  // berechtigt wird über die Domäne selbst, die steht im Konto und kann nicht
+  // vergessen werden. { "dihag.com": "DIHAG Holding" }
+  gesellschaften: {},
   gruppenTypen: {},   // Objekt-ID → 'sicherheit' | 'verteiler' | 'm365' (nur zur Anzeige)
   govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
   // Vertretungen: { "chef@dihag.com": { vertreter, von, bis } } – von/bis optional (leer = unbefristet)
@@ -94,6 +98,7 @@ async function loadRuntimeAccessConfig() {
         reiterRechte: (cfg.reiterRechte && typeof cfg.reiterRechte === 'object') ? cfg.reiterRechte : {},
         gruppenNamen: (cfg.gruppenNamen && typeof cfg.gruppenNamen === 'object' && !Array.isArray(cfg.gruppenNamen)) ? cfg.gruppenNamen : {},
         gruppenTypen: (cfg.gruppenTypen && typeof cfg.gruppenTypen === 'object' && !Array.isArray(cfg.gruppenTypen)) ? cfg.gruppenTypen : {},
+        gesellschaften: (cfg.gesellschaften && typeof cfg.gesellschaften === 'object' && !Array.isArray(cfg.gesellschaften)) ? cfg.gesellschaften : {},
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
         vertretungen: (cfg.vertretungen && typeof cfg.vertretungen === 'object' && !Array.isArray(cfg.vertretungen)) ? cfg.vertretungen : {},
@@ -142,6 +147,7 @@ function getAccessConfig() {
     reiterRechte: JSON.parse(JSON.stringify(c.reiterRechte || {})),
     gruppenNamen: JSON.parse(JSON.stringify(c.gruppenNamen || {})),
     gruppenTypen: JSON.parse(JSON.stringify(c.gruppenTypen || {})),
+    gesellschaften: JSON.parse(JSON.stringify(c.gesellschaften || {})),
     kbrMail:           c.kbrMail || '',
     brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
     clevelMail:        c.clevelMail || '',
@@ -454,6 +460,99 @@ function darfGovStrukturKoepfe(upn) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Gesellschaften: Berechtigungen nach E-Mail-Domäne trennen
+   ═══════════════════════════════════════════════════
+   Die DIHAG-Gruppe sind mehrere Gesellschaften mit eigenen Mail-Domänen. Bisher
+   kannte die Rechtevergabe nur Personen, Rollen und Gruppen: Wer eine ganze
+   Gesellschaft berechtigen wollte, musste jede Person einzeln eintragen – und
+   bei jedem Eintritt daran denken.
+
+   Zwei Bausteine, nach dem Vorbild von „Rund um den Job":
+
+     1. Die Domäne als Träger eines Rechts: „domaene:gienanth.de" steht in
+        `lesen`/`schreiben` wie eine Gruppe. Additiv – sie gibt etwas dazu.
+
+     2. Die Domänen-Sperre je Reiter (`reiterRechte[view].domaenen`). Ist sie
+        gesetzt, sieht den Reiter nur, wer aus einer dieser Gesellschaften
+        kommt – unabhängig davon, was ihm sonst freigegeben wurde. Das ist der
+        Teil, der wirklich trennt: Er nimmt weg statt zu geben.
+
+   Admins bleiben von der Sperre ausgenommen. Sonst spielte man sich mit einem
+   Klick aus der Verwaltung: „Einstellungen" ist admin-only, und wer dort nicht
+   mehr hineinkommt, kann eine falsch gesetzte Sperre nicht zurücknehmen.
+
+   Maßgeblich ist die Domäne des Kontos, nicht ein gepflegtes Feld – sie steht
+   im Anmeldenamen und in der Mailadresse und lässt sich nicht vergessen. */
+
+const RECHT_DOMAENE = 'domaene:';
+
+/** Ist der Eintrag eine Gesellschaft (Domäne)? */
+function istDomaenenEintrag(x) { return String(x || '').toLowerCase().startsWith(RECHT_DOMAENE); }
+/** Domäne aus einem Eintrag „domaene:dihag.com". */
+function domaeneIdVon(x) { return String(x || '').toLowerCase().slice(RECHT_DOMAENE.length).trim(); }
+/** Eintrag aus einer Domäne bauen (auch „@dihag.com" oder eine ganze Adresse gehen). */
+function domaenenEintrag(d) { return RECHT_DOMAENE + domaeneNormal(d); }
+
+/** Die Domäne einer Adresse – oder die Eingabe selbst, wenn schon eine dasteht. */
+function domaeneVon(adresse) {
+  const s = String(adresse || '').toLowerCase().trim();
+  const i = s.lastIndexOf('@');
+  return i < 0 ? '' : s.slice(i + 1).trim();
+}
+/** „@Gienanth.DE" / „a@gienanth.de" / „gienanth.de" → „gienanth.de". */
+function domaeneNormal(eingabe) {
+  const s = String(eingabe || '').toLowerCase().trim().replace(/^@/, '');
+  return s.includes('@') ? domaeneVon(s) : s;
+}
+
+/** Gepflegte Gesellschaften: { "dihag.com": "DIHAG Holding" } – nur zur Anzeige. */
+function getGesellschaften() {
+  const g = _cfg().gesellschaften;
+  return (g && typeof g === 'object' && !Array.isArray(g)) ? g : {};
+}
+/** Name der Gesellschaft zu einer Domäne (ohne Eintrag: die Domäne selbst). */
+function gesellschaftLabel(domaene) {
+  const d = domaeneNormal(domaene);
+  return String(getGesellschaften()[d] || d);
+}
+
+/**
+ * Die Domänen des angemeldeten Kontos: Anmeldename und, wenn bekannt, die
+ * Mailadresse. Beide, weil sie in manchen Mandanten auseinanderfallen – der
+ * Anmeldename endet auf `.onmicrosoft.com`, die Mail auf der Firmendomäne.
+ * Wer nur eine von beiden prüft, sperrt irgendwann die Falschen aus.
+ */
+function meineDomaenen(upn) {
+  const u = upn || _currentUpn();
+  const mail = (typeof spMeineMail === 'function') ? spMeineMail() : '';
+  return [...new Set([domaeneVon(u), domaeneVon(mail)].filter(Boolean))];
+}
+/** Die Domäne, unter der jemand hier auftritt (für die Anzeige). */
+function meineDomaene(upn) { return meineDomaenen(upn)[0] || ''; }
+
+/** Domänen-Sperre eines Reiters ([] = keine, der Reiter steht allen offen). */
+function reiterDomaenen(view) {
+  const r = _reiterRechte()[view] || {};
+  return Array.isArray(r.domaenen)
+    ? r.domaenen.map(d => domaeneNormal(d)).filter(Boolean) : [];
+}
+
+/** Kommt das Konto aus einer Gesellschaft, für die dieser Reiter offen ist? */
+function reiterDomaeneErlaubt(view, upn) {
+  const erlaubt = reiterDomaenen(view);
+  if (!erlaubt.length) return true;                   // keine Sperre gesetzt
+  const meine = meineDomaenen(upn);
+  if (!meine.length) return false;                    // keine Domäne feststellbar → nicht durchlassen
+  return meine.some(d => erlaubt.includes(d));
+}
+
+/** Sperrt die Trennung nach Gesellschaft diesen Reiter? (Admins nie.) */
+function _domaeneGesperrt(view) {
+  if (isCurrentUserAdmin()) return false;
+  return !reiterDomaeneErlaubt(view, _currentUpn());
+}
+
+/* ═══════════════════════════════════════════════════
    Reiter-Berechtigungen (pro Reiter: Lesen/Schreiben)
    ===================================================
    Zusätzlich (additiv) zu den Standard-Rollenrechten. Gepflegt in den Einstellungen
@@ -484,6 +583,7 @@ function getReiterRechte(view) {
   return {
     lesen:     Array.isArray(r.lesen)     ? r.lesen.filter(Boolean)     : [],
     schreiben: Array.isArray(r.schreiben) ? r.schreiben.filter(Boolean) : [],
+    domaenen:  reiterDomaenen(view),
   };
 }
 
@@ -517,11 +617,16 @@ function _matchesUserOrRole(list, upn, roles) {
   const u = (upn || '').toLowerCase().trim();
   const rset = new Set((roles || []).map(r => String(r).toLowerCase().trim()));
   let gset = null;   // Gruppen erst auflösen, wenn wirklich eine in der Liste steht
+  let dset = null;   // Domänen ebenso: erst holen, wenn eine in der Liste steht
   return list.some(x => {
     const s = String(x).toLowerCase().trim();
     if (s.startsWith(RECHT_GRUPPE)) {
       if (!gset) gset = _currentGroupIds();
       return gset.has(s.slice(RECHT_GRUPPE.length));
+    }
+    if (s.startsWith(RECHT_DOMAENE)) {
+      if (!dset) dset = new Set(meineDomaenen(upn));
+      return dset.has(s.slice(RECHT_DOMAENE.length).trim());
     }
     return s === u || rset.has(s);
   });
@@ -542,6 +647,9 @@ function _defaultTabRead(view) {
 
 /** Darf der Reiter gesehen/geöffnet werden? (Standard ODER additive Freigabe). */
 function canReadTab(view) {
+  // Die Trennung nach Gesellschaft steht vor allem anderen: Sie nimmt weg, was
+  // eine Freigabe gegeben hätte – sonst wäre sie keine Trennung.
+  if (_domaeneGesperrt(view)) return false;
   if (_defaultTabRead(view)) return true;
   const r = getReiterRechte(view);
   const upn = _currentUpn(), roles = _currentRolesSync();
@@ -550,6 +658,7 @@ function canReadTab(view) {
 
 /** Darf im Reiter geschrieben/bearbeitet werden? (Standard-Schreiber ODER schreiben-Freigabe). */
 function canWriteTab(view) {
+  if (_domaeneGesperrt(view)) return false;
   if (_defaultTabRead(view)) return true;   // Standard-Zugriffsberechtigte (v. a. Admins) schreiben wie bisher
   return _matchesUserOrRole(getReiterRechte(view).schreiben, _currentUpn(), _currentRolesSync());
 }
