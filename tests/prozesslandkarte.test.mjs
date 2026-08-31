@@ -322,9 +322,9 @@ ok(/prozesse: 'Prozesse & Landkarte'/.test(fs.readFileSync(path.join(ROOT, 'js/a
 /* ── 10) Vorlagen: der Konzern ist kein Werk in klein ──
    Eine Führungsholding steuert, finanziert, sichert ab, bündelt, kommuniziert
    und verändert – sie produziert nicht. Deshalb eine eigene Landschaft. */
-ok(w('LK_VORLAGEN.length') === 5, 'Fünf Vorlagen zur Auswahl');
-ok(w("LK_VORLAGEN.map(v => v.key).join('|')") === 'konzern|gesellschaft|konzernkarte|holding|konzern-gesamt',
-  'Die beiden ersten bleiben, wo sie waren – wer die Reihenfolge kennt, findet sie wieder');
+ok(w('LK_VORLAGEN.length') === 6, 'Sechs Vorlagen zur Auswahl');
+ok(w("LK_VORLAGEN.map(v => v.key).join('|')") === 'konzern|gesellschaft|konzernkarte|holding|konzern-gesamt|sap',
+  'Neue Vorlagen kommen hinten dazu – wer die Reihenfolge kennt, findet die alten wieder');
 ok(w('LK_VORLAGEN.every(v => v.key && v.titel && v.zweck && v.karte)'),
   'Jede Vorlage nennt Kennung, Titel, Zweck und Karte');
 ok(w("LK_VORLAGEN.every(v => v.karte.baender.length && v.karte.kacheln.length)"),

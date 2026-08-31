@@ -341,6 +341,234 @@ const LK_KONZERN_GESAMT = {
   ],
 };
 
+/**
+ * Die SAP-Landkarte: der Konzern als End-to-End-Prozesse.
+ *
+ * Die anderen Vorlagen beschreiben den Aufbau – wer wofür zuständig ist. SAP
+ * beschreibt den Ablauf: eine Kette läuft quer durch die Abteilungen, vom
+ * Auslöser bis zum Ergebnis. „Lead to Cash" beginnt beim Interessenten und
+ * endet beim Zahlungseingang; unterwegs liegen Vertrieb, Planung, Gießerei,
+ * Versand und Buchhaltung. Wer nur Bänder hat, sieht diese Kette nicht.
+ *
+ * Deshalb ist das hier die erste Vorlage mit Verweisen. Sie nutzt alle drei
+ * Arten und zeigt damit, wofür sie da sind:
+ *   ↳ Unterprozess – die vier SAP-Klammern über ihre Ketten
+ *   → Danach folgt – die Kette selbst, Schritt für Schritt
+ *   ⇢ Nutzt        – der Querbezug zwischen zwei Ketten (die Auftragserfassung
+ *                    fragt die Produktionsplanung, die Rechnungsprüfung bucht
+ *                    ins Hauptbuch)
+ *
+ * SAP als Leitfaden, nicht als Vorschrift: Die Kettennamen sind SAPs, die
+ * Schritte sind die einer Gießereigruppe. Verweisziele stehen bewusst ohne
+ * Werk – welches es ist, entscheidet erst lkVorlageAnwenden().
+ */
+const LK_SAP = {
+  baender: [
+    { key: 'klammer', titel: 'SAP-Klammer: die vier Kern-End-to-End-Prozesse' },
+    { key: 'l2c',     titel: 'Lead to Cash – vom Interessenten zum Zahlungseingang' },
+    { key: 's2p',     titel: 'Source to Pay – vom Bedarf zur bezahlten Rechnung' },
+    { key: 'i2m',     titel: 'Idea to Market – von der Idee zum Serienteil' },
+    { key: 'p2f',     titel: 'Plan to Fulfill – von der Planung zur Lieferung' },
+    { key: 'a2d',     titel: 'Acquire to Decommission – von der Investition zur Stilllegung' },
+    { key: 'hire',    titel: 'Recruit to Retire – von der Einstellung zum Austritt' },
+    { key: 'fin',     titel: 'Record to Report – von der Buchung zum Abschluss' },
+    { key: 'grc',     titel: 'Governance, Risk & Compliance – quer über allem' },
+  ],
+  kacheln: [
+    /* ── Die Klammern. Jede zeigt als Unterprozess auf den Anfang ihrer Kette;
+       von dort führt „Danach folgt" weiter bis zum Ende. ── */
+    { id: 'sap-e2e-l2c', band: 'klammer', name: 'Lead to Cash',
+      unter: 'Die Vertriebskette: Lead, Anfrage, Angebot, Auftrag, Lieferung, Faktura, Geldeingang',
+      verweise: [{ ziel: 'sap-l2c-markt', art: 'unterprozess' }] },
+    { id: 'sap-e2e-s2p', band: 'klammer', name: 'Source to Pay',
+      unter: 'Die Beschaffungskette: Bedarf, Lieferant, Bestellung, Wareneingang, Rechnung, Zahlung',
+      verweise: [{ ziel: 'sap-s2p-bedarf', art: 'unterprozess' }] },
+    { id: 'sap-e2e-d2o', band: 'klammer', name: 'Design to Operate',
+      unter: 'SAPs Klammer über Produktentstehung, Fertigung und Anlagen – drei Ketten unter einem Dach',
+      verweise: [{ ziel: 'sap-i2m-idee', art: 'unterprozess' },
+                 { ziel: 'sap-p2f-absatz', art: 'unterprozess' },
+                 { ziel: 'sap-a2d-invest', art: 'unterprozess' }] },
+    { id: 'sap-e2e-r2r', band: 'klammer', name: 'Recruit to Retire',
+      unter: 'Die Personalkette: Bedarf, Einstellung, Verwaltung, Entwicklung, Entgelt, Austritt',
+      verweise: [{ ziel: 'sap-hire-bedarf', art: 'unterprozess' }] },
+
+    /* ── Lead to Cash ── */
+    { id: 'sap-l2c-markt', band: 'l2c', name: 'Markt & Lead',
+      unter: 'Marktbearbeitung, Zielkunden, Kundenentwicklung',
+      verweise: [{ ziel: 'sap-l2c-anfrage', art: 'folgt' }] },
+    { id: 'sap-l2c-anfrage', band: 'l2c', name: 'Anfrage & Machbarkeit',
+      unter: 'Kundenanfrage aufnehmen, technische und kaufmännische Machbarkeit klären',
+      verweise: [{ ziel: 'sap-l2c-angebot', art: 'folgt' }] },
+    { id: 'sap-l2c-angebot', band: 'l2c', name: 'Angebot & Kalkulation',
+      unter: 'Kalkulation, Angebot, Verhandlung',
+      verweise: [{ ziel: 'sap-l2c-auftrag', art: 'folgt' },
+                 { ziel: 'sap-i2m-entwicklung', art: 'nutzt' }] },
+    { id: 'sap-l2c-auftrag', band: 'l2c', name: 'Auftragserfassung',
+      unter: 'Kundenauftrag anlegen, Verfügbarkeit und Termin zusagen',
+      verweise: [{ ziel: 'sap-l2c-lieferung', art: 'folgt' },
+                 { ziel: 'sap-p2f-planung', art: 'nutzt' }] },
+    { id: 'sap-l2c-lieferung', band: 'l2c', name: 'Lieferung',
+      unter: 'Lieferschein, Kommissionierung, Warenausgang',
+      verweise: [{ ziel: 'sap-l2c-faktura', art: 'folgt' },
+                 { ziel: 'sap-p2f-versand', art: 'nutzt' }] },
+    { id: 'sap-l2c-faktura', band: 'l2c', name: 'Faktura',
+      unter: 'Rechnungsstellung, Gutschriften, Preisfindung',
+      verweise: [{ ziel: 'sap-l2c-zahlung', art: 'folgt' }] },
+    { id: 'sap-l2c-zahlung', band: 'l2c', name: 'Zahlungseingang & Forderungen',
+      unter: 'Debitoren, Mahnwesen, Kreditlimit',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+
+    /* ── Source to Pay ── */
+    { id: 'sap-s2p-bedarf', band: 's2p', name: 'Bedarfsanforderung',
+      unter: 'Bedarf melden und genehmigen (BANF)',
+      verweise: [{ ziel: 'sap-s2p-quelle', art: 'folgt' }] },
+    { id: 'sap-s2p-quelle', band: 's2p', name: 'Lieferantenauswahl',
+      unter: 'Anfrage, Angebotsvergleich, Rahmenvertrag, Lead-Buyer',
+      verweise: [{ ziel: 'sap-s2p-bestellung', art: 'folgt' },
+                 { ziel: 'sap-grc-lieferkette', art: 'nutzt' }] },
+    { id: 'sap-s2p-bestellung', band: 's2p', name: 'Bestellung',
+      unter: 'Bestellung anlegen, freigeben, überwachen',
+      verweise: [{ ziel: 'sap-s2p-wareneingang', art: 'folgt' },
+                 { ziel: 'sap-grc-berechtigung', art: 'nutzt' }] },
+    { id: 'sap-s2p-wareneingang', band: 's2p', name: 'Wareneingang & Prüfung',
+      unter: 'Ware annehmen, Qualität prüfen, einlagern',
+      verweise: [{ ziel: 'sap-s2p-rechnung', art: 'folgt' },
+                 { ziel: 'sap-p2f-lager', art: 'nutzt' }] },
+    { id: 'sap-s2p-rechnung', band: 's2p', name: 'Rechnungsprüfung',
+      unter: 'Eingangsrechnung prüfen, dreiseitiger Abgleich, E-Rechnung',
+      verweise: [{ ziel: 'sap-s2p-zahlung', art: 'folgt' }] },
+    { id: 'sap-s2p-zahlung', band: 's2p', name: 'Zahlungslauf',
+      unter: 'Kreditoren, Zahlungsvorschlag, Skonto',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+
+    /* ── Idea to Market ── */
+    { id: 'sap-i2m-idee', band: 'i2m', name: 'Idee & Anforderung',
+      unter: 'Kundenanforderung, Markttrend, Machbarkeitsbewertung',
+      verweise: [{ ziel: 'sap-i2m-entwicklung', art: 'folgt' }] },
+    { id: 'sap-i2m-entwicklung', band: 'i2m', name: 'Produktentwicklung',
+      unter: 'Konstruktion, Werkstoffauswahl, Gießsimulation, Prozessentwicklung',
+      verweise: [{ ziel: 'sap-i2m-muster', art: 'folgt' }] },
+    { id: 'sap-i2m-muster', band: 'i2m', name: 'Bemusterung & Freigabe',
+      unter: 'Erstmuster, EMPB/PPAP, Kundenfreigabe',
+      verweise: [{ ziel: 'sap-i2m-serie', art: 'folgt' }] },
+    { id: 'sap-i2m-serie', band: 'i2m', name: 'Serienüberleitung',
+      unter: 'Stückliste, Arbeitsplan, Stammdaten im ERP anlegen',
+      verweise: [{ ziel: 'sap-p2f-planung', art: 'folgt' }] },
+
+    /* ── Plan to Fulfill ── */
+    { id: 'sap-p2f-absatz', band: 'p2f', name: 'Absatz- & Grobplanung',
+      unter: 'Absatzplan, Kapazitätsabgleich, S&OP',
+      verweise: [{ ziel: 'sap-p2f-planung', art: 'folgt' }] },
+    { id: 'sap-p2f-planung', band: 'p2f', name: 'Produktionsplanung',
+      unter: 'Termin-, Kapazitäts- und Feinplanung',
+      verweise: [{ ziel: 'sap-p2f-material', art: 'folgt' }] },
+    { id: 'sap-p2f-material', band: 'p2f', name: 'Materialdisposition',
+      unter: 'Bedarfsermittlung, Losgrößen, Sicherheitsbestand',
+      verweise: [{ ziel: 'sap-p2f-fertigung', art: 'folgt' },
+                 { ziel: 'sap-s2p-bedarf', art: 'nutzt' }] },
+    { id: 'sap-p2f-fertigung', band: 'p2f', name: 'Fertigung',
+      unter: 'Modell, Kerne, Formen, Schmelzen & Gießen, Putzen, Wärmebehandlung, Bearbeitung',
+      verweise: [{ ziel: 'sap-p2f-qs', art: 'folgt' },
+                 { ziel: 'sap-a2d-instand', art: 'nutzt' }] },
+    { id: 'sap-p2f-qs', band: 'p2f', name: 'Qualitätsprüfung',
+      unter: 'Prüfplan, Prüflos, Sperrbestand, Reklamation und 8D',
+      verweise: [{ ziel: 'sap-p2f-lager', art: 'folgt' },
+                 { ziel: 'sap-i2m-muster', art: 'nutzt' }] },
+    { id: 'sap-p2f-lager', band: 'p2f', name: 'Bestandsführung',
+      unter: 'Lager, Chargen, Inventur',
+      verweise: [{ ziel: 'sap-p2f-versand', art: 'folgt' }] },
+    { id: 'sap-p2f-versand', band: 'p2f', name: 'Versand & Transport',
+      unter: 'Transportdisposition, Verpackung, Ausfuhr',
+      verweise: [{ ziel: 'sap-fin-kosten', art: 'nutzt' }] },
+
+    /* ── Acquire to Decommission ── */
+    { id: 'sap-a2d-invest', band: 'a2d', name: 'Investitionsantrag',
+      unter: 'Bedarf, Wirtschaftlichkeit, Genehmigung',
+      verweise: [{ ziel: 'sap-a2d-beschaffung', art: 'folgt' },
+                 { ziel: 'sap-fin-planung', art: 'nutzt' }] },
+    { id: 'sap-a2d-beschaffung', band: 'a2d', name: 'Anlagenbeschaffung & Projekt',
+      unter: 'Vergabe, Projektabwicklung, Montage',
+      verweise: [{ ziel: 'sap-a2d-inbetrieb', art: 'folgt' },
+                 { ziel: 'sap-s2p-bestellung', art: 'nutzt' }] },
+    { id: 'sap-a2d-inbetrieb', band: 'a2d', name: 'Inbetriebnahme',
+      unter: 'Abnahme, Anlagenstammdaten, Aktivierung',
+      verweise: [{ ziel: 'sap-a2d-instand', art: 'folgt' },
+                 { ziel: 'sap-fin-anlagen', art: 'nutzt' }] },
+    { id: 'sap-a2d-instand', band: 'a2d', name: 'Instandhaltung',
+      unter: 'Wartungsplan, Störung, Ersatzteile, Instandhaltungsauftrag',
+      verweise: [{ ziel: 'sap-a2d-still', art: 'folgt' }] },
+    { id: 'sap-a2d-still', band: 'a2d', name: 'Stilllegung & Verwertung',
+      unter: 'Außerbetriebnahme, Verkauf, Verschrottung, Abgang',
+      verweise: [{ ziel: 'sap-fin-anlagen', art: 'nutzt' }] },
+
+    /* ── Recruit to Retire ── */
+    { id: 'sap-hire-bedarf', band: 'hire', name: 'Personalbedarf & Recruiting',
+      unter: 'Bedarf, Ausschreibung, Auswahl',
+      verweise: [{ ziel: 'sap-hire-eintritt', art: 'folgt' }] },
+    { id: 'sap-hire-eintritt', band: 'hire', name: 'Einstellung & Onboarding',
+      unter: 'Vertrag, Ersteinweisung, Arbeitsmittel, Zugänge',
+      verweise: [{ ziel: 'sap-hire-verwaltung', art: 'folgt' },
+                 { ziel: 'sap-grc-schulung', art: 'nutzt' }] },
+    { id: 'sap-hire-verwaltung', band: 'hire', name: 'Personaladministration & Zeitwirtschaft',
+      unter: 'Stammdaten, Zeiterfassung, Schichtmodelle, Abwesenheiten',
+      verweise: [{ ziel: 'sap-hire-entwicklung', art: 'folgt' }] },
+    { id: 'sap-hire-entwicklung', band: 'hire', name: 'Qualifizierung & Entwicklung',
+      unter: 'Ausbildung, Weiterbildung, Qualifikationsmatrix, Nachfolge',
+      verweise: [{ ziel: 'sap-hire-entgelt', art: 'folgt' }] },
+    { id: 'sap-hire-entgelt', band: 'hire', name: 'Entgeltabrechnung',
+      unter: 'Payroll, Zuschläge, Meldungen',
+      verweise: [{ ziel: 'sap-hire-austritt', art: 'folgt' },
+                 { ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+    { id: 'sap-hire-austritt', band: 'hire', name: 'Austritt & Offboarding',
+      unter: 'Kündigung, Zeugnis, Rückgabe, Zugänge sperren',
+      verweise: [{ ziel: 'sap-grc-berechtigung', art: 'nutzt' }] },
+
+    /* ── Record to Report ── */
+    { id: 'sap-fin-hauptbuch', band: 'fin', name: 'Hauptbuch & Nebenbücher',
+      unter: 'Belege, Kreditoren, Debitoren, Bank',
+      verweise: [{ ziel: 'sap-fin-kosten', art: 'folgt' }] },
+    { id: 'sap-fin-anlagen', band: 'fin', name: 'Anlagenbuchhaltung',
+      unter: 'Aktivierung, Abschreibung, Abgang',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'folgt' }] },
+    { id: 'sap-fin-kosten', band: 'fin', name: 'Kosten- & Ergebnisrechnung',
+      unter: 'Kostenstellen, Kalkulation, Deckungsbeitrag je Guss',
+      verweise: [{ ziel: 'sap-fin-abschluss', art: 'folgt' }] },
+    { id: 'sap-fin-abschluss', band: 'fin', name: 'Abschluss',
+      unter: 'Monats-, Jahres- und Konzernabschluss, Konsolidierung',
+      verweise: [{ ziel: 'sap-fin-reporting', art: 'folgt' },
+                 { ziel: 'sap-fin-steuern', art: 'folgt' }] },
+    { id: 'sap-fin-steuern', band: 'fin', name: 'Steuern',
+      unter: 'Umsatzsteuer, Ertragsteuern, Verrechnungspreise',
+      verweise: [] },
+    { id: 'sap-fin-reporting', band: 'fin', name: 'Reporting & Kennzahlen',
+      unter: 'Management-Reporting, KPI, Power BI',
+      verweise: [{ ziel: 'sap-fin-planung', art: 'folgt' }] },
+    { id: 'sap-fin-planung', band: 'fin', name: 'Planung & Forecast',
+      unter: 'Budget, Forecast, Investitionscontrolling',
+      verweise: [] },
+
+    /* ── Governance, Risk & Compliance – quer über allem ── */
+    { id: 'sap-grc-regelwerk', band: 'grc', name: 'Regelwerke & Richtlinien',
+      unter: 'Konzernregelungen erstellen, prüfen, freigeben (RMS)',
+      verweise: [{ ziel: 'sap-grc-schulung', art: 'folgt' }] },
+    { id: 'sap-grc-schulung', band: 'grc', name: 'Unterweisung & Kenntnisnahme',
+      unter: 'Bekanntgabe, Kenntnisnahme, Wissenstest',
+      verweise: [] },
+    { id: 'sap-grc-risiko', band: 'grc', name: 'Risikomanagement & IKS',
+      unter: 'Risiken erfassen, bewerten, Kontrollen wirksam halten',
+      verweise: [{ ziel: 'sap-grc-audit', art: 'folgt' }] },
+    { id: 'sap-grc-audit', band: 'grc', name: 'Audits & Zertifizierung',
+      unter: 'IATF 16949, ISO 9001/14001/50001, ISO 27001, Kundenaudits',
+      verweise: [] },
+    { id: 'sap-grc-berechtigung', band: 'grc', name: 'Berechtigungen & Zugriffe',
+      unter: 'Rollen, Freigabegrenzen, Funktionstrennung (SoD)',
+      verweise: [{ ziel: 'sap-grc-risiko', art: 'nutzt' }] },
+    { id: 'sap-grc-lieferkette', band: 'grc', name: 'Lieferkette & Nachhaltigkeit',
+      unter: 'LkSG, CSRD, Konfliktmineralien, CO₂-Bilanz',
+      verweise: [{ ziel: 'sap-grc-risiko', art: 'nutzt' }] },
+  ],
+};
+
 /* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
    null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
 const LK_VORLAGEN = [
@@ -359,6 +587,9 @@ const LK_VORLAGEN = [
   { key: 'konzern-gesamt', titel: 'Führungsholding – Gesamtbild',
     zweck: 'Aus den drei Vorlagen zusammengeführt: die Form der Prozesslandkarte, gefüllt mit dem, was eine Holding tut – Steuern, Kapital & Beteiligungen als Kernprozesse, Überwachen, Konzernservices und die Umsetzung in den Gesellschaften.',
     karte: LK_KONZERN_GESAMT },
+  { key: 'sap', titel: 'SAP End-to-End-Prozesse',
+    zweck: 'Der Konzern als Ablauf statt als Aufbau: Lead to Cash, Source to Pay, Design to Operate und Recruit to Retire – mit den Ketten quer durch Vertrieb, Gießerei, Einkauf und Buchhaltung. Die einzige Vorlage, die schon verknüpft ist: Klammern als Unterprozesse, Ketten als „Danach folgt", Übergänge als „Nutzt".',
+    karte: LK_SAP },
 ];
 
 function lkStartbestand() {
@@ -788,6 +1019,14 @@ async function lkVorlageAnwenden() {
   // konzernweit, die einer Gesellschaft zunächst dort.
   ziel.kacheln = kopie.kacheln.map(k => Object.assign(k, {
     geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk], prozesse: [], regelwerke: [],
+    // Eine Vorlage kennt ihr Werk nicht – ihre Verweisziele stehen deshalb ohne.
+    // Erst hier ist bekannt, wohin sie eingesetzt wird. Ohne das Werk läse später
+    // jede andere Landkarte diese Ziele als ihre eigenen (lkZielTeile fällt auf
+    // die offene Karte zurück), und die Gegenrichtung fände sie gar nicht.
+    verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(v => ({
+      art: v.art,
+      ziel: String(v.ziel).includes(':') ? v.ziel : lkZielSchluessel(_lkWerk, v.ziel),
+    })),
   }));
   closeModal();
   await lkSpeichern(`Vorlage „${vorlage.titel}" eingesetzt ✓`,
