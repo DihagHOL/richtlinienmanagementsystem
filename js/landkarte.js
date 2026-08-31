@@ -32,6 +32,21 @@ function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
    trägt sie als Kante, damit die Zugehörigkeit ohne Legende lesbar bleibt. */
 const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
 
+/* ── Verweise zwischen Prozessen ──────────────────────────────────────────
+   Drei Arten reichen für das, was auf einer Prozesslandkarte vorkommt:
+   Hierarchie („besteht aus"), Kette („danach folgt") und Querbezug („nutzt").
+   Jede Art trägt ihre Gegenrichtung mit – wer eine Kachel öffnet, will auch
+   sehen, wer auf sie zeigt, nicht nur wohin sie selbst zeigt. */
+const LK_VERWEIS_ARTEN = [
+  { art: 'unterprozess', label: 'Unterprozesse',  zeichen: '↳', umkehr: 'Teil von' },
+  { art: 'folgt',        label: 'Danach folgt',   zeichen: '→', umkehr: 'Davor liegt' },
+  { art: 'nutzt',        label: 'Nutzt',          zeichen: '⇢', umkehr: 'Wird genutzt von' },
+];
+
+function lkVerweisArt(art) {
+  return LK_VERWEIS_ARTEN.find(a => a.art === art) || LK_VERWEIS_ARTEN[2];
+}
+
 /* ── Startbestand: die abgestimmte Landschaft – sie gehört zu HOL ── */
 const LK_START_WERK = 'HOL';
 const LK_START = {
@@ -885,6 +900,66 @@ async function lkNeuLaden() {
 
 function lkKachelVonId(id) { return lkKacheln().find(k => k.id === id) || null; }
 
+/* Ein Verweisziel heißt „WERK:KACHEL". Das Werk gehört dazu, weil ein Verweis
+   über Gesellschaftsgrenzen zeigen darf – ohne das ließe sich eine
+   End-to-End-Kette quer durch den Konzern gar nicht aufschreiben. */
+function lkZielSchluessel(werk, id) { return String(werk) + ':' + String(id); }
+
+function lkZielTeile(ziel) {
+  const s = String(ziel || '');
+  const i = s.indexOf(':');
+  // Ohne Werk im Ziel: die eigene Karte. So bleiben ältere Einträge lesbar.
+  return i < 0 ? { werk: _lkWerk, id: s } : { werk: s.slice(0, i), id: s.slice(i + 1) };
+}
+
+/** Kachel zu einem Verweisziel – über ALLE Werke, nicht nur das offene. */
+function lkKachelVonZiel(ziel) {
+  const { werk, id } = lkZielTeile(ziel);
+  return lkAlleKacheln().find(x => x.werk === werk && x.kachel.id === id) || null;
+}
+
+/**
+ * Verweise einer Kachel, aufgelöst und um tote Ziele bereinigt.
+ * Eine gelöschte Kachel soll keinen Verweis ins Nichts hinterlassen.
+ */
+function lkVerweiseVon(k) {
+  return (Array.isArray(k && k.verweise) ? k.verweise : [])
+    .map(v => {
+      const treffer = lkKachelVonZiel(v.ziel);
+      return treffer ? { art: v.art || 'nutzt', ziel: v.ziel, werk: treffer.werk, kachel: treffer.kachel } : null;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Die Gegenrichtung: Wer zeigt auf diese Kachel?
+ *
+ * Gespeichert wird ein Verweis nur einmal, bei der Quelle. Die Rückrichtung
+ * wird deshalb gesucht statt gepflegt – sonst müssten beide Seiten gleichzeitig
+ * geändert werden, und genau da laufen solche Beziehungen auseinander.
+ */
+function lkVerweiseAuf(werk, id) {
+  const ziel = lkZielSchluessel(werk, id);
+  const out = [];
+  lkAlleKacheln().forEach(({ werk: w, kachel }) => {
+    (Array.isArray(kachel.verweise) ? kachel.verweise : []).forEach(v => {
+      if (v.ziel === ziel) out.push({ art: v.art || 'nutzt', werk: w, kachel });
+    });
+  });
+  return out;
+}
+
+/** Ein Verweis setzen oder lösen (dieselbe Art zweimal gibt es nicht). */
+function lkVerweisSetzen(kachelId, ziel, art) {
+  const k = lkKachelVonId(kachelId);
+  if (!k || !lkDarfSchreiben()) return false;
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  const schon = k.verweise.findIndex(v => v.ziel === ziel);
+  if (schon >= 0) k.verweise.splice(schon, 1);
+  if (art) k.verweise.push({ ziel, art });
+  return true;
+}
+
 function lkKachelOeffnen(id) {
   const k = lkKachelVonId(id);
   if (!k) return;
@@ -928,6 +1003,8 @@ function lkKachelOeffnen(id) {
              </div>` : ''}
         ${modelle.length > 1 ? `<div class="field-hint" style="margin-top:6px">Ein Prozess besteht oft aus mehreren Abläufen – alle hängen an dieser Kachel.</div>` : ''}
       </div>
+
+      ${_lkVerweiseHtml(_lkWerk, k)}
 
       <div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Regelwerke zu diesem Prozess</div>
@@ -990,6 +1067,113 @@ async function _lkRegelwerkeLaden(modelle, kachel) {
 }
 
 /** Regelwerke direkt an der Kachel zuordnen – für Prozesse, die (noch) kein Modell haben. */
+/**
+ * Der Abschnitt „Prozesslandschaft" im Kachel-Dialog.
+ *
+ * Jede Zeile ist ein Sprung, kein Text: Anklicken wechselt – wenn nötig samt
+ * Werk – auf die Zielkachel. Ein fremdes Werk steht sichtbar dabei, sonst
+ * merkt man nicht, dass der Sprung die Gesellschaft verlässt.
+ */
+function _lkVerweiseHtml(werk, k) {
+  const raus = lkVerweiseVon(k);
+  const rein = lkVerweiseAuf(werk, k.id);
+  const schreiben = lkDarfSchreiben();
+  if (!raus.length && !rein.length && !schreiben) return '';
+
+  const sprung = (w, ziel, name, zeichen, fremd) =>
+    `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+       <a href="#" onclick="closeModal();lkSpringeZu('${esc(w)}','${esc(ziel.id)}');return false"
+          style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
+          ${zeichen} ${esc(name)}</a>
+       ${fremd ? `<span class="ic-tag" title="Dieser Prozess gehört zu einer anderen Gesellschaft">${esc(lkWerkLabel(w))}</span>` : ''}
+       ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVerweisLoesen('${esc(k.id)}','${esc(lkZielSchluessel(w, ziel.id))}')">Lösen</button>` : ''}
+     </div>`;
+
+  const gruppen = LK_VERWEIS_ARTEN.map(a => {
+    const zeilen = raus.filter(v => v.art === a.art);
+    if (!zeilen.length) return '';
+    return `<div style="margin-bottom:8px">
+      <div class="field-hint" style="font-weight:600">${esc(a.label)}</div>
+      ${zeilen.map(v => sprung(v.werk, v.kachel, v.kachel.name, a.zeichen, v.werk !== werk)).join('')}</div>`;
+  }).join('');
+
+  // Gegenrichtung: gesammelt, ohne Löschen – gepflegt wird sie bei der Quelle.
+  const zurueck = rein.length
+    ? `<div style="margin-top:4px">
+         <div class="field-hint" style="font-weight:600">Zeigt hierher</div>
+         ${rein.map(v => `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+             <a href="#" onclick="closeModal();lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
+                style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
+                ${esc(lkVerweisArt(v.art).umkehr)}: ${esc(v.kachel.name)}</a>
+             ${v.werk !== werk ? `<span class="ic-tag">${esc(lkWerkLabel(v.werk))}</span>` : ''}
+           </div>`).join('')}</div>`
+    : '';
+
+  return `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozesslandschaft</div>
+      ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise – Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
+      ${zurueck}
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')" style="margin-top:8px">Verweise pflegen</button>` : ''}
+    </div>`;
+}
+
+/** Einen Verweis lösen und die Kachel gleich wieder zeigen. */
+async function lkVerweisLoesen(kachelId, ziel) {
+  if (!lkVerweisSetzen(kachelId, ziel, '')) return;
+  await lkSpeichern('Verweis gelöst', 'verweise');
+  lkKachelOeffnen(kachelId);
+}
+
+/**
+ * Verweise pflegen: alle Kacheln aller Werke, je Zeile eine Art.
+ * Bewusst alle Werke – ein Verweis darf die Gesellschaft wechseln, und
+ * genau das ist bei einer End-to-End-Kette der Normalfall.
+ */
+function lkVerweiseDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  const schon = {};
+  (Array.isArray(k.verweise) ? k.verweise : []).forEach(v => { schon[v.ziel] = v.art; });
+
+  const zeilen = lkAlleKacheln()
+    .map(x => ({ ziel: lkZielSchluessel(x.werk, x.kachel.id), werk: x.werk, kachel: x.kachel }))
+    .filter(x => x.ziel !== selbst)
+    .sort((a, b) => (a.werk + a.kachel.name).localeCompare(b.werk + b.kachel.name, 'de'));
+
+  openModal(`
+    <div class="modal-header">
+      <h3>Verweise: ${esc(k.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Ein Unterprozess ist eine ganz normale Kachel – sie behält
+      Modelle, Regelwerke und ihren Verantwortlichen. „Danach folgt" ergibt die Kette für eine
+      End-to-End-Sicht, „Nutzt" den Querbezug. Verweise dürfen die Gesellschaft wechseln.</p>
+      <div style="max-height:52vh;overflow:auto">
+        ${zeilen.map(x => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+            <span style="flex:1;min-width:150px">${esc(x.kachel.name)}
+              ${x.werk !== _lkWerk ? `<span class="ic-tag">${esc(lkWerkLabel(x.werk))}</span>` : ''}</span>
+            <select class="form-control" style="width:auto;min-width:150px"
+                    onchange="lkVerweisWaehlen('${esc(k.id)}','${esc(x.ziel)}',this.value)">
+              <option value=""${schon[x.ziel] ? '' : ' selected'}>—</option>
+              ${LK_VERWEIS_ARTEN.map(a => `<option value="${a.art}"${schon[x.ziel] === a.art ? ' selected' : ''}>${esc(a.zeichen)} ${esc(a.label)}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="lkVerweiseFertig('${esc(k.id)}')">Fertig</button>
+    </div>`);
+}
+
+function lkVerweisWaehlen(kachelId, ziel, art) { lkVerweisSetzen(kachelId, ziel, art); }
+
+async function lkVerweiseFertig(kachelId) {
+  await lkSpeichern('Verweise gespeichert', 'verweise');
+  lkKachelOeffnen(kachelId);
+}
+
 function lkRegelwerkeDialog(id) {
   const k = lkKachelVonId(id);
   if (!k || !lkDarfSchreiben()) return;

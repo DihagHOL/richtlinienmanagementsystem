@@ -162,6 +162,23 @@ async function vkGraphBauen() {
       });
     }
   }
+
+  /* Verweise zwischen Prozessen – die ersten Kanten, die NICHT nach unten
+     zeigen. Erst durch sie wird aus einer Sammlung von Kacheln eine
+     Landschaft: Unterprozesse, Ketten (End-to-End) und Querbezüge, auch über
+     Werksgrenzen. Sie kommen zum Schluss, weil dann jede Kachel schon ein
+     Knoten ist – auch die in einer anderen Gesellschaft. */
+  if (typeof lkVerweiseVon === 'function') {
+    alleKacheln.forEach(({ werk: w, kachel }) => {
+      lkVerweiseVon(kachel).forEach(v => {
+        const art = (typeof lkVerweisArt === 'function') ? lkVerweisArt(v.art) : null;
+        link(`prozess:${w}:${kachel.id}`,
+             `prozess:${v.werk}:${v.kachel.id}`,
+             art ? art.label.toLowerCase() : 'verweist auf');
+      });
+    });
+  }
+
   return { knoten, kanten };
 }
 
