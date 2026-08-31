@@ -867,6 +867,9 @@ function renderLandkarte() {
       ${stand ? `<button class="btn btn-ghost btn-sm" onclick="lkVerlaufZeigen()" title="Versionsverlauf">
         🕘 ${esc(stand.name || '–')}${stand.datum && typeof fmtDate === 'function' ? ' · ' + esc(fmtDate(stand.datum)) : ''}</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="lkNeuLaden()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${lkKacheln().some(k => lkUnterprozesse(k).length) ? `<button class="btn btn-ghost btn-sm"
+        onclick="lkAlleAufklappen(${_lkAufgeklappt.size ? 'false' : 'true'})"
+        title="Die Gliederung aller Prozesse auf einmal">${_lkAufgeklappt.size ? '⤡ Zuklappen' : '⤢ Gliederung'}</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageDialog()" title="Fertige Prozesslandschaft einsetzen">📋 Vorlage</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
@@ -966,10 +969,12 @@ function _lkKachelHtml(k, i, band, schreiben) {
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
+        ${_lkUnterbaumHtml(_lkWerk, k, [])}
         <div class="lk-kachel-fuss">
           ${person ? `<span class="lk-kachel-person" title="${esc(person)}">👤 ${esc(
             (typeof lkPersonName === 'function' ? lkPersonName(person) : person).split(' ')[0])}</span>` : ''}
           ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
+          ${_lkGliederungZeichen(_lkWerk, k)}
         </div>
       </div>
     </div>`;
@@ -983,6 +988,8 @@ function _lkPfeilHtml(k, i, schreiben) {
       ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
+      <span class="lk-pfeil-gliederung">${_lkGliederungZeichen(_lkWerk, k)}</span>
+      ${_lkUnterbaumHtml(_lkWerk, k, [])}
     </div>`;
 }
 
@@ -1233,11 +1240,157 @@ function lkVerweiseAuf(werk, id) {
 function lkVerweisSetzen(kachelId, ziel, art) {
   const k = lkKachelVonId(kachelId);
   if (!k || !lkDarfSchreiben()) return false;
+  // Ein Prozess darf nicht unter sich selbst hängen. Direkt ist das offensichtlich,
+  // über zwei Ecken nicht – und danach lässt sich die Gliederung nicht mehr
+  // aufklappen, ohne im Kreis zu laufen. Lieber hier ablehnen als dort einfrieren.
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  if (art === 'unterprozess' && (ziel === selbst || lkIstNachfahre(ziel, selbst))) {
+    if (typeof toast === 'function') {
+      toast(ziel === selbst
+        ? 'Ein Prozess kann nicht sein eigener Unterprozess sein.'
+        : 'Das ergäbe einen Kreis: Dieser Prozess hängt bereits unterhalb des gewählten.', 'error');
+    }
+    return false;
+  }
   if (!Array.isArray(k.verweise)) k.verweise = [];
   const schon = k.verweise.findIndex(v => v.ziel === ziel);
   if (schon >= 0) k.verweise.splice(schon, 1);
   if (art) k.verweise.push({ ziel, art });
   return true;
+}
+
+/* ═══════════════════════════════════════════════════
+   Geteilte Unterprozesse und das Ausklappen
+   ═══════════════════════════════════════════════════
+   „Bedarfsanforderung" gehört zu Source-to-Pay und zu Plan-to-Fulfill. Sie
+   deshalb zweimal zu pflegen, wäre der Anfang vom Auseinanderlaufen: Die eine
+   Fassung wird geändert, die andere vergessen, und ab da gibt es zwei
+   Wahrheiten.
+
+   Deshalb gibt es sie genau einmal. Mehrere Hauptprozesse zeigen mit
+   „Unterprozess" auf dieselbe Kachel – die Beziehung liegt bei den Eltern, der
+   Prozess selbst weiß nichts davon und muss nichts wissen. Eine Änderung an
+   ihm wirkt überall, ohne dass jemand nachpflegt.
+
+   Was fehlte, war nicht das Modell, sondern die Sicht darauf: An der Kachel
+   stand nirgends, dass sie geteilt ist, und die Gliederung ließ sich nicht
+   aufklappen. Beides steht jetzt in der Karte selbst. */
+
+/** Aufgeklappte Prozesse – Schlüssel „WERK:KACHEL". */
+let _lkAufgeklappt = new Set();
+
+/** Die Unterprozesse einer Kachel, aufgelöst. */
+function lkUnterprozesse(k) {
+  return lkVerweiseVon(k).filter(v => v.art === 'unterprozess');
+}
+
+/**
+ * Die Hauptprozesse, zu denen dieser Prozess gehört.
+ *
+ * Gesucht statt gepflegt: Gespeichert ist die Beziehung nur beim Hauptprozess.
+ * Genau das macht die Wiederverwendung billig – ein weiterer Hauptprozess
+ * trägt sie bei sich ein, am Unterprozess ändert sich nichts.
+ */
+function lkHauptprozesseVon(werk, id) {
+  return lkVerweiseAuf(werk, id).filter(v => v.art === 'unterprozess');
+}
+
+/** Wird dieser Prozess von mehr als einem Hauptprozess verwendet? */
+function lkMehrfachVerwendet(werk, id) { return lkHauptprozesseVon(werk, id).length > 1; }
+
+/**
+ * Liegt `ziel` unterhalb von `start` in der Gliederung?
+ *
+ * Braucht die Kreisprüfung: Wer „Vertrieb" zum Unterprozess von „Angebot"
+ * macht, obwohl Angebot schon unter Vertrieb hängt, hängt jedes Ausklappen auf.
+ * Die Rekursion trägt ihre eigene Besuchsliste – ein bereits vorhandener Kreis
+ * darf die Prüfung nicht selbst ins Endlose schicken.
+ */
+function lkIstNachfahre(startZiel, zielSchluessel, gesehen) {
+  const besucht = gesehen || new Set();
+  if (besucht.has(startZiel)) return false;
+  besucht.add(startZiel);
+  const treffer = lkKachelVonZiel(startZiel);
+  if (!treffer) return false;
+  return lkUnterprozesse(treffer.kachel).some(v => {
+    const kk = lkZielSchluessel(v.werk, v.kachel.id);
+    return kk === zielSchluessel || lkIstNachfahre(kk, zielSchluessel, besucht);
+  });
+}
+
+/** Auf- und zuklappen. Der Klick darf die Kachel nicht mit öffnen. */
+function lkAufklappen(werk, id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const key = lkZielSchluessel(werk, id);
+  if (_lkAufgeklappt.has(key)) _lkAufgeklappt.delete(key); else _lkAufgeklappt.add(key);
+  renderLandkarte();
+}
+
+/** Alles auf oder alles zu – bei fünfzig Prozessen spart das viel Klicken. */
+function lkAlleAufklappen(auf) {
+  _lkAufgeklappt = new Set();
+  if (auf) lkKacheln().forEach(k => {
+    if (lkUnterprozesse(k).length) _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  });
+  renderLandkarte();
+}
+
+/** Zeichen und Zahl für „ich habe Unterprozesse" bzw. „ich bin geteilt". */
+function _lkGliederungZeichen(werk, k) {
+  const unter = lkUnterprozesse(k).length;
+  const eltern = lkHauptprozesseVon(werk, k.id).length;
+  const key = lkZielSchluessel(werk, k.id);
+  const auf = _lkAufgeklappt.has(key);
+  const teile = [];
+  if (unter) {
+    teile.push(`<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
+      onclick="lkAufklappen('${esc(werk)}','${esc(k.id)}',event)"
+      title="${unter} Unterprozess(e) ${auf ? 'zuklappen' : 'aufklappen'}">${auf ? '▾' : '▸'} ${unter}</button>`);
+  }
+  if (eltern) {
+    teile.push(`<span class="lk-geteilt${eltern > 1 ? ' lk-geteilt-mehr' : ''}"
+      title="${eltern > 1
+        ? 'Wird von ' + eltern + ' Hauptprozessen verwendet – einmal gepflegt, gilt für alle'
+        : 'Teil von: ' + esc(lkHauptprozesseVon(werk, k.id)[0].kachel.name)}">⇄ ${eltern}</span>`);
+  }
+  return teile.join('');
+}
+
+/**
+ * Die Gliederung unter einer Kachel – rekursiv, solange aufgeklappt ist.
+ *
+ * `pfad` trägt den Weg von oben mit. Ohne ihn liefe die Rekursion bei einem
+ * Kreis endlos; mit ihm steht an der Stelle schlicht, dass es hier im Kreis
+ * geht. Eine Landkarte darf an einem Pflegefehler nicht einfrieren.
+ */
+function _lkUnterbaumHtml(werk, k, pfad) {
+  const key = lkZielSchluessel(werk, k.id);
+  if (!_lkAufgeklappt.has(key)) return '';
+  const kinder = lkUnterprozesse(k);
+  if (!kinder.length) return '';
+  const weg = (pfad || []).concat(key);
+
+  return `<div class="lk-unterbaum">${kinder.map(v => {
+    const kk = lkZielSchluessel(v.werk, v.kachel.id);
+    const kreis = weg.includes(kk);
+    const eigene = lkUnterprozesse(v.kachel).length;
+    const eltern = lkHauptprozesseVon(v.werk, v.kachel.id).length;
+    const auf = _lkAufgeklappt.has(kk);
+    return `<div class="lk-unterzeile">
+        <div class="lk-unterzeile-kopf">
+          ${(eigene && !kreis) ? `<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
+              onclick="lkAufklappen('${esc(v.werk)}','${esc(v.kachel.id)}',event)"
+              title="${eigene} Unterprozess(e)">${auf ? '▾' : '▸'}</button>` : '<span class="lk-gliederung-leer">↳</span>'}
+          <a href="#" onclick="lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
+             title="${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>
+          ${v.werk !== werk ? `<span class="ic-tag" title="andere Gesellschaft">${esc(lkWerkLabel(v.werk))}</span>` : ''}
+          ${eltern > 1 ? `<span class="lk-geteilt lk-geteilt-mehr"
+              title="Wird von ${eltern} Hauptprozessen verwendet – einmal gepflegt, gilt für alle">⇄ ${eltern}</span>` : ''}
+          ${kreis ? '<span class="lk-kreis" title="Dieser Prozess steht weiter oben schon im Weg – hier geht es im Kreis">↻</span>' : ''}
+        </div>
+        ${kreis ? '' : _lkUnterbaumHtml(v.werk, v.kachel, weg)}
+      </div>`;
+  }).join('')}</div>`;
 }
 
 function lkKachelOeffnen(id) {
@@ -1389,8 +1542,19 @@ function _lkVerweiseHtml(werk, k) {
            </div>`).join('')}</div>`
     : '';
 
+  // Der Satz, um den es bei geteilten Prozessen geht: Er wird EINMAL gepflegt.
+  // Ohne ihn ändert jemand hier etwas und ahnt nicht, dass drei Hauptprozesse
+  // daran hängen.
+  const eltern = lkHauptprozesseVon(werk, k.id);
+  const geteilt = eltern.length > 1
+    ? `<div class="col-warning" style="display:block;margin-bottom:8px">⇄ <b>Wird von ${eltern.length}
+        Hauptprozessen verwendet</b> – und deshalb nur einmal gepflegt: ${
+        esc(eltern.map(v => v.kachel.name).join(', '))}. Eine Änderung hier wirkt in allen.</div>`
+    : '';
+
   return `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
       <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozesslandschaft</div>
+      ${geteilt}
       ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise – Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
       ${zurueck}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')" style="margin-top:8px">Verweise pflegen</button>` : ''}

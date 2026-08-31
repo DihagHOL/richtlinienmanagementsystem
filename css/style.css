@@ -705,6 +705,39 @@ body.demo-mode .main { padding-bottom: 64px; }
 .lk-kachel-person { font-size: .68rem; font-weight: 600; color: var(--c-muted); }
 .lk-kachel-geltung { font-size: .66rem; font-weight: 700; color: var(--lk-c, #17509E); letter-spacing: .03em; opacity: .85; }
 
+/* Gliederung: ausklappbare Unterprozesse und das Zeichen für geteilte Prozesse.
+   Ein Prozess, der zu mehreren Hauptprozessen gehört, wird einmal gepflegt –
+   das „⇄ n" sagt, wie viele daran hängen. */
+.lk-gliederung-knopf {
+  border: 1px solid var(--c-border); background: transparent; color: var(--c-muted);
+  border-radius: 6px; padding: 0 5px; font: inherit; font-size: .68rem; font-weight: 700;
+  line-height: 1.6; cursor: pointer;
+}
+.lk-gliederung-knopf:hover { background: var(--c-bg-soft, rgba(23,80,158,.08)); color: var(--c-primary); }
+.lk-gliederung-leer { color: var(--c-faint); font-size: .72rem; }
+.lk-geteilt {
+  font-size: .66rem; font-weight: 700; color: var(--c-muted);
+  border: 1px solid var(--c-border); border-radius: 20px; padding: 0 6px; white-space: nowrap;
+}
+.lk-geteilt-mehr { color: #fff; background: #F08300; border-color: #F08300; }
+.lk-kreis { color: #b45309; font-weight: 700; }
+.lk-unterbaum {
+  margin: 4px 0 2px; padding-left: 9px; border-left: 2px solid var(--c-border);
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+}
+.lk-unterzeile-kopf { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: .72rem; }
+.lk-unterzeile-kopf a {
+  color: var(--c-primary); font-weight: 600; text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.lk-unterzeile-kopf a:hover { text-decoration: underline; }
+/* Im Pfeil steht alles auf farbigem Grund – dort andersherum. */
+.lk-pfeil .lk-unterbaum { border-left-color: rgba(255,255,255,.45); }
+.lk-pfeil .lk-unterzeile-kopf a, .lk-pfeil .lk-gliederung-leer { color: #fff; }
+.lk-pfeil .lk-gliederung-knopf { color: #fff; border-color: rgba(255,255,255,.55); }
+.lk-pfeil .lk-geteilt { color: #fff; border-color: rgba(255,255,255,.55); }
+.lk-pfeil-gliederung { display: inline-flex; gap: 5px; align-items: center; }
+
 /* Kernprozesse behalten ihre Form: Pfeile in der Mitte, Ergebnisse rechts. */
 .lk-kern-pfeile { display: flex; flex-direction: column; gap: 9px; justify-content: center; }
 .lk-pfeil {
