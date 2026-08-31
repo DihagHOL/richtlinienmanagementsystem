@@ -60,6 +60,7 @@ const FEATURES = [
   { name: 'SAP-Landkarte',           code: () => /const LK_SAP/.test(read('js/landkarte.js')),                begriffe: ['Lead to Cash', 'Source to Pay', 'Design to Operate'] },
   { name: 'Übergänge im Diagramm',   code: () => /const PROC_KACHEL_MARKER/.test(prozesse),                   begriffe: ['Übergang zu einem anderen Prozess', 'Dokumentation des Elements'] },
   { name: 'Trennung n. Gesellschaft',code: () => /const RECHT_DOMAENE/.test(read('js/access.js')),            begriffe: ['Trennung nach Gesellschaft', 'E-Mail-Domäne', 'Administratoren sind ausgenommen'] },
+  { name: 'Inhalte getrennt',        code: () => /function filterNachGesellschaft/.test(read('js/access.js')),  begriffe: ['Konzernsicht', 'Geltungsbereich', 'trennt die <b>Sicht</b>, nicht den Zugriff'] },
 ];
 
 for (const f of FEATURES) {

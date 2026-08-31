@@ -275,7 +275,14 @@ function _renderProcCards() {
 /** Prozesse nach Werk gruppieren: erst die Werke in ihrer üblichen Reihenfolge,
  *  unbekannte Ordner danach, ganz zuletzt die Dateien ohne Werk. */
 function _procGruppen(rows) {
-  const werke = (typeof LK_WERKE !== 'undefined') ? LK_WERKE : [];
+  const werke = (typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar()
+    : ((typeof LK_WERKE !== 'undefined') ? LK_WERKE : []);
+  // Bei aktiver Trennung nach Gesellschaft bleiben die Modelle fremder Werke
+  // draußen. „Ohne Zuordnung" bleibt sichtbar: Diese Dateien gehören noch
+  // niemandem, und wer sie versteckt, sorgt dafür, dass sie nie einsortiert werden.
+  if (typeof trennungGreift === 'function' && trennungGreift()) {
+    rows = rows.filter(p => !p.ordner || werke.includes(p.ordner));
+  }
   const rang = (k) => { if (!k) return 9999; const i = werke.indexOf(k); return i < 0 ? 500 : i; };
   const label = (k) => k ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(k) : k) : 'Ohne Zuordnung';
   return [...new Set(rows.map(p => p.ordner || ''))]
@@ -561,7 +568,7 @@ async function openProcessEditor(itemId, seed) {
         <div class="form-group full"><label>Ablage (Konzern / Gesellschaft)</label>
           <select id="proc-werk" ${canWrite ? '' : 'disabled'}>
             <option value=""${proc && proc.ordner ? '' : ' selected'}>— ohne Werk —</option>
-            ${((typeof LK_WERKE !== 'undefined') ? LK_WERKE : []).map(w =>
+            ${((typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar() : []).map(w =>
               `<option value="${esc(w)}"${proc && proc.ordner === w ? ' selected' : ''}>${
                 esc((typeof lkWerkLabel === 'function') ? lkWerkLabel(w) : w)}</option>`).join('')}
           </select>

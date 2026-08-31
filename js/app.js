@@ -10,8 +10,12 @@ const State = {
   user: null,        // { upn, name }
   myRoles: [],       // effektive Unternehmensrollen (AD-Abteilung + manuell)
   myGroups: [],      // Gruppen des Kontos [{id,name,art}] – für gruppenbasierte Reiter-Freigaben
-  policies: [],      // alle Regelwerke (Admin sieht alle; Mitarbeiter-Filter clientseitig)
+  policies: [],      // Regelwerke, die diese Person sehen darf (Mitarbeiter-Filter clientseitig)
   konzepte: [],      // Regelwerk-Konzepte (Typ='Konzept'); getrennt von den Regelwerken gehalten
+  // Ungefiltert, bevor die Trennung nach Gesellschaft greift. Nur für ehrliche
+  // Meldungen: „gibt es nicht mehr" und „gehört einer anderen Gesellschaft"
+  // sind zwei verschiedene Antworten, und die falsche schickt Leute auf die Suche.
+  policiesAlle: [],
   acks: [],          // Bestätigungen des aktuellen Users
   loaded: false,
   loadedAt: 0,       // Zeitstempel des letzten reloadData() – für den Daten-Cache
@@ -209,8 +213,13 @@ async function reloadData(opt) {
     spGetAcknowledgements(State.user.upn),
   ]);
   // Regelwerke und Konzepte trennen: bestehende Ansichten sehen nur echte Regelwerke.
-  State.policies = policies.filter(p => p.typ !== 'Konzept');
-  State.konzepte = policies.filter(p => p.typ === 'Konzept');
+  State.policiesAlle = policies;
+  // Die Trennung nach Gesellschaft greift HIER – an der einen Stelle, an der die
+  // Daten ankommen. Jede Ansicht danach ist automatisch gefiltert: Dashboard,
+  // Freigaben, Fälligkeiten, Berichte, Mindmap, die Auswahl im Modeler. Filterte
+  // jede Ansicht für sich, wäre die nächste neue die undichte Stelle.
+  State.policies = filterNachGesellschaft(policies.filter(p => p.typ !== 'Konzept'));
+  State.konzepte = filterNachGesellschaft(policies.filter(p => p.typ === 'Konzept'));
   State.acks = acks;
   State.loaded = true;
   State.loadedAt = Date.now();
@@ -227,6 +236,17 @@ async function reloadData(opt) {
 function policyZuId(id) {
   const gesucht = String(id);
   return (State.policies || []).find(x => String(x.id) === gesucht) || null;
+}
+
+/**
+ * Gibt es das Regelwerk zwar, ist es aber durch die Trennung nach Gesellschaft
+ * ausgeblendet? Dann ist „wurde gelöscht" die falsche Auskunft – sie schickt
+ * Leute auf eine Suche, die nichts findet.
+ */
+function regelwerkVerborgen(id) {
+  const gesucht = String(id);
+  if (policyZuId(gesucht) || konzeptZuId(gesucht)) return false;
+  return (State.policiesAlle || []).some(x => String(x.id) === gesucht);
 }
 
 /** Dasselbe für Konzepte – sie liegen seit der Trennung in State.konzepte. */
@@ -388,14 +408,18 @@ function renderMeine() {
   if (q) rows = rows.filter(p =>
     (p.title + ' ' + p.beschreibung + ' ' + p.kategorie).toLowerCase().includes(q));
 
+  // Der Hinweis gehört über BEIDE Fälle: Gerade wenn die Liste leer ist, muss
+  // dort stehen, dass gefiltert wird – sonst sieht es nach einem Fehler aus.
+  const trHinweis = (typeof trennungHinweisHtml === 'function') ? trennungHinweisHtml() : '';
+
   if (!rows.length) {
-    list.innerHTML = emptyState(State.loaded
+    list.innerHTML = trHinweis + emptyState(State.loaded
       ? 'Keine Richtlinien gefunden.'
       : 'Lade Richtlinien …');
     return;
   }
 
-  list.innerHTML = rows.map(p => {
+  list.innerHTML = trHinweis + rows.map(p => {
     const st = completionStatus(p);
     return `<div class="item-card" role="button" tabindex="0" onclick="openDetail('${p.id}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">

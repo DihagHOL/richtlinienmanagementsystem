@@ -386,7 +386,8 @@ function renderAdminList() {
       Bitte die Spalte in SharePoint auf <b>„Mehrere Zeilen Text"</b> umstellen (Nur-Text, ohne
       Versionierung) und die betroffenen Regelwerke einmal speichern.
     </div>` : '';
-  const warn = roBanner + djBanner +
+  const trBanner = (typeof trennungHinweisHtml === 'function') ? trennungHinweisHtml() : '';
+  const warn = roBanner + trBanner + djBanner +
     _colBanner('Richtlinien', (typeof spMissingPolicyColumns === 'function') ? spMissingPolicyColumns() : []) +
     _colBanner('Bestaetigungen', (typeof spMissingAckColumns === 'function') ? spMissingAckColumns() : []);
   const q = (document.getElementById('search-admin')?.value || '').toLowerCase().trim();
@@ -748,7 +749,11 @@ function openPolicyEditor(policyId) {
     // Erst schauen, dann klonen. Solange find() undefined lieferte, warf
     // JSON.parse sofort; seit policyZuId() null zurückgibt, würde _editing
     // still null und renderPolicyEditor() eine Zeile später umfallen.
-    if (!src) { toast('Regelwerk nicht gefunden.', 'error'); return; }
+    if (!src) {
+      const fremd = (typeof fremdeGesellschaftHinweis === 'function') ? fremdeGesellschaftHinweis(policyId) : '';
+      toast(fremd || 'Regelwerk nicht gefunden.', 'error');
+      return;
+    }
     _editing = JSON.parse(JSON.stringify(src));
   } else {
     _editing = newPolicy();
@@ -2021,7 +2026,8 @@ async function loadAdDepartments() {
 }
 
 function renderCfgLists() {
-  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich', 'vorschlagEmpfaenger', 'probelaufUser', 'govStrukturKoepfe'].forEach(role => {
+  ['admins', 'genehmiger', 'pruefer', 'geschaeftsleitung', 'kiGenehmiger', 'ismsVerantwortlich',
+   'vorschlagEmpfaenger', 'probelaufUser', 'govStrukturKoepfe', 'konzernSicht'].forEach(role => {
     const host = document.getElementById('cfg-' + role);
     if (!host) return;
     const arr = _cfgEdit[role] || [];

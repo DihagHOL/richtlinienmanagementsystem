@@ -843,6 +843,18 @@ const _ekSchliessen = `<div style="margin-top:16px"><button class="btn btn-outli
  * @returns {Promise<object|null>} das Regelwerk – oder null, dann steht die
  *          passende Meldung bereits auf dem Schirm.
  */
+/**
+ * Ein Regelwerk, das es gibt, das diese Person aber wegen der Trennung nach
+ * Gesellschaft nicht sieht. „Gelöscht" wäre hier gelogen.
+ * Gibt '' zurück, wenn das nicht der Fall ist.
+ */
+function fremdeGesellschaftHinweis(id) {
+  if (typeof regelwerkVerborgen !== 'function' || !regelwerkVerborgen(id)) return '';
+  const g = (typeof meineGesellschaft === 'function') ? meineGesellschaft() : null;
+  return 'Dieses Regelwerk gehört zu einer anderen Gesellschaft und ist für Sie ausgeblendet'
+    + (g && g.name ? ' – Sie sehen die Regelwerke von ' + g.name : '') + '.';
+}
+
 async function _ekRegelwerkHolen(id) {
   let p = policyZuId(id);
   if (p) return p;
@@ -871,6 +883,18 @@ async function _ekRegelwerkHolen(id) {
       darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
       <div style="margin-top:16px"><button class="btn btn-primary"
         onclick="closeModal();konzeptOeffnen('${esc(String(id))}')">Konzept öffnen</button></div>`);
+    return null;
+  }
+
+  // Es gibt das Regelwerk – nur nicht für diese Person. Das ist eine andere
+  // Auskunft als „gelöscht", und die falsche schickt sie auf eine Suche.
+  const fremd = fremdeGesellschaftHinweis(id);
+  if (fremd) {
+    _ekPanel(`<h3>Nicht Ihre Gesellschaft</h3>
+      <p style="line-height:1.55">${esc(fremd)}</p>
+      <p style="line-height:1.55">Ihre Entscheidung ist damit <b>nicht</b> gespeichert. Wenden Sie sich
+      an die Person, die Ihnen die Mail geschickt hat – vermutlich ist der Link an den falschen
+      Verteiler gegangen.</p>${_ekSchliessen}`);
     return null;
   }
 

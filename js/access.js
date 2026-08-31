@@ -23,10 +23,16 @@ const ACCESS_CONFIG_DEFAULT = {
   //   { "<view>": { lesen: ["upn"|"Rolle", …], schreiben: […] } }
   reiterRechte: {},
   gruppenNamen: {},   // Objekt-ID → Anzeigename der Gruppe (nur zur Anzeige)
-  // Gesellschaften der Gruppe: E-Mail-Domäne → Anzeigename. Nur zur Anzeige –
-  // berechtigt wird über die Domäne selbst, die steht im Konto und kann nicht
-  // vergessen werden. { "dihag.com": "DIHAG Holding" }
+  // Gesellschaften der Gruppe: E-Mail-Domäne → { name, werke }. Der Name ist
+  // Anzeige; die Werke sind die Brücke zum Geltungsbereich der Regelwerke.
+  // Berechtigt wird über die Domäne selbst – die steht im Konto und kann nicht
+  // vergessen werden. { "dihag.com": { name: "DIHAG Holding", werke: ["HOL"] } }
   gesellschaften: {},
+  // Trennung der Inhalte: Sieht jemand nur die Regelwerke seiner Gesellschaft?
+  // Aus = alles bleibt, wie es war.
+  trennungInhalte: false,
+  // Wer trotz Trennung alles sieht – die Konzern-Governance.
+  konzernSicht: [],
   gruppenTypen: {},   // Objekt-ID → 'sicherheit' | 'verteiler' | 'm365' (nur zur Anzeige)
   govStrukturKoepfe: [],   // dürfen Zeilen/Spalten der Governance-Struktur ändern (Aufbau der Systematik)
   // Vertretungen: { "chef@dihag.com": { vertreter, von, bis } } – von/bis optional (leer = unbefristet)
@@ -99,6 +105,8 @@ async function loadRuntimeAccessConfig() {
         gruppenNamen: (cfg.gruppenNamen && typeof cfg.gruppenNamen === 'object' && !Array.isArray(cfg.gruppenNamen)) ? cfg.gruppenNamen : {},
         gruppenTypen: (cfg.gruppenTypen && typeof cfg.gruppenTypen === 'object' && !Array.isArray(cfg.gruppenTypen)) ? cfg.gruppenTypen : {},
         gesellschaften: (cfg.gesellschaften && typeof cfg.gesellschaften === 'object' && !Array.isArray(cfg.gesellschaften)) ? cfg.gesellschaften : {},
+        trennungInhalte: cfg.trennungInhalte === true,
+        konzernSicht: Array.isArray(cfg.konzernSicht) ? cfg.konzernSicht : [],
         probelaufUser: Array.isArray(cfg.probelaufUser) ? cfg.probelaufUser : [],
         govStrukturKoepfe: Array.isArray(cfg.govStrukturKoepfe) ? cfg.govStrukturKoepfe : [],
         vertretungen: (cfg.vertretungen && typeof cfg.vertretungen === 'object' && !Array.isArray(cfg.vertretungen)) ? cfg.vertretungen : {},
@@ -148,6 +156,8 @@ function getAccessConfig() {
     gruppenNamen: JSON.parse(JSON.stringify(c.gruppenNamen || {})),
     gruppenTypen: JSON.parse(JSON.stringify(c.gruppenTypen || {})),
     gesellschaften: JSON.parse(JSON.stringify(c.gesellschaften || {})),
+    trennungInhalte: c.trennungInhalte === true,
+    konzernSicht: [...(c.konzernSicht || [])],
     kbrMail:           c.kbrMail || '',
     brMails:           (c.brMails && typeof c.brMails === 'object') ? JSON.parse(JSON.stringify(c.brMails)) : {},
     clevelMail:        c.clevelMail || '',
@@ -510,11 +520,31 @@ function getGesellschaften() {
   const g = _cfg().gesellschaften;
   return (g && typeof g === 'object' && !Array.isArray(g)) ? g : {};
 }
-/** Name der Gesellschaft zu einer Domäne (ohne Eintrag: die Domäne selbst). */
-function gesellschaftLabel(domaene) {
+/**
+ * Eine Gesellschaft als Datensatz: Name und ihre Werke.
+ *
+ * Zwei Formen werden gelesen. Anfangs stand dort nur der Anzeigename als Text;
+ * seit die Inhalte getrennt werden, gehören die Werke dazu. Der Altbestand
+ * bleibt lesbar, statt beim ersten Speichern still zu verschwinden.
+ */
+function gesellschaftDaten(domaene) {
   const d = domaeneNormal(domaene);
-  return String(getGesellschaften()[d] || d);
+  const roh = getGesellschaften()[d];
+  if (typeof roh === 'string') return { name: roh || d, werke: [] };
+  if (roh && typeof roh === 'object' && !Array.isArray(roh)) {
+    return {
+      name: String(roh.name || d),
+      werke: Array.isArray(roh.werke) ? roh.werke.map(String).filter(Boolean) : [],
+    };
+  }
+  return { name: d, werke: [] };
 }
+
+/** Name der Gesellschaft zu einer Domäne (ohne Eintrag: die Domäne selbst). */
+function gesellschaftLabel(domaene) { return gesellschaftDaten(domaene).name; }
+
+/** Die Werke einer Gesellschaft – die Brücke zum Geltungsbereich der Regelwerke. */
+function gesellschaftWerke(domaene) { return gesellschaftDaten(domaene).werke; }
 
 /**
  * Die Domänen des angemeldeten Kontos: Anmeldename und, wenn bekannt, die
@@ -551,6 +581,91 @@ function _domaeneGesperrt(view) {
   if (isCurrentUserAdmin()) return false;
   return !reiterDomaeneErlaubt(view, _currentUpn());
 }
+
+/* ── Trennung der Inhalte ──
+   Die Reiter-Sperre oben sagt, WELCHE ANSICHT jemand öffnen darf. Sie sagt
+   nichts darüber, was er dort sieht – wer das Dashboard öffnen durfte, sah die
+   Regelwerke aller Gesellschaften. Eine Tür ohne Wand.
+
+   Die Brücke zwischen Gesellschaft und Inhalt ist der **Geltungsbereich**: Den
+   trägt jedes Regelwerk ohnehin (Werke oder „ALLE"). Eine Gesellschaft bekommt
+   deshalb ihre Werke zugeordnet und sieht dann genau, was dort gilt – plus
+   alles Konzernweite, denn das gilt auch für sie.
+
+   Ehrlich dazugesagt: Das trennt die **Sicht**, nicht den Zugriff. Alle
+   Regelwerke liegen in EINER SharePoint-Liste; wer deren Leserecht hat, kommt
+   über Graph an alles heran. Eine technische Trennung brauchte getrennte Listen
+   oder Sites – eine andere Größenordnung. Hier geht es darum, dass niemand
+   Regelwerke sieht, die ihn nichts angehen. */
+
+/** Ist die Trennung der Inhalte überhaupt eingeschaltet? */
+function istTrennungInhalte() { return _cfg().trennungInhalte === true; }
+
+/** Wer sieht alles – über alle Gesellschaften hinweg (Konzern-Governance). */
+function getKonzernSicht() { return [...(_cfg().konzernSicht || [])]; }
+function hatKonzernsicht(upn) { return _has(getKonzernSicht(), upn || _currentUpn()); }
+
+/**
+ * Die Werke, deren Inhalte jemand sehen darf – `['*']` heißt „alles".
+ *
+ * Auf `['*']` fällt es bewusst in drei Fällen zurück: Trennung aus,
+ * Konzernsicht, oder der Gesellschaft sind gar keine Werke zugeordnet. Der
+ * letzte Fall ist der wichtige: Sonst sähe jemand, dessen Gesellschaft nur zur
+ * Anzeige gepflegt ist, von einem Tag auf den anderen nichts mehr.
+ */
+function meineWerke(upn) {
+  if (!istTrennungInhalte()) return ['*'];
+  if (hatKonzernsicht(upn)) return ['*'];
+  const werke = [...new Set(meineDomaenen(upn).flatMap(d => gesellschaftWerke(d)))];
+  return werke.length ? werke : ['*'];
+}
+
+/** Greift die Trennung für diese Person gerade? */
+function trennungGreift(upn) { return !meineWerke(upn).includes('*'); }
+
+/**
+ * Darf dieser Geltungsbereich gesehen werden?
+ *
+ * Ungepflegt zählt wie konzernweit. Andernfalls verschwände beim Einschalten
+ * schlagartig jeder Altbestand ohne Geltungsbereich – das sähe aus wie
+ * Datenverlust und wäre das Gegenteil von Vertrauen.
+ */
+function geltungSichtbar(geltung, upn) {
+  const w = meineWerke(upn);
+  if (w.includes('*')) return true;
+  if (!Array.isArray(geltung) || !geltung.length) return true;
+  if (geltung.includes('ALLE')) return true;          // konzernweit gilt auch hier
+  return geltung.some(x => w.includes(String(x)));
+}
+
+/** Dasselbe für ein Regelwerk oder Konzept. */
+function regelwerkSichtbar(p, upn) { return geltungSichtbar(p && p.geltungsbereich, upn); }
+
+/** Eine Liste auf das reduzieren, was die eigene Gesellschaft angeht. */
+function filterNachGesellschaft(liste, upn) {
+  const arr = Array.isArray(liste) ? liste : [];
+  return trennungGreift(upn) ? arr.filter(p => regelwerkSichtbar(p, upn)) : arr.slice();
+}
+
+/** Die eigene Gesellschaft – für die Anzeige („Sie sehen …"). */
+function meineGesellschaft(upn) {
+  const d = meineDomaenen(upn).find(x => getGesellschaften()[x]) || meineDomaene(upn);
+  return { domaene: d, name: gesellschaftLabel(d), werke: gesellschaftWerke(d) };
+}
+
+/**
+ * Der Hinweis über gefilterten Listen. Still zu filtern wäre das Schlimmste:
+ * Wer sein Regelwerk nicht findet, sucht zuerst den Fehler bei sich.
+ */
+function trennungHinweisHtml() {
+  if (!trennungGreift()) return '';
+  const g = meineGesellschaft();
+  const w = meineWerke();
+  return `<div class="field-hint" style="margin-bottom:10px">🏭 Sie sehen die Regelwerke von
+    <b>${esc(g.name)}</b> (${esc(w.join(', '))}) und alles, was konzernweit gilt.
+    Regelwerke anderer Gesellschaften sind ausgeblendet.</div>`;
+}
+
 
 /* ═══════════════════════════════════════════════════
    Reiter-Berechtigungen (pro Reiter: Lesen/Schreiben)

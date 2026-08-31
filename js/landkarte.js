@@ -28,6 +28,31 @@
 const LK_WERKE = ['KONZERN'].concat(typeof STANDORTE !== 'undefined' ? STANDORTE : []);
 function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
 
+/**
+ * Die Werke, deren Landkarte sichtbar ist.
+ *
+ * „KONZERN" bleibt immer dabei: Was konzernweit gilt, gilt auch für die eigene
+ * Gesellschaft – genauso wie ein Regelwerk mit Geltungsbereich „ALLE".
+ */
+function lkWerkeSichtbar() {
+  if (typeof trennungGreift !== 'function' || !trennungGreift()) return LK_WERKE.slice();
+  const meine = meineWerke();
+  return LK_WERKE.filter(w => w === 'KONZERN' || meine.includes(w));
+}
+
+/**
+ * Auf eine Karte stellen, die auch sichtbar ist.
+ *
+ * Offen ist zunächst HOL. Gehört jemand gar nicht zur Holding, wäre das der
+ * Einstieg in eine fremde Gesellschaft – und zwar auch dann, wenn gerade nichts
+ * gezeichnet wird: Suche, Sprünge und „+ Prozess" lesen dieselbe Variable.
+ */
+function lkWerkAbsichern() {
+  const sichtbar = lkWerkeSichtbar();
+  if (!sichtbar.includes(_lkWerk)) _lkWerk = sichtbar[0] || 'KONZERN';
+  return _lkWerk;
+}
+
 /* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – die Kachel
    trägt sie als Kante, damit die Zugehörigkeit ohne Legende lesbar bleibt. */
 const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
@@ -613,7 +638,12 @@ function lkKarte(werk) {
 /** Welche Werke haben schon eine Karte mit Inhalt? */
 function lkWerkeMitKarte() {
   const k = (_lkDaten && _lkDaten.karten) || {};
-  return Object.keys(k).filter(w => Array.isArray(k[w].kacheln) && k[w].kacheln.length);
+  // Wie in lkAlleKacheln(): gekürzt wird nur, wenn die Trennung wirklich greift.
+  // Sonst fiele eine Karte weg, deren Werk nicht mehr in STANDORTE steht.
+  const sichtbar = (typeof trennungGreift === 'function' && trennungGreift()) ? lkWerkeSichtbar() : null;
+  return Object.keys(k)
+    .filter(w => !sichtbar || sichtbar.includes(w))
+    .filter(w => Array.isArray(k[w].kacheln) && k[w].kacheln.length);
 }
 
 function lkBaender()    { const k = lkKarte(); return (Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender; }
@@ -621,8 +651,17 @@ function lkKacheln()    { const k = lkKarte(); return Array.isArray(k.kacheln) ?
 /** Alle Kacheln aller Werke – für die Mindmap, die über die Werke hinweg schaut. */
 function lkAlleKacheln() {
   const karten = (_lkDaten && _lkDaten.karten) || {};
+  // Hier greift die Trennung nach Gesellschaft – an der einen Stelle, aus der
+  // Mindmap, Suche und die Auflösung von Verweisen schöpfen. Eine Kachel eines
+  // fremden Werks ist damit überall unauffindbar, und ein Verweis darauf fällt
+  // weg wie ein totes Ziel. Gespeichert bleibt sie trotzdem: _lkDaten ist
+  // vollständig, nur die Sicht darauf nicht.
+  // Nur wenn die Trennung wirklich greift, wird gekürzt. Sonst bliebe eine Karte
+  // unsichtbar, deren Werk gar nicht mehr in STANDORTE steht – die gibt es, wenn
+  // ein Kürzel wegfällt, und ihre Prozesse wären dann spurlos weg.
+  const sichtbar = (typeof trennungGreift === 'function' && trennungGreift()) ? lkWerkeSichtbar() : null;
   const out = [];
-  Object.keys(karten).forEach(w => {
+  Object.keys(karten).filter(w => !sichtbar || sichtbar.includes(w)).forEach(w => {
     (Array.isArray(karten[w].kacheln) ? karten[w].kacheln : []).forEach(k => out.push({ werk: w, kachel: k }));
   });
   return out;
@@ -723,7 +762,8 @@ async function lkDatenLaden() {
     console.warn('[landkarte] Laden fehlgeschlagen, Startbestand gilt:', e.message);
     _lkDaten = lkStartbestand();
   }
-  // Auf ein Werk stellen, das auch etwas zeigt.
+  // Auf ein Werk stellen, das auch etwas zeigt – und das man sehen darf.
+  lkWerkAbsichern();
   const belegt = lkWerkeMitKarte();
   if (belegt.length && !belegt.includes(_lkWerk)) _lkWerk = belegt[0];
   _lkGeladen = true;
@@ -789,6 +829,7 @@ async function initLandkarte() {
 }
 
 function renderLandkarte() {
+  lkWerkAbsichern();   // vor dem Mount-Check: gilt auch, wenn gerade nichts gezeichnet wird
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   const schreiben = lkDarfSchreiben();
@@ -809,7 +850,7 @@ function renderLandkarte() {
     <div class="view-toolbar">
       <label class="field-hint" style="margin:0 6px 0 0">Landkarte</label>
       <select id="lk-werk" onchange="lkSetWerk(this.value)" style="max-width:210px">
-        ${LK_WERKE.map(w => `<option value="${esc(w)}"${_lkWerk === w ? ' selected' : ''}>${esc(lkWerkLabel(w))}${
+        ${lkWerkeSichtbar().map(w => `<option value="${esc(w)}"${_lkWerk === w ? ' selected' : ''}>${esc(lkWerkLabel(w))}${
           belegt.includes(w) ? '' : ' – leer'}</option>`).join('')}
       </select>
       <label class="field-hint" style="margin:0 6px 0 14px">gilt für</label>
@@ -972,7 +1013,7 @@ function lkSetWerk(w) {
 
 /** Werk wechseln, ohne die Ansicht zu wechseln – etwa aus der Mindmap heraus. */
 function lkWerkSetzenStill(w) {
-  _lkWerk = LK_WERKE.includes(w) ? w : _lkWerk;
+  _lkWerk = lkWerkeSichtbar().includes(w) ? w : _lkWerk;
 }
 
 /**
@@ -1114,7 +1155,7 @@ function _lkTrefferHtml() {
 /** Aus einem Deep-Link: Werk setzen und die Kachel öffnen (sobald geladen). */
 async function lkDeepLink(werk, id) {
   if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* Startbestand */ } }
-  if (LK_WERKE.includes(werk)) _lkWerk = werk;
+  if (lkWerkeSichtbar().includes(werk)) _lkWerk = werk;
   if (typeof setProzessModus === 'function') setProzessModus('karte');
   else renderLandkarte();
   if (lkKachelVonId(id)) lkKachelOeffnen(id);
@@ -1122,7 +1163,7 @@ async function lkDeepLink(werk, id) {
 }
 
 function lkSpringeZu(werk, id) {
-  _lkWerk = LK_WERKE.includes(werk) ? werk : _lkWerk;
+  _lkWerk = lkWerkeSichtbar().includes(werk) ? werk : _lkWerk;
   renderLandkarte();
   lkKachelOeffnen(id);
 }

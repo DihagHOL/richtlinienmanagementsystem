@@ -63,7 +63,7 @@ function _cfgRenderBereich() {
         <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
       </div>
     </div>`;
-  if (reiter) { rrRenderBody(); rrRenderDomaenen(); return; }
+  if (reiter) { rrRenderBody(); rrRenderDomaenen(); renderCfgLists(); return; }
   renderCfgLists();
   renderZielgruppenMails();
   renderVertretungen();
@@ -406,7 +406,32 @@ function _reiterBereichHtml() {
         </div>
         <div id="rr-domaenen"></div>
       </div>
-    </div>`;
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header"><h2>Inhalte nach Gesellschaft trennen</h2></div>
+      <div class="card-body">
+        <div class="field-hint" style="margin-bottom:10px">
+          Die Sperre oben trennt die <b>Reiter</b>. Sie sagt nicht, was jemand dort sieht – wer das
+          Dashboard öffnen darf, sieht bisher die Regelwerke <b>aller</b> Gesellschaften. Mit diesem
+          Schalter sieht jede Gesellschaft nur noch, was für <b>ihre Werke</b> gilt, plus alles
+          Konzernweite. Dieselbe Trennung greift für die Prozesslandkarten.
+          <br><br>Die Brücke ist der <b>Geltungsbereich</b>, den jedes Regelwerk ohnehin trägt –
+          deshalb bekommt oben jede Gesellschaft ihre Werke zugeordnet. Ohne zugeordnete Werke
+          ändert sich für sie nichts: Sie sieht weiter alles.
+          <br><br><b>Ehrlich dazugesagt:</b> Das trennt die <b>Sicht</b>, nicht den Zugriff. Alle
+          Regelwerke liegen in einer SharePoint-Liste; wer deren Leserecht hat, käme technisch an
+          alles heran. Für eine echte Trennung bräuchte es getrennte Listen oder Sites.
+        </div>
+        <label class="ack-check" style="font-weight:500">
+          <input type="checkbox" id="cfg-trennung" ${_cfgEdit && _cfgEdit.trennungInhalte ? 'checked' : ''}
+            onchange="rrTrennungSchalten(this.checked)">
+          <span>Jede Gesellschaft sieht nur ihre eigenen Regelwerke und Prozesse</span>
+        </label>
+        <div id="rr-trennung-status" style="margin-top:10px"></div>
+      </div>
+    </div>
+    ${roleCard('konzernSicht', 'Konzernsicht (sieht alle Gesellschaften)')}`;
 }
 
 /** Zur Gesellschafts-Karte springen – dort wird sie angelegt. */
@@ -663,8 +688,65 @@ function rrSperreToggle(view, dom, an) {
 function rrGesellschaftName(dom, name) {
   if (!_cfgEdit.gesellschaften) _cfgEdit.gesellschaften = {};
   const d = domaeneNormal(dom);
+  const werke = gesellschaftDatenEntwurf(d).werke;   // die Zuordnung darf ein Tippfehler nicht kosten
   const n = String(name || '').trim();
-  if (n) _cfgEdit.gesellschaften[d] = n; else delete _cfgEdit.gesellschaften[d];
+  if (n || werke.length) _cfgEdit.gesellschaften[d] = { name: n || d, werke };
+  else delete _cfgEdit.gesellschaften[d];
+  rrRenderDomaenen();
+}
+
+/** Die Trennung der Inhalte ein- oder ausschalten. */
+function rrTrennungSchalten(an) {
+  _cfgEdit.trennungInhalte = !!an;
+  rrRenderDomaenen();
+}
+
+/**
+ * Was der Schalter gerade bewirkt – in Klartext, bevor gespeichert wird.
+ * Ein Schalter, dessen Wirkung man erst nach dem Speichern sieht, ist eine
+ * Falle: Hier steht vorher, wer danach was sieht.
+ */
+function rrTrennungStatusHtml() {
+  const an = !!(_cfgEdit && _cfgEdit.trennungInhalte);
+  if (!an) return '<div class="field-hint">Aus – alle sehen alle Regelwerke und Landkarten (wie bisher).</div>';
+  const doms = _rrDomaenen();
+  const mitWerken = doms.filter(d => (gesellschaftDatenEntwurf(d).werke || []).length);
+  const ohne = doms.filter(d => !(gesellschaftDatenEntwurf(d).werke || []).length);
+  const konzern = (_cfgEdit.konzernSicht || []).length;
+  const zeilen = [];
+  zeilen.push(mitWerken.length
+    ? `<b>${mitWerken.length}</b> Gesellschaft(en) sind auf ihre Werke beschränkt: `
+      + mitWerken.map(d => `${esc(gesellschaftDatenEntwurf(d).name)} (${esc(gesellschaftDatenEntwurf(d).werke.join(', '))})`).join(' · ')
+    : '<b>Noch keine Gesellschaft hat Werke</b> – der Schalter bewirkt damit nichts. Oben in der Tabelle zuordnen.');
+  if (ohne.length) zeilen.push(`Ohne zugeordnete Werke und deshalb unverändert: ${
+    ohne.map(d => esc(gesellschaftDatenEntwurf(d).name)).join(' · ')}`);
+  zeilen.push(konzern
+    ? `<b>${konzern}</b> Person(en) mit Konzernsicht sehen weiterhin alles.`
+    : '<b>Niemand hat Konzernsicht.</b> Damit sieht auch die Konzern-Governance nur noch ihre eigene '
+      + 'Gesellschaft – wer über alle Gesellschaften hinweg arbeitet, gehört unten eingetragen.');
+  return `<div class="col-warning" style="display:block">${zeilen.join('<br>')}</div>`;
+}
+
+/** Eine Gesellschaft aus dem Entwurf lesen – beide gespeicherten Formen. */
+function gesellschaftDatenEntwurf(dom) {
+  const d = domaeneNormal(dom);
+  const roh = ((_cfgEdit && _cfgEdit.gesellschaften) || {})[d];
+  if (typeof roh === 'string') return { name: roh || d, werke: [] };
+  if (roh && typeof roh === 'object' && !Array.isArray(roh)) {
+    return { name: String(roh.name || d), werke: Array.isArray(roh.werke) ? roh.werke.map(String) : [] };
+  }
+  return { name: d, werke: [] };
+}
+
+/** Ein Werk einer Gesellschaft zuordnen oder wegnehmen. */
+function rrWerkToggle(dom, werk, an) {
+  const d = domaeneNormal(dom);
+  const cur = gesellschaftDatenEntwurf(d);
+  const werke = cur.werke.filter(w => w !== werk);
+  if (an) werke.push(werk);
+  if (!_cfgEdit.gesellschaften) _cfgEdit.gesellschaften = {};
+  _cfgEdit.gesellschaften[d] = { name: cur.name, werke };
+  rrRenderDomaenen();
 }
 
 /** Eine Gesellschaft aus der Pflege nehmen – Sperren und Freigaben gehen mit. */
@@ -686,7 +768,9 @@ function rrAddDomaene(vorgabe) {
   if (!/^[^@\s]+\.[^@\s]+$/.test(d)) { toast('Bitte eine Domäne angeben, z. B. dihag.com.', 'error'); return; }
   const key = RECHT_DOMAENE + d;
   if (!_cfgEdit.gesellschaften) _cfgEdit.gesellschaften = {};
-  if (!_cfgEdit.gesellschaften[d]) _cfgEdit.gesellschaften[d] = d.split('.')[0].replace(/^./, c => c.toUpperCase());
+  if (!_cfgEdit.gesellschaften[d]) {
+    _cfgEdit.gesellschaften[d] = { name: d.split('.')[0].replace(/^./, c => c.toUpperCase()), werke: [] };
+  }
   if (inp) inp.value = '';
   _rrGefunden = _rrGefunden.filter(g => g.domaene !== d);
   if (_rrEintraege().some(e => e.key === key)) { rrRenderDomaenen(); toast('Diese Gesellschaft steht schon in der Liste.', 'error'); return; }
@@ -726,6 +810,8 @@ async function rrDomaenenScan() {
 
 /** Die Tabelle „welcher Reiter für welche Gesellschaft" plus die Pflege der Namen. */
 function rrRenderDomaenen() {
+  const status = document.getElementById('rr-trennung-status');
+  if (status) status.innerHTML = rrTrennungStatusHtml();
   const host = document.getElementById('rr-domaenen');
   if (!host || typeof GOVERNABLE_TABS === 'undefined') return;
   const doms = _rrDomaenen();
@@ -752,16 +838,31 @@ function rrRenderDomaenen() {
     return;
   }
 
+  const standorte = (typeof STANDORTE !== 'undefined') ? STANDORTE : [];
+  const werkeZellen = (d) => {
+    const gesetzt = gesellschaftDatenEntwurf(d).werke;
+    return standorte.map(w => {
+      const an = gesetzt.includes(w);
+      return `<button type="button" onclick="rrWerkToggle('${esc(d)}','${esc(w)}',${!an})"
+        title="${esc(w)} ${an ? 'wieder wegnehmen' : 'dieser Gesellschaft zuordnen'}"
+        style="border:1px solid var(--c-border);border-radius:6px;padding:2px 7px;margin:1px;cursor:pointer;
+               font:inherit;font-size:.74rem;font-weight:700;${an
+                 ? 'background:var(--c-primary);color:#fff' : 'background:transparent;color:var(--c-muted)'}">${esc(w)}</button>`;
+    }).join('');
+  };
+
   const namen = `<table style="border-collapse:collapse;width:100%;font-size:.83rem;margin-bottom:14px">
       <thead><tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
-        <th style="padding:6px 8px">Domäne</th><th style="padding:6px 8px">Gesellschaft</th><th style="width:38px"></th></tr></thead>
+        <th style="padding:6px 8px">Domäne</th><th style="padding:6px 8px">Gesellschaft</th>
+        <th style="padding:6px 8px">Werke (Geltungsbereich)</th><th style="width:38px"></th></tr></thead>
       <tbody>${doms.map(d => `<tr>
-        <td style="padding:4px 8px"><code>@${esc(d)}</code>${d === eigen
+        <td style="padding:4px 8px;vertical-align:top"><code>@${esc(d)}</code>${d === eigen
           ? ' <span class="ic-tag" title="So sind Sie gerade angemeldet">Ihre</span>' : ''}</td>
-        <td style="padding:4px 8px"><input type="text" value="${esc(((_cfgEdit && _cfgEdit.gesellschaften) || {})[d] || '')}"
+        <td style="padding:4px 8px;vertical-align:top;min-width:150px"><input type="text" value="${esc(gesellschaftDatenEntwurf(d).name)}"
           placeholder="${esc(d)}" onchange="rrGesellschaftName('${esc(d)}',this.value)"
           style="width:100%;${_rrFeldStil}"></td>
-        <td style="padding:4px 4px;text-align:right"><button class="btn btn-ghost btn-sm"
+        <td style="padding:4px 8px;vertical-align:top">${werkeZellen(d)}</td>
+        <td style="padding:4px 4px;text-align:right;vertical-align:top"><button class="btn btn-ghost btn-sm"
           onclick="rrGesellschaftEntfernen('${esc(d)}')" title="Gesellschaft entfernen – ihre Freigaben und Sperren gehen mit">✕</button></td>
       </tr>`).join('')}</tbody></table>`;
 
