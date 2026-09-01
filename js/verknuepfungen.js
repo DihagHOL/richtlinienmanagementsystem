@@ -285,13 +285,22 @@ function vkZurueck() {
 }
 function vkGesamt() { _vkFokus = ''; _vkPfad = []; renderVerknuepfungen(); }
 
-function vkSetAnsicht(a) { _vkAnsicht = (a === 'fokus') ? 'fokus' : 'baum'; renderVerknuepfungen(); }
+function vkSetAnsicht(a) {
+  _vkAnsicht = ['fokus', 'abhaengig'].includes(a) ? a : 'baum';
+  // Der Baum-Zeichner bedient beide Baumansichten – er muss wissen, welche.
+  if (typeof vbModusSetzen === 'function') {
+    if (_vkAnsicht === 'abhaengig') vbModusSetzen('abhaengig', vbWurzelId());
+    else if (_vkAnsicht === 'baum') vbModusSetzen('baum', '');
+  }
+  renderVerknuepfungen();
+}
 
 /** Umschalter zwischen Übersicht (Baum) und Nahsicht (Fokus). */
 function _vkAnsichtLeiste() {
   const knopf = (key, label, titel) => `<button class="btn btn-sm ${_vkAnsicht === key ? 'btn-primary' : 'btn-ghost'}"
       onclick="vkSetAnsicht('${key}')" title="${titel}">${label}</button>`;
   return `${knopf('baum', '🌳 Übersicht', 'Die ganze Landschaft als Baum – aufklappbar')}
+    ${knopf('abhaengig', '🔎 Abhängigkeiten', 'Einen Prozess suchen und sehen, was daran hängt – über Werke hinweg')}
     ${knopf('fokus', '🎯 Nahsicht', 'Ein Objekt in der Mitte, ringsum seine Beziehungen')}`;
 }
 
@@ -305,6 +314,7 @@ async function vkNachLandkarte() {
 function renderVerknuepfungen() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount || !_vkGraph) return;
+  if (_vkAnsicht === 'abhaengig' && typeof vbRenderHtml === 'function') return _vkAbhaengigAnsicht(mount);
   if (_vkAnsicht === 'baum' && typeof vbRenderHtml === 'function') return _vkBaumAnsicht(mount);
   const mitte = _vkFokus || 'wurzel';
   const k = _vkGraph.knoten.get(mitte);
@@ -332,6 +342,175 @@ function renderVerknuepfungen() {
     ${_vkAktionenHtml(k)}
     ${_vkNachbarnListe(mitte)}
     ${_vkLueckenHtml()}`;
+}
+
+/* ═══════════════════════════════════════════════════
+   Abhängigkeiten: einen Prozess suchen, alles daran sehen
+   ═══════════════════════════════════════════════════
+   Die Übersicht zeigt die ganze Landschaft, die Nahsicht einen Knoten mit
+   seinen direkten Nachbarn. Die Frage aus dem Alltag ist eine dritte: „Ich
+   suche den Prozess X – was hängt daran?" Und die Antwort reicht über mehrere
+   Ebenen und oft über Werksgrenzen. */
+
+let _vkSuche = '';         // Suchtext in der Abhängigkeits-Ansicht
+
+/** Kanten, die von oben kommen – daraus entsteht die Herkunft. */
+const VK_HERKUNFT_TYPEN = ['Landkarte von', 'gliedert', 'enthält', 'unterprozesse'];
+
+/**
+ * Alle Wege von oben zu diesem Knoten.
+ *
+ * Mehrere Wege sind kein Sonderfall, sondern die interessante Auskunft: Ein
+ * geteilter Unterprozess hängt an zwei Hauptprozessen, und wenn die in
+ * verschiedenen Werken liegen, betrifft eine Änderung beide. Genau das soll
+ * man sehen, ohne es zu suchen.
+ */
+function vkHerkunftWege(id) {
+  if (!_vkGraph || !_vkGraph.knoten.has(id)) return [];
+  const wege = [];
+  const lauf = (aktuell, weg, gesehen) => {
+    if (wege.length >= 6 || weg.length > 9) { wege.push(weg.slice()); return; }
+    const alle = _vkGraph.kanten.filter(k =>
+      k.nach === aktuell && VK_HERKUNFT_TYPEN.includes(k.typ) && !gesehen.has(k.von));
+    // Hat ein Prozess einen Hauptprozess, führt der Weg DURCH ihn. Sein Band
+    // stimmt zwar auch („Kernprozesse enthält Bedarfsanforderung"), ist aber
+    // nicht die Auskunft, nach der gefragt wurde – und sie stünde als dritter,
+    // fast gleicher Weg daneben.
+    const ueberProzess = alle.filter(k => k.typ === 'unterprozesse');
+    const eltern = ueberProzess.length ? ueberProzess : alle;
+    if (!eltern.length) { wege.push(weg.slice()); return; }
+    eltern.forEach(k => {
+      const g = new Set(gesehen); g.add(k.von);
+      lauf(k.von, [{ id: k.von, typ: k.typ }].concat(weg), g);
+    });
+  };
+  lauf(id, [{ id, typ: '' }], new Set([id]));
+  return wege
+    .map(w => w.map(x => ({ ...x, knoten: _vkGraph.knoten.get(x.id) })).filter(x => x.knoten))
+    .filter(w => w.length > 1);
+}
+
+/** Wie viele Werke betrifft dieser Knoten – über seine Herkunft und seine Verweise? */
+function vkBetroffeneWerke(id) {
+  const werke = new Set();
+  const nimm = (n) => { if (n && n.werk && n.werk !== 'ALLE') werke.add(n.werk); };
+  vkHerkunftWege(id).forEach(w => w.forEach(x => nimm(x.knoten)));
+  const knoten = _vkGraph && _vkGraph.knoten.get(id);
+  nimm(knoten);
+  (_vkGraph ? _vkGraph.kanten : []).forEach(k => {
+    if (k.von === id) nimm(_vkGraph.knoten.get(k.nach));
+  });
+  return [...werke];
+}
+
+function vkSuchen(text) {
+  _vkSuche = String(text || '');
+  const host = document.getElementById('vk-treffer');
+  if (host) host.outerHTML = _vkTrefferHtml();
+  else renderVerknuepfungen();
+}
+
+/** Treffer der Suche – über alle Werke, alle Arten. */
+function vkTreffer(q) {
+  const s = String(q || '').toLowerCase().trim();
+  if (!_vkGraph || s.length < 2) return [];
+  const rang = { prozess: 0, regelwerk: 1, modell: 2, band: 3, werk: 4, wurzel: 5 };
+  return [..._vkGraph.knoten.values()]
+    .filter(n => String(n.label || '').toLowerCase().includes(s))
+    .sort((a, b) => (rang[a.art] ?? 9) - (rang[b.art] ?? 9)
+      || String(a.label).localeCompare(String(b.label), 'de'))
+    .slice(0, 24);
+}
+
+function _vkTrefferHtml() {
+  const treffer = vkTreffer(_vkSuche);
+  if (_vkSuche.trim().length < 2) return '<div id="vk-treffer"></div>';
+  if (!treffer.length) {
+    return `<div id="vk-treffer" class="field-hint" style="margin:0 0 10px">Nichts gefunden zu
+      „${esc(_vkSuche)}" – gesucht wird über alle Werke, Modelle und Regelwerke.</div>`;
+  }
+  return `<div id="vk-treffer" class="vk-treffer">
+      ${treffer.map(n => {
+        const art = VK_ARTEN[n.art] || {};
+        const werke = n.werk ? '' : (vkBetroffeneWerke(n.id).length > 1 ? ` · ${vkBetroffeneWerke(n.id).length} Werke` : '');
+        return `<button class="vk-treffer-knopf" onclick="vkAbhaengigZeigen('${esc(n.id)}')"
+            title="Abhängigkeiten von „${esc(n.label)}" zeigen">
+            <b>${esc(n.label)}</b>
+            <span>${esc(art.label || n.art)}${n.werk ? ' · ' + esc(lkWerkLabel(n.werk)) : ''}${werke}</span>
+          </button>`;
+      }).join('')}
+    </div>`;
+}
+
+/** Einen Knoten in die Abhängigkeits-Ansicht holen. */
+function vkAbhaengigZeigen(id) {
+  _vkAnsicht = 'abhaengig';
+  if (typeof vbModusSetzen === 'function') vbModusSetzen('abhaengig', id);
+  if (!_vkGraph) { initVerknuepfungen(); return; }
+  renderVerknuepfungen();
+}
+
+/** Ein Weg als Zeile: Konzern › Werk › Bereich › Hauptprozess ↳ Unterprozess. */
+function _vkWegHtml(weg) {
+  return weg.map((x, i) => {
+    const trenner = i === 0 ? '' :
+      (x.typ === 'unterprozesse' ? '<span class="vk-weg-pfeil" title="Unterprozess von">↳</span>'
+                                 : '<span class="vk-weg-pfeil">›</span>');
+    const letzte = i === weg.length - 1;
+    return trenner + (letzte
+      ? `<b>${esc(x.knoten.label)}</b>`
+      : `<a href="#" onclick="vkAbhaengigZeigen('${esc(x.id)}');return false">${esc(x.knoten.label)}</a>`);
+  }).join('');
+}
+
+function _vkAbhaengigAnsicht(mount) {
+  const wurzel = vbWurzelId();
+  const k = _vkGraph.knoten.get(wurzel);
+  const wege = k ? vkHerkunftWege(wurzel) : [];
+  const werke = k ? vkBetroffeneWerke(wurzel) : [];
+  const art = k ? (VK_ARTEN[k.art] || {}) : {};
+
+  mount.innerHTML = `
+    ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('netz') : ''}
+    <div class="view-desc" style="margin:0 0 12px">
+      Einen Prozess suchen und sofort sehen, was daran hängt: <b>oben</b>, woran er selbst hängt –
+      vom Konzern über das Werk bis zum Hauptprozess –, <b>unten</b> alles, was von ihm abhängt:
+      Unterprozesse, die Kette, Querbezüge, Modelle und <b>Regelwerke</b>. Ein geteilter Prozess hat
+      mehrere Herkünfte; liegen sie in verschiedenen Werken, betrifft eine Änderung beide.
+    </div>
+    <div class="view-toolbar">
+      ${_vkAnsichtLeiste()}
+      <div class="lk-suche" style="min-width:240px;flex:1">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="vk-suche" value="${esc(_vkSuche)}" oninput="vkSuchen(this.value)"
+          aria-label="Prozess, Modell oder Regelwerk suchen"
+          placeholder="Prozess, Modell oder Regelwerk suchen …">
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="vbAlleAuf()" title="Alle Zweige aufklappen">⤢ Alles</button>
+      <button class="btn btn-ghost btn-sm" onclick="vbAlleZu()" title="Bis auf die Wurzel zuklappen">⤡ Zu</button>
+      <div class="toolbar-spacer"></div>
+      <div class="vb-zoom">
+        ${[[1, '100 %'], [0.8, '80 %'], [0.65, '65 %']].map(([z, l]) =>
+          `<button class="btn btn-sm ${_vbZoom === z ? 'btn-primary' : 'btn-ghost'}" onclick="vbZoom(${z})">${l}</button>`).join('')}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="vkNeuLaden()" title="Verknüpfungen neu einlesen">↻ Aktualisieren</button>
+    </div>
+    ${_vkTrefferHtml()}
+    ${!k ? '<div class="field-hint">Oben einen Prozess suchen – oder in der Landkarte eine Kachel öffnen und dort „🔎 Abhängigkeiten" wählen.</div>' : `
+      <div class="vk-herkunft">
+        <div class="vk-herkunft-kopf">
+          <span class="ic-tag" style="background:${esc(art.farbe || '#e5e7eb')};color:${esc(art.text || '#1A2644')}">${esc(art.label || k.art)}</span>
+          <b>${esc(k.label)}</b>
+          ${werke.length > 1 ? `<span class="ic-tag" title="Dieser Prozess berührt mehrere Gesellschaften">${werke.length} Werke: ${esc(werke.map(w => lkWerkLabel(w)).join(', '))}</span>` : ''}
+        </div>
+        ${wege.length
+          ? `<div class="field-hint" style="margin-bottom:4px">Woran er hängt${wege.length > 1 ? ` – ${wege.length} Wege` : ''}:</div>
+             ${wege.map(w => `<div class="vk-weg">${_vkWegHtml(w)}</div>`).join('')}`
+          : '<div class="field-hint">Er hängt an nichts – er ist selbst der Anfang.</div>'}
+      </div>
+      ${vbRenderHtml()}
+      ${(typeof vbWahlKnoten === 'function' && vbWahlKnoten()) ? _vkAktionenHtml(vbWahlKnoten()) : _vkAktionenHtml(k)}
+    `}`;
 }
 
 /** Die Baum-Übersicht: Wurzel links, Äste nach rechts. */

@@ -68,6 +68,7 @@ const FEATURES = [
   { name: 'Vorlage ergänzen',        code: () => /function _lkVorlageErgaenzen/.test(read('js/landkarte.js')),  begriffe: ['Vorlage ergänzen statt ersetzen', 'Ergänzen'] },
   { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
   { name: 'Eigene Vorlagen',         code: () => /function lkVorlageSpeichern/.test(read('js/landkarte.js')),   begriffe: ['Eigene Vorlagen sichern', 'ausgeblendet'] },
+  { name: 'Abhängigkeiten-Ansicht',  code: () => /function vkHerkunftWege/.test(read('js/verknuepfungen.js')),  begriffe: ['Abhängigkeiten', 'Herkunft', 'geteilter'] },
 ];
 
 for (const f of FEATURES) {

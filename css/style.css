@@ -830,6 +830,25 @@ body.demo-mode .main { padding-bottom: 64px; }
 .lk-zahl-punkt { font-size: .62rem; font-weight: 700; opacity: .75; margin-left: -2px; }
 
 /* Suche über alle Landkarten */
+/* Abhaengigkeits-Ansicht: Suchtreffer und die Wege von oben. */
+.vk-treffer { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; align-items: stretch; }
+.vk-treffer-knopf {
+  border: 1px solid var(--c-border); border-radius: 9px; background: #fff; cursor: pointer;
+  padding: 7px 11px; font: inherit; font-size: .8rem; text-align: left; line-height: 1.35;
+  display: flex; flex-direction: column; gap: 1px; max-width: 260px;
+}
+.vk-treffer-knopf:hover { background: #f1f5f9; border-color: var(--c-primary); }
+.vk-treffer-knopf span { color: var(--c-muted); font-weight: 500; font-size: .72rem; }
+.vk-herkunft {
+  border: 1px solid var(--c-border); border-left: 4px solid var(--c-primary);
+  border-radius: 10px; padding: 10px 13px; margin: 0 0 12px; background: var(--c-bg-soft, #f8fafc);
+}
+.vk-herkunft-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.vk-weg { font-size: .82rem; line-height: 1.9; overflow-wrap: anywhere; }
+.vk-weg a { color: var(--c-primary); font-weight: 600; text-decoration: none; }
+.vk-weg a:hover { text-decoration: underline; }
+.vk-weg-pfeil { color: var(--c-muted); margin: 0 6px; font-weight: 700; }
+
 .lk-treffer { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; align-items: center; }
 .lk-treffer-knopf {
   border: 1px solid var(--c-border); background: #fff; border-radius: 999px;

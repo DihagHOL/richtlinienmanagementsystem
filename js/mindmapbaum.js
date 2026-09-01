@@ -18,6 +18,26 @@
    würde aus dem Baum wieder ein Netz machen. */
 const VB_TYPEN = ['Landkarte von', 'gliedert', 'enthält', 'modelliert in', 'setzt um', 'geregelt durch'];
 
+/* In der Abhängigkeits-Ansicht gehören die Verweise zwischen Prozessen dazu:
+   Sie sind der Grund, warum ein Prozess ein anderes Werk betrifft. In der
+   Übersicht bleiben sie draußen – dort stünde jeder Unterprozess zweimal,
+   einmal unter seinem Bereich und einmal unter seinem Hauptprozess. */
+const VB_VERWEIS_TYPEN = ['unterprozesse', 'danach folgt', 'nutzt'];
+
+let _vbModus = 'baum';     // 'baum' = ganze Landschaft · 'abhaengig' = ab einem Knoten
+
+function vbTypen() {
+  return _vbModus === 'abhaengig' ? VB_TYPEN.concat(VB_VERWEIS_TYPEN) : VB_TYPEN;
+}
+
+/** Modus und Wurzel setzen; die aufgeklappten Zweige gelten für den alten Baum. */
+function vbModusSetzen(modus, wurzel) {
+  _vbModus = (modus === 'abhaengig') ? 'abhaengig' : 'baum';
+  _vbWurzel = wurzel || '';
+  _vbOffen = null;         // neu aufbauen: Wurzel und erste Ebene offen
+  _vbWahl = '';
+}
+
 /* Astfarben aus dem DIHAG-Corporate-Design. Jeder Ast der ersten Ebene bekommt
    eine, alles darunter erbt sie – so sieht man die Zugehörigkeit ohne Linien
    zu verfolgen. */
@@ -47,7 +67,7 @@ function _vbKinder(id) {
   if (!_vkGraph) return [];
   const raus = [];
   _vkGraph.kanten.forEach(k => {
-    if (k.von !== id || !VB_TYPEN.includes(k.typ)) return;
+    if (k.von !== id || !vbTypen().includes(k.typ)) return;
     if (raus.some(x => x.id === k.nach)) return;
     const n = _vkGraph.knoten.get(k.nach);
     if (n) raus.push({ id: k.nach, typ: k.typ, knoten: n });

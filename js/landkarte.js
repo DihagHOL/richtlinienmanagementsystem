@@ -2798,12 +2798,29 @@ function _lkVerweiseHtml(werk, k) {
       ${geteilt}
       ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise – Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
       ${zurueck}
+      <button class="btn btn-outline btn-sm" onclick="lkAbhaengigkeiten('${esc(k.id)}')"
+        style="margin-top:8px" title="Alles zeigen, was mit diesem Prozess zusammenhängt – über Werke hinweg">🔎 Abhängigkeiten</button>
       ${schreiben ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')">Verweise pflegen</button>
         ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog('${esc(k.id)}')"
           title="Die Aufzählung im Untertitel in Unterprozesse zerlegen">↳ Untertitel gliedern</button>` : ''}
       </div>` : ''}
     </div>`;
+}
+
+/**
+ * Von der Kachel in die Abhängigkeits-Ansicht.
+ *
+ * Der Weg dorthin führt über den Reiter „Verknüpfungen"; der Wunsch wird
+ * vorher gesetzt, weil das Zeichnen dort den Graphen erst bauen muss.
+ */
+function lkAbhaengigkeiten(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const ziel = 'prozess:' + _lkWerk + ':' + k.id;
+  closeModal();
+  if (typeof vkAbhaengigZeigen === 'function') vkAbhaengigZeigen(ziel);
+  if (typeof setProzessModus === 'function') setProzessModus('netz');
 }
 
 /** Einen Verweis lösen und die Kachel gleich wieder zeigen. */
