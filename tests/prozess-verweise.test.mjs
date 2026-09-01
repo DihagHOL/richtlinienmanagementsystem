@@ -169,5 +169,20 @@ ok(/danach folgt/i.test(querKante.typ || ''), `Die Kante trägt ihre Art: „${q
 ok(graph.knoten.has('prozess:SHB:giessen'),
   'Weil der Graph ohnehin über alle Werke läuft, existiert das Ziel bereits');
 
+/* Ein Ziel OHNE Werk gehört zu der Karte, in der der Eintrag steht – nicht zu
+   der, die gerade offen ist. Sonst bedeutete dieselbe Kachel je nach Ansicht
+   etwas anderes. In der Gegenrichtung (lkVerweiseAuf) war das längst so. */
+run(`
+_lkDaten.karten.SHB.kacheln.push({ id: 'alt', band: 'kern', name: 'Altbestand',
+  verweise: [{ ziel: 'giessen', art: 'folgt' }] });
+`);
+const altbestand = run(`lkVerweiseVon(lkKachelVonZiel('SHB:alt').kachel, 'SHB')`);
+ok(altbestand.length === 1 && altbestand[0].werk === 'SHB',
+  'Mit angegebenem Werk trifft ein Ziel ohne Werk die richtige Karte …');
+run(`_lkWerk = 'HOL';`);
+ok(run(`lkVerweiseVon(lkKachelVonZiel('SHB:alt').kachel, 'SHB').length`) === 1,
+  '… auch dann, wenn gerade eine andere Karte offen ist');
+run(`_lkWerk = 'HOL';`);
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

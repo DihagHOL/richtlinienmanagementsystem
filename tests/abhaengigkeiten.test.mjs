@@ -141,6 +141,28 @@ const lk = lies('js/landkarte.js');
 ok(/knopf\('abhaengig'/.test(vk), 'Die Ansicht steht als dritte im Umschalter');
 ok(/function lkAbhaengigkeiten/.test(lk) && /🔎 Abhängigkeiten/.test(lk),
   'Und die Landkarten-Kachel führt direkt dorthin');
+ok(lk.includes('vkAbhaengigWunsch(ziel)') && !lk.includes('vkAbhaengigZeigen(ziel)'),
+  'Dabei wird erst vorgemerkt und dann der Reiter gewechselt – ein Ladevorgang, nicht zwei');
+
+/* ── 6) Zu viele Wege: abschneiden, aber es sagen ──
+   Ein abgeschnittener Weg, der sich nicht als solcher zu erkennen gibt, ist
+   schlimmer als keiner: Er sieht aus wie ein vollständiger, der bloß nicht
+   beim Konzern beginnt. */
+run(`
+  for (let i = 1; i <= 8; i++) {
+    _lkDaten.karten.KONZERN.kacheln.push({ id: 'hp' + i, band: 'kern', name: 'Hauptprozess ' + i,
+      geltung: ['ALLE'], verweise: [{ ziel: 'KONZERN:banf', art: 'unterprozess' }] });
+  }
+`);
+await run(`(async () => { _vkGraph = await vkGraphBauen(); })()`);
+const viele = run(`vkHerkunftWege('prozess:KONZERN:banf')`);
+ok(viele.length <= 6, `Bei zehn Elternprozessen werden höchstens sechs Wege gezeigt (${viele.length})`);
+ok(viele.every(w => w[0].knoten.label === 'Konzern'),
+  'Und jeder gezeigte Weg beginnt wirklich oben – kein angefangener liegt dazwischen');
+ok(run(`vkHerkunftWege('prozess:KONZERN:banf').gekuerzt`) === true,
+  'Dass es weitere gibt, wird vermerkt …');
+run(`vkAbhaengigZeigen('prozess:KONZERN:banf')`);
+ok(/es gibt noch weitere/.test(mount.innerHTML), '… und steht in der Ansicht');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

@@ -170,7 +170,7 @@ async function vkGraphBauen() {
      Knoten ist – auch die in einer anderen Gesellschaft. */
   if (typeof lkVerweiseVon === 'function') {
     alleKacheln.forEach(({ werk: w, kachel }) => {
-      lkVerweiseVon(kachel).forEach(v => {
+      lkVerweiseVon(kachel, w).forEach(v => {
         const art = (typeof lkVerweisArt === 'function') ? lkVerweisArt(v.art) : null;
         link(`prozess:${w}:${kachel.id}`,
              `prozess:${v.werk}:${v.kachel.id}`,
@@ -368,8 +368,12 @@ const VK_HERKUNFT_TYPEN = ['Landkarte von', 'gliedert', 'enthält', 'unterprozes
 function vkHerkunftWege(id) {
   if (!_vkGraph || !_vkGraph.knoten.has(id)) return [];
   const wege = [];
+  let gekuerzt = false;
   const lauf = (aktuell, weg, gesehen) => {
-    if (wege.length >= 6 || weg.length > 9) { wege.push(weg.slice()); return; }
+    // Abbrechen, ohne den angefangenen Weg abzulegen: Er sähe aus wie ein
+    // vollständiger, der bloß nicht beim Konzern beginnt. Stattdessen wird
+    // vermerkt, dass es mehr gibt – das steht dann auch so da.
+    if (wege.length >= 6 || weg.length > 9) { gekuerzt = true; return; }
     const alle = _vkGraph.kanten.filter(k =>
       k.nach === aktuell && VK_HERKUNFT_TYPEN.includes(k.typ) && !gesehen.has(k.von));
     // Hat ein Prozess einen Hauptprozess, führt der Weg DURCH ihn. Sein Band
@@ -385,9 +389,11 @@ function vkHerkunftWege(id) {
     });
   };
   lauf(id, [{ id, typ: '' }], new Set([id]));
-  return wege
+  const fertig = wege
     .map(w => w.map(x => ({ ...x, knoten: _vkGraph.knoten.get(x.id) })).filter(x => x.knoten))
     .filter(w => w.length > 1);
+  fertig.gekuerzt = gekuerzt;
+  return fertig;
 }
 
 /** Wie viele Werke betrifft dieser Knoten – über seine Herkunft und seine Verweise? */
@@ -432,7 +438,8 @@ function _vkTrefferHtml() {
   return `<div id="vk-treffer" class="vk-treffer">
       ${treffer.map(n => {
         const art = VK_ARTEN[n.art] || {};
-        const werke = n.werk ? '' : (vkBetroffeneWerke(n.id).length > 1 ? ` · ${vkBetroffeneWerke(n.id).length} Werke` : '');
+        const anzahl = n.werk ? 0 : vkBetroffeneWerke(n.id).length;
+        const werke = anzahl > 1 ? ` · ${anzahl} Werke` : '';
         return `<button class="vk-treffer-knopf" onclick="vkAbhaengigZeigen('${esc(n.id)}')"
             title="Abhängigkeiten von „${esc(n.label)}" zeigen">
             <b>${esc(n.label)}</b>
@@ -442,10 +449,21 @@ function _vkTrefferHtml() {
     </div>`;
 }
 
-/** Einen Knoten in die Abhängigkeits-Ansicht holen. */
-function vkAbhaengigZeigen(id) {
+/**
+ * Vormerken, welcher Knoten gezeigt werden soll – ohne zu zeichnen.
+ *
+ * Für den Weg aus der Landkarte: Dort wird gleich der Reiter gewechselt, und
+ * der baut den Graphen ohnehin. Würde hier schon geladen, liefen zwei Läufe
+ * an; dass das gutgeht, verdankte sich nur einem Wächter an anderer Stelle.
+ */
+function vkAbhaengigWunsch(id) {
   _vkAnsicht = 'abhaengig';
   if (typeof vbModusSetzen === 'function') vbModusSetzen('abhaengig', id);
+}
+
+/** Einen Knoten in die Abhängigkeits-Ansicht holen und zeigen. */
+function vkAbhaengigZeigen(id) {
+  vkAbhaengigWunsch(id);
   if (!_vkGraph) { initVerknuepfungen(); return; }
   renderVerknuepfungen();
 }
@@ -504,7 +522,9 @@ function _vkAbhaengigAnsicht(mount) {
           ${werke.length > 1 ? `<span class="ic-tag" title="Dieser Prozess berührt mehrere Gesellschaften">${werke.length} Werke: ${esc(werke.map(w => lkWerkLabel(w)).join(', '))}</span>` : ''}
         </div>
         ${wege.length
-          ? `<div class="field-hint" style="margin-bottom:4px">Woran er hängt${wege.length > 1 ? ` – ${wege.length} Wege` : ''}:</div>
+          ? `<div class="field-hint" style="margin-bottom:4px">Woran er hängt${
+              wege.length > 1 ? ` – ${wege.length} Wege` : ''}${
+              wege.gekuerzt ? ', und es gibt noch weitere' : ''}:</div>
              ${wege.map(w => `<div class="vk-weg">${_vkWegHtml(w)}</div>`).join('')}`
           : '<div class="field-hint">Er hängt an nichts – er ist selbst der Anfang.</div>'}
       </div>

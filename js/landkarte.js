@@ -1970,11 +1970,9 @@ async function lkVorlageSpeichern() {
   const zweck = ((document.getElementById('lk-vorlage-zweck') || {}).value || '').trim();
   if (!Array.isArray(_lkDaten.vorlagen)) _lkDaten.vorlagen = [];
 
-  const belegt = new Set(_lkDaten.vorlagen.map(v => v.key));
-  let key = LK_EIGEN + (titel.toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'vorlage');
-  if (belegt.has(key)) { let i = 2; while (belegt.has(key + '-' + i)) i++; key += '-' + i; }
+  // Verglichen wird ohne das Präfix – sonst wäre „eigen:x" nie gleich „x".
+  const belegt = new Set(_lkDaten.vorlagen.map(v => String(v.key).slice(LK_EIGEN.length)));
+  const key = LK_EIGEN + lkFreierSchluessel(titel, belegt, 'vorlage', 30);
 
   const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
   _lkDaten.vorlagen.push({
@@ -2030,7 +2028,6 @@ async function lkVorlageZeigen(key) {
 
 function lkVorlageDialog() {
   if (!lkDarfSchreiben()) return;
-  const schreiben = true;   // ohne Schreibrecht kommt man hier gar nicht her
   const aus = lkVorlagenAus();
   const ausgeblendet = LK_VORLAGEN.filter(v => aus.has(v.key));
   const vorhanden = lkKacheln().length;
@@ -2054,8 +2051,8 @@ function lkVorlageDialog() {
                 v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}${
                 v.eigen && v.von ? ` · gesichert von ${esc(v.von)}` : ''}</span></span>
             </label>
-            ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen('${esc(v.key)}')"
-              title="${v.eigen ? 'Diese eigene Vorlage löschen' : 'Diese eingebaute Vorlage ausblenden'}">✕</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen('${esc(v.key)}')"
+              title="${v.eigen ? 'Diese eigene Vorlage löschen' : 'Diese eingebaute Vorlage ausblenden'}">✕</button>
           </div>`).join('')}
       </div>
       ${ausgeblendet.length ? `<div class="field-hint" style="margin-bottom:10px">Ausgeblendet:
@@ -2104,10 +2101,7 @@ async function lkVorlageAnwenden() {
     // Erst hier ist bekannt, wohin sie eingesetzt wird. Ohne das Werk läse später
     // jede andere Landkarte diese Ziele als ihre eigenen (lkZielTeile fällt auf
     // die offene Karte zurück), und die Gegenrichtung fände sie gar nicht.
-    verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(v => ({
-      art: v.art,
-      ziel: String(v.ziel).includes(':') ? v.ziel : lkZielSchluessel(_lkWerk, v.ziel),
-    })),
+    verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk),
   }));
   closeModal();
   await lkSpeichern(`Vorlage „${vorlage.titel}" eingesetzt ✓`,
@@ -2275,21 +2269,46 @@ async function lkNeuLaden() {
 
 function lkKachelVonId(id) { return lkKacheln().find(k => k.id === id) || null; }
 
+/**
+ * Aus einem Text eine Kennung machen: entumlautet, klein, mit Bindestrichen.
+ *
+ * Das stand an vier Stellen fast gleich – für Kacheln, Bereiche und eigene
+ * Vorlagen. Zweimal davon für dieselbe Sache, nur mit anderem Trennzeichen und
+ * anderer Länge: Je nachdem, welcher Weg eine Kachel anlegte, sah ihre Kennung
+ * anders aus.
+ */
+function lkSchluesselAus(text, vorgabe, laenge) {
+  return String(text || '').toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, laenge || 30) || vorgabe || 'eintrag';
+}
+
+/** Dieselbe Kennung, aber garantiert noch frei. */
+function lkFreierSchluessel(text, belegt, vorgabe, laenge) {
+  const basis = lkSchluesselAus(text, vorgabe, laenge);
+  if (!belegt.has(basis)) return basis;
+  for (let i = 2; i < 999; i++) if (!belegt.has(basis + '-' + i)) return basis + '-' + i;
+  return basis + '-' + Date.now();
+}
+
 /* Ein Verweisziel heißt „WERK:KACHEL". Das Werk gehört dazu, weil ein Verweis
    über Gesellschaftsgrenzen zeigen darf – ohne das ließe sich eine
    End-to-End-Kette quer durch den Konzern gar nicht aufschreiben. */
 function lkZielSchluessel(werk, id) { return String(werk) + ':' + String(id); }
 
-function lkZielTeile(ziel) {
+function lkZielTeile(ziel, standardWerk) {
   const s = String(ziel || '');
   const i = s.indexOf(':');
-  // Ohne Werk im Ziel: die eigene Karte. So bleiben ältere Einträge lesbar.
-  return i < 0 ? { werk: _lkWerk, id: s } : { werk: s.slice(0, i), id: s.slice(i + 1) };
+  // Ohne Werk im Ziel gilt die Karte, in der der Eintrag steht – und nur wenn
+  // die nicht bekannt ist, die gerade offene. So bleiben ältere Einträge
+  // lesbar, ohne dass ein Werkwechsel ihre Bedeutung ändert.
+  return i < 0 ? { werk: standardWerk || _lkWerk, id: s }
+               : { werk: s.slice(0, i), id: s.slice(i + 1) };
 }
 
 /** Kachel zu einem Verweisziel – über ALLE Werke, nicht nur das offene. */
-function lkKachelVonZiel(ziel) {
-  const { werk, id } = lkZielTeile(ziel);
+function lkKachelVonZiel(ziel, standardWerk) {
+  const { werk, id } = lkZielTeile(ziel, standardWerk);
   return lkAlleKacheln().find(x => x.werk === werk && x.kachel.id === id) || null;
 }
 
@@ -2297,10 +2316,13 @@ function lkKachelVonZiel(ziel) {
  * Verweise einer Kachel, aufgelöst und um tote Ziele bereinigt.
  * Eine gelöschte Kachel soll keinen Verweis ins Nichts hinterlassen.
  */
-function lkVerweiseVon(k) {
+function lkVerweiseVon(k, werk) {
   return (Array.isArray(k && k.verweise) ? k.verweise : [])
     .map(v => {
-      const treffer = lkKachelVonZiel(v.ziel);
+      // `werk` ist die Karte, in der DIESE Kachel steht. Fehlt sie, entschied
+      // bisher die gerade offene – dieselbe Kachel bedeutete dann je nach
+      // Ansicht etwas anderes. In der Gegenrichtung war das längst behoben.
+      const treffer = lkKachelVonZiel(v.ziel, werk);
       return treffer ? { art: v.art || 'nutzt', ziel: v.ziel, werk: treffer.werk, kachel: treffer.kachel } : null;
     })
     .filter(Boolean);
@@ -2464,8 +2486,9 @@ function _lkGliederungZeichen(werk, k) {
       title="${unter} Unterprozess(e) ${auf ? 'zuklappen' : 'aufklappen'}">${auf ? '▾' : '▸'} ${unter}</button>`);
   }
   if (eltern) {
-    teile.push(`<span class="lk-geteilt${eltern > 1 ? ' lk-geteilt-mehr' : ''}"
-      title="${eltern > 1
+    const geteilt = lkMehrfachVerwendet(werk, k.id);
+    teile.push(`<span class="lk-geteilt${geteilt ? ' lk-geteilt-mehr' : ''}"
+      title="${geteilt
         ? 'Wird von ' + eltern + ' Hauptprozessen verwendet – einmal gepflegt, gilt für alle'
         : 'Teil von: ' + esc(lkHauptprozesseVon(werk, k.id)[0].kachel.name)}">⇄ ${eltern}</span>`);
   }
@@ -2500,7 +2523,7 @@ function _lkUnterbaumHtml(werk, k, pfad) {
           <a href="#" onclick="lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
              title="${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>
           ${v.werk !== werk ? `<span class="ic-tag" title="andere Gesellschaft">${esc(lkWerkLabel(v.werk))}</span>` : ''}
-          ${eltern > 1 ? `<span class="lk-geteilt lk-geteilt-mehr"
+          ${lkMehrfachVerwendet(v.werk, v.kachel.id) ? `<span class="lk-geteilt lk-geteilt-mehr"
               title="Wird von ${eltern} Hauptprozessen verwendet – einmal gepflegt, gilt für alle">⇄ ${eltern}</span>` : ''}
           ${kreis ? '<span class="lk-kreis" title="Dieser Prozess steht weiter oben schon im Weg – hier geht es im Kreis">↻</span>' : ''}
         </div>
@@ -2549,13 +2572,7 @@ function lkKachelVonName(name) {
 
 /** Freie Kennung für einen neuen Prozess, aus seinem Namen. */
 function lkFreieKachelId(name) {
-  const roh = String(name || '').toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'prozess';
-  const belegt = new Set(lkKacheln().map(k => String(k.id)));
-  if (!belegt.has(roh)) return roh;
-  for (let i = 2; i < 999; i++) if (!belegt.has(roh + '-' + i)) return roh + '-' + i;
-  return roh + '-' + Date.now();
+  return lkFreierSchluessel(name, new Set(lkKacheln().map(k => String(k.id))), 'prozess', 30);
 }
 
 function lkGliedernDialog(id) {
@@ -2787,7 +2804,7 @@ function _lkVerweiseHtml(werk, k) {
   // Ohne ihn ändert jemand hier etwas und ahnt nicht, dass drei Hauptprozesse
   // daran hängen.
   const eltern = lkHauptprozesseVon(werk, k.id);
-  const geteilt = eltern.length > 1
+  const geteilt = lkMehrfachVerwendet(werk, k.id)
     ? `<div class="col-warning" style="display:block;margin-bottom:8px">⇄ <b>Wird von ${eltern.length}
         Hauptprozessen verwendet</b> – und deshalb nur einmal gepflegt: ${
         esc(eltern.map(v => v.kachel.name).join(', '))}. Eine Änderung hier wirkt in allen.</div>`
@@ -2819,7 +2836,9 @@ function lkAbhaengigkeiten(id) {
   if (!k) return;
   const ziel = 'prozess:' + _lkWerk + ':' + k.id;
   closeModal();
-  if (typeof vkAbhaengigZeigen === 'function') vkAbhaengigZeigen(ziel);
+  // Erst vormerken, dann den Reiter wechseln – der baut den Graphen und
+  // zeichnet. Andersherum liefen zwei Ladevorgänge an.
+  if (typeof vkAbhaengigWunsch === 'function') vkAbhaengigWunsch(ziel);
   if (typeof setProzessModus === 'function') setProzessModus('netz');
 }
 
@@ -3047,13 +3066,7 @@ function lkBandPfeile(band) {
 
 /** Ein freier Schlüssel für einen neuen Bereich – aus dem Titel, nie doppelt. */
 function lkBandSchluessel(titel) {
-  const roh = String(titel || '').toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'bereich';
-  const belegt = new Set(lkBaender().map(b => b.key));
-  if (!belegt.has(roh)) return roh;
-  for (let i = 2; i < 99; i++) if (!belegt.has(roh + '-' + i)) return roh + '-' + i;
-  return roh + '-' + Date.now();
+  return lkFreierSchluessel(titel, new Set(lkBaender().map(b => b.key)), 'bereich', 24);
 }
 
 /** Wie viele Prozesse liegen in diesem Bereich? */
@@ -3266,7 +3279,7 @@ async function lkEditorSpeichern() {
   if (!geltung.length) { toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return; }
 
   if (k.neu) {
-    const id = _lkNeueId(name);
+    const id = lkFreieKachelId(name);
     lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
       verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
       prozesse: [], regelwerke: [] });
@@ -3296,15 +3309,6 @@ async function lkEditorSpeichern() {
   closeModal();
   _lkEditing = null;
   await lkSpeichern('Gespeichert ✓', `„${name}" geändert${teile.length ? ' – ' + teile.join('; ') : ''}`);
-}
-
-function _lkNeueId(name) {
-  const basis = String(name).toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '').slice(0, 20) || 'prozess';
-  let id = basis, n = 2;
-  while (lkKachelVonId(id)) id = basis + n++;
-  return id;
 }
 
 async function lkKachelLoeschen(id) {

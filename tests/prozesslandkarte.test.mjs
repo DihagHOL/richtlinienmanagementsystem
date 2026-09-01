@@ -223,13 +223,18 @@ ctx.__meta = 'meins';
 await ctx.lkSpeichern('', 'Zweiter Versuch');
 ok(gespeichert.length === vorher + 1, 'Passt der Stand, wird gespeichert');
 
-/* ── 7) Neue Kennungen ── */
-const neueId = (n) => vm.runInContext(`_lkNeueId(${JSON.stringify(n)})`, ctx);
+/* ── 7) Neue Kennungen ──
+   Es gab zwei Bauer für dieselbe Sache – _lkNeueId und lkFreieKachelId –, die
+   sich in Trennzeichen und Länge unterschieden: Je nachdem, welcher Weg eine
+   Kachel anlegte, sah ihre Kennung anders aus. Jetzt ist es einer. */
+const neueId = (n) => vm.runInContext(`lkFreieKachelId(${JSON.stringify(n)})`, ctx);
 const id1 = neueId('Qualitätssicherung & Prüfung');
-ok(/^[a-z0-9]+$/.test(id1) && id1.length <= 20 && id1.startsWith('qualitaetssicherung'),
+ok(/^[a-z0-9-]+$/.test(id1) && id1.length <= 30 && id1.startsWith('qualitaetssicherung'),
   'Umlaute werden umschrieben, Sonderzeichen fallen weg, die Kennung bleibt kurz');
-ok(neueId('IT') === 'it2', 'Eine belegte Kennung wird durchnummeriert');
+ok(neueId('IT') === 'it-2', 'Eine belegte Kennung wird durchnummeriert');
 ok(neueId('###') === 'prozess', 'Und wenn nichts übrig bleibt, gibt es einen Namen');
+ok(vm.runInContext(`lkSchluesselAus('Über / Uns', 'x', 24)`, ctx) === 'ueber-uns',
+  'Derselbe Bauer bedient Kacheln, Bereiche und eigene Vorlagen');
 
 /* ── 7b) Übernahme: niemand baut zehn Karten von Hand ── */
 w("lkSetWerk('WGC');");
