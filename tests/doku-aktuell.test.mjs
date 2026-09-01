@@ -67,6 +67,7 @@ const FEATURES = [
   { name: 'Bereiche bearbeiten',     code: () => /function lkBandDialog/.test(read('js/landkarte.js')),         begriffe: ['Bereiche bearbeiten und anlegen', 'verschoben, nicht gelöscht'] },
   { name: 'Vorlage ergänzen',        code: () => /function _lkVorlageErgaenzen/.test(read('js/landkarte.js')),  begriffe: ['Vorlage ergänzen statt ersetzen', 'Ergänzen'] },
   { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
+  { name: 'Eigene Vorlagen',         code: () => /function lkVorlageSpeichern/.test(read('js/landkarte.js')),   begriffe: ['Eigene Vorlagen sichern', 'ausgeblendet'] },
 ];
 
 for (const f of FEATURES) {

@@ -1528,7 +1528,16 @@ async function lkDatenLaden() {
     if (gespeichert && gespeichert.daten) {
       const d = gespeichert.daten;
       if (d.karten && typeof d.karten === 'object') {
-        _lkDaten = { version: 2, karten: d.karten, historie: Array.isArray(d.historie) ? d.historie : [] };
+        _lkDaten = {
+          version: 2, karten: d.karten,
+          historie: Array.isArray(d.historie) ? d.historie : [],
+          // Eigene Vorlagen und ausgeblendete eingebaute liegen in derselben
+          // Datei. Sie hier NICHT mitzunehmen hiesse: Beim nächsten Laden sind
+          // sie still verschwunden – die Datei wird ja aus diesem Objekt neu
+          // geschrieben.
+          vorlagen: Array.isArray(d.vorlagen) ? d.vorlagen : [],
+          vorlagenAus: Array.isArray(d.vorlagenAus) ? d.vorlagenAus : [],
+        };
       } else {
         // Fassung 1 kannte nur EINE Landkarte. Die abgestimmte Landschaft gehört
         // zu HOL – dorthin wandert sie, ohne dass jemand etwas neu erfassen muss.
@@ -1858,8 +1867,172 @@ function lkWerkSetzenStill(w) {
  * null, und die Ebenen brauchen verschiedene: Der Konzern steuert, die
  * Gesellschaft produziert.
  */
+/* ═══════════════════════════════════════════════════
+   Eigene Vorlagen
+   ═══════════════════════════════════════════════════
+   Neun eingebaute Vorlagen stehen zur Wahl, und die meisten davon braucht ein
+   Haus nie. Was fehlte, ist der umgekehrte Weg: Wer eine Landkarte einmal
+   zurechtgelegt hat, will sie sichern und in den anderen Werken einsetzen.
+
+   Eine eigene Vorlage ist **Struktur, nicht Inhalt**. Verantwortliche, Modelle
+   und Regelwerke wandern nicht mit: Eine Person gehört nicht in eine Vorlage,
+   und ein Modell liegt im Ordner seines Werks – zwei Werke dürfen nicht auf
+   dieselbe Datei zeigen.
+
+   Eingebaute Vorlagen werden **ausgeblendet, nicht gelöscht**. Sie stehen im
+   Code; was verschwände, wäre nur die Möglichkeit, sie zurückzuholen. */
+
+const LK_EIGEN = 'eigen:';   // Präfix, damit eine eigene Vorlage nie einen eingebauten Schlüssel trifft
+
+function lkEigeneVorlagen() {
+  const v = _lkDaten && _lkDaten.vorlagen;
+  return Array.isArray(v) ? v : [];
+}
+
+/** Schlüssel der ausgeblendeten eingebauten Vorlagen. */
+function lkVorlagenAus() {
+  const v = _lkDaten && _lkDaten.vorlagenAus;
+  return new Set(Array.isArray(v) ? v.map(String) : []);
+}
+
+/** Alle Vorlagen, die gerade zur Wahl stehen – eigene zuerst. */
+function lkVorlagenAlle() {
+  const aus = lkVorlagenAus();
+  return lkEigeneVorlagen().map(v => ({ ...v, eigen: true }))
+    .concat(LK_VORLAGEN.filter(v => !aus.has(v.key)).map(v => ({ ...v, eigen: false })));
+}
+
+function lkVorlageVonKey(key) { return lkVorlagenAlle().find(v => v.key === key) || null; }
+
+/**
+ * Schnappschuss der offenen Landkarte als Vorlage.
+ *
+ * Mitgenommen werden Bänder, Namen, Untertitel und die Gliederung. Nicht
+ * mitgenommen werden Verantwortliche, Modelle, Regelwerke und Geltungsbereich –
+ * die gehören zu dieser Karte, nicht zur Form. Verweise über die Werksgrenze
+ * fallen weg: Sie zeigten aus einer Vorlage auf eine fremde Karte.
+ */
+function _lkVorlageAusKarte(werk) {
+  const w = werk || _lkWerk;
+  const k = lkKarte(w);
+  const eigene = new Set((k.kacheln || []).map(x => String(x.id)));
+  return {
+    baender: JSON.parse(JSON.stringify(k.baender || [])),
+    kacheln: (k.kacheln || []).map(x => {
+      const verweise = (Array.isArray(x.verweise) ? x.verweise : []).map(v => {
+        const t = lkZielTeile(v.ziel);
+        return (t.werk === w && eigene.has(String(t.id))) ? { ziel: String(t.id), art: v.art } : null;
+      }).filter(Boolean);
+      const kachel = { id: String(x.id), band: x.band, name: x.name, unter: x.unter || '' };
+      if (verweise.length) kachel.verweise = verweise;
+      return kachel;
+    }),
+  };
+}
+
+function lkVorlageSpeichernDialog() {
+  if (!lkDarfSchreiben()) return;
+  const karte = _lkVorlageAusKarte(_lkWerk);
+  if (!karte.kacheln.length) { toast('Diese Landkarte ist leer – da gibt es nichts zu sichern.'); return; }
+  const verweise = karte.kacheln.reduce((n, k) => n + (k.verweise || []).length, 0);
+  const fremd = lkKacheln().reduce((n, k) => n + (Array.isArray(k.verweise) ? k.verweise : [])
+    .filter(v => lkZielTeile(v.ziel).werk !== _lkWerk).length, 0);
+
+  openModal(`
+    <div class="modal-header"><h3>Landkarte als Vorlage sichern</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Die Landschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b>
+        wird als Vorlage gesichert: <b>${karte.baender.length}</b> Bereiche, <b>${karte.kacheln.length}</b>
+        Prozesse, <b>${verweise}</b> Verweise. Danach lässt sie sich in jedem Werk einsetzen.</p>
+      <div class="form-group full"><label>Name <span class="req">*</span></label>
+        <input type="text" id="lk-vorlage-name" placeholder="z. B. Gießerei-Standard 2026"
+          value="${esc(lkWerkLabel(_lkWerk) + ' – Stand ' + new Date().toLocaleDateString('de-DE'))}"></div>
+      <div class="form-group full"><label>Wofür ist sie gedacht?</label>
+        <textarea id="lk-vorlage-zweck" rows="3" style="width:100%;font-family:inherit"
+          placeholder="Ein Satz, der einem später sagt, wann man sie nimmt."></textarea></div>
+      <div class="col-warning" style="display:block">Gesichert wird die <b>Form</b>: Bereiche, Namen,
+        Untertitel und die Gliederung. <b>Nicht</b> mitgenommen werden Verantwortliche, Modelle,
+        Regelwerke und Geltungsbereich – eine Person gehört nicht in eine Vorlage, und ein Modell
+        liegt im Ordner seines Werks.${fremd ? ` ${fremd} Verweis(e) auf andere Werke fallen weg:
+        Aus einer Vorlage heraus zeigten sie auf eine fremde Karte.` : ''}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkVorlageSpeichern()">Sichern</button>
+    </div>`);
+}
+
+async function lkVorlageSpeichern() {
+  if (!lkDarfSchreiben()) return;
+  const titel = ((document.getElementById('lk-vorlage-name') || {}).value || '').trim();
+  if (!titel) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const zweck = ((document.getElementById('lk-vorlage-zweck') || {}).value || '').trim();
+  if (!Array.isArray(_lkDaten.vorlagen)) _lkDaten.vorlagen = [];
+
+  const belegt = new Set(_lkDaten.vorlagen.map(v => v.key));
+  let key = LK_EIGEN + (titel.toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'vorlage');
+  if (belegt.has(key)) { let i = 2; while (belegt.has(key + '-' + i)) i++; key += '-' + i; }
+
+  const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
+  _lkDaten.vorlagen.push({
+    key, titel,
+    zweck: zweck || `Aus der Landkarte von ${lkWerkLabel(_lkWerk)} gesichert.`,
+    karte: _lkVorlageAusKarte(_lkWerk),
+    angelegt: new Date().toISOString(), von: u.name || u.upn || '',
+  });
+  closeModal();
+  await lkSpeichern(`Vorlage „${titel}" gesichert ✓`,
+    `Landkarte von ${lkWerkLabel(_lkWerk)} als Vorlage „${titel}" gesichert`);
+}
+
+/**
+ * Eine Vorlage aus der Auswahl nehmen.
+ *
+ * Eine eigene wird gelöscht, eine eingebaute nur ausgeblendet – die steht im
+ * Code, verschwände also nur aus der Liste, und zurückholen können soll man
+ * sie trotzdem.
+ */
+async function lkVorlageEntfernen(key) {
+  if (!lkDarfSchreiben()) return;
+  const v = lkVorlageVonKey(key);
+  if (!v) return;
+  if (!await uiConfirm(v.eigen
+    ? `Die eigene Vorlage „${esc(v.titel)}" löschen?<br><span class="field-hint">Landkarten, die damit
+       angelegt wurden, bleiben unberührt – eine Vorlage ist eine Kopiervorlage, keine Verbindung.</span>`
+    : `„${esc(v.titel)}" aus der Auswahl nehmen?<br><span class="field-hint">Die eingebaute Vorlage wird
+       nur ausgeblendet und lässt sich jederzeit zurückholen.</span>`,
+    { title: v.eigen ? 'Vorlage löschen' : 'Vorlage ausblenden', okLabel: v.eigen ? 'Löschen' : 'Ausblenden' })) return;
+
+  if (v.eigen) {
+    _lkDaten.vorlagen = lkEigeneVorlagen().filter(x => x.key !== key);
+  } else {
+    if (!Array.isArray(_lkDaten.vorlagenAus)) _lkDaten.vorlagenAus = [];
+    if (!_lkDaten.vorlagenAus.includes(key)) _lkDaten.vorlagenAus.push(key);
+  }
+  closeModal();
+  await lkSpeichern(v.eigen ? `Vorlage „${v.titel}" gelöscht ✓` : `„${v.titel}" ausgeblendet ✓`,
+    v.eigen ? `Eigene Vorlage „${v.titel}" gelöscht` : `Vorlage „${v.titel}" ausgeblendet`);
+  lkVorlageDialog();
+}
+
+/** Eine ausgeblendete eingebaute Vorlage zurückholen. */
+async function lkVorlageZeigen(key) {
+  if (!lkDarfSchreiben()) return;
+  _lkDaten.vorlagenAus = [...lkVorlagenAus()].filter(x => x !== key);
+  const v = LK_VORLAGEN.find(x => x.key === key);
+  closeModal();
+  await lkSpeichern('Vorlage wieder in der Auswahl ✓', `Vorlage „${(v || {}).titel || key}" wieder eingeblendet`);
+  lkVorlageDialog();
+}
+
 function lkVorlageDialog() {
   if (!lkDarfSchreiben()) return;
+  const schreiben = true;   // ohne Schreibrecht kommt man hier gar nicht her
+  const aus = lkVorlagenAus();
+  const ausgeblendet = LK_VORLAGEN.filter(v => aus.has(v.key));
   const vorhanden = lkKacheln().length;
   // Für ein Werk mit eigener Vorlage steht diese zur Wahl vorne – sonst sucht
   // man sie zwischen den Konzernlandschaften.
@@ -1873,12 +2046,21 @@ function lkVorlageDialog() {
       <p class="field-hint" style="margin:0 0 12px">Für <b>${esc(lkWerkLabel(_lkWerk))}</b> eine fertige
         Prozesslandschaft einsetzen. Alles bleibt danach frei änderbar.</p>
       <div class="form-group full">
-        ${LK_VORLAGEN.map(v => `<label class="ack-check" style="font-weight:500;align-items:flex-start;margin-bottom:10px">
-            <input type="radio" name="lk-vorlage" value="${esc(v.key)}"${v.key === vorgabe ? ' checked' : ''}>
-            <span><b>${esc(v.titel)}</b> <span class="field-hint">· ${v.karte.kacheln.length} Prozesse in ${
-              v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}</span></span>
-          </label>`).join('')}
+        ${lkVorlagenAlle().map(v => `<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px">
+            <label class="ack-check" style="font-weight:500;align-items:flex-start;margin:0;flex:1">
+              <input type="radio" name="lk-vorlage" value="${esc(v.key)}"${v.key === vorgabe ? ' checked' : ''}>
+              <span><b>${esc(v.titel)}</b>${v.eigen ? ' <span class="ic-tag">eigene</span>' : ''}
+                <span class="field-hint">· ${v.karte.kacheln.length} Prozesse in ${
+                v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}${
+                v.eigen && v.von ? ` · gesichert von ${esc(v.von)}` : ''}</span></span>
+            </label>
+            ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen('${esc(v.key)}')"
+              title="${v.eigen ? 'Diese eigene Vorlage löschen' : 'Diese eingebaute Vorlage ausblenden'}">✕</button>` : ''}
+          </div>`).join('')}
       </div>
+      ${ausgeblendet.length ? `<div class="field-hint" style="margin-bottom:10px">Ausgeblendet:
+        ${ausgeblendet.map(v => `<button type="button" class="btn btn-ghost btn-sm"
+          onclick="lkVorlageZeigen('${esc(v.key)}')" title="Wieder in die Auswahl aufnehmen">${esc(v.titel)} ↩</button>`).join(' ')}</div>` : ''}
       ${vorhanden ? `<div class="form-group full" style="margin-top:6px">
         <label>Was soll mit den vorhandenen ${vorhanden} Prozess(en) geschehen?</label>
         <label class="ack-check" style="font-weight:500;align-items:flex-start">
@@ -1894,6 +2076,9 @@ function lkVorlageDialog() {
       </div>` : ''}
     </div>
     <div class="modal-footer">
+      ${vorhanden ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageSpeichernDialog()"
+        title="Die Landschaft dieses Werks als eigene Vorlage sichern"
+        style="margin-right:auto">💾 Diese Landkarte als Vorlage sichern</button>` : ''}
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="lkVorlageAnwenden()">Einsetzen</button>
     </div>`);
@@ -1902,7 +2087,7 @@ function lkVorlageDialog() {
 async function lkVorlageAnwenden() {
   if (!lkDarfSchreiben()) return;
   const wahl = document.querySelector('input[name="lk-vorlage"]:checked');
-  const vorlage = LK_VORLAGEN.find(v => v.key === (wahl && wahl.value));
+  const vorlage = lkVorlageVonKey(wahl && wahl.value);
   if (!vorlage) return;
   const ziel = lkKarte(_lkWerk);
   const modus = (document.querySelector('input[name="lk-vorlage-modus"]:checked') || {}).value;
