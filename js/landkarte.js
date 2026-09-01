@@ -202,63 +202,329 @@ const LK_KONZERN = {
  * Nicht Führungs-/Kern-/Unterstützungsprozesse, sondern die Funktionen einer
  * Holding: was sie steuert, finanziert, überwacht – und was die Töchter tun.
  * Jeder Kasten der Skizze ist ein Band, seine Punkte sind die Kacheln.
+ *
+ * Die Teilprozesse stammen aus der abgestimmten Konzernlandkarte, wo sie als
+ * Text im Untertitel standen („Strategieentwicklung · Markt- und
+ * Wettbewerbsanalyse · …"). Ein Text lässt sich nicht anklicken, nicht mit
+ * einem Modell verknüpfen und nicht zweimal verwenden – deshalb ist hier jeder
+ * Punkt eine eigene Kachel, die als Unterprozess an ihrem Hauptprozess hängt.
+ *
+ * Sechs davon gehören zu ZWEI Hauptprozessen und stehen trotzdem nur einmal in
+ * der Karte: „Forecast" (Budgetplanung und Planungssysteme), „M&A" (Erwerb von
+ * Beteiligungen und M&A-Unterstützung), „Governance-System" (Regelwerke und
+ * Corporate Governance), „Risikomanagement" (Controlling und
+ * Risikofrüherkennung), „Best-Practice-Transfer" (organisatorische Maßnahmen
+ * und Umsetzung der Konzernstrategie).
+ *
+ * „Kommunikation & Stakeholder-Management" ist der einzige Hauptprozess, der in
+ * der Skizze fehlte: Die Konzernlandkarte führt ihn, die Holding-Skizze hatte
+ * keinen Platz dafür. Er steht deshalb bei der Strategie.
  */
 const LK_HOLDING = {
   baender: [
-    { key: 'strategie',     titel: 'Strategie' },
-    { key: 'finanzierung',  titel: 'Finanzierung' },
-    { key: 'controlling',   titel: 'Konzern-Controlling' },
-    { key: 'personal',      titel: 'Personalwesen und Organisation' },
+    { key: 'strategie', titel: 'Strategie' },
+    { key: 'finanzierung', titel: 'Finanzierung' },
+    { key: 'controlling', titel: 'Konzern-Controlling' },
+    { key: 'personal', titel: 'Personalwesen und Organisation' },
     { key: 'beteiligungen', titel: 'Beteiligungsverwaltung' },
-    { key: 'beratung',      titel: 'Beratung' },
-    { key: 'ueberwachung',  titel: 'Überwachung' },
-    { key: 'toechter',      titel: 'Tochterunternehmen (operatives Geschäft)' },
+    { key: 'beratung', titel: 'Beratung' },
+    { key: 'ueberwachung', titel: 'Überwachung' },
+    { key: 'toechter', titel: 'Tochterunternehmen (operatives Geschäft)' },
   ],
   kacheln: [
-    { id: 'hd-vision',      band: 'strategie', name: 'Vision & Leitbild', unter: '' },
-    { id: 'hd-regelwerke',  band: 'strategie', name: 'Regelwerke', unter: 'Konzernregelungen erstellen und in Kraft setzen' },
-    { id: 'hd-portfolio',   band: 'strategie', name: 'Portfolio', unter: '' },
-    { id: 'hd-orgmass',     band: 'strategie', name: 'Organisatorische Maßnahmen', unter: '' },
-
-    { id: 'hd-budget',      band: 'finanzierung', name: 'Budgetplanung', unter: '' },
-    { id: 'hd-liquiditaet', band: 'finanzierung', name: 'Liquiditätsplanung', unter: '' },
-    { id: 'hd-treasury',    band: 'finanzierung', name: 'Treasury', unter: '' },
-    { id: 'hd-kapital',     band: 'finanzierung', name: 'Kapitalstruktur', unter: '' },
-    { id: 'hd-aussenfin',   band: 'finanzierung', name: 'Außenfinanzierung', unter: '' },
-
-    { id: 'hd-planung',     band: 'controlling', name: 'Planungssysteme', unter: '' },
-    { id: 'hd-kontrolle',   band: 'controlling', name: 'Kontrollsysteme', unter: '' },
-    { id: 'hd-bericht',     band: 'controlling', name: 'Berichtswesen', unter: '' },
-    { id: 'hd-risiko',      band: 'controlling', name: 'Risikomanagement', unter: '' },
-
-    { id: 'hd-perstrat',    band: 'personal', name: 'Konzernweite Personalstrategie', unter: '' },
-    { id: 'hd-persentw',    band: 'personal', name: 'Personalentwicklung', unter: '' },
-    { id: 'hd-fuehrkraft',  band: 'personal', name: 'Führungskräfteentwicklung', unter: '' },
-    { id: 'hd-persentsch',  band: 'personal', name: 'Konzernweite Personalentscheidungen', unter: '' },
-
-    { id: 'hd-erwerb',      band: 'beteiligungen', name: 'Erwerb von Beteiligungen', unter: '' },
-    { id: 'hd-verwaltung',  band: 'beteiligungen', name: 'Verwaltung von Beteiligungen', unter: '' },
-    { id: 'hd-portanp',     band: 'beteiligungen', name: 'Portfolioanpassung', unter: '' },
-    { id: 'hd-ressourcen',  band: 'beteiligungen', name: 'Konzerninterne Ressourcenallokation', unter: '' },
-
-    { id: 'hd-recht',       band: 'beratung', name: 'Rechtsberatung', unter: '' },
-    { id: 'hd-vertrag',     band: 'beratung', name: 'Vertragsmanagement', unter: '' },
-    { id: 'hd-ma',          band: 'beratung', name: 'M&A-Unterstützung', unter: '' },
-    { id: 'hd-govern',      band: 'beratung', name: 'Corporate Governance', unter: '' },
-    { id: 'hd-regulierung', band: 'beratung', name: 'Regulierungsmanagement', unter: '' },
-
-    { id: 'hd-compliance',  band: 'ueberwachung', name: 'Compliance-Management', unter: '' },
-    { id: 'hd-datenschutz', band: 'ueberwachung', name: 'Datenschutz', unter: '' },
-    { id: 'hd-export',      band: 'ueberwachung', name: 'Exportkontrolle', unter: '' },
-    { id: 'hd-revision',    band: 'ueberwachung', name: 'Interne Revision', unter: '' },
-    { id: 'hd-frueh',       band: 'ueberwachung', name: 'Risikofrüherkennung', unter: '' },
-
-    { id: 'hd-tagesgesch',  band: 'toechter', name: 'Operative Tagesgeschäftsführung', unter: '' },
-    { id: 'hd-ergebnis',    band: 'toechter', name: 'Ergebnisverantwortung', unter: '' },
-    { id: 'hd-umsetzung',   band: 'toechter', name: 'Umsetzung der Konzernstrategie', unter: '' },
+    { id: 'hd-vision', band: 'strategie', name: 'Vision & Leitbild',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-strategieentwicklung', art: 'unterprozess' },
+        { ziel: 'hd-t-technologie-u-innovationss', art: 'unterprozess' },
+        { ziel: 'hd-t-unternehmenskultur-u-leitb', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-strategieentwicklung', band: 'strategie', name: 'Strategieentwicklung',
+      unter: '' },
+    { id: 'hd-t-technologie-u-innovationss', band: 'strategie', name: 'Technologie- & Innovationsstrategie',
+      unter: '' },
+    { id: 'hd-t-unternehmenskultur-u-leitb', band: 'strategie', name: 'Unternehmenskultur & Leitbild',
+      unter: '' },
+    { id: 'hd-regelwerke', band: 'strategie', name: 'Regelwerke',
+      unter: 'Konzernregelungen erstellen und in Kraft setzen',
+      verweise: [
+        { ziel: 'hd-t-konzernrichtlinien', art: 'unterprozess' },
+        { ziel: 'hd-t-governance-system', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-konzernrichtlinien', band: 'strategie', name: 'Konzernrichtlinien',
+      unter: '' },
+    { id: 'hd-t-governance-system', band: 'strategie', name: 'Governance-System',
+      unter: '' },
+    { id: 'hd-portfolio', band: 'strategie', name: 'Portfolio',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-markt-und-wettbewerbsanaly', art: 'unterprozess' },
+        { ziel: 'hd-t-portfolio-u-standortstrate', art: 'unterprozess' },
+        { ziel: 'hd-t-investitionsstrategie', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-markt-und-wettbewerbsanaly', band: 'strategie', name: 'Markt- und Wettbewerbsanalyse',
+      unter: '' },
+    { id: 'hd-t-portfolio-u-standortstrate', band: 'strategie', name: 'Portfolio- & Standortstrategie',
+      unter: '' },
+    { id: 'hd-t-investitionsstrategie', band: 'strategie', name: 'Investitionsstrategie',
+      unter: '' },
+    { id: 'hd-orgmass', band: 'strategie', name: 'Organisatorische Maßnahmen',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-organisationsentwicklung', art: 'unterprozess' },
+        { ziel: 'hd-t-strategische-projekte', art: 'unterprozess' },
+        { ziel: 'hd-t-projektportfolio', art: 'unterprozess' },
+        { ziel: 'hd-t-change-management', art: 'unterprozess' },
+        { ziel: 'hd-t-lean-operational-excellenc', art: 'unterprozess' },
+        { ziel: 'hd-t-best-practice-transfer', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-organisationsentwicklung', band: 'strategie', name: 'Organisationsentwicklung',
+      unter: '' },
+    { id: 'hd-t-strategische-projekte', band: 'strategie', name: 'Strategische Projekte',
+      unter: '' },
+    { id: 'hd-t-projektportfolio', band: 'strategie', name: 'Projektportfolio',
+      unter: '' },
+    { id: 'hd-t-change-management', band: 'strategie', name: 'Change Management',
+      unter: '' },
+    { id: 'hd-t-lean-operational-excellenc', band: 'strategie', name: 'Lean, Operational Excellence, KVP',
+      unter: 'TRIPLE-FIVE' },
+    { id: 'hd-t-best-practice-transfer', band: 'strategie', name: 'Best-Practice-Transfer',
+      unter: '' },
+    { id: 'hd-kommunikation', band: 'strategie', name: 'Kommunikation & Stakeholder-Management',
+      unter: 'Aus der abgestimmten Konzernlandkarte übernommen',
+      verweise: [
+        { ziel: 'hd-t-kommunikationsstrategie', art: 'unterprozess' },
+        { ziel: 'hd-t-interne-kommunikation', art: 'unterprozess' },
+        { ziel: 'hd-t-externe-kommunikation-corp', art: 'unterprozess' },
+        { ziel: 'hd-t-krisenkommunikation', art: 'unterprozess' },
+        { ziel: 'hd-t-stakeholdermanagement', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-kommunikationsstrategie', band: 'strategie', name: 'Kommunikationsstrategie',
+      unter: '' },
+    { id: 'hd-t-interne-kommunikation', band: 'strategie', name: 'Interne Kommunikation',
+      unter: '' },
+    { id: 'hd-t-externe-kommunikation-corp', band: 'strategie', name: 'Externe Kommunikation, Corporate Identity',
+      unter: '' },
+    { id: 'hd-t-krisenkommunikation', band: 'strategie', name: 'Krisenkommunikation',
+      unter: '' },
+    { id: 'hd-t-stakeholdermanagement', band: 'strategie', name: 'Stakeholdermanagement',
+      unter: '' },
+    { id: 'hd-budget', band: 'finanzierung', name: 'Budgetplanung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-konzernplanung-u-budget', art: 'unterprozess' },
+        { ziel: 'hd-t-forecast', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-konzernplanung-u-budget', band: 'finanzierung', name: 'Konzernplanung & Budget',
+      unter: '' },
+    { id: 'hd-t-forecast', band: 'finanzierung', name: 'Forecast',
+      unter: '' },
+    { id: 'hd-liquiditaet', band: 'finanzierung', name: 'Liquiditätsplanung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-liquiditaetsmanagement', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-liquiditaetsmanagement', band: 'finanzierung', name: 'Liquiditätsmanagement',
+      unter: '' },
+    { id: 'hd-treasury', band: 'finanzierung', name: 'Treasury',
+      unter: '' },
+    { id: 'hd-kapital', band: 'finanzierung', name: 'Kapitalstruktur',
+      unter: '' },
+    { id: 'hd-aussenfin', band: 'finanzierung', name: 'Außenfinanzierung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-banken-u-finanzierungsmana', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-banken-u-finanzierungsmana', band: 'finanzierung', name: 'Banken- & Finanzierungsmanagement',
+      unter: '' },
+    { id: 'hd-planung', band: 'controlling', name: 'Planungssysteme',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-forecast', art: 'unterprozess' },
+        { ziel: 'hd-t-investitionscontrolling', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-investitionscontrolling', band: 'controlling', name: 'Investitionscontrolling',
+      unter: '' },
+    { id: 'hd-kontrolle', band: 'controlling', name: 'Kontrollsysteme',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-internes-kontrollsystem', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-internes-kontrollsystem', band: 'controlling', name: 'Internes Kontrollsystem',
+      unter: '' },
+    { id: 'hd-bericht', band: 'controlling', name: 'Berichtswesen',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-kpi-performance-management', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-kpi-performance-management', band: 'controlling', name: 'KPI, Performance Management, Management Reporting',
+      unter: '' },
+    { id: 'hd-risiko', band: 'controlling', name: 'Risikomanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-risikomanagement-verfahren', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-risikomanagement-verfahren', band: 'controlling', name: 'Risikomanagement (Verfahren)',
+      unter: '' },
+    { id: 'hd-perstrat', band: 'personal', name: 'Konzernweite Personalstrategie',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-personalstrategie', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-personalstrategie', band: 'personal', name: 'Personalstrategie',
+      unter: '' },
+    { id: 'hd-persentw', band: 'personal', name: 'Personalentwicklung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-fuehrungskraefte-und-mitar', art: 'unterprozess' },
+        { ziel: 'hd-t-kompetenzentwicklung', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-fuehrungskraefte-und-mitar', band: 'personal', name: 'Führungskräfte- und Mitarbeiterentwicklung',
+      unter: '' },
+    { id: 'hd-t-kompetenzentwicklung', band: 'personal', name: 'Kompetenzentwicklung',
+      unter: '' },
+    { id: 'hd-fuehrkraft', band: 'personal', name: 'Führungskräfteentwicklung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-fuehrungsmodell', art: 'unterprozess' },
+        { ziel: 'hd-t-nachfolgeplanung', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-fuehrungsmodell', band: 'personal', name: 'Führungsmodell',
+      unter: '' },
+    { id: 'hd-t-nachfolgeplanung', band: 'personal', name: 'Nachfolgeplanung',
+      unter: '' },
+    { id: 'hd-govern', band: 'personal', name: 'Corporate Governance',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-governance-system', art: 'unterprozess' },
+      ] },
+    { id: 'hd-persentsch', band: 'personal', name: 'Konzernweite Personalentscheidungen',
+      unter: '' },
+    { id: 'hd-erwerb', band: 'beteiligungen', name: 'Erwerb von Beteiligungen',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-mua', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-mua', band: 'beteiligungen', name: 'M&A',
+      unter: '' },
+    { id: 'hd-verwaltung', band: 'beteiligungen', name: 'Verwaltung von Beteiligungen',
+      unter: '' },
+    { id: 'hd-portanp', band: 'beteiligungen', name: 'Portfolioanpassung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-restrukturierung', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-restrukturierung', band: 'beteiligungen', name: 'Restrukturierung',
+      unter: '' },
+    { id: 'hd-ressourcen', band: 'beteiligungen', name: 'Konzerninterne Ressourcenallokation',
+      unter: '' },
+    { id: 'hd-recht', band: 'beratung', name: 'Rechtsberatung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-gesellschaftsrecht', art: 'unterprozess' },
+        { ziel: 'hd-t-legal-claims', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-gesellschaftsrecht', band: 'beratung', name: 'Gesellschaftsrecht',
+      unter: '' },
+    { id: 'hd-t-legal-claims', band: 'beratung', name: 'Legal Claims',
+      unter: '' },
+    { id: 'hd-vertrag', band: 'beratung', name: 'Vertragsmanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-vertragsmanagement-verfahr', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-vertragsmanagement-verfahr', band: 'beratung', name: 'Vertragsmanagement (Verfahren)',
+      unter: '' },
+    { id: 'hd-ma', band: 'beratung', name: 'M&A-Unterstützung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-mua', art: 'unterprozess' },
+      ] },
+    { id: 'hd-regulierung', band: 'beratung', name: 'Regulierungsmanagement',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-regulatorische-anforderung', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-regulatorische-anforderung', band: 'beratung', name: 'Regulatorische Anforderungen',
+      unter: '' },
+    { id: 'hd-compliance', band: 'ueberwachung', name: 'Compliance-Management',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-compliance', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-compliance', band: 'ueberwachung', name: 'Compliance',
+      unter: '' },
+    { id: 'hd-datenschutz', band: 'ueberwachung', name: 'Datenschutz',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-datenschutz-governance', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-datenschutz-governance', band: 'ueberwachung', name: 'Datenschutz-Governance',
+      unter: '' },
+    { id: 'hd-export', band: 'ueberwachung', name: 'Exportkontrolle',
+      unter: '' },
+    { id: 'hd-revision', band: 'ueberwachung', name: 'Interne Revision',
+      unter: '' },
+    { id: 'hd-frueh', band: 'ueberwachung', name: 'Risikofrüherkennung',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-risikomanagement-verfahren', art: 'unterprozess' },
+        { ziel: 'hd-t-krisenmanagement', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-krisenmanagement', band: 'ueberwachung', name: 'Krisenmanagement',
+      unter: '' },
+    { id: 'hd-tagesgesch', band: 'toechter', name: 'Operative Tagesgeschäftsführung',
+      unter: 'Die Kernprozesse der Gesellschaften – als Kette vom Markt bis zum Versand',
+      verweise: [
+        { ziel: 'hd-t-markt-u-geschaeftsentwickl', art: 'unterprozess' },
+        { ziel: 'hd-t-engineering-u-produktentwi', art: 'unterprozess' },
+        { ziel: 'hd-t-vertrieb-u-angebotsmanagem', art: 'unterprozess' },
+        { ziel: 'hd-t-auftragsabwicklung-u-produ', art: 'unterprozess' },
+        { ziel: 'hd-t-produktion-u-wertschoepfun', art: 'unterprozess' },
+        { ziel: 'hd-t-qualitaetssicherung', art: 'unterprozess' },
+        { ziel: 'hd-t-versand-u-logistik', art: 'unterprozess' },
+      ] },
+    { id: 'hd-t-markt-u-geschaeftsentwickl', band: 'toechter', name: 'Markt- u. Geschäftsentwicklung',
+      unter: 'Marktanalyse · Zielmärkte · Kundenentwicklung · Business Development',
+      verweise: [
+        { ziel: 'hd-t-engineering-u-produktentwi', art: 'folgt' },
+      ] },
+    { id: 'hd-t-engineering-u-produktentwi', band: 'toechter', name: 'Engineering & Produktentwicklung',
+      unter: 'Kundenanforderungen · Konstruktion (perspektivisch) · Gießsimulation + Prozessentwicklung · Kalkulation',
+      verweise: [
+        { ziel: 'hd-t-vertrieb-u-angebotsmanagem', art: 'folgt' },
+      ] },
+    { id: 'hd-t-vertrieb-u-angebotsmanagem', band: 'toechter', name: 'Vertrieb & Angebotsmanagement',
+      unter: 'Anfrage · Angebot · Verhandlung · Auftrag',
+      verweise: [
+        { ziel: 'hd-t-auftragsabwicklung-u-produ', art: 'folgt' },
+      ] },
+    { id: 'hd-t-auftragsabwicklung-u-produ', band: 'toechter', name: 'Auftragsabwicklung & Produktionsplanung',
+      unter: 'Produktionsplanung · Kapazitätsplanung · Materialplanung · Terminplanung',
+      verweise: [
+        { ziel: 'hd-t-produktion-u-wertschoepfun', art: 'folgt' },
+      ] },
+    { id: 'hd-t-produktion-u-wertschoepfun', band: 'toechter', name: 'Produktion & Wertschöpfung',
+      unter: 'Modellbereitstellung · Kerne fertigen · Formen · Schmelzen & Gießen · Putzen · Wärmebehandlung · Bearbeitung',
+      verweise: [
+        { ziel: 'hd-t-qualitaetssicherung', art: 'folgt' },
+      ] },
+    { id: 'hd-t-qualitaetssicherung', band: 'toechter', name: 'Qualitätssicherung',
+      unter: 'Prüfung · Qualitätsplanung · Reklamationsmanagement · 8D · Kundenfreigaben',
+      verweise: [
+        { ziel: 'hd-t-versand-u-logistik', art: 'folgt' },
+      ] },
+    { id: 'hd-t-versand-u-logistik', band: 'toechter', name: 'Versand & Logistik',
+      unter: '' },
+    { id: 'hd-ergebnis', band: 'toechter', name: 'Ergebnisverantwortung',
+      unter: '' },
+    { id: 'hd-umsetzung', band: 'toechter', name: 'Umsetzung der Konzernstrategie',
+      unter: '',
+      verweise: [
+        { ziel: 'hd-t-best-practice-transfer', art: 'unterprozess' },
+      ] },
   ],
 };
-
 /**
  * Die abgestimmte Konzern-Prozesslandkarte – Führung, Kernprozesse,
  * Unterstützungsprozesse mit den Teilprozessen je Kachel. Das ist der ganze
@@ -1399,6 +1665,8 @@ function renderLandkarte() {
           : 'Teilprozesse wieder unter ihren Hauptprozessen einordnen'}">${
           _lkNurHaupt ? '☰ Teilprozesse' : '☰ nur Hauptprozesse'}</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageDialog()" title="Fertige Prozesslandschaft einsetzen">📋 Vorlage</button>` : ''}
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkBandDialog('')"
+        title="Einen weiteren Bereich anlegen">+ Bereich</button>` : ''}
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
     ${_lkTrefferHtml()}
@@ -1444,10 +1712,18 @@ function _lkZeileHtml(band, nr, schreiben) {
   const idx = _lkNurHaupt ? imBand.filter(x => !lkIstTeilprozess(_lkWerk, x.k)) : imBand;
   const eingeordnet = imBand.length - idx.length;
   const farbe = LK_FARBEN[nr % LK_FARBEN.length];
-  const titel = `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${idx.length} ${
-    idx.length === 1 ? 'Prozess' : 'Prozesse'}${eingeordnet
-      ? ` · ${eingeordnet} eingeordnet` : ''}</i></div>`;
-  if (band.key === 'kern') {
+  const zahl = `${idx.length} ${idx.length === 1 ? 'Prozess' : 'Prozesse'}${
+    eingeordnet ? ` · ${eingeordnet} eingeordnet` : ''}`;
+  // Der Balken ist eine Schaltfläche, sobald man schreiben darf – ein Bereich
+  // soll sich dort ändern lassen, wo er steht, nicht in einem fernen Menü.
+  const titel = schreiben
+    ? `<div class="lk-zeile-titel lk-zeile-titel-klick" role="button" tabindex="0"
+         title="Bereich „${esc(band.titel)}" bearbeiten"
+         onclick="lkBandDialog('${esc(band.key)}')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
+       ><span>${esc(band.titel)}</span><i>${zahl}</i></div>`
+    : `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${zahl}</i></div>`;
+  if (lkBandPfeile(band)) {
     return `<div class="lk-zeile lk-zeile-kern" style="--lk-c:${farbe}">
         ${titel}
         <div class="lk-kern-pfeile" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'kern',-1)">
@@ -1581,9 +1857,19 @@ function lkVorlageDialog() {
               v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}</span></span>
           </label>`).join('')}
       </div>
-      ${vorhanden ? `<div class="col-warning" style="display:block">Achtung: Die vorhandene Landkarte von
-        ${esc(lkWerkLabel(_lkWerk))} mit ${vorhanden} Prozess(en) wird dabei <b>ersetzt</b>. Der Schritt steht
-        anschließend im Verlauf.</div>` : ''}
+      ${vorhanden ? `<div class="form-group full" style="margin-top:6px">
+        <label>Was soll mit den vorhandenen ${vorhanden} Prozess(en) geschehen?</label>
+        <label class="ack-check" style="font-weight:500;align-items:flex-start">
+          <input type="radio" name="lk-vorlage-modus" value="ergaenzen" checked>
+          <span><b>Ergänzen</b> – nur anlegen, was fehlt. Vorhandene Prozesse bleiben mit
+            Verantwortlichen, Modellen, Regelwerken und Geltungsbereich unangetastet; ihnen werden
+            nur die fehlenden Verweise angehängt.</span></label>
+        <label class="ack-check" style="font-weight:500;align-items:flex-start">
+          <input type="radio" name="lk-vorlage-modus" value="ersetzen">
+          <span><b>Ersetzen</b> – die Landkarte von ${esc(lkWerkLabel(_lkWerk))} wird verworfen und
+            durch die Vorlage ersetzt. Alles daran Gepflegte geht verloren.</span></label>
+        <span class="field-hint">Beide Schritte stehen anschließend im Verlauf.</span>
+      </div>` : ''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
@@ -1597,7 +1883,11 @@ async function lkVorlageAnwenden() {
   const vorlage = LK_VORLAGEN.find(v => v.key === (wahl && wahl.value));
   if (!vorlage) return;
   const ziel = lkKarte(_lkWerk);
+  const modus = (document.querySelector('input[name="lk-vorlage-modus"]:checked') || {}).value;
   const kopie = JSON.parse(JSON.stringify(vorlage.karte));
+  if (modus === 'ergaenzen' && Array.isArray(ziel.kacheln) && ziel.kacheln.length) {
+    return _lkVorlageErgaenzen(vorlage, kopie, ziel);
+  }
   ziel.baender = kopie.baender;
   // Der Geltungsbereich richtet sich nach der Ebene: Konzernprozesse gelten
   // konzernweit, die einer Gesellschaft zunächst dort.
@@ -1615,6 +1905,61 @@ async function lkVorlageAnwenden() {
   closeModal();
   await lkSpeichern(`Vorlage „${vorlage.titel}" eingesetzt ✓`,
     `Vorlage „${vorlage.titel}" für ${lkWerkLabel(_lkWerk)} eingesetzt (${ziel.kacheln.length} Prozesse)`);
+}
+
+/**
+ * Eine Vorlage ergänzen statt ersetzen.
+ *
+ * Was schon da ist, bleibt genau so, wie es ist – mit Verantwortlichen,
+ * Modellen, Regelwerken und Geltungsbereich. Angelegt wird nur, was fehlt;
+ * einer vorhandenen Kachel werden nur die Verweise angehängt, die sie noch
+ * nicht hat. Ohne diesen Weg müsste man eine gepflegte Landkarte wegwerfen,
+ * bloß um die Unterprozesse einer Vorlage zu bekommen.
+ */
+async function _lkVorlageErgaenzen(vorlage, kopie, ziel) {
+  if (!Array.isArray(ziel.baender)) ziel.baender = [];
+  let neueBaender = 0;
+  (kopie.baender || []).forEach(b => {
+    if (!ziel.baender.some(x => x.key === b.key)) { ziel.baender.push(b); neueBaender++; }
+  });
+
+  const vorhanden = new Map(ziel.kacheln.map(k => [String(k.id), k]));
+  let neu = 0, verweiseNeu = 0;
+  (kopie.kacheln || []).forEach(k => {
+    const da = vorhanden.get(String(k.id));
+    if (!da) {
+      // Neu: Geltungsbereich wie bei einer frisch angelegten Kachel setzen.
+      ziel.kacheln.push(Object.assign(k, {
+        geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk],
+        prozesse: [], regelwerke: [],
+        verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk),
+      }));
+      vorhanden.set(String(k.id), k);
+      neu++;
+      return;
+    }
+    // Vorhanden: nichts überschreiben, nur fehlende Verweise anhängen.
+    if (!Array.isArray(da.verweise)) da.verweise = [];
+    (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk).forEach(v => {
+      if (!da.verweise.some(x => x.ziel === v.ziel && x.art === v.art)) {
+        da.verweise.push(v); verweiseNeu++;
+      }
+    });
+  });
+
+  closeModal();
+  const teile = [];
+  if (neu) teile.push(`${neu} Prozess(e)`);
+  if (verweiseNeu) teile.push(`${verweiseNeu} Verweis(e)`);
+  if (neueBaender) teile.push(`${neueBaender} Bereich(e)`);
+  if (!teile.length) { toast('Nichts zu ergänzen – die Vorlage steckt schon vollständig in der Karte.'); return; }
+  await lkSpeichern(`Vorlage „${vorlage.titel}" ergänzt ✓`,
+    `Vorlage „${vorlage.titel}" für ${lkWerkLabel(_lkWerk)} ergänzt (${teile.join(', ')})`);
+}
+
+/** Ein Verweisziel aus einer Vorlage bekommt das Werk, in das sie eingesetzt wird. */
+function _lkZielMitWerk(v) {
+  return { art: v.art, ziel: String(v.ziel).includes(':') ? v.ziel : lkZielSchluessel(_lkWerk, v.ziel) };
 }
 
 function lkUebernehmenDialog() {
@@ -2326,6 +2671,166 @@ async function lkModellLoesen(id, itemId) {
 }
 
 /* ── Kacheln bearbeiten ──────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════
+   Bereiche (Bänder) bearbeiten
+   ═══════════════════════════════════════════════════
+   Jede Kachel liess sich anlegen, umbenennen und verschieben – die Bereiche
+   kamen aus der Vorlage und blieben, wie sie waren. Wer einen anders nennen
+   oder einen neuen aufmachen wollte, kam nicht weiter.
+
+   Der Schlüssel eines Bereichs ändert sich beim Umbenennen NIE: An ihm hängt
+   jede Kachel über `k.band`. Ein neuer Schlüssel liesse sie alle aus der Karte
+   fallen – sie stünden dann in einem Band, das es nicht mehr gibt. */
+
+/** Trägt dieser Bereich Pfeile statt Kacheln?
+ *  Die Form war bisher an den Schlüssel „kern" gebunden – Zufall, kein Entwurf:
+ *  Ein selbst angelegter Bereich konnte sie nicht bekommen. Jetzt ist sie eine
+ *  Eigenschaft, der alte Schlüssel gilt weiter als Vorgabe. */
+function lkBandPfeile(band) {
+  if (!band) return false;
+  return band.form ? band.form === 'pfeile' : band.key === 'kern';
+}
+
+/** Ein freier Schlüssel für einen neuen Bereich – aus dem Titel, nie doppelt. */
+function lkBandSchluessel(titel) {
+  const roh = String(titel || '').toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'bereich';
+  const belegt = new Set(lkBaender().map(b => b.key));
+  if (!belegt.has(roh)) return roh;
+  for (let i = 2; i < 99; i++) if (!belegt.has(roh + '-' + i)) return roh + '-' + i;
+  return roh + '-' + Date.now();
+}
+
+/** Wie viele Prozesse liegen in diesem Bereich? */
+function lkBandBelegung(key) { return lkKacheln().filter(k => k.band === key).length; }
+
+/**
+ * Bereich anlegen oder ändern. Ohne Schlüssel ist es ein neuer.
+ */
+function lkBandDialog(key) {
+  if (!lkDarfSchreiben()) return;
+  const baender = lkBaender();
+  const b = key ? baender.find(x => x.key === key) : null;
+  if (key && !b) return;
+  const i = b ? baender.indexOf(b) : -1;
+  const belegt = b ? lkBandBelegung(b.key) : 0;
+  const andere = baender.filter(x => x !== b);
+
+  openModal(`
+    <div class="modal-header"><h3>${b ? 'Bereich bearbeiten' : 'Neuer Bereich'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group full"><label>Name <span class="req">*</span></label>
+        <input type="text" id="lk-band-titel" value="${esc(b ? b.titel : '')}"
+          placeholder="z. B. Überwachung" onkeydown="if(event.key==='Enter')lkBandSpeichern('${esc(key || '')}')">
+        <span class="field-hint">Der Name lässt sich jederzeit ändern; die Zuordnung der Prozesse
+          bleibt dabei erhalten.</span></div>
+      <div class="form-group full"><label>Darstellung</label>
+        <select id="lk-band-form">
+          <option value="kacheln"${b && lkBandPfeile(b) ? '' : ' selected'}>Kacheln nebeneinander</option>
+          <option value="pfeile"${b && lkBandPfeile(b) ? ' selected' : ''}>Pfeile untereinander (Kernprozesse)</option>
+        </select>
+        <span class="field-hint">Pfeile zeigen einen Ablauf – dafür sind die Kernprozesse gedacht.</span></div>
+      ${b ? `<div class="form-group full"><label>Reihenfolge</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-outline btn-sm" ${i <= 0 ? 'disabled' : ''}
+            onclick="lkBandVerschieben('${esc(b.key)}',-1)">↑ nach oben</button>
+          <button class="btn btn-outline btn-sm" ${i >= baender.length - 1 ? 'disabled' : ''}
+            onclick="lkBandVerschieben('${esc(b.key)}',1)">↓ nach unten</button>
+          <span class="field-hint">Platz ${i + 1} von ${baender.length}</span>
+        </div></div>` : ''}
+      ${b ? `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Bereich entfernen</div>
+        ${andere.length === 0
+          ? '<div class="field-hint">Der letzte Bereich lässt sich nicht entfernen – die Karte hätte dann keinen Platz mehr für einen Prozess.</div>'
+          : belegt
+            ? `<div class="field-hint" style="margin-bottom:6px">Hier liegen <b>${belegt} Prozess(e)</b>.
+                 Sie werden nicht gelöscht, sondern verschoben – wohin, entscheiden Sie:</div>
+               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                 <select id="lk-band-ziel" class="form-control" style="width:auto;min-width:180px">
+                   ${andere.map(x => `<option value="${esc(x.key)}">${esc(x.titel)}</option>`).join('')}
+                 </select>
+                 <button class="btn btn-outline btn-sm" style="color:#b91c1c"
+                   onclick="lkBandLoeschen('${esc(b.key)}')">Verschieben und entfernen</button>
+               </div>`
+            : `<button class="btn btn-outline btn-sm" style="color:#b91c1c"
+                 onclick="lkBandLoeschen('${esc(b.key)}')">Bereich entfernen</button>`}
+      </div>` : ''}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkBandSpeichern('${esc(key || '')}')">Speichern</button>
+    </div>`);
+  const el = document.getElementById('lk-band-titel');
+  if (el && el.focus) el.focus();
+}
+
+async function lkBandSpeichern(key) {
+  if (!lkDarfSchreiben()) return;
+  const titel = ((document.getElementById('lk-band-titel') || {}).value || '').trim();
+  if (!titel) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const form = ((document.getElementById('lk-band-form') || {}).value === 'pfeile') ? 'pfeile' : 'kacheln';
+  const karte = lkKarte(_lkWerk);
+  if (!Array.isArray(karte.baender) || !karte.baender.length) {
+    karte.baender = JSON.parse(JSON.stringify(lkBaender()));
+  }
+  const b = key ? karte.baender.find(x => x.key === key) : null;
+  if (key && !b) return;
+
+  if (b) {
+    const alt = b.titel;
+    b.titel = titel;                 // der Schlüssel bleibt – daran hängen die Kacheln
+    b.form = form;
+    closeModal();
+    await lkSpeichern('Bereich gespeichert ✓', alt === titel
+      ? `Darstellung von „${titel}" geändert`
+      : `Bereich „${alt}" heißt jetzt „${titel}"`);
+    return;
+  }
+  karte.baender.push({ key: lkBandSchluessel(titel), titel, form });
+  closeModal();
+  await lkSpeichern(`Bereich „${titel}" angelegt ✓`, `Bereich „${titel}" angelegt`);
+}
+
+async function lkBandVerschieben(key, richtung) {
+  if (!lkDarfSchreiben()) return;
+  const karte = lkKarte(_lkWerk);
+  if (!Array.isArray(karte.baender) || !karte.baender.length) {
+    karte.baender = JSON.parse(JSON.stringify(lkBaender()));
+  }
+  const i = karte.baender.findIndex(x => x.key === key);
+  const j = i + richtung;
+  if (i < 0 || j < 0 || j >= karte.baender.length) return;
+  const [b] = karte.baender.splice(i, 1);
+  karte.baender.splice(j, 0, b);
+  closeModal();
+  await lkSpeichern('Reihenfolge geändert ✓', `Bereich „${b.titel}" auf Platz ${j + 1} verschoben`);
+}
+
+/**
+ * Bereich entfernen. Prozesse darin werden VERSCHOBEN, nicht gelöscht – was mit
+ * ihnen geschieht, entscheidet nicht das Programm.
+ */
+async function lkBandLoeschen(key) {
+  if (!lkDarfSchreiben()) return;
+  const karte = lkKarte(_lkWerk);
+  const baender = Array.isArray(karte.baender) && karte.baender.length
+    ? karte.baender : (karte.baender = JSON.parse(JSON.stringify(lkBaender())));
+  const b = baender.find(x => x.key === key);
+  if (!b || baender.length < 2) return;
+  const ziel = ((document.getElementById('lk-band-ziel') || {}).value)
+    || (baender.find(x => x.key !== key) || {}).key;
+  const betroffen = (karte.kacheln || []).filter(k => k.band === key);
+  betroffen.forEach(k => { k.band = ziel; });
+  baender.splice(baender.indexOf(b), 1);
+  closeModal();
+  const zielTitel = (baender.find(x => x.key === ziel) || {}).titel || ziel;
+  await lkSpeichern(`Bereich „${b.titel}" entfernt ✓`, betroffen.length
+    ? `Bereich „${b.titel}" entfernt, ${betroffen.length} Prozess(e) nach „${zielTitel}" verschoben`
+    : `Bereich „${b.titel}" entfernt`);
+}
 
 function lkKachelNeu(band) {
   if (!lkDarfSchreiben()) return;

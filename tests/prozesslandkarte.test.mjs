@@ -159,8 +159,13 @@ ok(/Führungsprozesse/.test(html) && /Unterstützungsprozesse/.test(html),
   'Führungs- und Unterstützungsband werden gezeichnet');
 ok(/lk-zeile lk-zeile-kern/.test(html) && (html.match(/class="lk-pfeil["\s]/g) || []).length === 3,
   'Die Kernprozesse behalten ihre Pfeilform');
-ok((html.match(/class="lk-zeile-titel"/g) || []).length === 3,
+ok((html.match(/class="lk-zeile-titel[" ]/g) || []).length === 3,
   'Je Band eine Zeile mit Titelspalte – nicht mehr drei fest verdrahtete Bänder');
+/* Der Balken ist eine Schaltflaeche, sobald man schreiben darf: Ein Bereich soll
+   sich dort aendern lassen, wo er steht, nicht in einem fernen Menue. */
+ok((html.match(/lk-zeile-titel-klick/g) || []).length === 3
+  && /onclick="lkBandDialog\('fuehrung'\)"/.test(html),
+  'Mit Schreibrecht ist jeder Bereichsbalken anklickbar');
 ok(!/lk-ergebnis-zeile/.test(html), 'Ohne Ergebnisspalte – die Kernprozesse stehen für sich');
 ok(/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(html)
   && !/grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/.test(html),
@@ -395,7 +400,7 @@ ctx.document.querySelector = () => null;
    Vorher standen drei Bänder fest im Renderer; die Konzernebene hat sechs. */
 w("renderLandkarte();");
 const kHtml6 = mount.innerHTML;
-ok((kHtml6.match(/class="lk-zeile-titel"/g) || []).length === 6,
+ok((kHtml6.match(/class="lk-zeile-titel[" ]/g) || []).length === 6,
   'Sechs Bereiche werden gezeichnet – nicht mehr drei feste Bänder');
 ok(/Risiko & Compliance|Risiko &amp; Compliance/.test(kHtml6), 'Auch Bänder, die es im Startbestand nie gab');
 ok(!/Ergebnisse/.test(kHtml6), 'Und keine Ergebniszeile mehr');

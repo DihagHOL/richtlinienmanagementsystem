@@ -64,6 +64,8 @@ const FEATURES = [
   { name: 'Geteilte Unterprozesse',  code: () => /function lkHauptprozesseVon/.test(read('js/landkarte.js')),   begriffe: ['einmal gepflegt', 'Eine Änderung hier wirkt in allen'] },
   { name: 'Gliederung ausklappbar',  code: () => /function _lkUnterbaumHtml/.test(read('js/landkarte.js')),     begriffe: ['Ausklappbare Gliederung', 'Kreise', 'eingeordnet'] },
   { name: 'Werks-Landkarten',        code: () => /const LK_WGC/.test(read('js/landkarte.js')),                  begriffe: ['Coswig (WGC)', 'Zaigler (ZAI)', 'Schmiedeberg (SCH)'] },
+  { name: 'Bereiche bearbeiten',     code: () => /function lkBandDialog/.test(read('js/landkarte.js')),         begriffe: ['Bereiche bearbeiten und anlegen', 'verschoben, nicht gelöscht'] },
+  { name: 'Vorlage ergänzen',        code: () => /function _lkVorlageErgaenzen/.test(read('js/landkarte.js')),  begriffe: ['Vorlage ergänzen statt ersetzen', 'Ergänzen'] },
 ];
 
 for (const f of FEATURES) {
