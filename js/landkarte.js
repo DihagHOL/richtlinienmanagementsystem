@@ -2324,6 +2324,131 @@ function _lkUnterbaumHtml(werk, k, pfad) {
   }).join('')}</div>`;
 }
 
+/* ═══════════════════════════════════════════════════
+   Den Untertitel gliedern
+   ═══════════════════════════════════════════════════
+   Unter dem Namen einer Kachel steht oft eine Aufzählung: „Marktanalyse ·
+   Zielmärkte · Kundenentwicklung". Als grauer Text kann man sie nicht
+   anklicken, nicht mit einem Modell verknüpfen, nicht zweimal verwenden und
+   nicht aufklappen – sie ist Beschriftung, keine Struktur.
+
+   Zerlegt wird deshalb auf Wunsch: Der Vorschlag kommt von der Maschine, die
+   Entscheidung vom Menschen. Automatisch zu zerlegen wäre falsch – „Mittel
+   verteilen, Investitionen entscheiden" sind zwei Prozesse, „Lean, Operational
+   Excellence, KVP" ist einer. Das sieht man, ein Trennzeichen nicht. */
+
+/**
+ * Vorschlag, wie ein Untertitel zu zerlegen wäre.
+ *
+ * Steht ein „·" darin, ist das ein deutliches Zeichen – dann wird nur daran
+ * getrennt. Sonst an Semikolon, Zeilenumbruch und Komma; das Komma ist der
+ * unsicherste Fall, deshalb kommt es zuletzt und der Dialog zeigt das Ergebnis.
+ */
+function lkUnterTeile(text) {
+  const s = String(text || '').trim();
+  if (!s) return [];
+  const roh = s.includes('·') ? s.split('·') : s.split(/[;\n]|,\s+/);
+  return roh.map(x => x.trim().replace(/[.;,]+$/, '').trim()).filter(Boolean);
+}
+
+/** Lohnt sich das Gliedern überhaupt? Ein einzelner Satz ist keine Aufzählung. */
+function lkUnterGliederbar(k) {
+  return lkUnterTeile(k && k.unter).length > 1;
+}
+
+/** Eine Kachel desselben Werks mit diesem Namen – Groß-/Kleinschreibung egal. */
+function lkKachelVonName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  return lkKacheln().find(k => String(k.name || '').trim().toLowerCase() === n) || null;
+}
+
+/** Freie Kennung für einen neuen Prozess, aus seinem Namen. */
+function lkFreieKachelId(name) {
+  const roh = String(name || '').toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'prozess';
+  const belegt = new Set(lkKacheln().map(k => String(k.id)));
+  if (!belegt.has(roh)) return roh;
+  for (let i = 2; i < 999; i++) if (!belegt.has(roh + '-' + i)) return roh + '-' + i;
+  return roh + '-' + Date.now();
+}
+
+function lkGliedernDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const teile = lkUnterTeile(k.unter);
+  if (!teile.length) { toast('Diese Kachel hat keinen Untertitel zum Gliedern.'); return; }
+  const schon = teile.filter(t => lkKachelVonName(t));
+
+  openModal(`
+    <div class="modal-header"><h3>Untertitel gliedern: ${esc(k.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Aus jeder Zeile wird ein <b>Unterprozess</b> von
+        „${esc(k.name)}" – eine eigene Kachel, die sich anklicken, mit einem Modell verknüpfen und
+        aufklappen lässt. Bitte prüfen und ändern Sie den Vorschlag: Ein Trennzeichen weiß nicht,
+        ob „Mittel verteilen, Investitionen entscheiden" zwei Prozesse sind oder einer.</p>
+      <div class="form-group full"><label>Ein Prozess je Zeile</label>
+        <textarea id="lk-gliedern-text" rows="${Math.min(14, Math.max(4, teile.length + 1))}"
+          style="width:100%;font-family:inherit">${esc(teile.join('\n'))}</textarea></div>
+      ${schon.length ? `<div class="col-warning" style="display:block">${schon.length} davon
+        ${schon.length === 1 ? 'gibt es' : 'gibt es'} in dieser Landkarte schon
+        (${esc(schon.join(', '))}). ${schon.length === 1 ? 'Er wird' : 'Sie werden'}
+        <b>verwendet statt neu angelegt</b> – ein Prozess wird einmal gepflegt und darf zu mehreren
+        Hauptprozessen gehören.</div>` : ''}
+      <label class="ack-check" style="font-weight:500">
+        <input type="checkbox" id="lk-gliedern-leeren" checked>
+        <span>Untertitel danach leeren – die Punkte stehen dann als Unterprozesse darunter</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkGliedernUebernehmen('${esc(k.id)}')">Gliedern</button>
+    </div>`);
+}
+
+async function lkGliedernUebernehmen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const text = (document.getElementById('lk-gliedern-text') || {}).value || '';
+  const leeren = !!(document.getElementById('lk-gliedern-leeren') || {}).checked;
+  const namen = text.split('\n').map(x => x.trim()).filter(Boolean);
+  if (!namen.length) { toast('Bitte mindestens einen Prozess angeben.', 'error'); return; }
+
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  let neu = 0, verwendet = 0;
+  namen.forEach(name => {
+    if (name.toLowerCase() === String(k.name || '').toLowerCase()) return;   // nicht sich selbst
+    let ziel = lkKachelVonName(name);
+    if (ziel) verwendet++;
+    else {
+      ziel = {
+        id: lkFreieKachelId(name), band: k.band, name, unter: '',
+        // Der Geltungsbereich des Hauptprozesses gilt auch für seine Teile –
+        // alles andere wäre geraten.
+        geltung: Array.isArray(k.geltung) ? k.geltung.slice() : [],
+        prozesse: [], regelwerke: [], verweise: [],
+      };
+      lkKacheln().push(ziel);
+      neu++;
+    }
+    const schluessel = lkZielSchluessel(_lkWerk, ziel.id);
+    if (!k.verweise.some(v => v.ziel === schluessel && v.art === 'unterprozess')) {
+      k.verweise.push({ ziel: schluessel, art: 'unterprozess' });
+    }
+  });
+  if (leeren) k.unter = '';
+
+  closeModal();
+  const teile = [];
+  if (neu) teile.push(`${neu} angelegt`);
+  if (verwendet) teile.push(`${verwendet} vorhandene verwendet`);
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));   // gleich zeigen, was entstanden ist
+  await lkSpeichern(`„${k.name}" gegliedert ✓`,
+    `„${k.name}" gegliedert: ${namen.length} Unterprozess(e)${teile.length ? ' (' + teile.join(', ') + ')' : ''}`);
+  lkKachelOeffnen(k.id);
+}
+
 function lkKachelOeffnen(id) {
   const k = lkKachelVonId(id);
   if (!k) return;
@@ -2488,7 +2613,11 @@ function _lkVerweiseHtml(werk, k) {
       ${geteilt}
       ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise – Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
       ${zurueck}
-      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')" style="margin-top:8px">Verweise pflegen</button>` : ''}
+      ${schreiben ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')">Verweise pflegen</button>
+        ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog('${esc(k.id)}')"
+          title="Die Aufzählung im Untertitel in Unterprozesse zerlegen">↳ Untertitel gliedern</button>` : ''}
+      </div>` : ''}
     </div>`;
 }
 

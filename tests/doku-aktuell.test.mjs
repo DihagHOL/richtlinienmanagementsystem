@@ -66,6 +66,7 @@ const FEATURES = [
   { name: 'Werks-Landkarten',        code: () => /const LK_WGC/.test(read('js/landkarte.js')),                  begriffe: ['Coswig (WGC)', 'Zaigler (ZAI)', 'Schmiedeberg (SCH)'] },
   { name: 'Bereiche bearbeiten',     code: () => /function lkBandDialog/.test(read('js/landkarte.js')),         begriffe: ['Bereiche bearbeiten und anlegen', 'verschoben, nicht gelöscht'] },
   { name: 'Vorlage ergänzen',        code: () => /function _lkVorlageErgaenzen/.test(read('js/landkarte.js')),  begriffe: ['Vorlage ergänzen statt ersetzen', 'Ergänzen'] },
+  { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
 ];
 
 for (const f of FEATURES) {
