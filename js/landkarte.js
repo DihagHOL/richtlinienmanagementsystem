@@ -1670,8 +1670,12 @@ function renderLandkarte() {
       ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
     </div>
     ${_lkTrefferHtml()}
-    ${_lkFilter ? `<div class="field-hint" style="margin:0 0 10px">Prozesse, die am Standort <b>${esc(_lkFilter)}</b>
-      nicht gelten, sind ausgegraut – die Landschaft bleibt dadurch vergleichbar.</div>` : ''}
+    ${_lkFilter ? `<div class="col-warning" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px">
+      <span style="flex:1;min-width:220px">Der Filter steht auf <b>${esc(_lkFilter)}</b>: Prozesse, die dort
+        nicht gelten, sind <b>ausgegraut</b> – die Landschaft bleibt dadurch vergleichbar.
+        ${_lkAusgegraut()} von ${lkKacheln().length} Prozessen sind es gerade.</span>
+      <button class="btn btn-outline btn-sm" onclick="lkSetFilter('')">Filter aufheben</button>
+    </div>` : ''}
     ${kacheln.length ? _lkKarteHtml(schreiben) : _lkLeerHtml(schreiben, belegt)}
     <div class="lk-legende">
       <span><i class="lk-punkt lk-punkt-modell"></i> Modell hinterlegt</span>
@@ -1768,12 +1772,25 @@ function _lkTastatur(id) {
   return ` role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();lkKachelOeffnen('${esc(id)}')}"`;
 }
 
+/** Wie viele Prozesse der offenen Karte der Filter gerade ausgraut? */
+function _lkAusgegraut() {
+  return _lkFilter ? lkKacheln().filter(k => !lkGiltDort(k, _lkFilter)).length : 0;
+}
+
+/** Der Titel einer Kachel – bei einer ausgegrauten steht dort der Grund.
+ *  Nur ihr Name zu zeigen, hilft genau dann nicht, wenn man ihn braucht. */
+function _lkKachelTitel(k, aus) {
+  if (!aus) return k.name;
+  const g = (Array.isArray(k.geltung) ? k.geltung : []).join(', ');
+  return `${k.name} – gilt nicht am Standort ${_lkFilter}` + (g ? ` (sondern: ${g})` : '');
+}
+
 function _lkKachelHtml(k, i, band, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
   const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
   return `<div class="lk-kachel${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(k.name)}">
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))}">
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
@@ -1792,7 +1809,7 @@ function _lkPfeilHtml(k, i, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
   return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(k.name)}">
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))}">
       ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
@@ -1828,7 +1845,12 @@ function lkSetWerk(w) {
 
 /** Werk wechseln, ohne die Ansicht zu wechseln – etwa aus der Mindmap heraus. */
 function lkWerkSetzenStill(w) {
-  _lkWerk = lkWerkeSichtbar().includes(w) ? w : _lkWerk;
+  const neu = lkWerkeSichtbar().includes(w) ? w : _lkWerk;
+  // Der Standort-Filter gehört zur Karte, die man ansieht. Blieb er beim
+  // Wechsel stehen, öffnete sich die nächste Karte grau – und niemand brachte
+  // das mit einem Filter in Verbindung, den er auf einer anderen gesetzt hatte.
+  if (neu !== _lkWerk) _lkFilter = '';
+  _lkWerk = neu;
 }
 
 /**

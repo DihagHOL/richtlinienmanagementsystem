@@ -176,8 +176,25 @@ ok(/2<\/b> von <b>17/.test(html), 'Und oben steht, wie viele Prozesse modelliert
 w("_lkFilter = 'SHB'; lkKachelVonId('instandhaltung').geltung = ['HOL']; renderLandkarte();");
 html = mount.innerHTML;
 ok((html.match(/lk-aus/g) || []).length === 1, 'Mit Standortfilter wird ausgegraut, was dort nicht gilt');
-ok(/nicht gelten, sind ausgegraut/.test(html), 'Ausgegraut statt ausgeblendet – die Landschaft bleibt vergleichbar');
-w("_lkFilter = '';");
+ok(/nicht gelten, sind <b>ausgegraut<\/b>/.test(html),
+  'Ausgegraut statt ausgeblendet – die Landschaft bleibt vergleichbar');
+
+/* Grau kann in der Karte nur eine Ursache haben: diesen Filter. Wer das nicht
+   weiss, sucht den Fehler bei den Daten – deshalb muss es dranstehen. */
+ok(/Der Filter steht auf <b>SHB<\/b>/.test(html) && /1 von 17 Prozessen/.test(html),
+  'Der Hinweis nennt den Filter und zählt, wie viele er gerade ausgraut');
+ok(/onclick="lkSetFilter\(''\)"/.test(html), 'Und lässt sich mit einem Klick aufheben');
+ok(/gilt nicht am Standort SHB \(sondern: HOL\)/.test(html),
+  'Die ausgegraute Kachel sagt selbst, warum – ihr Name allein hilft genau dann nicht');
+
+/* Der Filter gehört zur Karte, die man ansieht. Blieb er beim Werkwechsel
+   stehen, öffnete sich die nächste Karte grau – und niemand brachte das mit
+   einem Filter in Verbindung, den er auf einer anderen gesetzt hatte. */
+w("lkSetWerk('SHB');");
+ok(w('_lkFilter') === '', 'Ein Werkwechsel hebt den Standort-Filter auf');
+w("lkSetWerk('HOL'); _lkFilter = 'SHB'; lkWerkSetzenStill('HOL');");
+ok(w('_lkFilter') === 'SHB', 'Dasselbe Werk noch einmal zu wählen ändert nichts daran');
+w("_lkFilter = ''; lkKachelVonId('instandhaltung').geltung = ['ALLE'];");
 
 /* ── 5) Verschieben zwischen den Bändern ── */
 const bandVon = (id) => vm.runInContext(`lkKachelVonId(${JSON.stringify(id)}).band`, ctx);
