@@ -801,6 +801,82 @@ function kenntnisEskalationHtml(posten) {
     }
   } catch (e) { console.log('Ausnahmen-Digest übersprungen:', e.message); }
 
+
+  // ── Wirksamkeits-Digest: überfällige Maßnahmen, unvollständige Nachweise,
+  //    überfällige Managementbewertung (ISO 27001 9.2 / 9.3 / 10.2) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Wirksamkeits-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Wirksamkeit');
+      if (!liste) {
+        console.log('Wirksamkeits-Digest: Liste „Wirksamkeit" existiert (noch) nicht – übersprungen.');
+      } else {
+        const monate = posInt(cfg.bewertungAlleMonate, 12);
+        const heuteStr = new Date().toISOString().slice(0, 10);
+        const eintraege = await ismsItems(liste.id);
+        const rowsOut = [];
+        let letzteBewertung = '';
+
+        for (const f of eintraege) {
+          const titel = f.Title || '(ohne Titel)';
+          const art = f.Art || 'abweichung';
+          const status = f.WStatus || 'offen';
+          if (art === 'bewertung' && f.WDatum) {
+            const d = String(f.WDatum).slice(0, 10);
+            if (d > letzteBewertung) letzteBewertung = d;
+          }
+          if (status === 'verworfen') continue;
+
+          let ms = [];
+          try { ms = JSON.parse(f.MassnahmenJson || '[]'); } catch (e) { ms = []; }
+          for (const m of ms) {
+            if (m && m.status !== 'erledigt' && m.frist && String(m.frist).slice(0, 10) < heuteStr) {
+              rowsOut.push({ titel, was: `Maßnahme „${m.titel || '?'}" überfällig seit ${String(m.frist).slice(0, 10)}`,
+                wer: m.verantwortlich || f.Verantwortlich || '', rang: 0 });
+            }
+          }
+          // Der Schritt, der übersprungen wird: abgeschlossen, ohne dass jemand
+          // nachgesehen hat, ob die Maßnahme geholfen hat.
+          if (art === 'abweichung' && status === 'abgeschlossen' && !String(f.Wirksamkeit || '').trim()) {
+            rowsOut.push({ titel, was: 'abgeschlossen, aber ohne Wirksamkeitsbewertung (ISO 10.2)',
+              wer: f.Verantwortlich || '', rang: 1 });
+          }
+        }
+
+        // 9.3 verlangt die Bewertung „in geplanten Abständen". Ohne Aufzeichnung
+        // ist sie im Audit nicht vorhanden – deshalb hier ausdrücklich.
+        const grenze = new Date(Date.now() - monate * 30.44 * 86400000).toISOString().slice(0, 10);
+        if (!letzteBewertung) {
+          rowsOut.push({ titel: 'Managementbewertung', was: 'nie aufgezeichnet (ISO 9.3)', wer: '', rang: 0 });
+        } else if (letzteBewertung < grenze) {
+          rowsOut.push({ titel: 'Managementbewertung', was: `zuletzt am ${letzteBewertung} – länger als ${monate} Monate her`, wer: '', rang: 0 });
+        }
+
+        if (!rowsOut.length) {
+          console.log('Wirksamkeits-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Wirksamkeit &amp; Verbesserung: offene Punkte</b></p>
+            <p>Aus dem Register zu ISO&nbsp;27001 9.2 (internes Audit), 9.3 (Managementbewertung) und 10.2 (Korrekturmaßnahmen):</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=wirksamkeit" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Register öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Wirksamkeit: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Wirksamkeits-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Wirksamkeits-Digest übersprungen:', e.message); }
+
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
+
 
 })().catch((e) => { console.error('FEHLER:', e.message); process.exit(1); });

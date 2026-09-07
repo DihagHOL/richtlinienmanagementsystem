@@ -126,6 +126,27 @@ async function _clevelGather() {
     }
   } catch (e) { m.ausnahmen = null; m.fehler.push('Ausnahmen: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
 
+  // Wirksamkeit & Verbesserung (9.2 / 9.3 / 10.2)
+  try {
+    if (!_wirk && typeof spGetWirkLeise === 'function') _wirk = await spGetWirkLeise();
+    if (!Array.isArray(_wirk)) { m.wirksamkeit = null; }
+    else {
+      const alle = (typeof wirkSichtbare === 'function') ? wirkSichtbare() : _wirk;
+      const abw = alle.filter(w => w.art === 'abweichung');
+      const bew = alle.filter(w => w.art === 'bewertung').sort((a, b) => String(b.datum).localeCompare(String(a.datum)));
+      m.wirksamkeit = {
+        abwGesamt:  abw.length,
+        abwOffen:   abw.filter(w => w.status !== 'abgeschlossen' && w.status !== 'verworfen').length,
+        // Abgeschlossen, ohne dass jemand nachgesehen hat, ob es geholfen hat.
+        ohneWirksamkeit: abw.filter(w => w.status === 'abgeschlossen' && !String(w.wirksamkeit || '').trim()).length,
+        mUeber:     alle.reduce((s, w) => s + wirkUeberfaellig(w).length, 0),
+        audits:     alle.filter(w => w.art === 'audit').length,
+        letzteBewertung: bew[0] ? String(bew[0].datum).slice(0, 10) : '',
+        bewertungLuecken: bew[0] ? wirkAbschlussfehler(bew[0]).length : 0,
+      };
+    }
+  } catch (e) { m.wirksamkeit = null; m.fehler.push('Wirksamkeit: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
+
   // Reifegrad IT/OT
   try {
     let cfg = (_reifegrad && _reifegrad.ratings) ? _reifegrad : null;
@@ -209,6 +230,34 @@ function _clevelIsoRows(m) {
   } else add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'warn',
     'Ausnahmeregister nicht auswertbar – Abweichungen sind nicht nachweisbar dokumentiert.');
 
+  // Internes Audit (9.2) und Managementbewertung (9.3)
+  if (m.wirksamkeit) {
+    const w = m.wirksamkeit;
+    if (!w.audits) add('ISO 9.2', 'Internes Audit', 'gap', 'Kein internes Audit aufgezeichnet.');
+    else add('ISO 9.2', 'Internes Audit', 'ok', `${w.audits} internes Audit/Audits dokumentiert.`);
+
+    if (!w.letzteBewertung) add('ISO 9.3', 'Managementbewertung', 'gap', 'Keine Managementbewertung aufgezeichnet.');
+    else if (w.bewertungLuecken)
+      add('ISO 9.3', 'Managementbewertung', 'warn', `Zuletzt ${w.letzteBewertung}; ${w.bewertungLuecken} Pflichtangabe(n) fehlen.`);
+    else add('ISO 9.3', 'Managementbewertung', 'ok', `Zuletzt ${w.letzteBewertung}, vollständig belegt.`);
+
+    // 10.2 verlangt drei Schritte. Der dritte – nachsehen, ob es geholfen hat –
+    // ist der, der übersprungen wird; deshalb steht er hier als eigener Befund.
+    if (w.ohneWirksamkeit)
+      add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'gap',
+        `${w.ohneWirksamkeit} abgeschlossene Abweichung(en) ohne Wirksamkeitsbewertung.`);
+    else if (w.abwOffen || w.mUeber)
+      add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'warn',
+        `${w.abwOffen} offen${w.mUeber ? `, ${w.mUeber} Maßnahme(n) überfällig` : ''}.`);
+    else add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'ok',
+      w.abwGesamt ? `${w.abwGesamt} Abweichung(en) behandelt und auf Wirksamkeit bewertet.`
+                  : 'Keine Nichtkonformitäten erfasst.');
+  } else {
+    add('ISO 9.2', 'Internes Audit', 'warn', 'Register „Wirksamkeit" nicht auswertbar.');
+    add('ISO 9.3', 'Managementbewertung', 'warn', 'Register „Wirksamkeit" nicht auswertbar.');
+    add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'warn', 'Register „Wirksamkeit" nicht auswertbar.');
+  }
+
   // Überwachung / Reviews (Kap. 9)
   const revOver = (m.faellig ? m.faellig.overdue : 0) + (m.risiken ? m.risiken.revUeber : 0);
   add('ISO 9', 'Überwachung & Bewertung', revOver === 0 ? 'ok' : revOver <= 5 ? 'warn' : 'gap',
@@ -263,6 +312,7 @@ function _clevelReportHtml(m) {
       ${m.abdeckung ? _clTile(m.abdeckung.nis2Pct + '%', 'NIS2', m.abdeckung.nis2Pct >= 90 ? '#15803d' : '#b45309') : ''}
       ${m.risiken ? _clTile(m.risiken.hoch, 'hohe Risiken', m.risiken.hoch ? '#b91c1c' : '#15803d') : ''}
       ${m.ausnahmen ? _clTile(m.ausnahmen.abgelaufen, 'Ausnahmen abgelaufen', m.ausnahmen.abgelaufen ? '#b91c1c' : '#15803d') : ''}
+      ${m.wirksamkeit ? _clTile(m.wirksamkeit.abwOffen, 'Abweichungen offen', m.wirksamkeit.abwOffen ? '#b45309' : '#15803d') : ''}
       ${m.reifegrad ? _clTile(m.reifegrad.rot, 'IT/OT nicht gelebt', m.reifegrad.rot ? '#b91c1c' : '#15803d') : ''}
     </tr></table>`;
 
@@ -278,6 +328,7 @@ function _clevelReportHtml(m) {
   if (m.soa) details.push(`<b>SoA:</b> ${m.soa.gepflegt}/${m.soa.total} entschieden, ${m.soa.umgesetzt}/${m.soa.anwendbar} umgesetzt, ${m.soa.ausgeschlossen} ausgeschlossen`);
   if (m.risiken) details.push(`<b>Risiken:</b> ${m.risiken.gesamt} gesamt, ${m.risiken.offen} offen, ${m.risiken.hoch} hoch, ${m.risiken.mUeber} Maßnahmen überfällig`);
   if (m.ausnahmen) details.push(`<b>Ausnahmen:</b> ${m.ausnahmen.gesamt} erfasst, ${m.ausnahmen.aktiv} gültig, ${m.ausnahmen.abgelaufen} abgelaufen, ${m.ausnahmen.wartend} unentschieden`);
+  if (m.wirksamkeit) details.push(`<b>Wirksamkeit:</b> ${m.wirksamkeit.audits} Audit(s), letzte Bewertung ${m.wirksamkeit.letzteBewertung || '–'}, ${m.wirksamkeit.abwOffen} Abweichung(en) offen, ${m.wirksamkeit.ohneWirksamkeit} ohne Wirksamkeitsbeleg`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);
   if (m.faellig) details.push(`<b>Fälligkeiten:</b> ${m.faellig.overdue} überfällig, ${m.faellig.soon} in ≤ 30 Tagen`);
 

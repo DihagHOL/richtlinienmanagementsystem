@@ -66,6 +66,38 @@ async function checkPage(label, pageUrl, mustContain) {
       else fail(`Asset HTTP ${r.status}: ${a}`);
     } catch (e) { fail(`Asset nicht erreichbar: ${a} (${e.message})`); }
   }
+
+  /* Die nachgeladenen Module stehen nicht mehr als Tag in der Seite – sie
+     kaemen erst beim Reiterwechsel, und ein fehlendes faellt dann dem ersten
+     Nutzer auf, nicht hier. Die Karte wird deshalb aus der ausgelieferten
+     js/module.js gelesen und jede Datei einzeln angefragt. */
+  const modulTag = (page.body.match(/src="(js\/module\.js\?v=[A-Za-z0-9]+)"/) || [])[1];
+  if (modulTag) {
+    let karte = null;
+    try {
+      const m = await get(new URL(modulTag, pageUrl).href);
+      const namen = new Set();
+      for (const t of (m.body.match(/'[a-z][a-z-]*'/g) || [])) namen.add(t.slice(1, -1));
+      // Nur Namen, zu denen es auch eine Datei gibt: Die Datei enthaelt auch
+      // Schluessel wie 'meine' oder 'detail', die keine Module sind.
+      karte = [...namen];
+    } catch (e) { fail(`js/module.js nicht ladbar: ${e.message}`); }
+
+    if (karte) {
+      const version = (modulTag.match(/\?v=([A-Za-z0-9]+)/) || [])[1];
+      let gut = 0, schlecht = 0;
+      for (const n of karte) {
+        const url = new URL(`js/${n}.js?v=${version}`, pageUrl).href;
+        try {
+          const r = await get(url);
+          if (r.status === 200) gut++;
+          else if (r.status === 404) { /* kein Modul, nur ein Schluesselwort */ }
+          else { fail(`Nachgeladenes Modul HTTP ${r.status}: js/${n}.js`); schlecht++; }
+        } catch (e) { fail(`Nachgeladenes Modul nicht erreichbar: js/${n}.js (${e.message})`); schlecht++; }
+      }
+      if (!schlecht) ok(`alle ${gut} nachladbaren Module ausgeliefert (?v=${version})`);
+    }
+  }
   return page;
 }
 

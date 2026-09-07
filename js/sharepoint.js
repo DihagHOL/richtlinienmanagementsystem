@@ -18,6 +18,7 @@ const SP = {
   proposalList: 'Aenderungsvorschlaege',   // Änderungsvorschläge (wird bei Bedarf angelegt)
   riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
   exceptionList: 'Ausnahmen',              // Ausnahmeregister (wird bei Bedarf angelegt)
+  wirkList:     'Wirksamkeit',             // Audits, Managementbewertung, Korrekturmaßnahmen
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
@@ -39,7 +40,7 @@ function spAssetsListUrl() { return spIsmsSiteUrl() + '/Lists/' + encodeURICompo
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
-  proposalListId: null, riskListId: null, excListId: null,
+  proposalListId: null, riskListId: null, excListId: null, wirkListId: null,
   ismsSiteId: null,
   ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
@@ -2608,6 +2609,205 @@ async function spDeleteException(id) {
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureExceptionList(false);
   if (!listId) throw new Error('Ausnahmen-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Wirksamkeit & Verbesserung (SharePoint-Liste „Wirksamkeit")
+   ===================================================
+   Drei ISO-Kapitel, die das RMS bisher nur benennen, aber nicht belegen
+   konnte – und die in der Sache zusammenhängen:
+
+     9.2  Internes Audit          → findet Abweichungen
+     10.2 Nichtkonformität und    → behandelt sie, prüft die Wirksamkeit
+          Korrekturmaßnahmen
+     9.3  Managementbewertung     → sieht auf beide und entscheidet
+
+   Deshalb EIN Register mit drei Satzarten statt drei Registern mit derselben
+   Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie IST
+   eine – sie trägt nur ein Feld mehr, das sagt, woher sie kommt.
+═══════════════════════════════════════════════════ */
+
+const WIRK_COLUMNS = [
+  { name: 'Art',              typ: 'Einzelne Textzeile' },   // abweichung | audit | bewertung
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'WDatum',           typ: 'Datum und Uhrzeit' },
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'Beteiligte',       typ: 'Einzelne Textzeile' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },
+  { name: 'WStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'Quelle',           typ: 'Einzelne Textzeile' },
+  { name: 'HerkunftId',       typ: 'Einzelne Textzeile' },
+  { name: 'Ursache',          typ: 'Mehrere Zeilen Text' },
+  { name: 'MassnahmenJson',   typ: 'Mehrere Zeilen Text' },
+  { name: 'Wirksamkeit',      typ: 'Mehrere Zeilen Text' },
+  { name: 'WirksamAm',        typ: 'Datum und Uhrzeit' },
+  { name: 'Umfang',           typ: 'Mehrere Zeilen Text' },
+  { name: 'EingabenJson',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Ergebnis',         typ: 'Mehrere Zeilen Text' },
+  { name: 'Normbezug',        typ: 'Einzelne Textzeile' },
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+];
+
+let _wirkCols = null;
+
+async function _loadWirkCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.wirkListId}/columns?$select=name`, token);
+    _wirkCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _wirkCols = null; }
+}
+
+/** Liste „Wirksamkeit" finden – oder anlegen. Auf der ISMS-Site, wie Risiken und Ausnahmen. */
+async function spEnsureWirkList(create = true) {
+  if (_sp.wirkListId) return _sp.wirkListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.wirkList);
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) { _sp.wirkListId = hit.id; await _loadWirkCols(token, siteId); return _sp.wirkListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, {
+    displayName: SP.wirkList,
+    list: { template: 'genericList' },
+    columns: WIRK_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  });
+  _sp.wirkListId = created.id;
+  await _loadWirkCols(token, siteId);
+  return _sp.wirkListId;
+}
+
+function _mapWirk(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:          f.Title || '',
+    art:            f.Art || 'abweichung',
+    beschreibung:   f.Beschreibung || '',
+    datum:          f.WDatum || '',
+    verantwortlich: f.Verantwortlich || '',
+    beteiligte:     String(f.Beteiligte || '').split(',').map(s => s.trim()).filter(Boolean),
+    werke:          String(f.Werke || '').split(',').map(s => s.trim()).filter(Boolean),
+    status:         f.WStatus || 'offen',
+    quelle:         f.Quelle || '',
+    herkunftId:     f.HerkunftId || '',
+    ursache:        f.Ursache || '',
+    massnahmen:     _riskParseJson(f.MassnahmenJson, []),
+    wirksamkeit:    f.Wirksamkeit || '',
+    wirksamAm:      f.WirksamAm || '',
+    umfang:         f.Umfang || '',
+    eingaben:       _riskParseJson(f.EingabenJson, []),
+    ergebnis:       f.Ergebnis || '',
+    normbezug:      f.Normbezug || '',
+    historie:       _riskParseJson(f.HistorieJson, []),
+    created:        it.createdDateTime || '',
+    modified:       it.lastModifiedDateTime || '',
+  };
+}
+
+function _wirkFields(w) {
+  const all = {
+    Title:          String(w.titel || '(ohne Titel)').slice(0, 255),
+    Art:            String(w.art || 'abweichung').slice(0, 40),
+    Beschreibung:   w.beschreibung || '',
+    Verantwortlich: String(w.verantwortlich || '').slice(0, 255),
+    Beteiligte:     (w.beteiligte || []).join(','),
+    Werke:          (w.werke || []).join(','),
+    WStatus:        String(w.status || 'offen').slice(0, 60),
+    Quelle:         String(w.quelle || '').slice(0, 100),
+    HerkunftId:     String(w.herkunftId || '').slice(0, 100),
+    Ursache:        w.ursache || '',
+    MassnahmenJson: JSON.stringify(w.massnahmen || []),
+    Wirksamkeit:    w.wirksamkeit || '',
+    Umfang:         w.umfang || '',
+    EingabenJson:   JSON.stringify(w.eingaben || []),
+    Ergebnis:       w.ergebnis || '',
+    Normbezug:      String(w.normbezug || '').slice(0, 255),
+    HistorieJson:   JSON.stringify(w.historie || []),
+  };
+  if (w.datum)     all.WDatum    = w.datum;
+  if (w.wirksamAm) all.WirksamAm = w.wirksamAm;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_wirkCols || _wirkCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Liste „Wirksamkeit". */
+function spMissingWirkColumns() {
+  if (!_wirkCols) return [];
+  return WIRK_COLUMNS.map(c => c.name).filter(n => !_wirkCols.has(n));
+}
+
+async function spGetWirk() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureWirkList(true);
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapWirk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/** Wie spGetWirk, aber ohne die Liste anzulegen (für Kacheln und Berichte). */
+async function spGetWirkLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureWirkList(false);
+  if (!listId) return null;
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapWirk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddWirk(w) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _wirkFields(w) });
+  return created && created.id;
+}
+
+async function spUpdateWirk(id, w) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(false);
+  if (!listId) throw new Error('Liste „Wirksamkeit" nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _wirkFields(w));
+}
+
+async function spDeleteWirk(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(false);
+  if (!listId) throw new Error('Liste „Wirksamkeit" nicht verfügbar.');
   const siteId = await _ismsSiteId(token);
   const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },

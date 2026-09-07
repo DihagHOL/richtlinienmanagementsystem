@@ -98,6 +98,10 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
         Risiko-Register
       </a>
+      <a class="nav-item" data-view="wirksamkeit" id="nav-wirksamkeit" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011 1v11h12a1 1 0 110 2H4a2 2 0 01-2-2V4a1 1 0 011-1zm14.7 3.7a1 1 0 00-1.4-1.4L12 9.6 9.7 7.3a1 1 0 00-1.4 0L5.3 10.3a1 1 0 101.4 1.4L9 9.4l2.3 2.3a1 1 0 001.4 0l5-5z" clip-rule="evenodd"/></svg>
+        Wirksamkeit
+      </a>
       <a class="nav-item" data-view="prozesse" id="nav-prozesse" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="8" width="5" height="4" rx="1"/><rect x="13" y="3" width="5" height="4" rx="1"/><rect x="13" y="13" width="5" height="4" rx="1"/><path d="M7 10h3.5M10.5 10V5H13M10.5 10v5H13" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
         Prozesse
@@ -302,6 +306,16 @@
           <button class="btn btn-sm btn-ghost" onclick="refreshAusnahmen()" title="Aktualisieren">↻ Aktualisieren</button>
         </div>
         <div id="ausnahmen-mount"></div>
+      </section>
+
+      <!-- ── VIEW: Wirksamkeit & Verbesserung (ISO 9.2 / 9.3 / 10.2) ── -->
+      <section id="view-wirksamkeit" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Wirksamkeit &amp; Verbesserung (ISO 27001 9.2 · 9.3 · 10.2)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshWirksamkeit()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="wirksamkeit-mount"></div>
       </section>
 
       <section id="view-risiken" class="view">

@@ -27,7 +27,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
-  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
+  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
@@ -162,7 +162,8 @@ async function applyDeepLinkOrDefault() {
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
-    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen'].includes(ansicht) && typeof canReadTab === 'function' && canReadTab(ansicht)) {
+    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit'].includes(ansicht)
+        && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
     // Startansicht ist für alle „Meine Regelwerke" – auch Admins sehen zuerst
@@ -369,6 +370,7 @@ async function switchView(view) {
   if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
   if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();
   if (view === 'ausnahmen'    && typeof initAusnahmen === 'function')     initAusnahmen();
+  if (view === 'wirksamkeit'  && typeof initWirksamkeit === 'function')   initWirksamkeit();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();

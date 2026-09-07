@@ -39,6 +39,7 @@ function initCockpit() {
       ${tile('soa',       '📋', 'SoA – Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
+      ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}
       ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
     </div>`;
@@ -50,6 +51,7 @@ function initCockpit() {
   _ckLoadSoa(seq);
   _ckLoadRisiken(seq);
   _ckLoadAusnahmen(seq);
+  _ckLoadWirksamkeit(seq);
   _ckLoadCompliance(seq);
   _ckLoadVorschlaege(seq);
 }
@@ -184,6 +186,26 @@ async function _ckLoadAusnahmen(seq) {
       _ckBig(ab, 'abgelaufen', ab ? '#b91c1c' : '#15803d') +
       _ckBig(offen, 'wartet auf Entscheidung', offen ? '#b45309' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('ausnahmen', 'Ausnahmen nicht ladbar (Liste fehlt noch?).'); }
+}
+
+/** Audits, Bewertungen, Abweichungen – still gelesen, ohne Liste anzulegen. */
+async function _ckLoadWirksamkeit(seq) {
+  try {
+    if (!_wirk && typeof spGetWirkLeise === 'function') {
+      const a = await spGetWirkLeise();
+      if (seq !== _cockpitSeq) return;
+      if (!Array.isArray(a)) { _ckErr('wirksamkeit', 'Noch nichts erfasst – Reiter öffnen zum Anlegen.'); return; }
+      _wirk = a;
+    }
+    const alle = (typeof wirkSichtbare === 'function') ? wirkSichtbare() : (_wirk || []);
+    const offen = alle.filter(w => w.art === 'abweichung' && w.status !== 'abgeschlossen' && w.status !== 'verworfen').length;
+    const ueber = alle.reduce((s, w) => s + wirkUeberfaellig(w).length, 0);
+    const bew = alle.filter(w => w.art === 'bewertung').sort((a, b) => String(b.datum).localeCompare(String(a.datum)))[0];
+    _ckSet('wirksamkeit',
+      _ckBig(offen, 'Abweichungen offen', offen ? '#b45309' : '#15803d') +
+      _ckBig(ueber, 'Maßnahmen überfällig', ueber ? '#b91c1c' : '#15803d') +
+      _ckBig(bew ? fmtDate(bew.datum) : '–', 'letzte Bewertung', bew ? '#17509e' : '#b91c1c'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('wirksamkeit', 'Nicht ladbar (Liste fehlt noch?).'); }
 }
 
 async function _ckLoadCompliance(seq) {

@@ -46,6 +46,7 @@ const _DOKU_TOC = [
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['risiken',       'Risiko-Register'],
   ['ausnahmen',     'Ausnahmeregister (Abweichungen)'],
+  ['wirksamkeit',   'Wirksamkeit & Verbesserung'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
@@ -180,7 +181,7 @@ function _dokuSections() {
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Regelwerke</b> (aktiv/veröffentlicht/Entwürfe/im Workflow) · <b>Prüfung &amp; Freigabe</b> (inkl. Alter des ältesten Vorgangs) · <b>Fälligkeiten</b> (überfällig / ≤ 30 Tage).</li>
-        <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen) · <b>Ausnahmen</b> (gültig, abgelaufen, unentschieden).</li>
+        <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen) · <b>Ausnahmen</b> (gültig, abgelaufen, unentschieden) · <b>Wirksamkeit</b> (offene Abweichungen, überfällige Maßnahmen, letzte Bewertung).</li>
         <li style="${li}"><b>Audit Report</b> (Erfüllungsquote, offene Kenntnisnahmen) · <b>Vorschläge</b> (offen / in Bearbeitung).</li>
       </ul>
       <div style="${hint}">💡 Schnelle Kennzahlen erscheinen sofort; aufwendigere (Compliance-Quote, SoA, Risiken) laden im Hintergrund nach und füllen ihre Kachel, sobald sie da sind.</div>`,
@@ -396,6 +397,33 @@ function _dokuSections() {
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron meldet <b>abgelaufene</b>, in <b>30 Tagen auslaufende</b> und <b>unentschiedene</b> Ausnahmen an die Admins – ebenso genehmigte ohne Enddatum aus Altbeständen. Export: <b>⬇ CSV</b>. Tipp: Ist eine Abweichung beendet, „zurückziehen" statt löschen – eine gelöschte Entscheidung lässt sich im Audit nicht mehr zeigen.</div>`,
       'ISO 27001 A.5.36 (Einhaltung von Richtlinien, Regeln und Standards), Klausel 6.1.3 (Risikobehandlung/-akzeptanz); Reifegrad-Katalog R130 (T24 Verantwortung, Compliance, Ausnahmen, Sanktionen).'),
+
+    sec('wirksamkeit', 'Wirksamkeit &amp; Verbesserung', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Wirksamkeit"</b> deckt drei Normkapitel ab, die das System bisher nur benennen konnte: <b>9.2</b> internes Audit, <b>9.3</b> Managementbewertung, <b>10.2</b> Nichtkonformität und Korrekturmaßnahmen. Eine Richtlinie beschreibt, wie etwas laufen <i>soll</i>; hier steht, <i>dass</i> es gelaufen ist.</p>
+      <p style="margin:0 0 8px;line-height:1.55"><b>Ein Register, drei Satzarten</b> – nicht drei Register mit derselben Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist eine; sie trägt nur ein Feld mehr, das sagt, woher sie stammt. Wer den Zusammenhang in drei Listen zerlegt, muss ihn danach von Hand wiederherstellen.</p>
+      <div style="${h3}">Was zum Abschließen verlangt wird</div>
+      ${tbl([
+        ['⚠️ Abweichung<br><span style="font-weight:400;color:var(--c-muted)">ISO 10.2</span>',
+         '<b>Ursache</b> (nicht das Symptom), mindestens eine <b>erledigte Maßnahme</b> und eine <b>Wirksamkeitsbewertung</b>. Der dritte Schritt ist der, der übersprungen wird: „Maßnahme erledigt" heißt nicht „Problem behoben". Solange er fehlt, lässt sich der Eintrag nicht abschließen.'],
+        ['🔍 Internes Audit<br><span style="font-weight:400;color:var(--c-muted)">ISO 9.2</span>',
+         '<b>Umfang und Kriterien</b>, <b>Auditoren</b> und ein <b>Ergebnis</b>. Gefundene Abweichungen werden als eigene Einträge angelegt und tragen das Audit als Herkunft – dann hängen sie sichtbar zusammen, in beide Richtungen.'],
+        ['⚖️ Managementbewertung<br><span style="font-weight:400;color:var(--c-muted)">ISO 9.3</span>',
+         'Alle <b>acht Pflichteingaben</b> aus 9.3.2 als Haken, <b>Teilnehmende</b> und die <b>Entscheidungen</b>. Fehlt ein Haken, nennt das Register ihn beim Namen – im Audit fehlt er sonst auch, nur später.'],
+      ])}
+      <div style="${h3}">Maßnahmen und Fristen</div>
+      <ul style="${ol}">
+        <li style="${li}">Je Eintrag ein <b>Maßnahmenplan</b>: was, wer, bis wann, Status. Überfällige Fristen färben den Status rot und ziehen den Eintrag nach oben.</li>
+        <li style="${li}">Die Liste ist nach <b>Dringlichkeit</b> sortiert: erst Überfälliges, dann Offenes, dann der Rest nach Datum.</li>
+        <li style="${li}">Die Spalte <b>Nachweis</b> sagt je Zeile, wie viele Angaben zum Abschluss noch fehlen – vor dem Audit, nicht während.</li>
+      </ul>
+      <div style="${h3}">Wo es sonst noch auftaucht</div>
+      <ul style="${ol}">
+        <li style="${li}">Im <b>Cockpit</b>: offene Abweichungen, überfällige Maßnahmen, Datum der letzten Bewertung.</li>
+        <li style="${li}">Im <b>Audit Report</b> als drei eigene Zeilen (9.2, 9.3, 10.2). Eine abgeschlossene Abweichung ohne Wirksamkeitsbeleg zählt dort als <b>Lücke</b>, nicht als Hinweis.</li>
+        <li style="${li}">Die <b>Trennung nach Gesellschaft</b> gilt: ohne Werksangabe konzernweit, sonst nur dort.</li>
+      </ul>
+      <div style="${hint}">Die SharePoint-Liste „Wirksamkeit" liegt wie Risiken und Ausnahmen auf der ISMS-Site und wird beim ersten Öffnen automatisch angelegt. Export: <b>⬇ CSV</b> – mit einer Spalte „Nachweis vollständig", die sich einem Auditor ohne Erklärung erschließt. Tipp: Statt Löschen „verworfen" – eine gelöschte Feststellung lässt sich nicht mehr zeigen.</div>`,
+      'ISO 27001 Klausel 9.2 (Internes Audit), 9.3 (Managementbewertung, Eingaben nach 9.3.2), 10.2 (Nichtkonformität und Korrekturmaßnahmen); ISO 9001/14001/45001 kennen dieselben Kapitel.'),
 
     sec('ismsdocs', 'IMS-Dokumente (alle Normen)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>IMS-Dokumente</b> zeigt die Dokumente des

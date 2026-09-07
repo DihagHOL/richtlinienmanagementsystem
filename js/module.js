@@ -37,7 +37,7 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
-  'risiken', 'ausnahmen', 'clevelreport'];
+  'risiken', 'ausnahmen', 'wirksamkeit', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -62,6 +62,7 @@ const MODUL_ANSICHTEN = {
   abdeckung:    ['normen', 'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad'],
   risiken:      ['normen', 'risiken'],
   ausnahmen:    ['normen', 'risiken', 'ausnahmen'],
+  wirksamkeit:  ['wirksamkeit'],
   vorschlaege:  ['proposals'],
   dokumentation: ['dokumentation'],
 };
