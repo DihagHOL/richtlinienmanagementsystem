@@ -158,6 +158,10 @@ async function initAusnahmen() {
 async function refreshAusnahmen() {
   _excs = null;
   await initAusnahmen();
+  // Die Marker an den Regelwerkskarten hängen am selben Bestand. Wer hier eine
+  // Ausnahme genehmigt und dann zurück auf „Meine Regelwerke" geht, sähe sonst
+  // den Stand von vorhin – bis zum nächsten Neuladen der Seite.
+  excMarkerAktualisieren();
   if (typeof toast === 'function') toast('Ausnahmeregister aktualisiert', 'success');
 }
 

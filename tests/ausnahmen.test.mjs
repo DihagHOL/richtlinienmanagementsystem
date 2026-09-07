@@ -425,6 +425,25 @@ ok(/\$\{typeof excHinweisHtml === 'function' \? excHinweisHtml\(p\.id\) : ''\}/.
 ok(!/await excHintergrundLaden/.test(app),
   'Ohne await – der Hinweis ist eine Zugabe und darf das Zeichnen nicht aufhalten');
 
+/* ── 16b) Nach dem Aktualisieren stimmt auch der Marker ──
+   Wer eine Ausnahme genehmigt und dann zurück auf „Meine Regelwerke" geht,
+   sähe sonst den Stand von vorhin – bis zum nächsten Neuladen der Seite. */
+const nachher = platzhalter('data-exc-fuer', '7');
+// initAusnahmen() steigt ohne seinen Ankerpunkt aus – im Reiter ist er da,
+// hier muss er gestellt werden.
+const mount = { innerHTML: '' };
+ctx.document.getElementById = (id) => (id === 'ausnahmen-mount' ? mount : null);
+ctx.__bestand = [
+  { id:'neu', titel:'frisch genehmigt', richtlinieId:'7', status:'genehmigt',
+    befristetBis:'2026-12-31T00:00:00Z', werke:[] },
+];
+gemeldet.length = 0;
+await run(`refreshAusnahmen()`);
+ok(/1 Ausnahme</.test(nachher.innerHTML),
+  'Nach „↻ Aktualisieren" trägt auch die Regelwerkskarte den neuen Stand');
+ok(/aktualisiert/.test(gemeldet.join(' ')), 'Und die Rückmeldung kommt weiterhin');
+ctx.document.getElementById = () => null;
+
 /* ── 17) Überall angeschlossen, wo die Risiken schon stehen ──
    Ein Register, das nur in seinem eigenen Reiter vorkommt, ist ein zweiter
    Aktenschrank. Gefunden wurden die Lücken mit der Frage: welche Datei nennt
