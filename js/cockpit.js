@@ -38,6 +38,7 @@ function initCockpit() {
       ${tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
       ${tile('soa',       '📋', 'SoA – Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
+      ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}
       ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
     </div>`;
@@ -48,6 +49,7 @@ function initCockpit() {
   _ckRenderAbdeckung();
   _ckLoadSoa(seq);
   _ckLoadRisiken(seq);
+  _ckLoadAusnahmen(seq);
   _ckLoadCompliance(seq);
   _ckLoadVorschlaege(seq);
 }
@@ -157,6 +159,31 @@ async function _ckLoadRisiken(seq) {
       _ckBig(hoch, 'hoch', hoch ? '#b91c1c' : '#15803d') +
       _ckBig(over, 'Maßnahmen überfällig', over ? '#b91c1c' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('risiken', 'Risiken nicht ladbar (Liste fehlt noch?).'); }
+}
+
+/**
+ * Ausnahmen: aktiv, abgelaufen, wartend.
+ *
+ * Gelesen wird still – die Kachel soll keine SharePoint-Liste anlegen. Wer den
+ * Reiter öffnet, legt sie an; das Cockpit nur anzuzeigen ist kein Grund dafür.
+ */
+async function _ckLoadAusnahmen(seq) {
+  try {
+    if (!_excs && typeof spGetExceptionsLeise === 'function') {
+      const a = await spGetExceptionsLeise();
+      if (seq !== _cockpitSeq) return;
+      if (!Array.isArray(a)) { _ckErr('ausnahmen', 'Noch keine Ausnahme erfasst – Reiter öffnen zum Anlegen.'); return; }
+      _excs = a;
+    }
+    const alle = (typeof excSichtbare === 'function') ? excSichtbare() : (_excs || []);
+    const aktiv = alle.filter(excIstAktiv).length;
+    const ab = alle.filter(a => excEffektiverStatus(a) === 'abgelaufen').length;
+    const offen = alle.filter(a => a.status === 'beantragt').length;
+    _ckSet('ausnahmen',
+      _ckBig(aktiv, 'aktiv gültig', aktiv ? '#b45309' : '#15803d') +
+      _ckBig(ab, 'abgelaufen', ab ? '#b91c1c' : '#15803d') +
+      _ckBig(offen, 'wartet auf Entscheidung', offen ? '#b45309' : '#15803d'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('ausnahmen', 'Ausnahmen nicht ladbar (Liste fehlt noch?).'); }
 }
 
 async function _ckLoadCompliance(seq) {

@@ -63,7 +63,7 @@ function probelaufGewuenscht() {
    das jede:r tut – genau der Teil, den ein Lernvideo zeigen soll. Der Reiter
    steht ohnehin in derselben Gruppe wie Dashboard und Freigaben. */
 const PROBELAUF_NAV_AUS = ['nav-cockpit', 'nav-ismsdocs', 'nav-governance', 'nav-govstruktur',
-  'nav-prozesse', 'nav-abdeckung', 'nav-faelligkeit', 'nav-risiken',
+  'nav-prozesse', 'nav-abdeckung', 'nav-faelligkeit', 'nav-risiken', 'nav-ausnahmen',
   'nav-compliance', 'nav-einstellungen', 'nav-grp-governance', 'nav-grp-isms', 'nav-grp-verwaltung'];
 
 function probelaufNavFiltern() {

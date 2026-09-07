@@ -421,5 +421,62 @@ ok(/\$\{typeof excHinweisHtml === 'function' \? excHinweisHtml\(p\.id\) : ''\}/.
 ok(!/await excHintergrundLaden/.test(app),
   'Ohne await – der Hinweis ist eine Zugabe und darf das Zeichnen nicht aufhalten');
 
+/* ── 17) Überall angeschlossen, wo die Risiken schon stehen ──
+   Ein Register, das nur in seinem eigenen Reiter vorkommt, ist ein zweiter
+   Aktenschrank. Gefunden wurden die Lücken mit der Frage: welche Datei nennt
+   'risiken', aber nicht 'ausnahmen'? */
+
+const dateien = ['js/cockpit.js', 'js/clevelreport.js', 'js/dokumentation.js', 'js/probelauf.js'];
+for (const d of dateien) ok(/ausnahmen/i.test(lies(d)), `${d} kennt das Ausnahmeregister`);
+
+const cockpit = lies('js/cockpit.js');
+ok(/_ckLoadAusnahmen\(seq\)/.test(cockpit), 'Das Cockpit lädt die Kachel');
+ok(/spGetExceptionsLeise/.test(cockpit),
+  'Und liest still – eine Kachel anzuzeigen ist kein Grund, eine SharePoint-Liste anzulegen');
+
+const cl = lies('js/clevelreport.js');
+ok(/'ISO A\.5\.36', 'Ausnahmen von Richtlinien'/.test(cl), 'Der Audit Report führt A.5.36 als eigene Zeile');
+ok(/ohneNachweis/.test(cl),
+  'Und zählt genehmigte Ausnahmen ohne Risikobewertung, ISB oder Frist – die teurere Feststellung');
+ok(/Keine Abweichungen von Richtlinien erfasst/.test(cl),
+  'Keine Ausnahme zu haben gilt als konform, nicht als Lücke');
+ok(/a\.abgelaufen \|\| a\.ohneNachweis/.test(cl),
+  'Eine abgelaufene ist dagegen eine Lücke – dann handeln Leute nach einer Erlaubnis, die es nicht mehr gibt');
+
+const pl = lies('js/probelauf.js');
+ok(/'nav-risiken', 'nav-ausnahmen'/.test(pl),
+  'Im Lernvideo wird der Reiter ausgeblendet wie das Risiko-Register');
+
+/* Der Dokumentationsabschnitt – wirklich gerendert, nicht nur vorhanden.
+   Beim Schreiben war „${h3}" versehentlich als „\${h3}" maskiert: im
+   Template-Text ist das kein Platzhalter mehr, sondern sichtbarer Quelltext.
+   Eine Suche nach dem Abschnittsnamen hätte das nicht bemerkt. */
+const dokuQuelle = lies('js/dokumentation.js');
+ok(!/\\\$\{/.test(dokuQuelle),
+  'Kein maskiertes ${…} in der Dokumentation – das stünde sonst als Quelltext auf der Seite');
+
+const dctx = {
+  console, JSON, Date, Array, Object, String, Math,
+  esc: (x) => String(x ?? ''),
+  State: { user: {} },
+  document: { getElementById: () => null },
+};
+dctx.window = dctx; dctx.globalThis = dctx;
+vm.createContext(dctx);
+vm.runInContext(lies('js/dokumentation.js'), dctx);
+const abschnitte = vm.runInContext('_dokuSections()', dctx);
+const teil = abschnitte.slice(abschnitte.indexOf('id="doku-ausnahmen"'));
+const doku = teil.slice(0, teil.indexOf('id="doku-ismsdocs"'));
+ok(doku.length > 500, 'Der Abschnitt „Ausnahmeregister" wird gezeichnet');
+ok(!/\$\{/.test(doku), 'Und enthält keinen sichtbaren Platzhalter mehr – alle sind eingesetzt');
+ok(/R130/.test(doku) && /A\.5\.36/.test(doku), 'Er nennt Fundstelle und Normbezug');
+for (const wort of ['Risikobewertung', 'Befristung', 'Vier-Augen', 'ISB']) {
+  ok(doku.includes(wort), `Er erklärt „${wort}" als Bedingung`);
+}
+ok(/abgelaufen" wird gerechnet, nicht gespeichert/.test(doku),
+  'Und die Entwurfsentscheidung, die sonst niemand erraten kann');
+ok(vm.runInContext('_DOKU_TOC.some(t => t[0] === "ausnahmen")', dctx),
+  'Das Inhaltsverzeichnis führt ihn');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

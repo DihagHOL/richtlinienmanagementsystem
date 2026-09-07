@@ -45,6 +45,7 @@ const _DOKU_TOC = [
   ['abdeckung',     'IMS-Abdeckung & SoA'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['risiken',       'Risiko-Register'],
+  ['ausnahmen',     'Ausnahmeregister (Abweichungen)'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
@@ -179,7 +180,7 @@ function _dokuSections() {
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Regelwerke</b> (aktiv/veröffentlicht/Entwürfe/im Workflow) · <b>Prüfung &amp; Freigabe</b> (inkl. Alter des ältesten Vorgangs) · <b>Fälligkeiten</b> (überfällig / ≤ 30 Tage).</li>
-        <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen).</li>
+        <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen) · <b>Ausnahmen</b> (gültig, abgelaufen, unentschieden).</li>
         <li style="${li}"><b>Audit Report</b> (Erfüllungsquote, offene Kenntnisnahmen) · <b>Vorschläge</b> (offen / in Bearbeitung).</li>
       </ul>
       <div style="${hint}">💡 Schnelle Kennzahlen erscheinen sofort; aufwendigere (Compliance-Quote, SoA, Risiken) laden im Hintergrund nach und füllen ihre Kachel, sobald sie da sind.</div>`,
@@ -370,6 +371,31 @@ function _dokuSections() {
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron mailt <b>überfällige Maßnahmen und Risiko-Reviews</b> automatisch an die Admins (mit Direktlink). Exporte: <b>🖨 Risikobericht</b> (Druck/PDF) und <b>⬇ CSV</b>. Tipp: Statt Löschen besser „Status: geschlossen" – so bleibt der Audit-Trail erhalten.</div>`,
       'ISO 27001 Klausel 6.1.2 (Risikobeurteilung), 6.1.3 (Risikobehandlung), 8.2/8.3 (Durchführung), A.5.2 (Verantwortlichkeiten); NIS2 Art. 21(1) (Risikomanagementmaßnahmen).'),
+
+    sec('ausnahmen', 'Ausnahmeregister (Abweichungen)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Ausnahmen"</b>: dokumentierte, <b>befristete</b> Abweichungen von einer Richtlinie. Der Reifegrad-Katalog verlangt sie in <b>R130</b> – „Ausnahmen: Mit Risikobewertung, befristet, Entscheidung dokumentiert, ISB einbeziehen". Jedes dieser vier Worte ist hier eine Bedingung, keine Beschriftung: Fehlt eines, verweigert das Register die Genehmigung. Die SharePoint-Liste „Ausnahmen" liegt wie die Risiken auf der ISMS-Site und wird beim ersten Öffnen automatisch angelegt.</p>
+      <div style="${h3}">Was eine Genehmigung verlangt</div>
+      ${tbl([
+        ['Risikobewertung', 'Eintritt × Auswirkung auf derselben 1–5-Skala wie im Risiko-Register. Optional mit einem Risiko dort verknüpfbar. Ab Wert <b>15 („hoch")</b> sind zusätzlich <b>kompensierende Maßnahmen</b> zu benennen.'],
+        ['Befristung', 'Ein Enddatum ist <b>Pflicht</b> – ohne lässt sich nicht einmal speichern. Über <b>12 Monate</b> fragt das System nach: Eine so lange Abweichung gehört meist in die Richtlinie selbst.'],
+        ['Entscheidung', 'Person und Zeitpunkt werden festgehalten, der Kommentar wandert in den Verlauf. <b>Vier-Augen-Prinzip:</b> Wer beantragt hat, kann nicht selbst genehmigen.'],
+        ['ISB', 'Der Informationssicherheitsbeauftragte wird mit Namen und Datum vermerkt – vor der Genehmigung.'],
+      ])}
+      <div style="${h3}">Status</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>beantragt</b> → <b>genehmigt</b> oder <b>abgelehnt</b>; eine laufende Ausnahme lässt sich <b>zurückziehen</b>.</li>
+        <li style="${li}"><b>„abgelaufen" wird gerechnet, nicht gespeichert.</b> Sobald das Enddatum vorbei ist, zeigt das Register die Ausnahme als abgelaufen – ohne dass jemand etwas umstellen muss. Ein von Hand gepflegter Status wäre am Tag nach dem Stichtag falsch, und es fiele niemandem auf.</li>
+        <li style="${li}">Ein <b>abgelehnter</b> Antrag läuft nicht ab – nur Genehmigungen haben eine Frist.</li>
+      </ul>
+      <div style="${h3}">Wo die Ausnahme auftaucht</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>An der Richtlinie selbst</b> – als Markierung auf der Kachel und als Kasten in der Detailansicht: Titel, Frist, Geltung. Wer eine Regel befolgen soll, muss wissen, ob sie für ihn ausgesetzt ist.</li>
+        <li style="${li}"><b>Nur das Faktum, nicht die Akte:</b> Begründung, Risikobewertung, ISB und Entscheidungskommentar bleiben im Register, das dem Reiterrecht unterliegt.</li>
+        <li style="${li}">Im <b>Cockpit</b> (gültig / abgelaufen / unentschieden) und im <b>Audit Report</b> als Zeile <b>ISO A.5.36</b>.</li>
+        <li style="${li}">Die <b>Trennung nach Gesellschaft</b> gilt: Ohne Werksangabe gilt eine Ausnahme konzernweit, sonst nur dort.</li>
+      </ul>
+      <div style="${hint}">📧 Der Erinnerungs-Cron meldet <b>abgelaufene</b>, in <b>30 Tagen auslaufende</b> und <b>unentschiedene</b> Ausnahmen an die Admins – ebenso genehmigte ohne Enddatum aus Altbeständen. Export: <b>⬇ CSV</b>. Tipp: Ist eine Abweichung beendet, „zurückziehen" statt löschen – eine gelöschte Entscheidung lässt sich im Audit nicht mehr zeigen.</div>`,
+      'ISO 27001 A.5.36 (Einhaltung von Richtlinien, Regeln und Standards), Klausel 6.1.3 (Risikobehandlung/-akzeptanz); Reifegrad-Katalog R130 (T24 Verantwortung, Compliance, Ausnahmen, Sanktionen).'),
 
     sec('ismsdocs', 'IMS-Dokumente (alle Normen)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>IMS-Dokumente</b> zeigt die Dokumente des

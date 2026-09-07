@@ -107,6 +107,25 @@ async function _clevelGather() {
     };
   } catch (e) { m.risiken = null; m.fehler.push('Risiken: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
 
+  // Ausnahmen (Abweichungen von Richtlinien)
+  try {
+    if (!_excs && typeof spGetExceptionsLeise === 'function') _excs = await spGetExceptionsLeise();
+    if (!Array.isArray(_excs)) { m.ausnahmen = null; }
+    else {
+      const alle = (typeof excSichtbare === 'function') ? excSichtbare() : _excs;
+      m.ausnahmen = {
+        gesamt:     alle.length,
+        aktiv:      alle.filter(excIstAktiv).length,
+        abgelaufen: alle.filter(a => excEffektiverStatus(a) === 'abgelaufen').length,
+        wartend:    alle.filter(a => a.status === 'beantragt').length,
+        // Genehmigt, aber ohne das, was R130 verlangt. Beim Audit ist das die
+        // teurere Feststellung: Es gibt eine Entscheidung, aber keinen Beleg.
+        ohneNachweis: alle.filter(a => a.status === 'genehmigt'
+          && (!excRisikoWert(a) || !String(a.isb || '').trim() || !a.befristetBis)).length,
+      };
+    }
+  } catch (e) { m.ausnahmen = null; m.fehler.push('Ausnahmen: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
+
   // Reifegrad IT/OT
   try {
     let cfg = (_reifegrad && _reifegrad.ratings) ? _reifegrad : null;
@@ -172,6 +191,24 @@ function _clevelIsoRows(m) {
     add('ISO 8', 'Betrieb (Reifegrad IT/OT)', 'warn', 'Keine Reifegrad-Bewertung hinterlegt.');
   }
 
+  // Ausnahmen von Richtlinien (A.5.36; Reifegrad R130)
+  // Keine Ausnahme zu haben ist in Ordnung. Eine abgelaufene zu haben nicht:
+  // Dann handeln Leute nach einer Erlaubnis, die es nicht mehr gibt.
+  if (m.ausnahmen) {
+    const a = m.ausnahmen;
+    if (a.abgelaufen || a.ohneNachweis)
+      add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'gap',
+        `${a.abgelaufen} abgelaufen${a.ohneNachweis ? `, ${a.ohneNachweis} genehmigt ohne Risikobewertung/ISB/Frist` : ''}.`);
+    else if (a.wartend)
+      add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'warn',
+        `${a.aktiv} befristete Ausnahme(n) gültig; ${a.wartend} Antrag/Anträge unentschieden.`);
+    else
+      add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'ok',
+        a.gesamt ? `${a.aktiv} befristete Ausnahme(n) gültig, alle mit Risikobewertung und ISB.`
+                 : 'Keine Abweichungen von Richtlinien erfasst.');
+  } else add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'warn',
+    'Ausnahmeregister nicht auswertbar – Abweichungen sind nicht nachweisbar dokumentiert.');
+
   // Überwachung / Reviews (Kap. 9)
   const revOver = (m.faellig ? m.faellig.overdue : 0) + (m.risiken ? m.risiken.revUeber : 0);
   add('ISO 9', 'Überwachung & Bewertung', revOver === 0 ? 'ok' : revOver <= 5 ? 'warn' : 'gap',
@@ -225,6 +262,7 @@ function _clevelReportHtml(m) {
       ${m.abdeckung ? _clTile(m.abdeckung.annexPct + '%', 'Annex-A', m.abdeckung.annexPct >= 90 ? '#15803d' : '#b45309') : ''}
       ${m.abdeckung ? _clTile(m.abdeckung.nis2Pct + '%', 'NIS2', m.abdeckung.nis2Pct >= 90 ? '#15803d' : '#b45309') : ''}
       ${m.risiken ? _clTile(m.risiken.hoch, 'hohe Risiken', m.risiken.hoch ? '#b91c1c' : '#15803d') : ''}
+      ${m.ausnahmen ? _clTile(m.ausnahmen.abgelaufen, 'Ausnahmen abgelaufen', m.ausnahmen.abgelaufen ? '#b91c1c' : '#15803d') : ''}
       ${m.reifegrad ? _clTile(m.reifegrad.rot, 'IT/OT nicht gelebt', m.reifegrad.rot ? '#b91c1c' : '#15803d') : ''}
     </tr></table>`;
 
@@ -239,6 +277,7 @@ function _clevelReportHtml(m) {
   const details = [];
   if (m.soa) details.push(`<b>SoA:</b> ${m.soa.gepflegt}/${m.soa.total} entschieden, ${m.soa.umgesetzt}/${m.soa.anwendbar} umgesetzt, ${m.soa.ausgeschlossen} ausgeschlossen`);
   if (m.risiken) details.push(`<b>Risiken:</b> ${m.risiken.gesamt} gesamt, ${m.risiken.offen} offen, ${m.risiken.hoch} hoch, ${m.risiken.mUeber} Maßnahmen überfällig`);
+  if (m.ausnahmen) details.push(`<b>Ausnahmen:</b> ${m.ausnahmen.gesamt} erfasst, ${m.ausnahmen.aktiv} gültig, ${m.ausnahmen.abgelaufen} abgelaufen, ${m.ausnahmen.wartend} unentschieden`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);
   if (m.faellig) details.push(`<b>Fälligkeiten:</b> ${m.faellig.overdue} überfällig, ${m.faellig.soon} in ≤ 30 Tagen`);
 
