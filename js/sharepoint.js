@@ -17,6 +17,7 @@ const SP = {
   ackList:      'Bestaetigungen',
   proposalList: 'Aenderungsvorschlaege',   // Änderungsvorschläge (wird bei Bedarf angelegt)
   riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
+  exceptionList: 'Ausnahmen',              // Ausnahmeregister (wird bei Bedarf angelegt)
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
@@ -38,7 +39,7 @@ function spAssetsListUrl() { return spIsmsSiteUrl() + '/Lists/' + encodeURICompo
 
 const _sp = {
   appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
-  proposalListId: null, riskListId: null,
+  proposalListId: null, riskListId: null, excListId: null,
   ismsSiteId: null,
   ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
   policyFields: new Set(['Title']),
@@ -2397,6 +2398,191 @@ async function spDeleteRisk(id) {
   if (!token) throw new Error('Nicht angemeldet');
   const listId = await spEnsureRiskList(false);
   if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Ausnahmeregister (SharePoint-Liste „Ausnahmen", wird bei Bedarf angelegt)
+   ===================================================
+   Eine genehmigte, befristete Abweichung von einer Richtlinie. Der
+   Reifegrad-Katalog verlangt sie in R130 („Ausnahmen: Mit Risikobewertung,
+   befristet, Entscheidung dokumentiert, ISB einbeziehen") – jedes dieser vier
+   Worte hat hier eine Spalte. Die Liste liegt neben den Risiken auf der
+   ISMS-Site: Eine Ausnahme beruft sich auf ein Risiko, das man in Kauf nimmt.
+═══════════════════════════════════════════════════ */
+
+/* Erwartete Spalten der Liste „Ausnahmen" – EINE Quelle für Auto-Anlage,
+   Fehlende-Spalten-Warnung und die Anleitung zum manuellen Anlegen.
+   Interne Namen exakt so (ASCII, keine Umlaute → kein kodierter interner Name). */
+const EXC_COLUMNS = [
+  { name: 'Beschreibung',      typ: 'Mehrere Zeilen Text' },
+  { name: 'RichtlinieId',      typ: 'Einzelne Textzeile' },
+  { name: 'RichtlinieTitel',   typ: 'Einzelne Textzeile' },
+  { name: 'Abschnitt',         typ: 'Einzelne Textzeile' },
+  { name: 'Begruendung',       typ: 'Mehrere Zeilen Text' },
+  { name: 'Antragsteller',     typ: 'Einzelne Textzeile' },
+  { name: 'Werke',             typ: 'Einzelne Textzeile' },
+  { name: 'RisikoEintritt',    typ: 'Zahl' },
+  { name: 'RisikoAuswirkung',  typ: 'Zahl' },
+  { name: 'RisikoId',          typ: 'Einzelne Textzeile' },
+  { name: 'Kompensation',      typ: 'Mehrere Zeilen Text' },
+  { name: 'ExcStatus',         typ: 'Einzelne Textzeile' },
+  { name: 'BefristetBis',      typ: 'Datum und Uhrzeit' },
+  { name: 'EntscheiderUPN',    typ: 'Einzelne Textzeile' },
+  { name: 'EntschiedenAm',     typ: 'Datum und Uhrzeit' },
+  { name: 'EntscheidungKommentar', typ: 'Mehrere Zeilen Text' },
+  { name: 'IsbUPN',            typ: 'Einzelne Textzeile' },
+  { name: 'IsbAm',             typ: 'Datum und Uhrzeit' },
+  { name: 'HistorieJson',      typ: 'Mehrere Zeilen Text' },
+];
+
+let _excCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
+
+async function _loadExcCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.excListId}/columns?$select=name`, token);
+    _excCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _excCols = null; }
+}
+
+/** Ausnahmen-Liste robust finden – oder anlegen. Liegt wie die Risiken auf der ISMS-Site. */
+async function spEnsureExceptionList(create = true) {
+  if (_sp.excListId) return _sp.excListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.exceptionList);   // 'ausnahmen'
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) { _sp.excListId = hit.id; await _loadExcCols(token, siteId); return _sp.excListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.exceptionList,
+    list: { template: 'genericList' },
+    columns: EXC_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  };
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, body);
+  _sp.excListId = created.id;
+  await _loadExcCols(token, siteId);
+  return _sp.excListId;
+}
+
+/** SP-Item → Ausnahme-Objekt (App-Modell). */
+function _mapException(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:            f.Title || '',
+    beschreibung:     f.Beschreibung || '',
+    richtlinieId:     f.RichtlinieId || '',
+    richtlinieTitel:  f.RichtlinieTitel || '',
+    abschnitt:        f.Abschnitt || '',
+    begruendung:      f.Begruendung || '',
+    antragsteller:    f.Antragsteller || '',
+    werke:            String(f.Werke || '').split(',').map(s => s.trim()).filter(Boolean),
+    risiko:           { e: Number(f.RisikoEintritt) || 0, a: Number(f.RisikoAuswirkung) || 0 },
+    risikoId:         f.RisikoId || '',
+    kompensation:     f.Kompensation || '',
+    status:           f.ExcStatus || 'beantragt',
+    befristetBis:     f.BefristetBis || '',
+    entscheider:      f.EntscheiderUPN || '',
+    entschiedenAm:    f.EntschiedenAm || '',
+    entscheidungKommentar: f.EntscheidungKommentar || '',
+    isb:              f.IsbUPN || '',
+    isbAm:            f.IsbAm || '',
+    historie:         _riskParseJson(f.HistorieJson, []),
+    created:          it.createdDateTime || '',
+    modified:         it.lastModifiedDateTime || '',
+  };
+}
+
+/** Ausnahme-Objekt → SP-Felder (nur vorhandene Spalten). */
+function _excFields(a) {
+  const all = {
+    Title:           String(a.titel || '(ohne Titel)').slice(0, 255),
+    Beschreibung:    a.beschreibung || '',
+    RichtlinieId:    String(a.richtlinieId || '').slice(0, 255),
+    RichtlinieTitel: String(a.richtlinieTitel || '').slice(0, 255),
+    Abschnitt:       String(a.abschnitt || '').slice(0, 255),
+    Begruendung:     a.begruendung || '',
+    Antragsteller:   String(a.antragsteller || '').slice(0, 255),
+    Werke:           (a.werke || []).join(','),
+    RisikoEintritt:   Number(a.risiko?.e) || 0,
+    RisikoAuswirkung: Number(a.risiko?.a) || 0,
+    RisikoId:        String(a.risikoId || '').slice(0, 255),
+    Kompensation:    a.kompensation || '',
+    ExcStatus:       String(a.status || 'beantragt').slice(0, 60),
+    EntscheiderUPN:  String(a.entscheider || '').slice(0, 255),
+    EntscheidungKommentar: a.entscheidungKommentar || '',
+    IsbUPN:          String(a.isb || '').slice(0, 255),
+    HistorieJson:    JSON.stringify(a.historie || []),
+  };
+  // Datumsfelder nur setzen, wenn belegt – ein leerer String ist für Graph kein Datum.
+  if (a.befristetBis)  all.BefristetBis  = a.befristetBis;
+  if (a.entschiedenAm) all.EntschiedenAm = a.entschiedenAm;
+  if (a.isbAm)         all.IsbAm         = a.isbAm;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_excCols || _excCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Ausnahmen-Liste (nach spEnsureExceptionList). */
+function spMissingExceptionColumns() {
+  if (!_excCols) return [];
+  return EXC_COLUMNS.map(c => c.name).filter(n => !_excCols.has(n));
+}
+
+async function spGetExceptions() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureExceptionList(true);
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapException(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddException(a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _excFields(a) });
+  return created && created.id;
+}
+
+async function spUpdateException(id, a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) throw new Error('Ausnahmen-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _excFields(a));
+}
+
+async function spDeleteException(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) throw new Error('Ausnahmen-Liste nicht verfügbar.');
   const siteId = await _ismsSiteId(token);
   const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },

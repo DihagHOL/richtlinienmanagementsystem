@@ -687,6 +687,7 @@ const GOVERNABLE_TABS = [
   { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },
   { view: 'vorschlaege', label: 'Vorschläge' , kurz: 'Vorschläge' },
   { view: 'freigaben',   label: 'Freigaben' , kurz: 'Freigaben' },
+  { view: 'ausnahmen',   label: 'Ausnahmeregister' , kurz: 'Ausnahmen' },
   { view: 'compliance',  label: 'Audit Report' , kurz: 'Audit' },
 ];
 
@@ -791,7 +792,7 @@ function initRoleNav() {
   // Sichtbarkeit je Reiter einmal berechnen (auch für die Gruppen-Überschriften)
   const v = {};
   ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
-   'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance'].forEach(t => { v[t] = canReadTab(t); });
+   'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance', 'ausnahmen'].forEach(t => { v[t] = canReadTab(t); });
 
   // Einzelne Reiter
   show('nav-cockpit',       v.cockpit);
@@ -801,6 +802,7 @@ function initRoleNav() {
   show('nav-govstruktur',     v.govstruktur);
   show('nav-prozesse',      v.prozesse);
   show('nav-abdeckung',     v.abdeckung);
+  show('nav-ausnahmen',     v.ausnahmen);
   show('nav-faelligkeit',   v.faelligkeit);
   show('nav-risiken',       v.risiken);
   show('nav-vorschlaege',   v.vorschlaege);
@@ -809,7 +811,7 @@ function initRoleNav() {
   show('nav-einstellungen', admin);
 
   // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist
-  show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege);
+  show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege || v.ausnahmen);
   // Corporate Governance steht als eigene Ebene über den Managementsystemen:
   // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
   show('nav-grp-governance',  v.governance || v.govstruktur);

@@ -28,7 +28,7 @@ const DATA_TTL = 5 * 60 * 1000;
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
   cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', vorschlaege: 'Vorschläge',
-  freigaben: 'Freigaben', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
+  freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
 /* ═══════════════════════════════════════════════════
@@ -146,7 +146,7 @@ async function applyDeepLinkOrDefault() {
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
-    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit'].includes(ansicht) && typeof canReadTab === 'function' && canReadTab(ansicht)) {
+    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen'].includes(ansicht) && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
     // Startansicht ist für alle „Meine Regelwerke" – auch Admins sehen zuerst
@@ -312,7 +312,7 @@ async function switchView(view) {
 
   // Daten-Reiter: nur neu laden wenn Cache abgelaufen (oder noch nie geladen) –
   // sonst direkt aus State rendern. refreshAll() setzt loadedAt=0 und erzwingt frisch.
-  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken', 'prozesse'].includes(view)) {
+  if (['meine', 'verwaltung', 'freigaben', 'compliance', 'abdeckung', 'faelligkeit', 'cockpit', 'risiken', 'prozesse', 'ausnahmen'].includes(view)) {
     const stale = !State.loaded || (Date.now() - State.loadedAt) > DATA_TTL;
     if (stale) {
       showSync(true);
@@ -339,6 +339,7 @@ async function switchView(view) {
   if (view === 'abdeckung'    && typeof renderAbdeckung === 'function')   renderAbdeckung();
   if (view === 'faelligkeit'  && typeof renderFaelligkeit === 'function') renderFaelligkeit();
   if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();
+  if (view === 'ausnahmen'    && typeof initAusnahmen === 'function')     initAusnahmen();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();

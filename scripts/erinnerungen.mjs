@@ -32,6 +32,7 @@ const ENV_SENDER = process.env.MAIL_SENDER || '';   // Fallback; bevorzugt wird 
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
+const ISMS_SITE_HOST = process.env.ISMS_SITE_HOST || 'dihag.sharepoint.com:/sites/ISMS';
 const POLICY_LIST = process.env.POLICY_LIST || 'Richtlinien';
 const CONFIG_FOLDER = process.env.CONFIG_FOLDER || 'Richtlinienmanagement';
 const APP_URL = process.env.APP_URL || 'https://rms.dihag.de/';
@@ -90,6 +91,39 @@ function isDue(tage, erste, alle) {
 const lc = (s) => String(s || '').toLowerCase();
 const inDomain = (upn) => ALLOWED_DOMAIN && lc(upn).endsWith('@' + ALLOWED_DOMAIN);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+
+/* Die ISMS-Site. Dort liegen „Risiken" und „Ausnahmen" – bewusst nicht auf der
+   App-Site, siehe js/sharepoint.js. Der Risiko-Digest suchte sie bis hierher
+   auf der App-Site und meldete dann „existiert (noch) nicht": eine Zeile, die
+   wie ein normaler Zustand aussieht und deshalb nie jemandem auffiel. */
+let _ismsSiteIdCache = null;
+async function ismsSiteId() {
+  if (_ismsSiteIdCache) return _ismsSiteIdCache;
+  const site = await gget(`/sites/${ISMS_SITE_HOST}`);
+  _ismsSiteIdCache = site.id;
+  return _ismsSiteIdCache;
+}
+
+/** Eine Liste auf der ISMS-Site suchen; null, wenn es sie noch nicht gibt. */
+async function ismsListe(name) {
+  const sid = await ismsSiteId();
+  const r = await gget(`/sites/${sid}/lists?$filter=displayName eq '${name}'`);
+  return (r.value || [])[0] || null;
+}
+
+/** Alle Elemente einer Liste auf der ISMS-Site (mit Feldern). */
+async function ismsItems(listId) {
+  const sid = await ismsSiteId();
+  const out = [];
+  let url = `/sites/${sid}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await gget(url);
+    for (const it of (resp.value || [])) out.push(it.fields || {});
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
 
 async function resolveSiteAndList() {
   const site = await gget(`/sites/${SITE_HOST}`);
@@ -664,19 +698,13 @@ function kenntnisEskalationHtml(posten) {
     if (!admins.length) {
       console.log('Risiko-Digest: keine Admins in der Config – übersprungen.');
     } else {
-      // Liste „Risiken" suchen (existiert erst nach dem ersten Öffnen des Reiters)
-      const rl = await gget(`/sites/${siteId}/lists?$filter=displayName eq 'Risiken'`);
-      const riskList = (rl.value || [])[0];
+      // Liste „Risiken" suchen – auf der ISMS-Site, dort legt die App sie an.
+      // Bis hierher wurde auf der App-Site gesucht; gefunden wurde nie etwas.
+      const riskList = await ismsListe('Risiken');
       if (!riskList) {
         console.log('Risiko-Digest: Liste „Risiken" existiert (noch) nicht – übersprungen.');
       } else {
-        const risks = [];
-        let url = `/sites/${siteId}/lists/${riskList.id}/items?$expand=fields&$top=200`;
-        while (url) {
-          const resp = await gget(url);
-          for (const it of (resp.value || [])) risks.push(it.fields || {});
-          url = resp['@odata.nextLink'] || null;
-        }
+        const risks = await ismsItems(riskList.id);
         const todayStr = new Date().toISOString().slice(0, 10);
         const rowsOut = [];
         for (const f of risks) {
@@ -713,5 +741,66 @@ function kenntnisEskalationHtml(posten) {
     }
   } catch (e) { console.log('Risiko-Digest übersprungen:', e.message); }
 
+
+  // ── Ausnahmen-Digest: abgelaufene und auslaufende Abweichungen (Reifegrad R130) ──
+  // „Befristet" ist nur dann eine Eigenschaft, wenn jemand vom Ablauf erfährt.
+  // Ohne diese Mail wäre die Frist im Register bloß ein Datum in einer Spalte.
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Ausnahmen-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Ausnahmen');
+      if (!liste) {
+        console.log('Ausnahmen-Digest: Liste „Ausnahmen" existiert (noch) nicht – übersprungen.');
+      } else {
+        const vorlauf = posInt(cfg.ausnahmenVorlaufTage, 30);
+        const heute = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
+        const rowsOut = [];
+        for (const f of await ismsItems(liste.id)) {
+          const status = f.ExcStatus || 'beantragt';
+          const titel = f.Title || '(ohne Titel)';
+          const wer = f.Antragsteller || '';
+          if (status === 'beantragt') {
+            rowsOut.push({ titel, was: 'wartet auf Entscheidung', wer, rang: 1 });
+            continue;
+          }
+          if (status !== 'genehmigt') continue;
+          if (!f.BefristetBis) {
+            rowsOut.push({ titel, was: 'genehmigt, aber ohne Enddatum', wer, rang: 1 });
+            continue;
+          }
+          const ende = new Date(String(f.BefristetBis).slice(0, 10) + 'T00:00:00Z').getTime();
+          const tage = Math.round((ende - heute) / 86400000);
+          if (tage < 0) {
+            rowsOut.push({ titel, was: `abgelaufen seit ${-tage} Tag(en) – die Richtlinie gilt wieder uneingeschränkt`, wer, rang: 0 });
+          } else if (tage <= vorlauf) {
+            rowsOut.push({ titel, was: `läuft in ${tage} Tag(en) aus (${String(f.BefristetBis).slice(0, 10)})`, wer, rang: 2 });
+          }
+        }
+        if (!rowsOut.length) {
+          console.log('Ausnahmen-Digest: nichts fällig.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const abgelaufen = rowsOut.filter((x) => x.rang === 0).length;
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Ausnahmeregister: Fristen und offene Anträge</b></p>
+            <p>Genehmigte Abweichungen von Richtlinien sind befristet (Reifegrad&nbsp;R130). Folgende Einträge brauchen eine Entscheidung:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=ausnahmen" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Ausnahmeregister öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Ausnahmeregister: ${rowsOut.length} Eintrag/Einträge fällig${abgelaufen ? ` (davon ${abgelaufen} abgelaufen)` : ''}`, html, []);
+          if (ok) sent++;
+          console.log(`Ausnahmen-Digest: ${rowsOut.length} Eintrag/Einträge an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Ausnahmen-Digest übersprungen:', e.message); }
+
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
+
 })().catch((e) => { console.error('FEHLER:', e.message); process.exit(1); });

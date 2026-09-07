@@ -57,6 +57,10 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
         Freigaben
       </a>
+      <a class="nav-item" data-view="ausnahmen" id="nav-ausnahmen" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 01.95.68l.36 1.09 3.4.5a1 1 0 01.55 1.71l-2.46 2.4.58 3.39a1 1 0 01-1.45 1.05L10 11.22l-3.04 1.6a1 1 0 01-1.45-1.05l.58-3.39-2.46-2.4a1 1 0 01.55-1.71l3.4-.5.36-1.09A1 1 0 0110 2z" opacity=".25"/><path fill-rule="evenodd" d="M10 1a1 1 0 011 1v1.2l4.5 1.5a1 1 0 01.68.95V7a1 1 0 01-2 0v-.63l-3.18-1.06V16h2.5a1 1 0 110 2h-7a1 1 0 110-2H9V5.31L5.82 6.37V7a1 1 0 01-2 0V5.65a1 1 0 01.68-.95L9 3.2V2a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        Ausnahmen
+      </a>
       <a class="nav-item" data-view="faelligkeit" id="nav-faelligkeit" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
         Fälligkeiten
@@ -290,6 +294,16 @@
       </section>
 
       <!-- ── VIEW: Risiko-Register (Admin) ── -->
+      <!-- ── VIEW: Ausnahmeregister (Abweichungen von Richtlinien) ── -->
+      <section id="view-ausnahmen" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Ausnahmeregister (Reifegrad R130 · ISO 27001 5.36)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshAusnahmen()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="ausnahmen-mount"></div>
+      </section>
+
       <section id="view-risiken" class="view">
         <div class="view-toolbar">
           <div style="font-weight:700">Risiko-Register (ISO 27001 · 6.1.2/6.1.3 · 8.2/8.3)</div>
@@ -380,6 +394,7 @@
 <script src="js/reifegrad.js?v=d6d0ccb9"></script>
 <script src="js/faelligkeit.js?v=d6d0ccb9"></script>
 <script src="js/risiken.js?v=d6d0ccb9"></script>
+<script src="js/ausnahmen.js?v=1"></script>
 <script src="js/cockpit.js?v=d6d0ccb9"></script>
 <script src="js/clevelreport.js?v=d6d0ccb9"></script>
 <script src="js/ismsdocs.js?v=d6d0ccb9"></script>
