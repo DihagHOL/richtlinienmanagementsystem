@@ -93,6 +93,14 @@ async function bootApp(account) {
     await daten;
     // Probelauf (?probelauf=1): erst nach der Anmeldung, nur für Freigeschaltete.
     // Er ersetzt nichts – die Anwendung läuft danach ganz normal weiter.
+    // Ein laufender Probelauf überlebt das Neuladen – dafür muss sein Modul da
+    // sein, bevor gefragt wird. Es gehört nicht zum Kern; geladen wird es nur,
+    // wenn die Kennung im Speicher steht.
+    if (typeof modulLaden === 'function' && typeof probelaufGewuenscht !== 'function') {
+      let will = /[?&]probelauf=1(&|$)/.test(location.search);
+      try { will = will || localStorage.getItem('rms_probelauf_an') === '1'; } catch (e) {}
+      if (will) await modulLaden('probelauf').catch(() => {});
+    }
     if (typeof probelaufGewuenscht === 'function' && probelaufGewuenscht()
         && typeof probelaufAktivieren === 'function') await probelaufAktivieren();
     await applyDeepLinkOrDefault();   // lädt Daten + rendert (Mail-Deeplink oder Standard)
@@ -119,8 +127,16 @@ async function applyDeepLinkOrDefault() {
       toast('Für die Konzept-Prüfung fehlt Ihnen der Zugriff auf das Regelwerk Dashboard.');
       return;
     }
-    if (typeof handleKonzeptMailAction === 'function' || typeof renderKonzeptCards === 'function') _adminMode = 'konzepte';
+    // Erst wechseln – das lädt admin.js –, dann den Modus setzen. `_adminMode`
+    // wird dort mit `let` deklariert; vorher zuzuweisen wäre ein
+    // ReferenceError. Diese Zeile war die einzige harte Kante vom Kern in den
+    // Verwaltungsblock.
     await switchView('verwaltung');
+    if (typeof _adminMode !== 'undefined'
+        && (typeof handleKonzeptMailAction === 'function' || typeof renderKonzeptCards === 'function')) {
+      _adminMode = 'konzepte';
+      if (typeof setAdminMode === 'function') setAdminMode('konzepte');
+    }
     if (aktion && typeof handleKonzeptMailAction === 'function') handleKonzeptMailAction(konzeptId, aktion);
     else if (typeof focusKonzeptCard === 'function') focusKonzeptCard(konzeptId);
     return;
@@ -302,6 +318,19 @@ function showSync(on, text) {
 ═══════════════════════════════════════════════════ */
 
 async function switchView(view) {
+  // Zuerst die Module dieser Ansicht. Die Inline-Handler in ihrem Abschnitt
+  // suchen ihre Funktionen im globalen Scope; die Reihenfolge ist deshalb keine
+  // Feinheit, sondern die Bedingung, unter der der Reiter überhaupt bedienbar
+  // ist. Scheitert das Laden, bleibt die alte Ansicht stehen – besser als eine
+  // leere Seite mit toten Knöpfen.
+  if (typeof modulFuerAnsicht === 'function') {
+    try {
+      await modulFuerAnsicht(view);
+    } catch (e) {
+      if (typeof toast === 'function') toast('Teile der Anwendung konnten nicht geladen werden: ' + e.message, 'error');
+      return;
+    }
+  }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n =>
@@ -441,8 +470,13 @@ function renderMeine() {
 
   // Nachgelagert und ohne await: Der Hinweis auf Ausnahmen ist eine Zugabe und
   // darf das Zeichnen der Liste nicht aufhalten. Trifft er ein, füllt er nur
-  // seine Platzhalter.
-  if (typeof excHintergrundLaden === 'function') excHintergrundLaden();
+  // seine Platzhalter. Das Modul selbst gehört nicht zum Kern – es kommt hier
+  // im Hintergrund nach, damit auch Lesende den Hinweis sehen.
+  if (typeof modulLaden === 'function') {
+    modulLaden('ausnahmen').then(() => excHintergrundLaden()).catch(() => {});
+  } else if (typeof excHintergrundLaden === 'function') {
+    excHintergrundLaden();
+  }
 }
 
 function renderMeineError(msg) {
@@ -466,7 +500,10 @@ function memberBadge(st) {
 async function openDetail(policyId) {
   const p = policyZuId(policyId);
   if (!p) return;
-  switchView('detail');
+  // Mit await: switchView holt die Module der Ansicht, und das darunter
+  // gebaute HTML fragt gleich `typeof proposePolicyChange` ab. Ohne Warten
+   // fehlte der Knopf „Änderung vorschlagen" – lautlos.
+  await switchView('detail');
   const v = document.getElementById('view-detail');
   const a = State.acks.find(x => x.richtlinieId === p.id && x.version === p.version);
   const st = completionStatus(p);

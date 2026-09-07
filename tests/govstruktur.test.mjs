@@ -463,7 +463,8 @@ ok(/id="view-govstruktur"/.test(html), 'Die Ansicht existiert');
 ok(/data-view="govstruktur" id="nav-govstruktur"/.test(html), 'Der Reiter auch');
 ok(html.indexOf('id="nav-govstruktur"') > html.indexOf('id="nav-governance"'), 'Er steht unter dem Governance-Board');
 ok(html.indexOf('id="nav-govstruktur"') < html.indexOf('nav-grp-isms'), 'Und noch in der Gruppe Corporate Governance');
-ok(/<script src="js\/govstruktur\.js\?v=/.test(html), 'Das Skript ist eingebunden');
+ok(/govstruktur:\s*\['govstruktur'\]/.test(lies('js/module.js')),
+  'Das Modul steht in der Nachlade-Karte – und kommt ohne den Verwaltungsblock aus');
 const app = lies('js/app.js');
 ok(/govstruktur: 'Governance-Struktur'/.test(app), 'Der Seitentitel stimmt');
 ok(/view === 'govstruktur'\s+&& typeof initGovStruktur === 'function'\)\s+initGovStruktur\(\)/.test(app),

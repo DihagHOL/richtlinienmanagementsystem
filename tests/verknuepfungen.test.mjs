@@ -194,7 +194,7 @@ ok(/knopf\('netz', '🕸 Verknüpfungen'/.test(proz), 'Der Reiter hat den dritte
 ok(/_prozModus === 'netz'/.test(proz), 'Und zeichnet die Ansicht');
 ok(/function lkZuVerknuepfungen/.test(lies('js/landkarte.js')),
   'Aus der Landkarte führt ein Knopf direkt in die Mindmap');
-ok(/<script src="js\/verknuepfungen\.js/.test(lies('index.html')), 'Das Modul ist eingebunden');
+ok(/'verknuepfungen'/.test(lies('js/module.js')), 'Das Modul steht in der Nachlade-Karte');
 ok(/\.vk-svg \{ width: 100%/.test(css) && /\.vk-chip \{/.test(css), 'Stil für Graph und Chips vorhanden');
 
 /* ── 7) Regelwerke einem Modell zuordnen, ohne den Modeler zu öffnen ──

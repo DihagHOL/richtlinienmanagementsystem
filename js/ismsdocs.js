@@ -838,10 +838,15 @@ async function ismsShowVersions(driveItemId, name) {
 }
 
 /** ISMS-Dokument in den Richtlinien-Workflow übernehmen (Editor mit vorbefülltem Dokument). */
-function ismsToRichtlinie(driveItemId) {
+async function ismsToRichtlinie(driveItemId) {
   const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
   if (!d) return;
-  if (typeof newPolicy !== 'function' || typeof renderPolicyEditor !== 'function') {
+  // `_editing` gehört zu admin.js. Der Wächter stand hier schon für zwei andere
+  // Namen aus derselben Datei – jetzt auch für diesen. Damit hängt ismsdocs.js
+  // an keiner Stelle mehr ungesichert am Verwaltungsblock und lässt sich
+  // allein nachladen (die Detailansicht braucht daraus nur einen Knopf).
+  if (typeof _editing === 'undefined'
+      || typeof newPolicy !== 'function' || typeof renderPolicyEditor !== 'function') {
     toast('Richtlinien-Editor nicht verfügbar.', 'error'); return;
   }
   _editing = newPolicy();
@@ -852,8 +857,8 @@ function ismsToRichtlinie(driveItemId) {
   _editing.dokumentUrl = d.webUrl || '';
   if (d.fields?.Kategorie) _editing.kategorie = d.fields.Kategorie;
   closeModal();
-  switchView('verwaltung');     // wechselt in die Richtlinien-Verwaltung
-  renderPolicyEditor();         // öffnet den Editor mit vorbefülltem Dokument
+  await switchView('verwaltung');   // wechselt in die Richtlinien-Verwaltung
+  renderPolicyEditor();             // öffnet den Editor mit vorbefülltem Dokument
   toast('Dokument übernommen – bitte Richtlinie vervollständigen und speichern.');
 }
 

@@ -310,7 +310,7 @@ ok(/function prozessModusLeiste/.test(proz) && /setProzessModus/.test(proz), 'De
 ok(/🗺 Landkarte/.test(proz) && /📋 Modelle/.test(proz), 'Landkarte und Modell-Liste');
 ok(/_prozModus = 'karte'/.test(proz), 'Die Landkarte ist die Startansicht – sie ist der Einstieg, nicht die Dateiliste');
 ok(/renderProzesseAktuell\(\)/.test(proz), 'Nach dem Laden wird die gewählte Ansicht gezeichnet');
-ok(/<script src="js\/landkarte\.js/.test(lies('index.html')), 'Das Modul ist eingebunden');
+ok(/'landkarte'/.test(lies('js/module.js')), 'Das Modul steht in der Nachlade-Karte');
 ok(/\.lk-reihe \{ display: grid/.test(css), 'Die Bänder sind ein Raster – Flexbox blies die letzte Zeile auf');
 ok(/hyphens: auto/.test(css), 'Lange Komposita werden getrennt statt überzulaufen');
 ok(/@media \(max-width: 780px\)[\s\S]{0,400}\.lk-pfeil \{ clip-path: none/.test(css),

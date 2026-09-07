@@ -54,8 +54,16 @@ const html = fs.readFileSync(ROOT + '/index.html', 'utf8');
 const reihenfolge = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(m => m[1]);
 ok(reihenfolge.includes('util'), 'util.js ist in index.html eingebunden');
 ok(reihenfolge.indexOf('util') === 0, `util.js steht vor allen anderen (ist an Position ${reihenfolge.indexOf('util') + 1})`);
+
+/* Seit dem Nachladen steht in der Seite nur noch der Kern. Dass util.js vor
+   seinen Nutzern da ist, folgt jetzt daraus, dass es zum Kern gehört und die
+   anderen nachgeladen werden – das ist die stärkere Zusicherung, denn sie
+   hängt nicht mehr an der Reihenfolge von Tags. */
+const karte = fs.readFileSync(ROOT + '/js/module.js', 'utf8');
+const kern = (karte.match(/MODUL_KERN = \[([^\]]*)\]/) || [])[1] || '';
+ok(/'util'/.test(kern), 'util.js gehört zum Kern');
 for (const d of dateien)
-  ok(reihenfolge.indexOf('util') < reihenfolge.indexOf(d), `util.js lädt vor ${d}.js`);
+  ok(!new RegExp(`'${d}'`).test(kern), `${d}.js wird nachgeladen – util.js ist dann längst da`);
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

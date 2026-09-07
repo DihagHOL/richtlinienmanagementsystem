@@ -104,7 +104,8 @@ const appjs = fs.readFileSync(ROOT + '/js/app.js','utf8');
 ok(appjs.includes("p.typ !== 'Konzept'") && appjs.includes("p.typ === 'Konzept'"), 'reloadData partitioniert Regelwerke/Konzepte');
 ok(appjs.includes('konzepte: []'), 'State.konzepte default vorhanden');
 const idx = fs.readFileSync(ROOT + '/index.html','utf8');
-ok(idx.includes('openKonzeptEditor()') && idx.includes('js/konzepte.js'), 'index.html: Button + Script eingebunden');
+ok(idx.includes('openKonzeptEditor()') && /'konzepte'/.test(fs.readFileSync(ROOT + '/js/module.js','utf8')),
+  'index.html: Button vorhanden, Modul in der Nachlade-Karte');
 const adm = fs.readFileSync(ROOT + '/js/admin.js','utf8');
 ok(adm.includes("_adminMode === 'konzepte'") && adm.includes('renderKonzeptCards(q') && adm.includes('_adminModeBar'), 'admin.js: Modus-Umschalter delegiert an Konzepte');
 

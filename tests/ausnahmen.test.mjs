@@ -274,7 +274,11 @@ const html = lies('index.html');
 const acc  = lies('js/access.js');
 const app  = lies('js/app.js');
 const sp   = lies('js/sharepoint.js');
-ok(/<script src="js\/ausnahmen\.js\?v=/.test(html), 'Das Skript ist eingebunden – mit ?v= für das Cache-Busting');
+// Seit dem Nachladen steht in der index.html nur noch der Kern; wer geladen
+// wird, sagt js/module.js. Die Version hängt der Lader selbst an.
+ok(/'ausnahmen'/.test(lies('js/module.js')), 'Das Modul steht in der Nachlade-Karte');
+ok(/ausnahmen:\s*\['normen', 'risiken', 'ausnahmen'\]/.test(lies('js/module.js')),
+  'Der Reiter lädt es zusammen mit dem, was es braucht (Risiko-Skala, Normbezug)');
 ok(/id="view-ausnahmen"/.test(html) && /id="ausnahmen-mount"/.test(html), 'Ansicht und Ankerpunkt stehen im HTML');
 ok(/id="nav-ausnahmen"/.test(html) && /data-view="ausnahmen"/.test(html), 'Und der Navigationseintrag');
 ok(/view: 'ausnahmen'/.test(acc), 'Der Reiter ist einzeln berechtigbar (GOVERNABLE_TABS)');

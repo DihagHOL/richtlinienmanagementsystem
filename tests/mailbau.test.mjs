@@ -101,7 +101,10 @@ ok(absender >= 12, `${absender} Absenderzeilen tragen denselben Namen`);
 /* ── 5) Die Datei ist eingehängt ── */
 const html = lies('index.html');
 ok(/<script src="js\/mailbau\.js\?v=/.test(html), 'mailbau.js ist in index.html eingehängt');
-ok(html.indexOf('js/mailbau.js') < html.indexOf('js/freigaben.js'), 'Und wird vor den Mail-Bauern geladen');
+// freigaben.js wird nachgeladen, mailbau.js gehört zum Kern – damit steht es
+// zwangsläufig vorher da. Genau das ist hier zu zeigen.
+ok(/MODUL_KERN = \[[^\]]*'mailbau'/.test(lies('js/module.js')),
+  'Und gehört zum Kern – damit steht es vor jedem nachgeladenen Mail-Bauer');
 
 /* ── 6) Die Mails selbst sind unverändert (Stichprobe) ── */
 const mctx = {

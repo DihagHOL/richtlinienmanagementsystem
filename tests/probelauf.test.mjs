@@ -379,10 +379,14 @@ ok(/aktion === 'Konzept freigegeben'/.test(fg2), 'Quelle ist der Historien-Eintr
 
 /* ── 11) Einbindung ── */
 const html = lies('index.html');
-const reihen = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(x => x[1]);
-for (const f of ['probelauf', 'tour']) ok(reihen.includes(f), `${f}.js ist eingebunden`);
-ok(!reihen.includes('demo'), 'demo.js ist nicht mehr eingebunden');
-ok(!reihen.includes('tutorial'), 'Der alte Rundgang ist nicht mehr eingebunden');
+// Seit dem Nachladen tragen beide keine <script>-Tags mehr – sie gehören zur
+// Gruppe der Anleitung. Geprüft wird deshalb die Gruppe.
+const karte = lies('js/module.js');
+const anleitung = (karte.match(/anleitung:\s*MODUL_ADMIN\.concat\(\[([^\]]*)\]/) || [])[1] || '';
+const reihen = [...anleitung.matchAll(/'([a-z-]+)'/g)].map(x => x[1]);
+for (const f of ['probelauf', 'tour']) ok(reihen.includes(f), `${f}.js wird mit der Anleitung geladen`);
+ok(!/'demo'/.test(karte), 'demo.js wird nirgends geladen');
+ok(!/'tutorial'/.test(karte), 'Der alte Rundgang wird nirgends geladen');
 ok(/const TOUR_BEISPIEL/.test(tour), 'Die Führung bringt ihr Beispiel selbst mit');
 ok(reihen.indexOf('probelauf') < reihen.indexOf('anleitung'), 'probelauf.js lädt vor anleitung.js');
 const css = lies('css/style.css');
