@@ -809,7 +809,14 @@ function workflowBadge(status) {
 /* ── Toast ──
    Meldungen werden über eine Live-Region angekündigt, damit Screenreader sie
    mitbekommen (Fehler dringlicher als Erfolgsmeldungen). */
-function toast(msg, type = '') {
+/**
+ * Kurzmeldung einblenden.
+ *
+ * `dauer` gab es bisher nicht – ein Aufrufer in abdeckung.js übergab trotzdem
+ * 6000, weil seine Meldung länger zu lesen ist. Das Argument fiel still weg.
+ * Gefunden hat das die Typprüfung (TS2554), nicht das Auge.
+ */
+function toast(msg, type = '', dauer = 3200) {
   const c = document.getElementById('toast-c');
   if (!c) return;
   c.setAttribute('role', 'status');
@@ -818,7 +825,7 @@ function toast(msg, type = '') {
   t.className = 'toast ' + type;
   t.textContent = msg;
   c.appendChild(t);
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 3200);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, dauer);
 }
 
 /* ── Modal ──

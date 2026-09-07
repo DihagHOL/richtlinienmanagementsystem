@@ -658,7 +658,8 @@ async function spSavePolicy(p) {
 /**
  * Aktuellen Änderungsstand eines Regelwerks abfragen (ohne die Felder zu laden).
  * Für den Gleichzeitigkeits-Schutz: Wurde der Eintrag geändert, seit er im Editor
- * geöffnet wurde? @returns { modifiedAt, modifiedBy } | null (z. B. wenn gelöscht)
+ * geöffnet wurde?
+ * @returns {Promise<{modifiedAt: string, modifiedBy: string}|null>} null z. B., wenn gelöscht
  */
 async function spGetPolicyMeta(id) {
   if (!id) return null;
@@ -1271,8 +1272,8 @@ const _ISMS_WB_RE = {
  * im Freigabe-Workflow geprüft/freigegeben wurde. Läuft nur, wenn das Dokument in der
  * ISMS-Bibliothek liegt (sonst still übersprungen). Best effort.
  * @param kind   'konform' (Konformität erreicht) | 'freigabe' (veröffentlicht)
- * @param person { upn, name } – handelnde Person (Prüfer bzw. Geschäftsleitung)
- * @returns true bei erfolgreichem Zurückschreiben, sonst false
+ * @param {{upn: string, name: string}} person handelnde Person (Prüfer bzw. Geschäftsleitung)
+ * @returns {Promise<boolean>} true bei erfolgreichem Zurückschreiben
  */
 async function spIsmsWritebackStatus(driveId, driveItemId, kind, person) {
   if (!driveId || !driveItemId) return false;
@@ -1838,7 +1839,7 @@ async function spGetPolicyDocText(driveId, itemId) {
 const LANDKARTE_DATEI = 'prozesslandkarte.json';
 function _landkartePfad() { return `${SP.configFolder}/${LANDKARTE_DATEI}`; }
 
-/** @returns {{daten:object, geaendertAm:string}|null} – null = noch nie gespeichert. */
+/** @returns {Promise<{daten:object, geaendertAm:string}|null>} null = noch nie gespeichert. */
 async function spLoadLandkarte() {
   const token = await acquireToken(SP.scopes);
   if (!token) return null;
@@ -2128,7 +2129,7 @@ function _govStrukturPfad() {
   return `${SP.configFolder}/${GOV_STRUKTUR_DATEI}`;
 }
 
-/** Gespeicherte Matrix laden. @returns {{daten:object, geaendertAm:string}|null} */
+/** Gespeicherte Matrix laden. @returns {Promise<{daten:object, geaendertAm:string}|null>} */
 async function spLoadGovStruktur() {
   const token = await acquireToken(SP.scopes);
   if (!token) return null;
@@ -2161,7 +2162,7 @@ async function spGovStrukturMeta() {
   } catch (e) { return null; }
 }
 
-/** Matrix speichern. @returns {string} neuer Änderungszeitstempel */
+/** Matrix speichern. @returns {Promise<string>} neuer Änderungszeitstempel */
 async function spSaveGovStruktur(daten) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');

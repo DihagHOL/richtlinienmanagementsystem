@@ -579,7 +579,7 @@ function zielgruppeBekanntgabeDialog(p, ziel, opts) {
 /**
  * Zielgruppe über ein veröffentlichtes Regelwerk informieren – über die
  * hinterlegten Verteiler, nicht über Einzeladressen.
- * @returns {boolean} true, wenn eine Mail rausging
+ * @returns {Promise<boolean>} true, wenn eine Mail rausging
  */
 async function notifyZielgruppe(p, opts) {
   const still = !!(opts && opts.still);
@@ -799,7 +799,10 @@ function neuerAktionToken(art) {
   let wert = '';
   try {
     const b = new Uint8Array(16);
-    (window.crypto || window.msCrypto).getRandomValues(b);
+    // window['msCrypto'] statt window.msCrypto: Der alte Name existiert im
+    // Typmodell nicht; die eckige Klammer sagt „ich weiß, dass das ein
+    // Notnagel ist" und behält ihn trotzdem.
+    (window.crypto || window['msCrypto']).getRandomValues(b);
     wert = Array.from(b).map(x => x.toString(36)).join('').slice(0, 24);
   } catch (e) {
     wert = (Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 24);

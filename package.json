@@ -7,11 +7,14 @@
     "test": "node scripts/test.mjs",
     "smoke": "node scripts/smoketest.mjs",
     "smoke:deploy": "node scripts/deploy-smoke.mjs",
+    "typen": "node scripts/typpruefung.mjs",
+    "typen:alle": "node scripts/typpruefung.mjs --alle",
     "e2e:login": "playwright test --project=setup --headed",
     "e2e:preauth": "playwright test --project=preauth",
     "e2e": "playwright test --project=authenticated"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.9.3"
   }
 }

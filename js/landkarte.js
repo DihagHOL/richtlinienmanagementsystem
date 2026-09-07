@@ -2993,7 +2993,7 @@ function lkVerknuepfenDialog(id) {
   const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
     .filter(p => !schon.has(p.itemId))   // was schon hängt, nicht noch einmal anbieten
     // Modelle des eigenen Werks zuerst – die sind in aller Regel gemeint.
-    .sort((a, b) => ((b.ordner || '') === _lkWerk) - ((a.ordner || '') === _lkWerk)
+    .sort((a, b) => (Number((b.ordner || '') === _lkWerk) - Number((a.ordner || '') === _lkWerk))
       || (a.title || '').localeCompare(b.title || '', 'de'));
   if (!alle.length) { toast('Es gibt kein weiteres Modell zum Verknüpfen.', 'error'); return; }
   openModal(`

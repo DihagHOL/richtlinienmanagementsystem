@@ -20,3 +20,12 @@ jobs:
           node-version: 20
       - name: Smoketest + Testsuiten ausführen
         run: node scripts/test.mjs
+
+      # Typprüfung: tsc liest das gewöhnliche JavaScript und meldet, was ein
+      # Prüfer ohne Typen sehen kann – falsche Argumentzahl, Tippfehler in
+      # Namen, Syntax in JSDoc. Ausgeliefert wird nichts; --noEmit.
+      - name: TypeScript holen (nur für die Prüfung)
+        run: npm install --no-save --no-audit --no-fund typescript@5
+
+      - name: Typprüfung
+        run: node scripts/typpruefung.mjs

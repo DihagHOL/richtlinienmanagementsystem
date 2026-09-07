@@ -988,7 +988,8 @@ function _parseSteps(text) {
 
 /**
  * Standards-konformes BPMN 2.0 aus Freitext bauen (Aufgaben + Entscheidungs-
- * Gateways mit ja/nein-Zweig, inkl. DI-Layout). @returns { name, xml, policyIds }
+ * Gateways mit ja/nein-Zweig, inkl. DI-Layout).
+ * @returns {{name: string, xml: string, policyIds: string[]}}
  */
 function _bpmnFromText(text, name, policyIds, docs) {
   let steps = _parseSteps(text);
