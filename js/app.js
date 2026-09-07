@@ -433,10 +433,16 @@ function renderMeine() {
         ${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}
         <span class="ic-tag">Version ${esc(p.version)}</span>
         ${p.quizErforderlich ? '<span class="ic-tag">📝 Wissenstest</span>' : ''}
+        ${typeof excMarkerHtml === 'function' ? excMarkerHtml(p.id) : ''}
         ${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? `<span class="ic-tag">👥 ${esc(p.zielgruppen.join(', '))}</span>` : ''}
       </div>
     </div>`;
   }).join('');
+
+  // Nachgelagert und ohne await: Der Hinweis auf Ausnahmen ist eine Zugabe und
+  // darf das Zeichnen der Liste nicht aufhalten. Trifft er ein, füllt er nur
+  // seine Platzhalter.
+  if (typeof excHintergrundLaden === 'function') excHintergrundLaden();
 }
 
 function renderMeineError(msg) {
@@ -479,6 +485,7 @@ async function openDetail(policyId) {
       </div>
       ${p.beschreibung ? `<p class="ic-desc" style="margin-top:10px">${esc(p.beschreibung)}</p>` : ''}
     </div>
+    ${typeof excHinweisHtml === 'function' ? excHinweisHtml(p.id) : ''}
     <div class="detail-grid">
       <div class="doc-frame-wrap">
         <div class="doc-frame-head">
@@ -492,6 +499,7 @@ async function openDetail(policyId) {
     </div>`;
 
   loadPreview(p);
+  if (typeof excHintergrundLaden === 'function') excHintergrundLaden();
   if (st === 'open') startReadGate(10);   // Lese-Gate: Kenntnisnahme erst nach Lesen/Öffnen
 }
 

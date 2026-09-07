@@ -317,5 +317,109 @@ ok(/const riskList = await ismsListe\('Risiken'\)/.test(cron),
 ok(!/lists\?\$filter=displayName eq 'Risiken'/.test(cron),
   'Die alte Suche auf der App-Site ist weg, nicht bloß danebengestellt');
 
+/* ── 16) Der Hinweis an der Richtlinie ──
+   Wer eine Regel befolgen soll, muss wissen, ob sie für ihn ausgesetzt ist.
+   Deshalb steht der Hinweis an der Richtlinie und nicht nur im Register. Er
+   darf aber nichts aufhalten und nichts Falsches behaupten, solange die Daten
+   noch unterwegs sind. */
+
+// Ein winziges DOM: Platzhalter, die sich füllen lassen.
+const knoten = [];
+ctx.document.querySelectorAll = (sel) => {
+  const attr = sel.replace(/[\[\]]/g, '');
+  return { forEach: (fn) => knoten.filter(k => k.attr === attr).forEach(fn) };
+};
+const platzhalter = (attr, wert) => {
+  const k = { attr, wert, innerHTML: '', getAttribute: () => wert };
+  knoten.push(k); return k;
+};
+
+run(`_excs = null;`);
+ok(run(`_excMarkerInhalt('7')`) === '',
+  'Solange nichts geladen ist, behauptet der Marker nichts – kein „0 Ausnahmen", das gleich falsch wäre');
+ok(/data-exc-fuer="7"/.test(run(`excMarkerHtml('7')`)),
+  'Der Platzhalter steht trotzdem schon da – gefüllt wird er, wenn die Daten eintreffen');
+
+run(`_excs = [
+  { id:'a', titel:'Terminals Halle 3', richtlinieId:'7', status:'genehmigt', befristetBis:'2026-12-31T00:00:00Z', werke:['WGC'] },
+  { id:'b', titel:'alt',               richtlinieId:'7', status:'genehmigt', befristetBis:'2026-01-01T00:00:00Z', werke:[] },
+  { id:'c', titel:'Antrag',            richtlinieId:'7', status:'beantragt', befristetBis:'2026-12-31T00:00:00Z', werke:[] },
+  { id:'d', titel:'Clean Desk SHB',    richtlinieId:'9', status:'genehmigt', befristetBis:'2026-11-01T00:00:00Z', werke:['SHB'] },
+];`);
+const marker7 = run(`_excMarkerInhalt('7')`);
+ok(/1 Ausnahme</.test(marker7),
+  'Gezählt wird nur, was heute trägt – nicht das Abgelaufene, nicht der Antrag');
+ok(/Terminals Halle 3 \(bis 2026-12-31\)/.test(marker7), 'Der Kurztext nennt sie beim Namen und mit Frist');
+ok(run(`_excMarkerInhalt('9')`).includes('1 Ausnahme'), 'Eine andere Richtlinie hat ihre eigene');
+ok(run(`_excMarkerInhalt('999')`) === '', 'Wo keine gilt, steht nichts – kein leerer Kasten');
+run(`_excs.push({ id:'e', titel:'zweite', richtlinieId:'7', status:'genehmigt', befristetBis:'2026-12-31T00:00:00Z', werke:[] });`);
+ok(/2 Ausnahmen</.test(run(`_excMarkerInhalt('7')`)), 'Mehrzahl wird gebildet');
+
+/* Trennung nach Gesellschaft: Was einem anderen Werk gehört, taucht auch hier nicht auf. */
+run(`geltungSichtbar = (g) => !Array.isArray(g) || !g.length || g.includes('ZAI');`);
+ok(run(`_excMarkerInhalt('9')`) === '', 'Die Ausnahme eines fremden Werks erscheint nicht an der Richtlinie');
+ok(/1 Ausnahme</.test(run(`_excMarkerInhalt('7')`)), 'Konzernweites bleibt sichtbar');
+run(`geltungSichtbar = () => true;`);
+
+/* Der ausführliche Hinweis in der Detailansicht. */
+const hinweis = run(`_excHinweisInhalt('7')`);
+ok(/genehmigte Ausnahmen von dieser Richtlinie/.test(hinweis), 'In der Detailansicht steht ein ganzer Hinweis');
+ok(/Im Übrigen gilt die Richtlinie unverändert/.test(hinweis),
+  'Mit dem Satz, der die Fehldeutung verhindert – ausgesetzt ist der Punkt, nicht die Regel');
+ok(/konzernweit/.test(hinweis) && /WGC/.test(hinweis), 'Und je Eintrag, für wen sie gilt');
+ok(!/Begründung|Risiko|ISB/.test(hinweis),
+  'Aber ohne Begründung, Risikobewertung und ISB – die Akte bleibt im Register');
+ok(/Ausnahmeregister öffnen/.test(hinweis), 'Mit Recht auf den Reiter führt ein Weg dorthin');
+run(`canReadTab = (v) => v !== 'ausnahmen';`);
+ok(!/Ausnahmeregister öffnen/.test(run(`_excHinweisInhalt('7')`)) && /genehmigte Ausnahmen/.test(run(`_excHinweisInhalt('7')`)),
+  'Ohne dieses Recht bleibt der Hinweis – nur der Weg ins Register fehlt');
+run(`canReadTab = () => true;`);
+
+/* Platzhalter füllen sich nachträglich, ohne dass die Liste neu gezeichnet wird. */
+const m1 = platzhalter('data-exc-fuer', '7');
+const m2 = platzhalter('data-exc-hinweis', '7');
+const m3 = platzhalter('data-exc-fuer', '999');
+run(`excMarkerAktualisieren()`);
+ok(/2 Ausnahmen</.test(m1.innerHTML) && /genehmigte Ausnahmen/.test(m2.innerHTML),
+  'Beide Platzhalter werden gefüllt, wenn die Daten da sind');
+ok(m3.innerHTML === '', 'Und einer ohne Treffer bleibt leer');
+
+/* Das Nachladen: einmal, still, und niemals eine Liste anlegen. */
+let leiseAufrufe = 0;
+ctx.spGetExceptionsLeise = async () => { leiseAufrufe++; return [
+  { id:'x', titel:'nachgeladen', richtlinieId:'7', status:'genehmigt', befristetBis:'2026-12-31T00:00:00Z', werke:[] }]; };
+run(`_excs = null; _excLeiseVersucht = false; _excsLoading = false;`);
+await run(`excHintergrundLaden()`);
+ok(leiseAufrufe === 1 && run(`_excs.length`) === 1, 'Der Hintergrundlauf holt den Bestand');
+ok(/nachgeladen/.test(m1.innerHTML), 'Und füllt dabei die Platzhalter, die schon im Dokument stehen');
+await run(`excHintergrundLaden()`);
+await run(`excHintergrundLaden()`);
+ok(leiseAufrufe === 1, 'Danach nicht noch einmal – einmal je Sitzung genügt');
+
+run(`_excs = null; _excLeiseVersucht = false;`);
+ctx.spGetExceptionsLeise = async () => { throw new Error('kein Zugriff'); };
+gemeldet.length = 0;
+await run(`excHintergrundLaden()`);
+ok(run(`_excs`) === null && gemeldet.length === 0,
+  'Scheitert es, bleibt es still – eine Fehlermeldung auf der Startseite hülfe niemandem');
+
+run(`_excs = null; _excLeiseVersucht = false;`);
+ctx.spGetExceptionsLeise = async () => null;
+await run(`excHintergrundLaden()`);
+ok(run(`_excs`) === null,
+  'Gibt es die Liste noch nicht, bleibt der Bestand ungesetzt – der Reiter zeigt dann seine Anleitung');
+
+/* Und die Datenschicht legt beim stillen Lesen nichts an. */
+ok(/async function spGetExceptionsLeise\(\)[\s\S]{0,400}spEnsureExceptionList\(false\)/.test(sp),
+  'Das stille Lesen legt keine Liste an – das täte sonst jede Anmeldung auf der Startseite');
+ok(/if \(typeof excHintergrundLaden === 'function'\) excHintergrundLaden\(\);/.test(app),
+  'Die Regelwerk-Ansicht stößt das Nachladen an');
+ok(/\$\{typeof excMarkerHtml === 'function' \? excMarkerHtml\(p\.id\) : ''\}/.test(app),
+  'Jede Regelwerkskarte trägt den Platzhalter');
+ok(/\$\{typeof excHinweisHtml === 'function' \? excHinweisHtml\(p\.id\) : ''\}/.test(app),
+  'Und die Detailansicht den ausführlichen Hinweis');
+ok(!/await excHintergrundLaden/.test(app),
+  'Ohne await – der Hinweis ist eine Zugabe und darf das Zeichnen nicht aufhalten');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

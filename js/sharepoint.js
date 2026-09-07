@@ -2560,6 +2560,30 @@ async function spGetExceptions() {
   return out;
 }
 
+/**
+ * Ausnahmen lesen, ohne etwas anzulegen.
+ *
+ * Für den Hinweis an der Richtlinie: Den ruft jede Anmeldung auf. Der normale
+ * Weg legt die Liste bei Bedarf an – das ist beim Öffnen des Reiters richtig
+ * und beim Zeichnen der Startseite falsch. Rückgabe `null` heißt „die Liste
+ * gibt es (noch) nicht"; ein leeres Feld heißt „es gibt sie, sie ist leer".
+ */
+async function spGetExceptionsLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) return null;
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapException(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
 async function spAddException(a) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');

@@ -569,6 +569,97 @@ async function deleteAusnahme(id) {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════
+   Der Hinweis an der Richtlinie
+   ===================================================
+   Wer eine Regel befolgen soll, muss wissen, ob sie für ihn ausgesetzt ist.
+   Deshalb steht DASS eine Ausnahme gilt und bis wann an der Richtlinie selbst –
+   für alle, die die Richtlinie sehen. Die Akte dazu (Begründung,
+   Risikobewertung, ISB, Entscheidungskommentar) bleibt hinter dem Reiterrecht.
+   Die Trennung nach Gesellschaft greift an beiden Stellen: excZuRichtlinie()
+   liefert nur, was für die eigene Gesellschaft überhaupt gilt.
+
+   Gezeichnet wird zweistufig – erst ein leerer Platzhalter, später gefüllt.
+   Das Laden darf die Hauptansicht nicht aufhalten, und ein zweiter
+   Zeichendurchlauf der ganzen Liste wäre dafür ein zu grobes Werkzeug.
+═══════════════════════════════════════════════════ */
+
+let _excLeiseVersucht = false;
+
+/**
+ * Den Bestand im Hintergrund holen – einmal je Sitzung, ohne etwas aufzuhalten.
+ *
+ * Legt bewusst keine Liste an: Das tut der Reiter, wenn ihn jemand öffnet.
+ * Schlägt das Lesen fehl (kein Recht auf der ISMS-Site, Liste noch nicht da),
+ * bleibt es still – dann fehlt der Hinweis, und das ist besser als eine
+ * Fehlermeldung auf der Startseite, mit der niemand etwas anfangen kann.
+ */
+async function excHintergrundLaden() {
+  if (_excs || _excsLoading || _excLeiseVersucht) return;
+  if (typeof spGetExceptionsLeise !== 'function') return;
+  _excLeiseVersucht = true;
+  try {
+    const liste = await spGetExceptionsLeise();
+    if (!Array.isArray(liste)) return;   // Liste gibt es (noch) nicht
+    _excs = liste;
+    excMarkerAktualisieren();
+  } catch (e) { /* still – der Hinweis ist eine Zugabe, kein Muss */ }
+}
+
+/** Platzhalter für den kleinen Marker an einer Regelwerkskarte. */
+function excMarkerHtml(richtlinieId) {
+  const id = String(richtlinieId || '');
+  return `<span data-exc-fuer="${esc(id)}">${_excMarkerInhalt(id)}</span>`;
+}
+
+function _excMarkerInhalt(id) {
+  if (!_excs) return '';
+  const treffer = excZuRichtlinie(id);
+  if (!treffer.length) return '';
+  const liste = treffer.map(a => a.titel + (a.befristetBis ? ` (bis ${a.befristetBis.slice(0, 10)})` : '')).join(' · ');
+  return `<span class="ic-tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a"
+    title="${esc(liste)}">⚖️ ${treffer.length} Ausnahme${treffer.length > 1 ? 'n' : ''}</span>`;
+}
+
+/** Platzhalter für den ausführlichen Hinweis in der Detailansicht. */
+function excHinweisHtml(richtlinieId) {
+  const id = String(richtlinieId || '');
+  return `<div data-exc-hinweis="${esc(id)}">${_excHinweisInhalt(id)}</div>`;
+}
+
+function _excHinweisInhalt(id) {
+  if (!_excs) return '';
+  const treffer = excZuRichtlinie(id);
+  if (!treffer.length) return '';
+  const darfRegister = typeof canReadTab !== 'function' || canReadTab('ausnahmen');
+  const zeilen = treffer.map(a => {
+    const tage = excTageBisAblauf(a);
+    const bald = tage !== null && tage <= EXC_WARNUNG_TAGE;
+    return `<li style="margin:3px 0"><b>${esc(a.titel)}</b>
+      – befristet bis <span style="${bald ? 'color:#b45309;font-weight:600' : ''}">${a.befristetBis ? fmtDate(a.befristetBis) : 'ohne Enddatum'}</span>${
+        bald && tage >= 0 ? ` (noch ${tage} Tage)` : ''}
+      · ${(a.werke || []).length ? esc(a.werke.join(', ')) : 'konzernweit'}</li>`;
+  }).join('');
+  return `<div class="col-warning" style="display:block;margin:12px 0">
+    <b>⚖️ ${treffer.length === 1 ? 'Eine genehmigte Ausnahme' : treffer.length + ' genehmigte Ausnahmen'} von dieser Richtlinie</b>
+    <ul style="margin:6px 0 0 18px;padding:0">${zeilen}</ul>
+    <div style="margin-top:8px;font-size:.82rem">Im Übrigen gilt die Richtlinie unverändert.${
+      darfRegister ? ` <a href="#" onclick="switchView('ausnahmen');return false">Ausnahmeregister öffnen →</a>` : ''}</div>
+  </div>`;
+}
+
+/** Alle Platzhalter füllen, die gerade im Dokument stehen. */
+function excMarkerAktualisieren() {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  document.querySelectorAll('[data-exc-fuer]').forEach(el => {
+    el.innerHTML = _excMarkerInhalt(el.getAttribute('data-exc-fuer'));
+  });
+  document.querySelectorAll('[data-exc-hinweis]').forEach(el => {
+    el.innerHTML = _excHinweisInhalt(el.getAttribute('data-exc-hinweis'));
+  });
+}
+
 /* ── Export ── */
 
 function ausnahmenExportCsv() {
