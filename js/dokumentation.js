@@ -51,6 +51,7 @@ const _DOKU_TOC = [
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
   ['prozesse',      'Prozesse (BPMN 2.0)'],
+  ['prozessschema', 'Prozesse niederschreiben (Hausschema)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
@@ -569,6 +570,41 @@ function _dokuSections() {
       </div>
       <div style="${hint}">💡 Kein Word-Dokument verknüpft? Dann einfach den Prozesstext in das Feld einfügen – der Entwurf wird genauso erzeugt.</div>`,
       'ISO 27001 A.5.37 (Dokumentierte Betriebsabläufe), Klausel 8.1 (Betriebliche Planung &amp; Steuerung); NIS2 Art. 21(2) (Verfahren &amp; Maßnahmen).'),
+
+    sec('prozessschema', 'Prozesse niederschreiben (Hausschema)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">BPMN kennt über hundert Symbole. Wer alle zulässt, bekommt Modelle, die niemand außer ihrem Verfasser liest – und die im Audit <i>erklärt</i> werden müssen, statt zu erklären. Das Hausschema lässt <b>neun</b> zu und legt fest, wie sie benannt werden. Der Editor prüft dagegen: Knopf <b>„🔍 Schema"</b>.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Drei Entscheidungen tragen alles Weitere:</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Eine Aufgabe sagt am Symbol, wer sie ausführt</b> – 👤 Mensch, ⚙ System, ✋ Handgriff ohne Anwendung. Das nackte BPMN-Kästchen ist verboten: Es sieht aus wie eine Aussage und ist keine.</li>
+        <li style="${li}"><b>Eine Bahn ist eine Rolle, keine Person.</b> Personen wechseln, Rollen bleiben; ein Modell mit Namen darin ist am nächsten Montag falsch. Jeder Knoten liegt in genau einer Bahn – <b>„wer ist zuständig"</b> hat damit immer eine Antwort, und ein Bahnwechsel ist im Bild eine <b>Übergabe</b>: genau dort gehen Prozesse kaputt.</li>
+        <li style="${li}"><b>Benennung ist Teil des Schemas.</b> Aufgaben: Verb im Infinitiv + Objekt („Antrag prüfen", nicht „Antragsprüfung"). Entscheidungen: eine Frage mit Fragezeichen. Ereignisse: ein Zustand, kein Verb.</li>
+      </ul>
+      <div style="${h3}">Die neun Bausteine</div>
+      <table class="doku-tbl"><tbody>${(typeof PROZESS_BAUSTEINE !== 'undefined' ? PROZESS_BAUSTEINE : []).map(b => `<tr>
+        <td style="font-weight:600;white-space:nowrap"><span style="font-size:1.05rem">${b.symbol}</span> ${esc(b.titel)}</td>
+        <td>${esc(b.zweck)}<div style="color:var(--c-muted);font-size:.85em;margin-top:2px">Benennung: ${esc(b.benennung)}${b.beispiel ? ' · z. B. „' + esc(b.beispiel) + '"' : ''}</div></td>
+      </tr>`).join('')}</tbody></table>
+      <div style="${h3}">So wird ein Prozess aufgeschrieben</div>
+      <p style="margin:0 0 8px;line-height:1.55">Vor dem Doppelpunkt steht die <b>Bahn</b>, dahinter der Schritt. Mehr braucht es nicht – aus diesen Zeilen baut „✨ Aus Text erzeugen" ein vollständiges Modell mit Pool, Bahnen und richtigen Symbolen.</p>
+      <pre style="background:var(--c-bg,#f8fafc);border:1px solid var(--c-border);border-radius:8px;padding:10px;overflow:auto;font-size:.82rem;line-height:1.5">${esc(typeof PROZESS_VORLAGE_TEXT !== 'undefined' ? PROZESS_VORLAGE_TEXT : '')}</pre>
+      ${tbl([
+        ['<code>Rolle: Schritt</code>', 'Wird eine Aufgabe 👤 in der Bahn „Rolle".'],
+        ['<code>System: Schritt</code>', 'Die Bahnen <b>System, Automatik, Workflow, Cron</b> gelten als ⚙ – wer das schreibt, meint kein Handanlegen.'],
+        ['<code>… (automatisch)</code>', 'Macht ⚙ daraus, egal in welcher Bahn. Auch im Einkauf läuft manches von selbst.'],
+        ['<code>… (manuell)</code>', 'Macht ✋ daraus: findet außerhalb jeder Anwendung statt.'],
+        ['<code>Frage?</code>', 'Ein Fragezeichen macht eine Entscheidung ◇ daraus.'],
+        ['<code>Frage? | nein: Text</code>', 'Benennt den Nein-Zweig. <b>Mit</b> Angabe endet er in „Beendet", <b>ohne</b> in „Nachbessern" – nicht jede Nein-Antwort ist ein Fehler.'],
+        ['<code>Start: …</code> / <code>Ende: …</code>', 'Auslöser und Ergebnis. Fehlen sie, ergänzt der Generator sie.'],
+        ['<code>Warten: …</code>', 'Der Prozess ruht ⏱, bis eine Frist abläuft oder eine Nachricht kommt.'],
+        ['<code>A: eins → B: zwei</code>', 'Pfeile trennen mehrere Schritte einer Zeile.'],
+      ])}
+      <div style="${h3}">Woran die Prüfung scheitert</div>
+      <table class="doku-tbl"><tbody>${(typeof PROZESS_REGELN !== 'undefined' ? PROZESS_REGELN : []).map(r => `<tr>
+        <td style="font-weight:600;white-space:nowrap">${esc(r.id)}</td>
+        <td>${esc(r.text)}<div style="color:var(--c-muted);font-size:.85em;margin-top:2px">${esc(r.warum)}</div></td>
+      </tr>`).join('')}</tbody></table>
+      <div style="${hint}">Die Prüfung unterscheidet <b>Fehler</b> (verletzt eine Regel) und <b>Hinweise</b> (Empfehlung, begründet übergehbar) – etwa, wenn eine Bahn wie ein Personenname aussieht: Sicher sagen lässt sich das nicht. Ein Modell, das die Prüfung besteht, beantwortet ohne Rückfrage: <b>wer ist zuständig</b>, <b>was läuft automatisch</b>, <b>wie geht die Sache aus</b>.</div>`,
+      'ISO 27001 Klausel 4.4 (Managementsystem und seine Prozesse), 5.3 (Rollen und Verantwortlichkeiten), 7.5 (dokumentierte Information); ISO 9001 4.4 verlangt dasselbe für alle Prozesse. Notation: OMG BPMN 2.0.'),
 
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),

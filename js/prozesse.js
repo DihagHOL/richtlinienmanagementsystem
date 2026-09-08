@@ -553,6 +553,7 @@ async function openProcessEditor(itemId, seed) {
       <button class="btn btn-sm btn-ghost" onclick="initProzesse()">← Zurück zur Liste</button>
       <div style="font-weight:700">${proc ? 'Prozess bearbeiten' : 'Neuer Prozess'}</div>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-outline btn-sm" onclick="prozessSchemaPruefung()" title="Gegen das Hausschema prüfen">🔍 Schema</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als Bild – lässt sich in Word, PowerPoint und Regelwerke einfügen">⬇ Bild</button>
       ${itemId && canWrite ? `<button class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="deleteProcess()">Löschen</button>` : ''}
@@ -593,6 +594,11 @@ async function openProcessEditor(itemId, seed) {
           <span class="field-hint">Ein Element im Diagramm anklicken und hier den Prozess wählen, in den der Ablauf
             an dieser Stelle übergeht. Am Element erscheint dann ein ↦ zum Weiterklicken – so steht der Übergang
             dort, wo er passiert, und nicht nur an der Kachel.</span></div>
+        <div class="form-group full"><label>Hausschema</label>
+          <div id="proc-schema" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
+          <span class="field-hint">Neun Bausteine, neun Regeln – oben „🔍 Schema" prüft das Modell dagegen.
+            Ein Modell, das die Prüfung besteht, beantwortet ohne Rückfrage: wer ist zuständig, was läuft
+            automatisch, wie geht die Sache aus.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
       </div>
     </div>`;
@@ -652,6 +658,62 @@ async function openProcessEditor(itemId, seed) {
   } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
   procSprungMarker();
   _renderElementSprung(canWrite);
+  prozessSchemaLegende();
+  if (itemId || (seed && seed.xml)) prozessSchemaPruefung(true);
+}
+
+/* ── Hausschema im Editor ── */
+
+/** Die neun Bausteine als Legende – die Vorlage dort, wo modelliert wird. */
+function prozessSchemaLegende() {
+  const host = document.getElementById('proc-schema');
+  if (!host || typeof PROZESS_BAUSTEINE === 'undefined') return;
+  host.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem">
+      ${PROZESS_BAUSTEINE.map(b => `<span title="${esc(b.zweck)} · ${esc(b.benennung)}">
+        <b style="font-size:.95rem">${b.symbol}</b> ${esc(b.titel)}</span>`).join('')}
+    </div>
+    <div class="field-hint" style="margin-top:6px">Noch nicht geprüft – „🔍 Schema" oben.</div>`;
+}
+
+/**
+ * Das offene Modell gegen das Hausschema prüfen.
+ *
+ * @param {boolean} still – beim Öffnen: keine Erfolgsmeldung, nur der Kasten.
+ */
+async function prozessSchemaPruefung(still) {
+  const host = document.getElementById('proc-schema');
+  if (!host) return;
+  if (typeof prozessSchemaPruefen !== 'function' || !_bpmnModeler) return;
+  let xml = '';
+  try { xml = (await _bpmnModeler.saveXML({ format: false })).xml; }
+  catch (e) { host.innerHTML = `<span style="color:#b91c1c">Modell nicht lesbar: ${esc(e.message)}</span>`; return; }
+
+  const ids = (typeof _selectedPolicyIds === 'function') ? _selectedPolicyIds() : null;
+  const r = prozessSchemaPruefen(xml, ids ? { policyIds: ids } : {});
+  const zeile = (art, f) => `<li style="margin:2px 0"><b style="color:${art === 'f' ? '#b91c1c' : '#b45309'}">${
+    esc(f.regel)}</b> ${esc(f.text)}</li>`;
+  const zahlen = r.zahlen;
+
+  host.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;margin-bottom:8px">
+      ${PROZESS_BAUSTEINE.map(b => `<span title="${esc(b.zweck)} · ${esc(b.benennung)}">
+        <b style="font-size:.95rem">${b.symbol}</b> ${esc(b.titel)}</span>`).join('')}
+    </div>
+    <div style="font-size:.8rem;color:var(--c-muted);margin-bottom:6px">
+      ${zahlen.bahnen} Bahn(en) · 👤 ${zahlen.mensch} · ⚙ ${zahlen.automatik} · ✋ ${zahlen.handgriff} · ${zahlen.fluesse} Verbindungen</div>
+    ${r.fehler.length
+      ? `<div class="col-warning" style="display:block"><b>${r.fehler.length} Regelverstoß/-verstöße:</b>
+          <ul style="margin:6px 0 0 18px;padding:0">${r.fehler.map(f => zeile('f', f)).join('')}</ul></div>`
+      : '<div style="color:#15803d;font-weight:600;font-size:.85rem">✓ Entspricht dem Hausschema.</div>'}
+    ${r.hinweise.length
+      ? `<div style="margin-top:8px;font-size:.82rem"><b>Hinweise</b> (dürfen begründet übergangen werden):
+          <ul style="margin:4px 0 0 18px;padding:0">${r.hinweise.map(f => zeile('h', f)).join('')}</ul></div>` : ''}`;
+
+  if (!still && typeof toast === 'function') {
+    toast(r.fehler.length ? `${r.fehler.length} Regelverstoß/-verstöße – siehe „Hausschema"`
+                          : 'Modell entspricht dem Hausschema ✓',
+      r.fehler.length ? 'error' : 'success');
+  }
 }
 
 /* ── Anlagen im Editor ── */
@@ -949,147 +1011,41 @@ function _clipLabel(s, fallback) {
 }
 
 /**
- * Freitext → Prozessschritte. Bevorzugt nummerierte/aufgezählte Zeilen; sonst
- * Absätze. Pfeile (→, ->, ⇒) trennen mehrere Schritte einer Zeile. Erkennt
- * Entscheidungen (Frage/„konform?"/„genehmigt?" …) und Rollen-Präfixe („IT: …").
- * @returns [{ kind:'task'|'decision', label, role }]
+ * Freitext → Prozessschritte (Weiterleitung auf das Hausschema).
+ *
+ * Die Zerlegung wohnt in js/prozessschema.js, weil sie dort neben der
+ * Beschreibung steht, die sie umsetzt. `role` heißt dort `bahn` – es ist
+ * dasselbe, nur beim richtigen Namen genannt.
  */
 function _parseSteps(text) {
-  const raw = String(text || '').replace(/\r/g, '');
-  const lines = [];
-  raw.split(/\n+/).forEach(line => {
-    line = line.trim();
-    if (!line) return;
-    line.split(/\s*(?:→|->|⇒|=>|➔|▶)\s*/).forEach(part => { part = part.trim(); if (part) lines.push(part); });
-  });
-  const bulletRe = /^(\d+[.)]|[-–•*‣◦])\s+/;
-  const hasBullets = lines.some(l => bulletRe.test(l));
-  let cand = hasBullets ? lines.filter(l => bulletRe.test(l)) : lines;
-  cand = cand.map(l => l.replace(bulletRe, '').trim()).filter(l => l.length >= 3);
-
-  const decWord = /\b(konform|genehmigt|freigegeben|geprüft|zulässig|erforderlich|notwendig|möglich|vorhanden|erfüllt|bestanden|ok)\b/i;
-  const steps = [];
-  for (let l of cand) {
-    if (steps.length >= 16) break;
-    let role = '';
-    const m = l.match(/^([A-Za-zÄÖÜäöüß./&-]{2,28}?):\s+(.+)$/);
-    if (m && m[2] && m[2].length >= 2 && !/\d/.test(m[1])) { role = m[1].trim(); l = m[2].trim(); }
-    // „…? | nein: Text" benennt den Nein-Zweig. Ohne die Angabe endet jede
-    // Entscheidung in „Abweichung behandeln" – bei einer Frage wie „Kann der
-    // Kunde betroffen sein?" ist das schlicht falsch.
-    let nein = '';
-    const nm2 = l.match(/\|\s*nein\s*:\s*(.+)$/i);
-    if (nm2) { nein = nm2[1].trim(); l = l.slice(0, nm2.index).trim(); }
-    const isDecision = (/\?\s*$/.test(l) || (decWord.test(l) && l.length < 70));
-    steps.push({ kind: isDecision ? 'decision' : 'task', label: l, role, nein });
-  }
-  return steps;
+  return prozessTextLesen(text).map(s => ({
+    kind: s.kind === 'frage' ? 'decision' : s.kind === 'ende' || s.kind === 'start' ? 'event' : 'task',
+    label: s.label, role: s.bahn || '', nein: s.nein || '',
+  }));
 }
 
 /**
- * Standards-konformes BPMN 2.0 aus Freitext bauen (Aufgaben + Entscheidungs-
- * Gateways mit ja/nein-Zweig, inkl. DI-Layout).
- * @returns {{name: string, xml: string, policyIds: string[]}}
+ * Freitext → BPMN nach Hausschema.
+ *
+ * Der eigene Generator, der früher hier stand, konnte weder Bahnen noch
+ * Aufgabentypen: Jede Aufgabe wurde ein nacktes `bpmn:task`, und die Rolle
+ * landete als Präfix im Etikett („IT: Antrag prüfen"). Beides sind Angaben,
+ * die BPMN im Symbol führt – und im Text verschwinden sie beim ersten
+ * Umbenennen. Gebaut wird deshalb in js/prozessschema.js, gegen dieselbe
+ * Beschreibung, gegen die auch geprüft wird.
+ *
+ * @returns {{name: string, xml: string, policyIds: string[], docs: Array}}
  */
 function _bpmnFromText(text, name, policyIds, docs) {
-  let steps = _parseSteps(text);
-  if (!steps.length) steps = [
-    { kind: 'task', label: 'Richtlinie anwenden/prüfen', role: '' },
-    { kind: 'decision', label: 'Konform?', role: '' },
-  ];
-  policyIds = (policyIds || []).map(String);
-
-  const shapes = [];          // { id, type, name, x, y, w, h }
-  const flows = [];           // { id, src, tgt, name }
-  const inc = {}, out = {};
-  let fc = 0;
-  const addFlow = (src, tgt, nm) => {
-    const id = 'F_' + (++fc);
-    flows.push({ id, src, tgt, name: nm || '' });
-    (out[src] = out[src] || []).push(id);
-    (inc[tgt] = inc[tgt] || []).push(id);
-  };
-
-  const MY = 200;             // Haupt-Mittellinie (y)
-  let x = 150;
-  shapes.push({ id: 'Start', type: 'startEvent', name: 'Auslöser', x: x, y: MY - 18, w: 36, h: 36 });
-  let prev = 'Start', prevGw = false;
-  x += 36 + 60;
-
-  steps.forEach((s, i) => {
-    if (s.kind === 'decision') {
-      const gid = 'Gw' + i;
-      shapes.push({ id: gid, type: 'exclusiveGateway', name: _clipLabel(s.label, 'Entscheidung?'), x: x, y: MY - 25, w: 50, h: 50 });
-      addFlow(prev, gid, prevGw ? 'ja' : '');
-      // Nein-Zweig nach unten
-      const cxGw = x + 25;
-      const rid = 'Rej' + i, reid = 'RejEnd' + i, by = MY + 130;
-      shapes.push({ id: rid, type: 'task', name: _clipLabel(s.nein, '') || 'Abweichung behandeln', x: cxGw - 60, y: by, w: 120, h: 80 });
-      shapes.push({ id: reid, type: 'endEvent', name: s.nein ? 'Beendet' : 'Nachbessern', x: cxGw - 60 + 120 + 40, y: by + 22, w: 36, h: 36 });
-      addFlow(gid, rid, 'nein');
-      addFlow(rid, reid, '');
-      prev = gid; prevGw = true;
-      x += 50 + 120;
-    } else {
-      const tid = 'T' + i;
-      const label = _clipLabel(s.role ? (s.role + ': ' + s.label) : s.label, 'Schritt');
-      shapes.push({ id: tid, type: 'task', name: label, x: x, y: MY - 40, w: 150, h: 80 });
-      addFlow(prev, tid, prevGw ? 'ja' : '');
-      prev = tid; prevGw = false;
-      x += 150 + 60;
-    }
+  const ids = (policyIds || []).map(String);
+  const anlagen = docs || [];
+  return prozessXmlBauen({
+    name, schritte: prozessTextLesen(text), policyIds: ids, docs: anlagen,
+    // Richtlinien und Anlagen reisen als Marker in der Prozess-Dokumentation
+    // mit. Ohne sie verlöre ein erzeugtes Modell genau die Verknüpfungen, für
+    // die es angelegt wurde.
+    doku: _procDokuText(ids, anlagen),
   });
-  shapes.push({ id: 'End', type: 'endEvent', name: 'Abgeschlossen', x: x, y: MY - 18, w: 36, h: 36 });
-  addFlow(prev, 'End', prevGw ? 'ja' : '');
-
-  // Prozess-Dokumentation mit Richtlinien- und Anlagen-Markern
-  const docText = _procDokuText(policyIds, docs);
-
-  // Prozess-Kinder serialisieren (mit incoming/outgoing – für bpmn-js nötig)
-  const byId = {}; shapes.forEach(sh => byId[sh.id] = sh);
-  const children = [];
-  if (docText) children.push(`    <bpmn:documentation>${_xmlEsc(docText)}</bpmn:documentation>`);
-  shapes.forEach(sh => {
-    const incs = (inc[sh.id] || []).map(f => `<bpmn:incoming>${f}</bpmn:incoming>`).join('');
-    const outs = (out[sh.id] || []).map(f => `<bpmn:outgoing>${f}</bpmn:outgoing>`).join('');
-    children.push(`    <bpmn:${sh.type} id="${sh.id}" name="${_xmlEsc(sh.name)}">${incs}${outs}</bpmn:${sh.type}>`);
-  });
-  flows.forEach(f => children.push(
-    `    <bpmn:sequenceFlow id="${f.id}"${f.name ? ` name="${_xmlEsc(f.name)}"` : ''} sourceRef="${f.src}" targetRef="${f.tgt}" />`));
-
-  // DI (Shapes + Edges)
-  const cy = sh => sh.y + sh.h / 2, cx = sh => sh.x + sh.w / 2;
-  const di = [];
-  shapes.forEach(sh => {
-    const marker = sh.type === 'exclusiveGateway' ? ' isMarkerVisible="true"' : '';
-    const label = sh.type !== 'task'
-      ? `<bpmndi:BPMNLabel><dc:Bounds x="${sh.x - 12}" y="${sh.y + sh.h + 3}" width="${sh.w + 60}" height="14" /></bpmndi:BPMNLabel>` : '';
-    di.push(`      <bpmndi:BPMNShape id="${sh.id}_di" bpmnElement="${sh.id}"${marker}><dc:Bounds x="${sh.x}" y="${sh.y}" width="${sh.w}" height="${sh.h}" />${label}</bpmndi:BPMNShape>`);
-  });
-  flows.forEach(f => {
-    const s = byId[f.src], t = byId[f.tgt];
-    let wps;
-    if (s.type === 'exclusiveGateway' && t.y > s.y + 60) {
-      // Nein-Zweig: Gateway-Unterkante senkrecht in die Aufgaben-Oberkante (mittig)
-      wps = [[cx(s), s.y + s.h], [cx(s), t.y]];
-    } else {
-      wps = [[s.x + s.w, cy(s)], [t.x, cy(t)]];
-    }
-    di.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${wps.map(w => `<di:waypoint x="${Math.round(w[0])}" y="${Math.round(w[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
-  });
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="Process_1" isExecutable="false">
-${children.join('\n')}
-  </bpmn:process>
-  <bpmndi:BPMNDiagram id="Dia_1">
-    <bpmndi:BPMNPlane id="Plane_1" bpmnElement="Process_1">
-${di.join('\n')}
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
-</bpmn:definitions>`;
-  return { name: name || 'Prozess', xml, policyIds, docs: (docs || []) };
 }
 
 /* ── Standard-Prozesse aus den dokumentierten RMS-Abläufen ──
@@ -1223,6 +1179,12 @@ async function seedStandardProcesses() {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
+  // Im Browser teilen sich alle Skripte einen globalen Bereich, und
+  // js/prozessschema.js steht vor dieser Datei – die Schema-Funktionen sind
+  // dort einfach da. Unter Node hat jede Datei ihren eigenen Bereich; deshalb
+  // werden sie hier nachgereicht, damit ein `require('./prozesse.js')`
+  // dieselbe Umgebung vorfindet wie der Browser.
+  if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
   module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc };
 }

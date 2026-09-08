@@ -54,7 +54,7 @@ const MODUL_ANSICHTEN = {
   faelligkeit:   MODUL_ADMIN.concat(['faelligkeit']),
   ismsdocs:      MODUL_ADMIN.concat(['ismsdocs']),
   governance:    MODUL_ADMIN.concat(['governance']),
-  prozesse:      MODUL_ADMIN.concat(['prozesse', 'landkarte', 'prozessmatrix', 'mindmapbaum', 'verknuepfungen']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'prozessmatrix', 'mindmapbaum', 'verknuepfungen']),
   anleitung:     MODUL_ADMIN.concat(['probelauf', 'tour', 'anleitung']),
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
@@ -64,7 +64,11 @@ const MODUL_ANSICHTEN = {
   ausnahmen:    ['normen', 'risiken', 'ausnahmen'],
   wirksamkeit:  ['wirksamkeit'],
   vorschlaege:  ['proposals'],
-  dokumentation: ['dokumentation'],
+  // prozessschema steht dabei, weil der Abschnitt „Prozesse niederschreiben"
+  // seine Tabellen AUS dessen Daten baut. Ohne das Modul blieben sie leer –
+  // die Wächter fangen den Fehler ab, aber eine leere Tabelle ist auch keine
+  // Auskunft.
+  dokumentation: ['prozessschema', 'dokumentation'],
 };
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)

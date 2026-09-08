@@ -87,7 +87,9 @@ const g = _bpmnFromText('1. Etwas tun\n2. Passt es? | nein: Nur intern vermerken
 ok(/\[\[rms:doc=Partnerinfo\.pdf\|/.test(g.xml), 'Ein erzeugter Prozess kann Anlagen mitbringen');
 ok(g.docs.length === 1, 'Die Anlagen kommen mit dem Ergebnis zurück');
 ok(/name="Nur intern vermerken"/.test(g.xml), 'Der Nein-Zweig trägt den angegebenen Namen');
-ok(/<bpmn:endEvent id="RejEnd1" name="Beendet"/.test(g.xml),
+// Geprüft wird der Name, nicht die Kennung: „RejEnd1" war eine Eigenheit des
+// früheren Generators. Die Zusicherung ist, wie der Zweig ausgeht.
+ok(/<bpmn:endEvent[^>]*name="Beendet"/.test(g.xml),
   'Und endet in „Beendet" statt in „Nachbessern" – nicht jede Nein-Antwort ist ein Fehler');
 ok(!/\| nein:/.test(g.xml), 'Die Angabe selbst steht nicht mehr im Kasten');
 
