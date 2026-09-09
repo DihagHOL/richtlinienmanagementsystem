@@ -935,3 +935,42 @@ body.demo-mode .main { padding-bottom: 64px; }
 .vb-t2 .vb-plus:hover, .vb-t3 .vb-plus:hover { background: rgba(15,23,42,.16); }
 .vb-zoom { display: flex; gap: 4px; }
 @media print { .vb-rahmen { max-height: none; overflow: visible; } .vb-plus { display: none; } }
+
+/* ── Prozess-Editor: Grundmaße ─────────────────────────────────────────────
+   Sie standen bis hierher als Inline-Stile im Markup – und damit über jeder
+   Regel, die sie im Vollbild ändern wollte. Eine Angabe am Element schlägt
+   das Stylesheet, gleich wie spezifisch die Regel ist; die Höhe fiel dadurch
+   im Vollbild auf 2 px zusammen. Hier stehen sie richtig. */
+#proc-arbeit { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+#proc-buehne { flex: 1; min-width: 320px; }
+#bpmn-canvas { height: 70vh; min-height: 460px; border: 1px solid var(--c-border); border-radius: 10px; background: #fff; }
+#proc-seite { width: 280px; max-width: 100%; }
+
+/* ── Vollbild für den Prozess-Editor ───────────────────────────────────────
+   Der Editor sitzt sonst in der Ansicht, also innerhalb von Seitenleiste und
+   Kopfzeile. Ein Ablauf läuft waagerecht – die Breite ist das Knappe.
+
+   Diese Überlagerung wirkt immer. Die echte Vollbild-Schnittstelle des
+   Browsers kommt in js/prozesse.js obendrauf und darf ablehnen; dann bleibt
+   es hierbei, und der Unterschied ist nur, dass die Browser-Leiste stehen
+   bleibt. */
+.proc-voll {
+  position: fixed; inset: 0; z-index: 1200;
+  background: var(--c-bg, #f8fafc);
+  padding: 12px 14px 14px;
+  display: flex; flex-direction: column;
+  overflow: hidden;                 /* gescrollt wird im Diagramm, nicht hier */
+}
+.proc-voll .view-toolbar { margin-bottom: 10px; flex: 0 0 auto; }
+/* Die Arbeitsfläche nimmt den Rest. `min-height:0` ist nicht Zierde: Ohne sie
+   wächst ein Flex-Kind über seinen Behälter hinaus, statt zu schrumpfen. */
+.proc-voll #proc-arbeit { flex: 1 1 auto; min-height: 0; flex-wrap: nowrap; align-items: stretch; }
+.proc-voll #proc-buehne { display: flex; min-height: 0; }
+.proc-voll #bpmn-canvas { height: auto !important; min-height: 0 !important; flex: 1 1 auto; }
+.proc-voll #proc-seite { overflow: auto; max-height: 100%; }
+
+/* Im Vollbild ist der eigene Hintergrund gefragt: Die Überlagerung liegt über
+   allem, und ein durchscheinender Rand sähe nach Fehler aus. */
+.proc-voll:fullscreen, .proc-voll:-webkit-full-screen { background: var(--c-bg, #f8fafc); }
+
+@media print { .proc-voll { position: static; height: auto; } }

@@ -549,21 +549,26 @@ async function openProcessEditor(itemId, seed) {
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
 
   mount.innerHTML = `
+    <div id="proc-editor">
     <div class="view-toolbar">
       <button class="btn btn-sm btn-ghost" onclick="initProzesse()">← Zurück zur Liste</button>
       <div style="font-weight:700">${proc ? 'Prozess bearbeiten' : 'Neuer Prozess'}</div>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-outline btn-sm" id="proc-seite-btn" onclick="prozessSeiteUmschalten()"
+        title="Angaben rechts ein-/ausblenden – im Vollbild gehört die Breite dem Diagramm">▤ Angaben</button>
+      <button class="btn btn-outline btn-sm" id="proc-voll-btn" onclick="prozessVollbildUmschalten()"
+        title="Ganzer Bildschirm – Esc beendet">⛶ Vollbild</button>
       <button class="btn btn-outline btn-sm" onclick="prozessSchemaPruefung()" title="Gegen das Hausschema prüfen">🔍 Schema</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als Bild – lässt sich in Word, PowerPoint und Regelwerke einfügen">⬇ Bild</button>
       ${itemId && canWrite ? `<button class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="deleteProcess()">Löschen</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" id="proc-save-btn" onclick="saveProcess()">💾 Speichern</button>` : ''}
     </div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
-      <div style="flex:1;min-width:320px">
-        <div id="bpmn-canvas" style="height:70vh;min-height:460px;border:1px solid var(--c-border);border-radius:10px;background:#fff"></div>
+    <div id="proc-arbeit">
+      <div id="proc-buehne">
+        <div id="bpmn-canvas"></div>
       </div>
-      <div style="width:280px;max-width:100%">
+      <div id="proc-seite">
         <div class="form-group full"><label>Prozessname <span class="req">*</span></label>
           <input type="text" id="proc-name" value="${esc(startName)}" placeholder="z. B. Freigabe von Lieferanten" ${canWrite ? '' : 'disabled'}></div>
         <div class="form-group full"><label>Ablage (Konzern / Gesellschaft)</label>
@@ -601,6 +606,7 @@ async function openProcessEditor(itemId, seed) {
             automatisch, wie geht die Sache aus.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
       </div>
+    </div>
     </div>`;
   _procDocs = (seed && Array.isArray(seed.docs)) ? seed.docs.slice() : [];
   _renderPolicyPicker([], canWrite);
@@ -658,6 +664,9 @@ async function openProcessEditor(itemId, seed) {
   } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
   procSprungMarker();
   _renderElementSprung(canWrite);
+  // Wer zuletzt im Vollbild gearbeitet hat, fängt dort wieder an.
+  prozessSeiteUmschalten(_procGemerkt(PROC_SEITE_SPEICHER, true));
+  if (_procGemerkt(PROC_VOLL_SPEICHER, false)) prozessVollbildUmschalten(true);
   prozessSchemaLegende();
   if (itemId || (seed && seed.xml)) prozessSchemaPruefung(true);
 }
@@ -714,6 +723,110 @@ async function prozessSchemaPruefung(still) {
                           : 'Modell entspricht dem Hausschema ✓',
       r.fehler.length ? 'error' : 'success');
   }
+}
+
+
+/* ── Vollbild ──────────────────────────────────────────────────────────────
+   Der Editor sitzt in der Ansicht, also innerhalb von Seitenleiste und
+   Kopfzeile. Ein Ablauf läuft waagerecht; die Breite ist das Knappe.
+
+   Vollbild heißt hier zweierlei, und beides zusammen: Der Editor legt sich
+   über die Anwendung (das wirkt immer), und zusätzlich wird die echte
+   Vollbild-Schnittstelle des Browsers gefragt (die darf ablehnen – dann bleibt
+   es beim ersten). Wer nur eines von beiden baut, hat entweder die Browser-
+   Leisten noch im Bild oder gar nichts, wenn der Browser nein sagt. */
+
+const PROC_VOLL_SPEICHER = 'rms_proc_vollbild';
+const PROC_SEITE_SPEICHER = 'rms_proc_seite';
+let _procVoll = false;
+let _procSeiteAn = true;
+
+function _procMerken(schluessel, wert) {
+  try { localStorage.setItem(schluessel, wert ? '1' : '0'); } catch (e) { /* Privatmodus */ }
+}
+function _procGemerkt(schluessel, standard) {
+  try {
+    const v = localStorage.getItem(schluessel);
+    return v === null ? standard : v === '1';
+  } catch (e) { return standard; }
+}
+
+/**
+ * Die Zeichenfläche an ihre neue Größe anpassen.
+ *
+ * bpmn-js merkt eine Größenänderung des Behälters nicht von selbst – ohne
+ * `resized()` zeichnet es weiter in den alten Kasten, und das Diagramm sitzt
+ * dann halb außerhalb. Der Bildaufbau kommt erst nach dem Umschalten, deshalb
+ * im nächsten Rahmen.
+ */
+function _procBuehneNeu(einpassen) {
+  if (!_bpmnModeler) return;
+  const tun = () => {
+    try {
+      const canvas = _bpmnModeler.get('canvas');
+      canvas.resized();
+      if (einpassen) canvas.zoom('fit-viewport');
+    } catch (e) { /* Modeler gerade fort */ }
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(tun));
+  else setTimeout(tun, 60);
+}
+
+/** Angaben rechts ein- oder ausblenden. */
+function prozessSeiteUmschalten(an) {
+  const seite = document.getElementById('proc-seite');
+  const btn = document.getElementById('proc-seite-btn');
+  if (!seite) return;
+  _procSeiteAn = (an === undefined) ? !_procSeiteAn : !!an;
+  seite.style.display = _procSeiteAn ? '' : 'none';
+  if (btn) {
+    btn.textContent = _procSeiteAn ? '▤ Angaben' : '▤ Angaben zeigen';
+    btn.classList.toggle('btn-primary', !_procSeiteAn);
+    btn.classList.toggle('btn-outline', _procSeiteAn);
+  }
+  if (an === undefined) _procMerken(PROC_SEITE_SPEICHER, _procSeiteAn);
+  _procBuehneNeu(true);
+}
+
+/** Vollbild an/aus. Ohne Angabe: umschalten. */
+async function prozessVollbildUmschalten(an) {
+  const box = document.getElementById('proc-editor');
+  if (!box) return;
+  const ziel = (an === undefined) ? !_procVoll : !!an;
+  _procVoll = ziel;
+  box.classList.toggle('proc-voll', ziel);
+
+  const btn = document.getElementById('proc-voll-btn');
+  if (btn) {
+    btn.textContent = ziel ? '⤡ Vollbild beenden' : '⛶ Vollbild';
+    btn.title = ziel ? 'Zurück in die Ansicht – oder Esc' : 'Ganzer Bildschirm – Esc beendet';
+  }
+
+  // Die echte Vollbild-Schnittstelle obendrauf. Sie darf ablehnen (Richtlinie,
+  // eingebettete Seite); dann trägt die Überlagerung allein.
+  try {
+    if (ziel && !document.fullscreenElement && box.requestFullscreen) await box.requestFullscreen();
+    if (!ziel && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+  } catch (e) { /* dann eben nur die Überlagerung */ }
+
+  // Im Vollbild gehört die Breite dem Diagramm; zurück in der Ansicht steht
+  // wieder, was die Person zuletzt wollte.
+  prozessSeiteUmschalten(ziel ? false : _procGemerkt(PROC_SEITE_SPEICHER, true));
+  if (an === undefined) _procMerken(PROC_VOLL_SPEICHER, ziel);
+  _procBuehneNeu(true);
+}
+
+/* Esc beendet das Vollbild des Browsers, ohne dass unser Knopf davon erfährt –
+   danach stünde die Überlagerung ohne Vollbild da. Das Ereignis richtet beides
+   wieder aneinander aus. */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && _procVoll) prozessVollbildUmschalten(false);
+  });
+  // Esc, wenn gar kein echtes Vollbild lief (der Browser hat abgelehnt).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _procVoll && !document.fullscreenElement) prozessVollbildUmschalten(false);
+  });
 }
 
 /* ── Anlagen im Editor ── */
