@@ -88,6 +88,45 @@ const NF_STAB_EXTERNE = [
   { wer: 'Datenschutzaufsicht',        telefon: '' },
 ];
 
+/* ── Die Eskalationsstufen nach BSI 200-4 ──
+   Störung, Notfall, Krise – und der Normalbetrieb als Nullpunkt. Die Stufen
+   sind fest; je Werk wird ausgefüllt, WER sie ausruft und WEN er alarmiert.
+   Der Rest leitet sich ab: Ein Prozess ist in Störung, bis seine RTO reißt,
+   danach im Notfall; ab der MTPD ist es eine Krise. Damit hat die Frage
+   „Ist das schon ein Notfall?" eine Antwort, die niemand im Moment der
+   Aufregung neu erfinden muss. */
+const NF_STUFEN = [
+  { nr: 0, key: 'normal',   label: 'Normalbetrieb', farbe: '#15803d',
+    kriterium: 'Alles läuft. Störungen werden im Tagesgeschäft behoben.',
+    erklaert: '–', alarmiert: '–', mittel: 'Regelbetrieb, Ticket', meldepflicht: '' },
+  { nr: 1, key: 'stoerung', label: 'Störung',       farbe: '#b45309',
+    kriterium: 'Ein Asset oder Prozess fällt aus. Der Notbetrieb trägt, die RTO ist noch nicht erreicht.',
+    erklaert: 'Schichtleitung / IT-Bereitschaft', alarmiert: 'Prozessverantwortliche',
+    mittel: 'Notfallplan: Sofortmaßnahmen und Notbetrieb', meldepflicht: '' },
+  { nr: 2, key: 'notfall',  label: 'Notfall',       farbe: '#dc2626',
+    kriterium: 'Ein kritischer Prozess steht länger als seine RTO – oder wird es absehbar, weil das Asset länger braucht, als der Prozess weg sein darf.',
+    erklaert: 'Leitung Krisenstab, auf Meldung der Prozessverantwortlichen', alarmiert: 'Krisenstab-Kern: Leitung, Stellvertretung, IT/OT, betroffener Fachbereich',
+    mittel: 'Notfallplan: Wiederanlauf; Krisenstab in Bereitschaft',
+    meldepflicht: 'Bei Sicherheitsvorfall: NIS2-Frühwarnung binnen 24 h; DSGVO binnen 72 h, wenn Personendaten betroffen' },
+  { nr: 3, key: 'krise',    label: 'Krise',         farbe: '#7f1d1d',
+    kriterium: 'Mehrere kritische Prozesse betroffen, Menschen gefährdet, MTPD erreicht oder Außenwirkung (Kunden, Behörden, Presse).',
+    erklaert: 'Leitung Krisenstab', alarmiert: 'Gesamter Krisenstab, Geschäftsführung; externe Stellen nach Lage',
+    mittel: 'Krisenstab tritt zusammen; nach außen spricht nur die Rolle Kommunikation',
+    meldepflicht: 'NIS2-Meldung binnen 72 h, Abschlussbericht binnen eines Monats' },
+];
+
+/** Die Stufe zu einer Nummer – null, wenn es sie nicht gibt. */
+function nfStufe(nr) { return NF_STUFEN.find(x => x.nr === Number(nr)) || null; }
+
+/** Die Nummer einer Alarmierungszeile: aus `nr`, sonst aus der führenden Ziffer der Beschriftung. */
+function _nfStufeNr(row) {
+  if (!row) return null;
+  const n = Number(row.nr);
+  if (Number.isInteger(n) && n >= 1 && n <= 3) return n;
+  const m = String(row.stufe || '').match(/^\s*([123])\b/);
+  return m ? Number(m[1]) : null;
+}
+
 /** Wie lange ein Plan ohne Übung bleiben darf – danach ist er Papier. */
 const NF_UEBUNG_MONATE = 12;
 /** Wie alt der Krisenstab-Stand sein darf – Telefonnummern veralten schneller als Pläne. */
@@ -302,7 +341,13 @@ function nfStabVon(s) {
   return {
     standAm: String(q.standAm || ''),
     mitglieder: liste(q.mitglieder, ['rolle', 'name', 'telefon', 'mobil', 'vertretung', 'vertretungTelefon']),
-    alarmierung: liste(q.alarmierung, ['stufe', 'ausloeser', 'wer', 'tut']),
+    // Jede Zeile kennt ihre Stufe (1–3). Altbestand ohne `nr` wird an der
+    // führenden Ziffer erkannt; die Beschriftung kommt aus dem Modell.
+    alarmierung: liste(q.alarmierung, ['stufe', 'ausloeser', 'wer', 'tut']).map((x, i) => {
+      const nr = _nfStufeNr(x) ?? _nfStufeNr((Array.isArray(q.alarmierung) ? q.alarmierung : [])[i]);
+      const st = nfStufe(nr);
+      return Object.assign(x, { nr, stufe: x.stufe || (st ? `${st.nr} – ${st.label}` : '') });
+    }),
     externe: liste(q.externe, ['wer', 'telefon', 'hinweis']),
     treffpunkt: String(q.treffpunkt || ''),
     treffpunktErsatz: String(q.treffpunktErsatz || ''),
@@ -317,14 +362,30 @@ function nfStabVorlage() {
   return {
     standAm: '',
     mitglieder: NF_STAB_ROLLEN.map(r => ({ rolle: r.rolle, name: '', telefon: '', mobil: '', vertretung: '', vertretungTelefon: '' })),
-    alarmierung: [
-      { stufe: '1 – Störung', ausloeser: 'Ein Asset oder Prozess fällt aus, Notbetrieb reicht', wer: 'Schichtleitung / IT-Bereitschaft', tut: 'informiert die Prozessverantwortlichen, arbeitet den Notfallplan ab' },
-      { stufe: '2 – Notfall', ausloeser: 'Ein kritischer Prozess steht länger als seine RTO', wer: 'Prozessverantwortliche', tut: 'alarmiert die Leitung Krisenstab' },
-      { stufe: '3 – Krise', ausloeser: 'Mehrere kritische Prozesse, Personen gefährdet, Außenwirkung', wer: 'Leitung Krisenstab', tut: 'ruft den Krisenstab zusammen, erklärt den Notfall' },
-    ],
+    alarmierung: nfAlarmierungVorlage(),
     externe: NF_STAB_EXTERNE.map(e => ({ wer: e.wer, telefon: e.telefon, hinweis: '' })),
     treffpunkt: '', treffpunktErsatz: '', kanal: '', kanalErsatz: '', hinweis: '',
   };
+}
+
+/** Die drei Stufen als Alarmierungszeilen – Auslöser und Standardrollen aus dem Modell. */
+function nfAlarmierungVorlage() {
+  return NF_STUFEN.filter(x => x.nr >= 1).map(x => ({ nr: x.nr, stufe: `${x.nr} – ${x.label}`, ausloeser: x.kriterium, wer: x.erklaert, tut: x.alarmiert }));
+}
+
+/**
+ * Die Alarmierung eines Stabs so, dass jede Stufe eine Zeile hat – fehlende
+ * werden aus dem Modell ergänzt, fremde Zeilen (ohne Stufe) bleiben hinten.
+ */
+function nfAlarmierungVollstaendig(alarmierung) {
+  const rows = Array.isArray(alarmierung) ? alarmierung.map(x => Object.assign({}, x, { nr: _nfStufeNr(x) })) : [];
+  const out = [];
+  for (const v of nfAlarmierungVorlage()) {
+    const da = rows.find(r => r.nr === v.nr);
+    out.push(da ? Object.assign({}, v, da, { stufe: da.stufe || v.stufe }) : v);
+  }
+  rows.filter(r => r.nr === null).forEach(r => out.push(r));
+  return out;
 }
 
 const _nfIstLeitung = (m) => /leitung/i.test(m.rolle) && !/stellvertret|vertretung/i.test(m.rolle);
@@ -346,6 +407,15 @@ function nfStabLuecken(s) {
   const ohneNummer = mit.filter(m => m.name.trim() && !nummer(m) && !_nfIstLeitung(m) && !_nfIstVertretung(m));
   if (ohneNummer.length) f.push(`${ohneNummer.length} Mitglied(er) ohne Telefonnummer: ${ohneNummer.map(m => m.rolle || m.name).join(', ')}.`);
   if (!st.alarmierung.length) f.push('Keine Alarmierungskette – wer ruft wen, und wann?');
+  else {
+    // Jede Eskalationsstufe braucht jemanden, der sie ausruft. Sonst wird
+    // aus einer Störung ein Notfall, ohne dass es jemand sagt.
+    for (const v of NF_STUFEN.filter(x => x.nr >= 1)) {
+      const row = st.alarmierung.find(r => r.nr === v.nr);
+      if (!row) f.push(`Eskalationsstufe ${v.nr} (${v.label}) fehlt in der Alarmierung.`);
+      else if (!String(row.wer || '').trim()) f.push(`Eskalationsstufe ${v.nr} (${v.label}): niemand benannt, der sie ausruft.`);
+    }
+  }
   if (!st.treffpunkt.trim()) f.push('Kein Treffpunkt.');
   if (!st.kanal.trim()) f.push('Kein Kommunikationskanal – und der Ausfall von Teams ist ein wahrscheinliches Szenario.');
   if (st.kanal.trim() && !st.kanalErsatz.trim()) f.push('Kein Ersatzkanal für den Fall, dass der erste ausfällt.');
@@ -411,6 +481,61 @@ function nfAusfall(daten, assetId, werke) {
     .map(({ werk, kachel }) => { const b = nfBcmVon(kachel); return { werk, kachel, rto: b.rto, kritikalitaet: b.kritikalitaet, plan: nfHatPlan(kachel) }; })
     .sort((a, b) => (_nfSortZahl(a.rto) - _nfSortZahl(b.rto)) || (rang[a.kritikalitaet] - rang[b.kritikalitaet])
       || String(a.kachel.name).localeCompare(String(b.kachel.name), 'de'));
+}
+
+/**
+ * Die Eskalationsleiter eines Prozesses – aus seinen eigenen Zahlen:
+ * bis RTO Störung, ab RTO Notfall, ab MTPD Krise. Leer ohne RTO.
+ * @returns {{nr:number, ab:number|'', bis:number|''}[]}
+ */
+function nfEskalationVon(k) {
+  const b = nfBcmVon(k);
+  if (b.rto === '' || b.kritikalitaet === 'niedrig' || !b.kritikalitaet) return [];
+  const out = [{ nr: 1, ab: 0, bis: b.rto }, { nr: 2, ab: b.rto, bis: b.mtpd }];
+  if (b.mtpd !== '') out.push({ nr: 3, ab: b.mtpd, bis: '' });
+  return out;
+}
+
+/** Dieselbe Leiter als Satz: „bis 4 h Störung · ab 4 h Notfall · ab 1 Tag Krise". */
+function nfEskalationText(k) {
+  const l = nfEskalationVon(k);
+  if (!l.length) return '';
+  return l.map(x => `${x.nr === 1 ? 'bis' : 'ab'} ${nfDauerText(x.nr === 1 ? x.bis : x.ab)} ${nfStufe(x.nr).label}`).join(' · ');
+}
+
+/**
+ * Welche Stufe ist ein Asset-Ausfall? Gerechnet aus den betroffenen Prozessen,
+ * ihrer RTO/MTPD und der Wiederherstellzeit des Assets:
+ *   0  nichts hängt daran
+ *   1  Störung – Prozesse betroffen, aber innerhalb ihrer RTO haltbar
+ *   2  Notfall – ein kritischer Prozess reißt seine RTO
+ *   3  Krise – MTPD eines kritischen Prozesses erreicht oder mehrere kritische betroffen
+ * @returns {{nr:number, stufe:object, gruende:string[], betroffen:number}}
+ */
+function nfStufeBeiAusfall(daten, assetId, werke) {
+  const liste = nfAusfall(daten, assetId, werke);
+  const ar = nfAssetRto(daten)[String(assetId || '')];
+  const r = ar ? _nfZahl(ar.rto) : null;
+  const gruende = [];
+  if (!liste.length) return { nr: 0, stufe: nfStufe(0), gruende: ['Kein Prozess hängt an diesem Asset.'], betroffen: 0 };
+  let nr = 1;
+  const krit = liste.filter(x => x.kritikalitaet === 'hoch');
+  for (const x of krit) {
+    const b = nfBcmVon(x.kachel);
+    const name = x.kachel.name;
+    if (r !== null && b.mtpd !== '' && r >= Number(b.mtpd)) {
+      nr = 3; gruende.push(`„${name}" wäre länger weg als seine MTPD (${nfDauerText(b.mtpd)}) – das Asset braucht ${nfDauerText(r)}.`);
+    } else if (r !== null && b.rto !== '' && r > Number(b.rto)) {
+      nr = Math.max(nr, 2); gruende.push(`„${name}" reißt seine RTO (${nfDauerText(b.rto)}) – das Asset braucht ${nfDauerText(r)}.`);
+    } else if (r === null && b.rto !== '') {
+      gruende.push(`Notfall, sobald „${name}" länger als ${nfDauerText(b.rto)} steht – Wiederherstellzeit des Assets nicht gepflegt.`);
+    } else if (r !== null && b.rto !== '') {
+      gruende.push(`„${name}" hält: RTO ${nfDauerText(b.rto)}, Wiederherstellung ${nfDauerText(r)}.`);
+    }
+  }
+  if (krit.length >= 2) { nr = 3; gruende.push(`${krit.length} kritische Prozesse hängen daran – mehr als eine Störung.`); }
+  if (nr === 1) gruende.unshift(`${liste.length} Prozess(e) betroffen, Notbetrieb laut Plan.`);
+  return { nr, stufe: nfStufe(nr), gruende, betroffen: liste.length };
 }
 
 /**
@@ -513,16 +638,20 @@ function _nfStabAbschnitte(stab, opt) {
   const mit = st.mitglieder.length ? `<table class="kontakt"><thead><tr><th>Rolle</th><th>Name</th><th>Telefon</th><th>Vertretung</th><th>Telefon</th></tr></thead><tbody>${
     st.mitglieder.map(m => `<tr><td><b>${_nfEsc(m.rolle)}</b></td><td>${_nfEsc(name(m.name)) || '<span class="muted">nicht benannt</span>'}</td><td>${nummer(m)}</td><td>${_nfEsc(name(m.vertretung)) || '–'}</td><td>${m.vertretungTelefon ? `<span class="nr">${_nfEsc(m.vertretungTelefon)}</span>` : '–'}</td></tr>`).join('')
   }</tbody></table>` : '<p class="muted">Keine Mitglieder eingetragen.</p>';
-  const alarm = st.alarmierung.length ? `<table><thead><tr><th>Stufe</th><th>Auslöser</th><th>Wer</th><th>Tut was</th></tr></thead><tbody>${
-    st.alarmierung.map(a => `<tr><td><b>${_nfEsc(a.stufe)}</b></td><td>${_nfEsc(a.ausloeser)}</td><td>${_nfEsc(a.wer)}</td><td>${_nfEsc(a.tut)}</td></tr>`).join('')
-  }</tbody></table>` : '<p class="muted">Keine Alarmierungskette.</p>';
+  // Die Eskalationsmatrix: die festen Stufen aus dem Modell, je Stufe das,
+  // was das Werk dazu gesagt hat – wer sie ausruft, wen er alarmiert.
+  const zeilen = nfAlarmierungVollstaendig(st.alarmierung);
+  const alarm = `<table><thead><tr><th>Stufe</th><th>Wann</th><th>Wer ruft sie aus</th><th>Wer wird alarmiert</th><th>Mittel</th><th>Meldepflicht</th></tr></thead><tbody>${
+    zeilen.map(a => { const v = nfStufe(a.nr) || {};
+      return `<tr><td style="white-space:nowrap;color:${v.farbe || '#111827'}"><b>${_nfEsc(a.stufe)}</b></td><td>${_nfEsc(a.ausloeser)}</td><td>${_nfEsc(a.wer) || '<span class="muted">niemand benannt</span>'}</td><td>${_nfEsc(a.tut)}</td><td>${_nfEsc(v.mittel || '')}</td><td>${_nfEsc(v.meldepflicht || '')}</td></tr>`; }).join('')
+  }</tbody></table>`;
   const ext = st.externe.length ? `<table class="kontakt"><thead><tr><th>Stelle</th><th>Telefon</th><th>Hinweis</th></tr></thead><tbody>${
     st.externe.map(e => `<tr><td>${_nfEsc(e.wer)}</td><td><span class="nr">${_nfEsc(e.telefon) || '–'}</span></td><td>${_nfEsc(e.hinweis)}</td></tr>`).join('')
   }</tbody></table>` : '';
   return `
     ${lu.length ? `<div class="warn"><b>Lücken im Krisenstab (${lu.length}):</b> ${lu.map(_nfEsc).join(' · ')}</div>` : ''}
     <h3>Krisenstab</h3>${mit}
-    <h3>Alarmierung – wer ruft wen?</h3>${alarm}
+    <h3>Eskalationsstufen – wer ruft wann wen?</h3>${alarm}
     <div class="kasten"><b>Treffpunkt:</b> ${_nfEsc(st.treffpunkt) || '<span class="muted">nicht festgelegt</span>'}
       ${st.treffpunktErsatz ? ` &nbsp;·&nbsp; <b>Ersatz:</b> ${_nfEsc(st.treffpunktErsatz)}` : ''}<br>
       <b>Kommunikation:</b> ${_nfEsc(st.kanal) || '<span class="muted">nicht festgelegt</span>'}
@@ -546,7 +675,7 @@ function _nfPlanAbschnitt(werk, k, opt) {
     <table><tbody>
       <tr><th style="width:22%">Kritikalität</th><td class="k-${b.kritikalitaet || 'niedrig'}">${kr ? _nfEsc(kr.label) : 'nicht bewertet'}</td>
           <th style="width:22%">Verantwortlich</th><td>${_nfEsc(name(p.verantwortlich || k.verantwortlich || '')) || '–'}${k.vertretung ? ` <span class="muted">· Vertretung ${_nfEsc(name(k.vertretung))}</span>` : ''}</td></tr>
-      <tr><th>MTPD / RTO / RPO</th><td>${zeit(b.mtpd)} / ${zeit(b.rto)} / ${zeit(b.rpo)}</td>
+      <tr><th>MTPD / RTO / RPO</th><td>${zeit(b.mtpd)} / ${zeit(b.rto)} / ${zeit(b.rpo)}${nfEskalationText(k) ? `<br><span class="muted">Eskalation: ${_nfEsc(nfEskalationText(k))}</span>` : ''}</td>
           <th>Stand</th><td>BIA ${_nfTag(b.standAm)} · Plan ${_nfTag(p.standAm)} · zuletzt geübt ${letzte ? _nfTag(letzte.datum) + (letzte.uebungsart && NF_UEBUNGSARTEN[letzte.uebungsart] ? ` (${_nfEsc(NF_UEBUNGSARTEN[letzte.uebungsart].label)})` : '') : '<span class="k-hoch">nie</span>'}</td></tr>
       ${b.auswirkung ? `<tr><th>Auswirkung bei Ausfall</th><td colspan="3">${_nfEsc(b.auswirkung)}</td></tr>` : ''}
       <tr><th>Abhängig von</th><td colspan="3">${b.assets.length ? b.assets.map(a => {
@@ -637,6 +766,7 @@ if (typeof module !== 'undefined' && module.exports) {
     NF_UEBUNG_MONATE, NF_STAB_MONATE, nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfPlanVon,
     nfIstKritisch, nfIstBewertet, nfHatPlan, nfZiel, nfUebungenZu, nfLetzteUebung, nfUebungFaellig, nfPruefung,
     nfAssetPasst, nfAssetFremd, nfAssetSichtbar,
+    NF_STUFEN, nfStufe, nfAlarmierungVorlage, nfAlarmierungVollstaendig, nfEskalationVon, nfEskalationText, nfStufeBeiAusfall,
     nfStabVon, nfStabVorlage, nfStabLuecken, nfSichtbareWerke, nfPflichtWerke, _nfSortZahl, nfAlleKacheln, nfAssetRto, nfAusfall, nfAssetTraeger, nfKennzahlen,
     nfHandbuchHtml, nfAlarmkarteHtml };
 }

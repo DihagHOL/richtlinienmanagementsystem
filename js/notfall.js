@@ -13,7 +13,8 @@
  *               Die Frage im Ernstfall: „Der Server ist weg – was steht, was
  *               zuerst?" Und umgekehrt: Welche Assets tragen mehrere kritische
  *               Prozesse (Single Point of Failure).
- *   Krisenstab  Je Werk: Rollen, Nummern, Alarmierung, Treffpunkt, Kanäle.
+ *   Krisenstab  Je Werk: Rollen, Nummern, Eskalationsstufen (wer ruft wann
+ *               wen), Treffpunkt, Kanäle.
  *
  * Gespeichert wird **in der Landkarte** (`prozesslandkarte.json`): Die BIA und
  * der Plan hängen an der Kachel (`kachel.bcm`), der Krisenstab an der Karte
@@ -43,6 +44,24 @@ function _nfAssetsSichtbar() {
   const s = _nfSichtbareWerke();
   return (_nfAssets || []).filter(a => nfAssetSichtbar(a, s));
 }
+/** Die Eskalationsstufe als farbige Marke. */
+function _nfStufeBadge(nr) {
+  const v = nfStufe(nr);
+  if (!v) return '';
+  return `<span style="display:inline-block;border:1px solid ${v.farbe};color:${v.farbe};border-radius:6px;padding:1px 8px;font-size:.78rem;font-weight:800">${v.nr} – ${esc(v.label)}</span>`;
+}
+
+/** Die Eskalationsmatrix eines Werks: feste Stufen, werksspezifische Zuständigkeit. */
+function _nfEskalationTabelle(alarmierung) {
+  const zeilen = nfAlarmierungVollstaendig(alarmierung);
+  return `<div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem">
+    <thead><tr><th>Stufe</th><th>Wann</th><th>Wer ruft sie aus</th><th>Wer wird alarmiert</th><th>Mittel</th><th>Meldepflicht</th></tr></thead>
+    <tbody>${zeilen.map(a => { const v = nfStufe(a.nr) || {};
+      return `<tr><td style="white-space:nowrap">${a.nr ? _nfStufeBadge(a.nr) : `<b>${esc(a.stufe)}</b>`}</td><td>${esc(a.ausloeser)}</td>
+        <td>${esc(a.wer) || '<span style="color:#b91c1c">niemand benannt</span>'}</td><td>${esc(a.tut)}</td>
+        <td style="color:var(--c-muted)">${esc(v.mittel || '')}</td><td style="color:var(--c-muted)">${esc(v.meldepflicht || '')}</td></tr>`; }).join('')}</tbody></table></div>`;
+}
+
 function _nfWerkTag(werke) {
   const w = Array.isArray(werke) ? werke.filter(x => x !== 'ALLE') : [];
   if (!w.length) return '';
@@ -266,11 +285,17 @@ function _nfAusfallHtml() {
         <b style="font-size:1rem">⚡ „${esc(titel)}" fällt aus</b> ${_nfWerkTag(werkeVon(_nfAssetWahl))}
         <span class="field-hint">Wiederherstellung: ${r ? `<b>${esc(r)}</b>` : 'nicht gepflegt'}</span>
         ${risiken !== null && risiken ? `<span class="field-hint">· ${risiken} offene(s) Risiko/Risiken im Register</span>` : ''}
+        ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke);
+          return `<span title="${esc(st.gruende.join(' '))}">Eskalationsstufe: ${_nfStufeBadge(st.nr)}</span>`; })()}
         ${schreiben ? `<span style="margin-left:auto;font-size:.8rem">Wiederherstellzeit:
           <input type="number" min="0" step="0.5" style="width:70px" id="nf-arto-wert" value="${esc(nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').wert)}">
           <select id="nf-arto-einheit">${['min', 'h', 'tage'].map(e => `<option value="${e}"${nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').einheit === e ? ' selected' : ''}>${e === 'tage' ? 'Tage' : e}</option>`).join('')}</select>
           <button class="btn btn-outline btn-sm" onclick="nfAssetRtoSpeichern('${esc(_nfAssetWahl)}')">Setzen</button></span>` : ''}
       </div>
+      ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke); const v = st.stufe;
+        return liste.length ? `<div style="font-size:.82rem;color:var(--c-muted);margin-bottom:8px;border-left:3px solid ${v.farbe};padding-left:8px">
+          <b style="color:${v.farbe}">${st.nr} – ${esc(v.label)}:</b> ${st.gruende.map(esc).join(' ')}
+          ${st.nr >= 2 ? `<br>Ausrufen: <b>${esc((nfAlarmierungVollstaendig((lkKarte().krisenstab || {}).alarmierung).find(a => a.nr === st.nr) || {}).wer || v.erklaert)}</b> · alarmiert: ${esc((nfAlarmierungVollstaendig((lkKarte().krisenstab || {}).alarmierung).find(a => a.nr === st.nr) || {}).tut || v.alarmiert)}${v.meldepflicht ? ` · ${esc(v.meldepflicht)}` : ''}` : ''}</div>` : ''; })()}
       ${liste.length ? `<div style="font-size:.85rem;margin-bottom:6px">Betroffen – <b>in dieser Reihenfolge wiederherstellen</b> (kürzeste RTO zuerst):</div>
         <ol style="margin:0;padding-left:22px">${liste.map(({ werk, kachel, rto: prto, kritikalitaet, plan }, i) => {
           const b = nfBcmVon(kachel);
@@ -345,7 +370,7 @@ function _nfStabHtml(schreiben) {
   if (!stab) {
     return `${emptyState(`Für ${lkWerkLabel(_lkWerk)} ist noch kein Krisenstab angelegt.`, '🧭')}
       <div style="text-align:center;margin-top:-8px">
-        <div class="field-hint" style="margin-bottom:10px">Die Vorlage bringt die acht Rollen nach BSI 200-4, eine dreistufige Alarmierung und die externen Stellen mit – auszufüllen sind Namen und Nummern.</div>
+        <div class="field-hint" style="margin-bottom:10px">Die Vorlage bringt die acht Rollen nach BSI 200-4, die drei Eskalationsstufen (Störung, Notfall, Krise) und die externen Stellen mit – auszufüllen sind Namen und Nummern.</div>
         ${schreiben ? `<button class="btn btn-primary" onclick="nfStabAnlegen()">+ Krisenstab anlegen</button>` : ''}
         ${uebersicht}
       </div>`;
@@ -366,10 +391,9 @@ function _nfStabHtml(schreiben) {
       <tbody>${st.mitglieder.map(m => `<tr><td><b>${esc(m.rolle)}</b></td><td>${m.name ? esc(_nfName(m.name)) : '<span style="color:#b91c1c">nicht benannt</span>'}</td>
         <td style="white-space:nowrap">${nummer(m)}</td><td>${m.vertretung ? esc(_nfName(m.vertretung)) : '<span style="color:var(--c-faint)">–</span>'}</td><td style="white-space:nowrap">${esc(m.vertretungTelefon) || '<span style="color:var(--c-faint)">–</span>'}</td></tr>`).join('')
         || '<tr><td colspan="5" style="color:var(--c-muted)">Keine Mitglieder.</td></tr>'}</tbody></table></div>
-    <div style="font-weight:700;font-size:.9rem;margin:12px 0 6px">Alarmierung – wer ruft wen?</div>
-    <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem"><thead><tr><th>Stufe</th><th>Auslöser</th><th>Wer</th><th>Tut was</th></tr></thead>
-      <tbody>${st.alarmierung.map(a => `<tr><td style="white-space:nowrap"><b>${esc(a.stufe)}</b></td><td>${esc(a.ausloeser)}</td><td>${esc(a.wer)}</td><td>${esc(a.tut)}</td></tr>`).join('')
-        || '<tr><td colspan="4" style="color:var(--c-muted)">Keine Alarmierungskette.</td></tr>'}</tbody></table></div>
+    <div style="font-weight:700;font-size:.9rem;margin:12px 0 2px">Eskalationsstufen – wer ruft wann wen?</div>
+    <div class="field-hint" style="margin-bottom:6px">Die Stufen sind fest (BSI 200-4); das Werk sagt, wer sie ausruft und wen er alarmiert. Ein Prozess ist in <b>Störung</b>, bis seine RTO reißt, danach im <b>Notfall</b>; ab der MTPD ist es eine <b>Krise</b>.</div>
+    ${_nfEskalationTabelle(st.alarmierung)}
     <div class="item-card" style="margin-top:12px;font-size:.86rem">
       <div><b>Treffpunkt:</b> ${esc(st.treffpunkt) || '<span style="color:#b91c1c">nicht festgelegt</span>'}${st.treffpunktErsatz ? ` &nbsp;·&nbsp; <b>Ersatz:</b> ${esc(st.treffpunktErsatz)}` : ''}</div>
       <div style="margin-top:4px"><b>Kommunikation:</b> ${esc(st.kanal) || '<span style="color:#b91c1c">nicht festgelegt</span>'}${st.kanalErsatz ? ` &nbsp;·&nbsp; <b>Ersatz:</b> ${esc(st.kanalErsatz)}` : ''}</div>
@@ -391,6 +415,8 @@ function nfStabBearbeiten() {
   if (!nfDarfSchreiben()) return;
   const karte = lkKarte();
   _nfStabEditing = JSON.parse(JSON.stringify(nfStabVon(karte.krisenstab || nfStabVorlage())));
+  // Altbestand ohne alle drei Stufen: die fehlenden aus dem Modell ergänzen.
+  _nfStabEditing.alarmierung = nfAlarmierungVollstaendig(_nfStabEditing.alarmierung);
   renderNfStabEditor();
 }
 
@@ -419,12 +445,15 @@ function renderNfStabEditor() {
     <td>${inp('mitglieder', i, 'vertretung', m.vertretung, 'Vertretung', '140px', 'lk-people')}</td>
     <td>${inp('mitglieder', i, 'vertretungTelefon', m.vertretungTelefon, 'Telefon', '110px')}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="nfStabZeileWeg('mitglieder',${i})" title="Entfernen">✕</button></td></tr>`).join('');
-  const alarm = (s.alarmierung || []).map((a, i) => `<tr>
-    <td>${inp('alarmierung', i, 'stufe', a.stufe, '1 – Störung', '110px')}</td>
-    <td>${inp('alarmierung', i, 'ausloeser', a.ausloeser, 'Woran erkennt man die Stufe?')}</td>
-    <td>${inp('alarmierung', i, 'wer', a.wer, 'Wer meldet?', '150px')}</td>
-    <td>${inp('alarmierung', i, 'tut', a.tut, 'Wen informiert er, was tut er?')}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="nfStabZeileWeg('alarmierung',${i})" title="Entfernen">✕</button></td></tr>`).join('');
+  // Die drei Stufen stehen fest – Beschriftung und Reihenfolge kommen aus dem
+  // Modell, nur Auslöser, Ausrufer und Alarmierte gehören dem Werk. Zeilen
+  // ohne Stufe (Altbestand) bleiben bearbeitbar und löschbar.
+  const alarm = (s.alarmierung || []).map((a, i) => { const v = nfStufe(a.nr); return `<tr>
+    <td style="white-space:nowrap">${v ? _nfStufeBadge(v.nr) : inp('alarmierung', i, 'stufe', a.stufe, 'Stufe', '110px')}</td>
+    <td>${inp('alarmierung', i, 'ausloeser', a.ausloeser, v ? v.kriterium : 'Woran erkennt man die Stufe?')}</td>
+    <td>${inp('alarmierung', i, 'wer', a.wer, v ? v.erklaert : 'Wer ruft sie aus?', '170px')}</td>
+    <td>${inp('alarmierung', i, 'tut', a.tut, v ? v.alarmiert : 'Wer wird alarmiert?')}</td>
+    <td>${v ? '' : `<button class="btn btn-ghost btn-sm" onclick="nfStabZeileWeg('alarmierung',${i})" title="Entfernen">✕</button>`}</td></tr>`; }).join('');
   const ext = (s.externe || []).map((e, i) => `<tr>
     <td>${inp('externe', i, 'wer', e.wer, 'Stelle', '220px')}</td>
     <td>${inp('externe', i, 'telefon', e.telefon, 'Telefon', '140px')}</td>
@@ -442,10 +471,10 @@ function renderNfStabEditor() {
       <div style="overflow-x:auto"><table class="tbl" style="font-size:.8rem;width:100%"><thead><tr><th>Rolle</th><th>Name</th><th>Telefon</th><th>Mobil</th><th>Vertretung</th><th>Telefon</th><th></th></tr></thead>
         <tbody>${mit || '<tr><td colspan="7" style="color:var(--c-muted)">Keine Mitglieder.</td></tr>'}</tbody></table></div>
       <button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="nfStabZeileHinzu('mitglieder')">+ Mitglied</button>
-      <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Alarmierung – wer ruft wen?</div>
-      <div style="overflow-x:auto"><table class="tbl" style="font-size:.8rem;width:100%"><thead><tr><th>Stufe</th><th>Auslöser</th><th>Wer</th><th>Tut was</th><th></th></tr></thead>
-        <tbody>${alarm || '<tr><td colspan="5" style="color:var(--c-muted)">Keine Stufe.</td></tr>'}</tbody></table></div>
-      <button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="nfStabZeileHinzu('alarmierung')">+ Stufe</button>
+      <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Eskalationsstufen – wer ruft wann wen?</div>
+      <div class="field-hint" style="margin-bottom:6px">Störung → Notfall → Krise sind fest. Je Stufe: Wann gilt sie hier, wer ruft sie aus, wer wird alarmiert. Jede Stufe braucht einen Ausrufer – sonst wird aus einer Störung ein Notfall, ohne dass es jemand sagt.</div>
+      <div style="overflow-x:auto"><table class="tbl" style="font-size:.8rem;width:100%"><thead><tr><th>Stufe</th><th>Wann</th><th>Wer ruft sie aus</th><th>Wer wird alarmiert</th><th></th></tr></thead>
+        <tbody>${alarm}</tbody></table></div>
       <div class="form-grid" style="margin-top:14px">
         <div class="form-group"><label>Treffpunkt <span class="req">*</span></label>
           <input type="text" value="${esc(s.treffpunkt)}" oninput="_nfStabEditing.treffpunkt=this.value" placeholder="z. B. Besprechungsraum Verwaltung, EG"></div>
@@ -504,6 +533,21 @@ function nfZeit(feld, wert, einheit) {
   const w = document.getElementById(`nf-${feld}-wert`), e = document.getElementById(`nf-${feld}-einheit`);
   _nfEditing.bcm[feld] = nfDauerStunden(w ? w.value : wert, e ? e.value : einheit);
   _nfLueckenNeu();
+  const el = document.getElementById('nf-eskalation');
+  if (el) el.innerHTML = _nfEskalationHtml();
+}
+
+/** Die Eskalationsleiter des Prozesses im Editor – aus RTO und MTPD, ohne Eingabe. */
+function _nfEskalationHtml() {
+  if (!_nfEditing) return '';
+  const k = { bcm: _nfEditing.bcm };
+  const l = nfEskalationVon(k);
+  if (!l.length) return `<div class="field-hint">Eskalation: erst mit Kritikalität (hoch/mittel) und RTO – dann steht hier, ab wann aus der Störung ein Notfall wird.</div>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.82rem">
+    <span style="color:var(--c-muted)">Eskalation:</span>
+    ${l.map(x => `<span>${x.nr === 1 ? 'bis' : 'ab'} <b>${esc(nfDauerText(x.nr === 1 ? x.bis : x.ab))}</b> ${_nfStufeBadge(x.nr)}</span>`).join('<span style="color:var(--c-faint)">→</span>')}
+    ${l.length < 3 ? '<span class="field-hint">· MTPD fehlt – ohne sie gibt es keine Krisen-Schwelle</span>' : ''}
+  </div>`;
 }
 
 function nfKritSetzen(v) { _nfEditing.bcm.kritikalitaet = NF_KRITIKALITAET[v] ? v : ''; renderNfEditor(); }
@@ -620,6 +664,7 @@ function renderNfEditor() {
         ${zeit('rto', 'RTO – Wiederanlaufzeit', 'Bis wann muss er wieder laufen? Muss unter der MTPD liegen.')}
         ${zeit('rpo', 'RPO – tolerierbarer Datenverlust', 'Wie alt darf der letzte gesicherte Stand sein?')}
       </div>
+      <div id="nf-eskalation" style="margin-top:4px">${_nfEskalationHtml()}</div>
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 4px">Wovon hängt der Prozess ab? <span class="field-hint" style="font-weight:400">${b.assets.length} Asset(s)</span></div>
       <div class="field-hint" style="margin-bottom:6px">Aus der ISMS-Liste „Assets". Je Asset die Wiederherstellzeit – gilt für alle Prozesse, die daran hängen: Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</div>

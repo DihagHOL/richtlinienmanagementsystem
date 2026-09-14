@@ -458,6 +458,7 @@ function _dokuSections() {
         ['RTO über MTPD, RTO kürzer als Asset-Wiederherstellung', 'Lücke – die Zahlen widersprechen sich.'],
         ['Plan ohne Übung seit 12 Monaten', 'Hinweis im Reiter, Zeile im Notfall-Digest (Cron). Ein Plan ohne Übung ist Papier.'],
         ['Krisenstab ohne Leitung, Vertretung, Nummern, Treffpunkt, Kanal, Ersatzkanal', 'Lücke – Audit Report A.5.29. Nach 12 Monaten ohne Aktualisierung mahnt der Cron: Telefonnummern veralten schneller als Pläne.'],
+        ['Eskalationsstufe ohne Ausrufer', 'Lücke im Krisenstab – Störung, Notfall und Krise brauchen je jemanden, der sie ausruft.'],
       ])}
       <div style="${h3}">Übungen</div>
       <p style="margin:0 0 8px;line-height:1.55">Übungen sind die <b>vierte Satzart</b> im Wirksamkeits-Register: Eine Übung prüft einen Plan und findet Abweichungen – dieselbe Kette wie ein Audit. Gefundene Lücken werden dort zu Abweichungen mit Ursache, Frist und Wirksamkeitsprüfung. Abschließen lässt sich eine Übung erst mit Prozess, Übungsart, Szenario, Teilnehmenden und Ergebnis.</p>
@@ -466,6 +467,11 @@ function _dokuSections() {
       <div style="${h3}">Der Krisenstab</div>
       <table class="doku-tbl"><tbody>${(typeof NF_STAB_ROLLEN !== 'undefined' ? NF_STAB_ROLLEN : []).map(r => `<tr>
         <td style="font-weight:600;white-space:nowrap">${esc(r.rolle)}${r.pflicht ? ' <span class="req">*</span>' : ''}</td><td>${esc(r.aufgabe)}</td></tr>`).join('')}</tbody></table>
+      <div style="${h3}">Die Eskalationsstufen</div>
+      <p style="margin:0 0 8px;line-height:1.55">Störung → Notfall → Krise nach BSI 200-4. Die Stufen sind <b>fest</b>; je Werk wird im Krisenstab ausgefüllt, <b>wer sie ausruft</b> und <b>wen er alarmiert</b> – jede Stufe braucht einen Ausrufer, sonst wird aus einer Störung ein Notfall, ohne dass es jemand sagt. Der Rest wird <b>gerechnet</b>, nicht entschieden: Ein Prozess ist in Störung, bis seine RTO reißt, danach im Notfall; ab der MTPD ist es eine Krise. Die Ausfall-Sicht sagt deshalb zu jedem Asset, welche Stufe sein Ausfall wäre – „Ist das schon ein Notfall?" hat eine Antwort, bevor jemand aufgeregt ist.</p>
+      <table class="doku-tbl"><tbody>${(typeof NF_STUFEN !== 'undefined' ? NF_STUFEN : []).map(v => `<tr>
+        <td style="font-weight:700;white-space:nowrap;color:${v.farbe}">${v.nr} – ${esc(v.label)}</td>
+        <td>${esc(v.kriterium)}<div style="color:var(--c-muted);font-size:.85em;margin-top:2px">Ausrufen: ${esc(v.erklaert)} · alarmiert: ${esc(v.alarmiert)} · Mittel: ${esc(v.mittel)}${v.meldepflicht ? ' · ' + esc(v.meldepflicht) : ''}</div></td></tr>`).join('')}</tbody></table>
       <div style="${h3}">Drucken – bewusst</div>
       <ul style="${ol}">
         <li style="${li}"><b>🖨 Notfallhandbuch:</b> Deckblatt, Krisenstab und Alarmierung, kritische Prozesse nach RTO, wovon sie abhängen, je Prozess der vollständige Plan. Als PDF in die Schublade – eine Web-App mit Anmeldung ist im Ernstfall vielleicht selbst das, was nicht geht.</li>

@@ -25,6 +25,7 @@ const M = require(path.join(ROOT, 'js', 'notfallmodell.js'));
 const { nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfHatPlan, nfPruefung, nfStabLuecken, nfStabVorlage,
   nfAusfall, nfAssetTraeger, nfKennzahlen, nfLetzteUebung, nfUebungFaellig, nfHandbuchHtml, nfAlarmkarteHtml, nfPflichtWerke,
   nfAssetPasst, nfAssetFremd, nfAssetSichtbar,
+  NF_STUFEN, nfStufe, nfAlarmierungVorlage, nfAlarmierungVollstaendig, nfEskalationVon, nfEskalationText, nfStufeBeiAusfall, nfStabVon,
   NF_PLAN_TEILE, NF_STAB_ROLLEN, NF_UEBUNGSARTEN, NF_KRITIKALITAET } = M;
 
 /* ── 1) Das Modell kennt keinen Browser ── */
@@ -141,6 +142,47 @@ ok(nfStabLuecken(voll).some(x => /Ersatzkanal/.test(x)), 'Und der Ausfall von Te
 voll.kanalErsatz = 'Mobil'; voll.standAm = alt;
 ok(nfStabLuecken(voll).some(x => /älter als 12 Monate/.test(x)), 'Ein Stand von vor 400 Tagen: Telefonnummern veralten schneller als Pläne');
 
+/* ── 5b) Die Eskalationsstufen – fest, und der Rest wird gerechnet ── */
+ok(NF_STUFEN.map(v => v.nr).join(',') === '0,1,2,3' && NF_STUFEN.map(v => v.label).join(',') === 'Normalbetrieb,Störung,Notfall,Krise',
+  'Vier Stufen nach BSI 200-4, der Normalbetrieb als Nullpunkt');
+ok(nfStufe(2).label === 'Notfall' && nfStufe('3').label === 'Krise' && nfStufe(7) === null, 'nfStufe findet sie – auch aus Text, und nicht, was es nicht gibt');
+ok(nfStufe(2).meldepflicht.includes('24 h') && nfStufe(3).meldepflicht.includes('72 h'), 'Notfall und Krise tragen die NIS2-Fristen');
+ok(nfAlarmierungVorlage().length === 3 && nfAlarmierungVorlage().every(a => a.nr && a.wer && a.ausloeser), 'Die Vorlage: drei Stufen mit Auslöser und Standard-Ausrufer');
+const altStab = nfStabVon({ alarmierung: [{ stufe: '3 – Krise', wer: 'L' }, { stufe: 'Sonderfall', wer: 'X' }] });
+ok(altStab.alarmierung[0].nr === 3 && altStab.alarmierung[1].nr === null, 'Altbestand: die Stufe wird an der führenden Ziffer erkannt, Fremdes bleibt ohne');
+const voll3 = nfAlarmierungVollstaendig([{ stufe: 'Sonderfall', wer: 'X' }, { nr: 2, wer: 'Ich', ausloeser: 'Eigener Text' }]);
+ok(voll3.map(a => String(a.nr)).join(',') === '1,2,3,null' && voll3[1].wer === 'Ich' && voll3[1].ausloeser === 'Eigener Text' && voll3[0].wer === nfStufe(1).erklaert,
+  'Vollständig: fehlende Stufen aus dem Modell, vorhandene bleiben, Fremdes hinten');
+let luS = nfStabLuecken(Object.assign(nfStabVorlage(), { alarmierung: [{ stufe: '2 – Notfall', wer: '' }] }));
+ok(luS.some(x => /Eskalationsstufe 1 \(Störung\) fehlt/.test(x)) && luS.some(x => /Eskalationsstufe 2 \(Notfall\): niemand benannt/.test(x)) && luS.some(x => /Eskalationsstufe 3 \(Krise\) fehlt/.test(x)),
+  'Jede Stufe braucht einen Ausrufer – fehlende und unbesetzte werden genannt');
+ok(!nfStabLuecken(nfStabVorlage()).some(x => /Eskalationsstufe/.test(x)), 'Die Vorlage hat für alle drei einen');
+
+// Die Leiter je Prozess: aus seinen eigenen Zahlen
+ok(nfEskalationText({ bcm: { kritikalitaet: 'hoch', rto: 4, mtpd: 24 } }) === 'bis 4 h Störung · ab 4 h Notfall · ab 1 Tag Krise', 'bis RTO Störung, ab RTO Notfall, ab MTPD Krise');
+ok(nfEskalationText({ bcm: { kritikalitaet: 'mittel', rto: 72 } }) === 'bis 3 Tage Störung · ab 3 Tage Notfall', 'Ohne MTPD keine Krisen-Schwelle');
+ok(nfEskalationText({ bcm: { kritikalitaet: 'hoch' } }) === '' && nfEskalationText({ bcm: { kritikalitaet: 'niedrig', rto: 1, mtpd: 2 } }) === '', 'Ohne RTO oder bei „niedrig": nichts');
+ok(nfEskalationVon({ bcm: { kritikalitaet: 'hoch', rto: 4, mtpd: 24 } }).length === 3, 'Drei Sprossen');
+
+// Die Stufe bei Asset-Ausfall
+const dE = { karten: { HOL: { kacheln: [
+  { id: 'p', name: 'Produktion', bcm: { kritikalitaet: 'hoch', rto: 4, mtpd: 24, rpo: 1, assets: [{ id: 'netz' }, { id: 'ofen' }] } },
+  { id: 'a', name: 'Aufträge', bcm: { kritikalitaet: 'hoch', rto: 8, mtpd: 48, rpo: 1, assets: [{ id: 'netz' }, { id: 'sap' }] } },
+  { id: 'x', name: 'Personal', bcm: { kritikalitaet: 'mittel', rto: 72, assets: [{ id: 'sap' }, { id: 'tel' }] } },
+] } }, notfall: { assetRto: { netz: { rto: 8 }, sap: { rto: 12 }, ofen: { rto: 48 } } } };
+let st = nfStufeBeiAusfall(dE, 'netz');
+ok(st.nr === 3 && st.gruende.some(g => /2 kritische Prozesse/.test(g)) && st.gruende.some(g => /„Produktion" reißt seine RTO/.test(g)), 'Netz: zwei kritische Prozesse, Produktion reißt die RTO → Krise');
+st = nfStufeBeiAusfall(dE, 'sap');
+ok(st.nr === 2 && st.stufe.label === 'Notfall' && st.gruende.some(g => /„Aufträge" reißt seine RTO \(8 h\)/.test(g)), 'SAP: Aufträge reißt die RTO → Notfall');
+st = nfStufeBeiAusfall(dE, 'ofen');
+ok(st.nr === 3 && st.gruende.some(g => /länger weg als seine MTPD/.test(g)), 'Ofen: 48 h Wiederherstellung, MTPD 24 h → Krise');
+st = nfStufeBeiAusfall(dE, 'tel');
+ok(st.nr === 1 && st.betroffen === 1 && /Notbetrieb laut Plan/.test(st.gruende[0]), 'Telefon: nur Personal (mittel), Wiederherstellzeit unbekannt → Störung');
+ok(nfStufeBeiAusfall(dE, 'nix').nr === 0 && nfStufeBeiAusfall(dE, '').nr === 0, 'Nichts hängt daran → Normalbetrieb');
+const dOhne = { karten: { HOL: { kacheln: [{ id: 'p', name: 'Produktion', bcm: { kritikalitaet: 'hoch', rto: 4, mtpd: 24, rpo: 1, assets: [{ id: 'netz' }] } }] } } };
+st = nfStufeBeiAusfall(dOhne, 'netz');
+ok(st.nr === 1 && st.gruende.some(g => /Notfall, sobald „Produktion" länger als 4 h steht/.test(g)), 'Ohne Wiederherstellzeit: Störung, mit der Schwelle zum Notfall im Text');
+
 /* ── 6) Über alle Werke: Ausfall und Träger ── */
 voll.standAm = new Date().toISOString();
 const daten = { karten: {
@@ -207,6 +249,8 @@ ok(/nicht haltbar/.test(hb), 'Die Lücke steht auch im Ausdruck – ein Handbuch
 ok(/window\.print\(\)/.test(hb) && /class="noprint"/.test(hb), 'Druckknopf, der beim Drucken verschwindet');
 ok(/ohne Strom, Netz und Anmeldung/.test(hb), 'Das Deckblatt sagt, wofür der Ausdruck ist');
 ok(/Leitung Krisenstab/.test(hb) && /112/.test(hb), 'Der Krisenstab mit externen Stellen ist drin');
+ok(/Eskalationsstufen – wer ruft wann wen\?/.test(hb) && /<th>Meldepflicht<\/th>/.test(hb) && /1 – Störung/.test(hb) && /3 – Krise/.test(hb), 'Die Eskalationsmatrix steht im Handbuch');
+ok(/Eskalation: bis 4 h Störung · ab 4 h Notfall/.test(hb), 'Und je Plan die Leiter aus seinen Zahlen');
 ok(/⚠ 2 kritische/.test(hb), 'Ein Asset unter zwei kritischen Prozessen ist markiert');
 for (const t of NF_PLAN_TEILE) ok(hb.includes(`<h3>${t.titel}</h3>`), `Planteil „${t.titel}" hat seine Überschrift`);
 ok(/– nicht beschrieben –/.test(hb), 'Ein leerer Teil steht als leer da, nicht gar nicht');

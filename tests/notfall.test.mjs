@@ -127,6 +127,8 @@ ok(!/\$\{/.test(abschnitt), 'Kein Platzhalter blieb als Text stehen');
 ok(/Leitung Krisenstab/.test(abschnitt) && /Sofortmaßnahmen/.test(abschnitt) && /Planbesprechung/.test(abschnitt) && /Vollübung/.test(abschnitt),
   'Rollen, Planteile und Übungsarten stehen drin – aus dem Modell');
 ok(/nicht schneller wieder da sein als das Langsamste/.test(abschnitt), 'Und der Satz, um den es geht');
+ok(/Die Eskalationsstufen/.test(abschnitt) && /0 – Normalbetrieb/.test(abschnitt) && /3 – Krise/.test(abschnitt) && /Eskalationsstufe ohne Ausrufer/.test(abschnitt),
+  'Die Doku erklärt die Stufen – Tabelle aus dem Modell, Regel in der Verweigerungsliste');
 ok(/\['notfall',\s*'Notfall & Krisenstab \(BCM\)'\]/.test(lies('js/dokumentation.js')), 'Im Inhaltsverzeichnis');
 
 const cron = lies('scripts/erinnerungen.mjs');
@@ -204,6 +206,9 @@ const reihe = [...out.matchAll(/<li[^>]*><b>([^<]+)<\/b>/g)].map(m => m[1]);
 ok(reihe.join(',') === 'IT,Aufträge abwickeln', `Betroffen in Wiederherstell-Reihenfolge: IT (2 h) vor Aufträgen (4 h) (${reihe.join(',')})`);
 ok((out.match(/⚠ nicht haltbar/g) || []).length === 2, 'Beide als nicht haltbar markiert – SAP braucht 8 h');
 ok(/⚠ 2 kritische/.test(out), 'Die Trägertabelle nennt den Single Point of Failure');
+ok(/Eskalationsstufe: <span[^>]*>3 – Krise<\/span>/.test(out) && /2 kritische Prozesse hängen daran/.test(out),
+  'Die Ausfall-Sicht sagt, welche Stufe der Ausfall wäre – und warum');
+ok(/Ausrufen: <b>Leitung Krisenstab<\/b>/.test(out), 'Und wer sie ausruft – aus dem Modell, solange das Werk nichts anderes sagt');
 ok(/Netz.*\(ohne Prozess\)/.test(out), 'Ein Asset ohne Prozess steht in der Auswahl – markiert');
 ok(/<th>Werk<\/th>/.test(out) && /nur Assets von HOL und konzernweite/.test(out), 'Die Trägertabelle hat eine Werk-Spalte, die Sicht einen Werk-Filter');
 vm.runInContext("_nfNurWerk = true; renderNotfall()", ctx);
@@ -217,6 +222,9 @@ out = mounts['notfall-mount'].innerHTML;
 ok(/noch kein Krisenstab angelegt/.test(out) && /nfStabAnlegen\(\)/.test(out), 'Ohne Stab: anlegen');
 vm.runInContext('nfStabAnlegen()', ctx);
 ok(modal && /Krisenstab HOL/.test(modal) && (modal.match(/nfStabZeile\('mitglieder'/g) || []).length >= 8 * 6, 'Der Editor bringt die acht Rollen mit');
+ok(/Eskalationsstufen – wer ruft wann wen\?/.test(modal) && (modal.match(/nfStabZeile\('alarmierung'/g) || []).length === 9 && !/nfStabZeileHinzu\('alarmierung'\)/.test(modal),
+  'Die drei Stufen stehen fest: je drei Felder, kein Hinzufügen, kein Löschen');
+ok(/>1 – Störung</.test(modal) && />2 – Notfall</.test(modal) && />3 – Krise</.test(modal), 'Beschriftet aus dem Modell');
 ok(/Leitung Krisenstab ist nicht benannt/.test(modal), 'Und sagt, was fehlt');
 vm.runInContext("_nfStabEditing.mitglieder[0].name='Anna'; _nfStabEditing.mitglieder[0].telefon='1'; _nfStabEditing.mitglieder[1].name='Ben'; _nfStabEditing.mitglieder[1].mobil='2'; _nfStabEditing.treffpunkt='Raum 1'; _nfStabEditing.kanal='Teams'; _nfStabEditing.kanalErsatz='Mobil'", ctx);
 await vm.runInContext('nfStabSpeichern()', ctx);
@@ -226,6 +234,7 @@ ok(daten.karten.HOL.krisenstab && daten.karten.HOL.krisenstab.standAm && daten.k
   'Der Stab hängt an der Karte des Werks, mit Stand von heute');
 out = mounts['notfall-mount'].innerHTML;
 ok(/✓ Krisenstab vollständig/.test(out), 'Und ist vollständig');
+ok(/Eskalationsstufen – wer ruft wann wen\?/.test(out) && /<th>Meldepflicht<\/th>/.test(out) && /NIS2-Frühwarnung binnen 24 h/.test(out), 'Die Krisenstab-Sicht zeigt die Eskalationsmatrix mit Meldepflichten');
 ok(/In anderen Werken offen: .*WGC.*\(kein Krisenstab\)/.test(out), 'Die Krisenstab-Sicht nennt die Werke, die noch keinen haben');
 
 // Ein Werk ohne Landkarte bekommt trotzdem einen Krisenstab
@@ -242,6 +251,7 @@ vm.runInContext("nfKachelOeffnen('personal')", ctx);
 ok(modal && /🚨 Personal/.test(modal) && /Business-Impact-Analyse/.test(modal) && /Notfallplan/.test(modal) && /Übungen/.test(modal),
   'Der Editor: BIA, Assets, Plan, Übungen in einem');
 ok(/Kritikalität nicht bewertet/.test(modal), 'Die Lücke steht oben');
+ok(/Eskalation: erst mit Kritikalität/.test(modal), 'Ohne BIA gibt es noch keine Eskalationsleiter – und das steht da');
 ok(/Netz/.test(modal) && /SAP/.test(modal), 'Die Assets aus der ISMS-Liste stehen zur Wahl');
 ok(/Assets anderer Werke \(1\)/.test(modal) && modal.indexOf('Leitstand WGC') > modal.indexOf('Assets anderer Werke'),
   'Das WGC-Asset steht unter „Assets anderer Werke" – wählbar, aber nicht vorne');
@@ -252,6 +262,8 @@ await vm.runInContext('nfKachelSpeichern()', ctx);
 ok(gespeichert.length === nachStab && gemeldet.some(([t, a]) => a === 'error' && /R093/.test(t)), 'Kritikalität „hoch" ohne RTO/RPO: nicht gespeichert, R093 genannt');
 ok(!daten.karten.HOL.kacheln[2].bcm, 'Die Kachel blieb unberührt');
 vm.runInContext("_nfEditing.bcm.rto = 8; _nfEditing.bcm.rpo = 4; nfAssetUmschalten('2', true); nfAssetUmschalten('3', true)", ctx);
+ok(/bis <b>8 h<\/b> <span[^>]*>1 – Störung<\/span>/.test(vm.runInContext('_nfEskalationHtml()', ctx)) && /MTPD fehlt/.test(vm.runInContext('_nfEskalationHtml()', ctx)),
+  'Mit RTO steht die Leiter im Editor – und sagt, dass ohne MTPD die Krisen-Schwelle fehlt');
 ok(/steht laut Asset-Liste in WGC, nicht in HOL/.test(vm.runInContext('_nfLueckenHtml()', ctx)), 'Der Editor nennt das fremde Asset als Hinweis');
 await vm.runInContext('nfKachelSpeichern()', ctx);
 ok(gespeichert.length === nachStab + 1 && gespeichert[nachStab][2] === 'notfall' && /Kritikalität – → hoch/.test(gespeichert[nachStab][1]), 'Mit RTO und RPO: gespeichert, mit Vermerk');
