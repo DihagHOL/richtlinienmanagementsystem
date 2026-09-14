@@ -291,6 +291,21 @@ function nfPruefung(k, ctx) {
     (hoch ? fehler : hinweise).push('Keine Assets zugeordnet – ohne Abhängigkeiten sagt der Plan nicht, wovor er schützt.');
   }
 
+  // Schutzbedarfs-Vererbung (BSI-Maximumprinzip): Ein kritischer Prozess
+  // verlangt von seinen Assets Verfügbarkeit „sehr hoch", ein mittlerer „hoch".
+  // Ist das Asset im Register niedriger bewertet, sagt das eine von beiden
+  // Zahlen falsch – und das soll jemand entscheiden, nicht übersehen.
+  if (c.assetInfo && b.kritikalitaet !== 'niedrig') {
+    const soll = b.kritikalitaet === 'hoch' ? 'sehr hoch' : 'hoch';
+    const rang = { normal: 0, hoch: 1, 'sehr hoch': 2 };
+    for (const a of b.assets) {
+      const info = c.assetInfo[a.id];
+      if (info && info.verfuegbarkeit && rang[info.verfuegbarkeit] < rang[soll]) {
+        hinweise.push(`„${a.title}" ist im Assetregister mit Verfügbarkeit „${info.verfuegbarkeit}" bewertet – dieser Prozess verlangt „${soll}" (Vererbung).`);
+      }
+    }
+  }
+
   // Die Zahl, die alle raten und niemand rechnet: Ein Prozess kann nicht
   // schneller wieder da sein als das Langsamste, wovon er abhängt.
   if (b.rto !== '' && c.assetRto) {
@@ -472,12 +487,19 @@ function nfAssetRto(daten) {
  * das Dringendste zuerst. Ohne RTO ans Ende: Wer keine Zeit gepflegt hat,
  * hat auch keinen Anspruch auf Vorrang.
  */
-function nfAusfall(daten, assetId, werke) {
-  const id = String(assetId || '');
+/**
+ * @param {object} [opt]  { kanon: (id) => id  – gespeicherte Id auf die des Registers abbilden,
+ *                          mit: string[]      – Assets, die mit ausfallen (Abhängigkeit Asset → Asset) }
+ */
+function nfAusfall(daten, assetId, werke, opt) {
+  const o = opt || {};
+  const kanon = (typeof o.kanon === 'function') ? o.kanon : (x) => String(x);
+  const id = kanon(String(assetId || ''));
   if (!id) return [];
+  const weg = new Set([id].concat((o.mit || []).map(x => kanon(String(x)))));
   const rang = { hoch: 0, mittel: 1, niedrig: 2, '': 3 };
   return nfAlleKacheln(daten, werke)
-    .filter(({ kachel }) => nfBcmVon(kachel).assets.some(a => a.id === id))
+    .filter(({ kachel }) => nfBcmVon(kachel).assets.some(a => weg.has(kanon(a.id))))
     .map(({ werk, kachel }) => { const b = nfBcmVon(kachel); return { werk, kachel, rto: b.rto, kritikalitaet: b.kritikalitaet, plan: nfHatPlan(kachel) }; })
     .sort((a, b) => (_nfSortZahl(a.rto) - _nfSortZahl(b.rto)) || (rang[a.kritikalitaet] - rang[b.kritikalitaet])
       || String(a.kachel.name).localeCompare(String(b.kachel.name), 'de'));
@@ -512,9 +534,11 @@ function nfEskalationText(k) {
  *   3  Krise – MTPD eines kritischen Prozesses erreicht oder mehrere kritische betroffen
  * @returns {{nr:number, stufe:object, gruende:string[], betroffen:number}}
  */
-function nfStufeBeiAusfall(daten, assetId, werke) {
-  const liste = nfAusfall(daten, assetId, werke);
-  const ar = nfAssetRto(daten)[String(assetId || '')];
+function nfStufeBeiAusfall(daten, assetId, werke, opt) {
+  const o = opt || {};
+  const liste = nfAusfall(daten, assetId, werke, o);
+  const rtoMap = o.assetRto || nfAssetRto(daten);
+  const ar = rtoMap[String(assetId || '')] || rtoMap[(typeof o.kanon === 'function') ? o.kanon(String(assetId || '')) : ''];
   const r = ar ? _nfZahl(ar.rto) : null;
   const gruende = [];
   if (!liste.length) return { nr: 0, stufe: nfStufe(0), gruende: ['Kein Prozess hängt an diesem Asset.'], betroffen: 0 };
@@ -542,13 +566,15 @@ function nfStufeBeiAusfall(daten, assetId, werke) {
  * Welche Assets tragen wie viele Prozesse? Ein Asset unter mehreren kritischen
  * Prozessen ist der Single Point of Failure, den niemand so genannt hat.
  */
-function nfAssetTraeger(daten, werke) {
+function nfAssetTraeger(daten, werke, opt) {
+  const kanon = (opt && typeof opt.kanon === 'function') ? opt.kanon : (x) => String(x);
   const map = new Map();
   for (const { werk, kachel } of nfAlleKacheln(daten, werke)) {
     const b = nfBcmVon(kachel);
     for (const a of b.assets) {
-      if (!map.has(a.id)) map.set(a.id, { id: a.id, title: a.title, werke: [], prozesse: [], kritisch: 0 });
-      const e = map.get(a.id);
+      const id = kanon(a.id);
+      if (!map.has(id)) map.set(id, { id, title: a.title, werke: [], prozesse: [], kritisch: 0 });
+      const e = map.get(id);
       e.prozesse.push({ werk, id: kachel.id, name: kachel.name, kritikalitaet: b.kritikalitaet, rto: b.rto });
       if (b.kritikalitaet === 'hoch') e.kritisch++;
       if (!e.title && a.title) e.title = a.title;
@@ -567,9 +593,9 @@ function nfAssetTraeger(daten, werke) {
  * @param {string[]} [standorte] Werke, die einen Krisenstab haben müssen. Ohne Angabe:
  *                              die Werke, die Kacheln haben (Rückfall, wenn STANDORTE unbekannt ist)
  */
-function nfKennzahlen(daten, uebungen, werke, standorte) {
+function nfKennzahlen(daten, uebungen, werke, standorte, assetRtoOverride) {
   const alle = nfAlleKacheln(daten, werke);
-  const assetRto = nfAssetRto(daten);
+  const assetRto = assetRtoOverride || nfAssetRto(daten);
   const karten = (daten && daten.karten) || {};
   const z = { prozesse: alle.length, bewertet: 0, kritisch: 0, mitPlan: 0, ohnePlan: 0, geuebt: 0, ungeuebt: 0,
     ohneAssets: 0, rtoKonflikte: 0, fehler: 0, hinweise: 0, werke: 0, stabOk: 0, stabLuecken: 0, stabFehlt: 0,

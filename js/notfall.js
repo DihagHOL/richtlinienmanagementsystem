@@ -18,9 +18,10 @@
  *
  * Gespeichert wird **in der Landkarte** (`prozesslandkarte.json`): Die BIA und
  * der Plan hängen an der Kachel (`kachel.bcm`), der Krisenstab an der Karte
- * des Werks (`karte.krisenstab`), die Wiederherstellzeiten der Assets einmal
- * für alle (`daten.notfall.assetRto`). Keine neue Liste, keine neue Datei –
- * und die Trennung nach Gesellschaft gilt von selbst mit.
+ * des Werks (`karte.krisenstab`). Die Assets kommen aus dem **Assetregister**
+ * (Wiederherstellzeit, Schutzbedarf, Abhängigkeit Asset → Asset); solange es
+ * das noch nicht gibt, aus der alten ISMS-Liste „Assets", und die Wieder-
+ * herstellzeiten dann aus `daten.notfall.assetRto` – der Rückfall von früher.
  *
  * Übungen sind die vierte Satzart des Wirksamkeits-Registers: Eine Übung
  * prüft einen Plan und findet Abweichungen – dieselbe Kette wie ein Audit.
@@ -30,8 +31,47 @@
  */
 
 let _nfModus = 'bia';          // 'bia' | 'ausfall' | 'krisenstab'
-let _nfAssets = null;          // ISMS-Liste „Assets" (Cache); null = noch nicht geladen
+let _nfAssets = null;          // Assets (Register, ersatzweise alte Liste); null = noch nicht geladen
 let _nfAssetsFehler = null;
+let _nfAssetIndex = new Map();  // Id → Asset, auch über die Id der alten Liste (quelleId)
+
+/** Kommt das Asset aus dem Register (dann pflegt es die Wiederherstellzeit selbst)? */
+function _nfRegister() { return Array.isArray(_nfAssets) && _nfAssets.length > 0 && _nfAssets.every(a => a.quelle !== 'isms'); }
+/** Die Id im Register zu einer gespeicherten Id – Links aus der Zeit der alten Liste laufen weiter. */
+function _nfKanon(id) { const a = _nfAssetIndex.get(String(id)); return a ? String(a.id) : String(id); }
+function _nfAssetVon(id) { return _nfAssetIndex.get(String(id)) || null; }
+function _nfIndexBauen() {
+  _nfAssetIndex = new Map();
+  for (const a of (_nfAssets || [])) { _nfAssetIndex.set(String(a.id), a); if (a.quelleId) _nfAssetIndex.set(String(a.quelleId), a); }
+}
+/**
+ * Die Wiederherstellzeiten: aus dem Register, ersatzweise der alte Speicher
+ * in der Landkarte. Unter beiden Ids (Register und alte Liste) auffindbar.
+ */
+function _nfAssetRtoMap() {
+  const out = {};
+  const alt = nfDaten().assetRto;
+  for (const [id, v] of Object.entries(alt)) { out[id] = v; out[_nfKanon(id)] = out[_nfKanon(id)] || v; }
+  for (const a of (_nfAssets || [])) {
+    if (a.wiederherstellung === '' || a.wiederherstellung === undefined || a.wiederherstellung === null) continue;
+    const v = { rto: Number(a.wiederherstellung), title: a.title };
+    out[String(a.id)] = v; if (a.quelleId) out[String(a.quelleId)] = v;
+  }
+  return out;
+}
+/** Verfügbarkeit je Asset – für die Vererbung in der Prüfung. */
+function _nfAssetInfo() {
+  const out = {};
+  for (const a of (_nfAssets || [])) { const i = { verfuegbarkeit: a.verfuegbarkeit || '' }; out[String(a.id)] = i; if (a.quelleId) out[String(a.quelleId)] = i; }
+  return out;
+}
+/** Was mit ausfällt (Abhängigkeit Asset → Asset) – Ids in beiden Schreibweisen. */
+function _nfMitAusfall(id) {
+  if (typeof amAbhaengige !== 'function' || !_nfRegister()) return [];
+  const out = [];
+  for (const a of amAbhaengige(_nfAssets, _nfKanon(id))) { out.push(String(a.id)); if (a.quelleId) out.push(String(a.quelleId)); }
+  return out;
+}
 let _nfUebungen = null;        // Übungen aus dem Wirksamkeits-Register; null = noch nicht geladen
 let _nfEditing = null;         // { id, bcm, kachelName } im Editor
 let _nfStabEditing = null;
@@ -84,7 +124,7 @@ function nfDaten() {
 }
 
 function _nfKontext(werk) {
-  return { assetRto: nfDaten().assetRto, uebungen: _nfUebungen || [], werk: werk || _lkWerk };
+  return { assetRto: _nfAssetRtoMap(), assetInfo: _nfAssetInfo(), uebungen: _nfUebungen || [], werk: werk || _lkWerk };
 }
 
 /* ── Laden ── */
@@ -99,20 +139,25 @@ async function _nfUebungenLaden(neu) {
 }
 
 function _nfAssetsLaden() {
-  if (_nfAssets !== null || typeof spGetAssets !== 'function') return;
+  if (_nfAssets !== null) return;
+  const lader = (typeof spGetAssetsVereint === 'function') ? spGetAssetsVereint : ((typeof spGetAssets === 'function') ? spGetAssets : null);
+  if (!lader) return;
   _nfAssets = [];   // „lädt" – doppelte Aufrufe vermeiden
-  spGetAssets().then(a => { _nfAssets = a || []; _nfAssetsFehler = null; nfAssetsNeu(); })
+  lader().then(a => { _nfAssets = a || []; _nfAssetsFehler = null; _nfIndexBauen(); nfAssetsNeu(); })
     .catch(e => { _nfAssets = []; _nfAssetsFehler = e.message || 'Assets nicht ladbar.'; nfAssetsNeu(); });
 }
 
 /** Nach dem Laden der Assets die Stellen nachzeichnen, die sie zeigen. */
 function nfAssetsNeu() {
-  // Links aus der Zeit vor dem Werksbezug tragen kein Werk – im Editor nachziehen.
+  // Links aus der Zeit vor dem Register: Id und Werk nachziehen – ein Link
+  // auf die alte Liste wird beim nächsten Speichern ein Link ins Register.
   if (_nfEditing && Array.isArray(_nfAssets)) {
     for (const a of _nfEditing.bcm.assets) {
-      if (a.werke && a.werke.length) continue;
-      const f = _nfAssets.find(x => String(x.id) === a.id);
-      if (f && Array.isArray(f.werke)) a.werke = f.werke.slice();
+      const f = _nfAssetVon(a.id);
+      if (!f) continue;
+      a.id = String(f.id);
+      if (f.title) a.title = f.title;
+      if ((!a.werke || !a.werke.length) && Array.isArray(f.werke)) a.werke = f.werke.slice();
     }
   }
   const el = document.getElementById('nf-assets');
@@ -168,7 +213,7 @@ function renderNotfall() {
   const werke = (typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar() : [_lkWerk];
   if (!werke.includes(_lkWerk)) werke.unshift(_lkWerk);
   const mitKarte = new Set((typeof lkWerkeMitKarte === 'function') ? lkWerkeMitKarte() : []);
-  const z = nfKennzahlen(_lkDaten, _nfUebungen || [], _nfSichtbareWerke(), nfPflichtWerke());
+  const z = nfKennzahlen(_lkDaten, _nfUebungen || [], _nfSichtbareWerke(), nfPflichtWerke(), _nfAssetRtoMap());
 
   const kpi = (n, label, col) => `<div style="flex:1;min-width:120px;background:var(--c-surface,#fff);border:1px solid var(--c-border);border-radius:10px;padding:10px 13px">
     <div style="font-size:1.45rem;font-weight:800;color:${col}">${n}</div>
@@ -257,12 +302,12 @@ function _nfBiaHtml(schreiben) {
 
 function _nfAusfallHtml() {
   const werke = _nfSichtbareWerke();
-  const alleTraeger = nfAssetTraeger(_lkDaten, werke);
-  // Das Werk am Asset: aus der Liste, ersatzweise aus dem gespeicherten Link.
+  const alleTraeger = nfAssetTraeger(_lkDaten, werke, { kanon: _nfKanon });
+  // Das Werk am Asset: aus dem Register, ersatzweise aus dem gespeicherten Link.
   const werkeVon = (id) => {
-    const a = (_nfAssets || []).find(x => String(x.id) === id);
+    const a = _nfAssetVon(id);
     if (a && Array.isArray(a.werke) && a.werke.length) return a.werke;
-    const t = alleTraeger.find(x => x.id === id);
+    const t = alleTraeger.find(x => x.id === _nfKanon(id));
     return (t && t.werke) || [];
   };
   const passt = (id) => !_nfNurWerk || nfAssetPasst({ werke: werkeVon(id) }, _lkWerk);
@@ -270,13 +315,17 @@ function _nfAusfallHtml() {
   const bekannt = new Map(traeger.map(t => [t.id, t.title]));
   for (const a of _nfAssetsSichtbar()) if (!bekannt.has(String(a.id)) && passt(String(a.id))) bekannt.set(String(a.id), a.title);
   const optionen = [...bekannt.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'de'));
-  const rto = nfDaten().assetRto;
-  const schreiben = nfDarfSchreiben();
+  const rto = _nfAssetRtoMap();
+  const register = _nfRegister();
+  const schreiben = register ? (typeof canWriteTab !== 'function' || canWriteTab('assets')) : nfDarfSchreiben();
+  const mit = _nfAssetWahl ? _nfMitAusfall(_nfAssetWahl) : [];
+  const ausfallOpt = { kanon: _nfKanon, mit, assetRto: rto };
 
   let treffer = '';
   if (_nfAssetWahl) {
-    const liste = nfAusfall(_lkDaten, _nfAssetWahl, werke);
+    const liste = nfAusfall(_lkDaten, _nfAssetWahl, werke, ausfallOpt);
     const titel = bekannt.get(_nfAssetWahl) || _nfAssetWahl;
+    const mitNamen = [...new Set(mit.map(x => (_nfAssetVon(x) || {}).title).filter(Boolean))];
     const r = rto[_nfAssetWahl] && nfDauerText(rto[_nfAssetWahl].rto);
     const risiken = (typeof _risks !== 'undefined' && Array.isArray(_risks))
       ? _risks.filter(x => (x.assets || []).some(a => String(a.id) === _nfAssetWahl) && x.status !== 'geschlossen').length : null;
@@ -285,14 +334,15 @@ function _nfAusfallHtml() {
         <b style="font-size:1rem">⚡ „${esc(titel)}" fällt aus</b> ${_nfWerkTag(werkeVon(_nfAssetWahl))}
         <span class="field-hint">Wiederherstellung: ${r ? `<b>${esc(r)}</b>` : 'nicht gepflegt'}</span>
         ${risiken !== null && risiken ? `<span class="field-hint">· ${risiken} offene(s) Risiko/Risiken im Register</span>` : ''}
-        ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke);
+        ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke, ausfallOpt);
           return `<span title="${esc(st.gruende.join(' '))}">Eskalationsstufe: ${_nfStufeBadge(st.nr)}</span>`; })()}
-        ${schreiben ? `<span style="margin-left:auto;font-size:.8rem">Wiederherstellzeit:
+        ${schreiben ? `<span style="margin-left:auto;font-size:.8rem" title="${register ? 'Wird im Assetregister gespeichert' : 'Wird in der Landkarte gespeichert (alte Liste)'}">Wiederherstellzeit:
           <input type="number" min="0" step="0.5" style="width:70px" id="nf-arto-wert" value="${esc(nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').wert)}">
           <select id="nf-arto-einheit">${['min', 'h', 'tage'].map(e => `<option value="${e}"${nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').einheit === e ? ' selected' : ''}>${e === 'tage' ? 'Tage' : e}</option>`).join('')}</select>
           <button class="btn btn-outline btn-sm" onclick="nfAssetRtoSpeichern('${esc(_nfAssetWahl)}')">Setzen</button></span>` : ''}
       </div>
-      ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke); const v = st.stufe;
+      ${mitNamen.length ? `<div style="font-size:.85rem;margin-bottom:6px;color:#b91c1c"><b>Reißt mit:</b> ${mitNamen.map(esc).join(', ')} <span class="field-hint">– hängen laut Assetregister daran; ihre Prozesse stehen mit in der Liste.</span></div>` : ''}
+      ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke, ausfallOpt); const v = st.stufe;
         return liste.length ? `<div style="font-size:.82rem;color:var(--c-muted);margin-bottom:8px;border-left:3px solid ${v.farbe};padding-left:8px">
           <b style="color:${v.farbe}">${st.nr} – ${esc(v.label)}:</b> ${st.gruende.map(esc).join(' ')}
           ${st.nr >= 2 ? `<br>Ausrufen: <b>${esc((nfAlarmierungVollstaendig((lkKarte().krisenstab || {}).alarmierung).find(a => a.nr === st.nr) || {}).wer || v.erklaert)}</b> · alarmiert: ${esc((nfAlarmierungVollstaendig((lkKarte().krisenstab || {}).alarmierung).find(a => a.nr === st.nr) || {}).tut || v.alarmiert)}${v.meldepflicht ? ` · ${esc(v.meldepflicht)}` : ''}` : ''}</div>` : ''; })()}
@@ -318,8 +368,9 @@ function _nfAusfallHtml() {
       const aw = werkeVon(t.id);
       // Prozesse, die laut Liste nicht in einem Werk dieses Assets liegen.
       const fremd = pr.filter(p => nfAssetFremd({ werke: aw }, p.werk));
+      const abh = _nfRegister() && typeof amAbhaengige === 'function' ? amAbhaengige(_nfAssets, t.id).length : 0;
       return `<tr onclick="_nfAssetWahl='${esc(t.id)}';renderNotfall()" style="cursor:pointer${t.id === _nfAssetWahl ? ';background:var(--c-bg,#f8fafc)' : ''}">
-        <td><b>${esc(t.title)}</b></td>
+        <td><b>${esc(t.title)}</b>${abh ? `<div style="font-size:.68rem;color:#b91c1c">reißt ${abh} Asset(s) mit</div>` : ''}</td>
         <td style="white-space:nowrap">${aw.length ? esc(aw.filter(x => x !== 'ALLE').join(', ') || 'konzernweit') : '<span style="color:var(--c-faint)">–</span>'}${
           fremd.length ? ` <span style="color:#b45309" title="${esc(fremd.map(p => p.name + ' (' + p.werk + ')').join(', '))} hängen daran, liegen aber in einem anderen Werk">⚠</span>` : ''}</td>
         <td style="white-space:nowrap">${r ? esc(r) : '<span style="color:var(--c-faint)">–</span>'}</td>
@@ -348,9 +399,22 @@ function _nfAusfallHtml() {
 }
 
 async function nfAssetRtoSpeichern(id) {
-  if (!nfDarfSchreiben()) return;
   const w = document.getElementById('nf-arto-wert'), e = document.getElementById('nf-arto-einheit');
   const h = nfDauerStunden(w ? w.value : '', e ? e.value : 'h');
+  // Mit Register: dort ist die eine Wahrheit – und dort gilt dessen Schreibrecht.
+  if (_nfRegister()) {
+    if (typeof canWriteTab === 'function' && !canWriteTab('assets')) { toast('Nur Lesezugriff auf das Assetregister.', 'error'); return; }
+    const a = _nfAssetVon(id);
+    if (!a) return;
+    try {
+      await spUpdateAsset(a.id, Object.assign({}, a, { wiederherstellung: h }));
+      a.wiederherstellung = h;
+      toast('Wiederherstellzeit im Assetregister gesetzt ✓', 'success');
+      renderNotfall();
+    } catch (err) { toast('Speichern fehlgeschlagen: ' + err.message, 'error'); }
+    return;
+  }
+  if (!nfDarfSchreiben()) return;
   const rto = nfDaten().assetRto;
   const titel = (nfAssetTraeger(_lkDaten).find(t => t.id === id) || {}).title || ((_nfAssets || []).find(a => String(a.id) === id) || {}).title || '';
   if (h === '') delete rto[id]; else rto[id] = { rto: h, title: titel };
@@ -524,7 +588,8 @@ function nfKachelOeffnen(id) {
   if (typeof lkMitgliederLaden === 'function') lkMitgliederLaden();
   _nfAssetsLaden();
   _nfEditing = { id: k.id, name: k.name, unter: k.unter || '', verantwortlich: k.verantwortlich || '', vertretung: k.vertretung || '',
-    bcm: nfBcmVon(k), assetRto: JSON.parse(JSON.stringify(nfDaten().assetRto)) };
+    bcm: nfBcmVon(k), assetRto: JSON.parse(JSON.stringify(nfDaten().assetRto)), registerRto: {} };
+  nfAssetsNeu();   // Ids und Werke der Links nachziehen, falls die Assets schon da sind
   if (!_nfUebungen) _nfUebungenLaden().then(() => { if (_nfEditing && _nfEditing.id === id) renderNfEditor(); });
   renderNfEditor();
 }
@@ -557,11 +622,11 @@ function nfKontaktWeg(i) { _nfEditing.bcm.plan.kontakte.splice(i, 1); renderNfEd
 function nfKontaktSetzen(i, feld, wert) { const x = _nfEditing.bcm.plan.kontakte[i]; if (x) x[feld] = wert; }
 
 function nfAssetUmschalten(id, an) {
-  const key = String(id);
+  const key = _nfKanon(id);
   const b = _nfEditing.bcm;
-  b.assets = b.assets.filter(a => a.id !== key);
+  b.assets = b.assets.filter(a => _nfKanon(a.id) !== key);
   if (an) {
-    const f = (_nfAssets || []).find(a => String(a.id) === key);
+    const f = _nfAssetVon(key);
     b.assets.push({ id: key, title: (f && f.title) || ('#' + key), werke: (f && Array.isArray(f.werke)) ? f.werke.slice() : [] });
   }
   const el = document.getElementById('nf-assets');
@@ -573,7 +638,11 @@ function nfAssetRtoSetzen(id) {
   const w = document.getElementById(`nf-arto-${id}-wert`), e = document.getElementById(`nf-arto-${id}-einheit`);
   const h = nfDauerStunden(w ? w.value : '', e ? e.value : 'h');
   const a = _nfEditing.bcm.assets.find(x => x.id === String(id));
-  if (h === '') delete _nfEditing.assetRto[id]; else _nfEditing.assetRto[id] = { rto: h, title: (a && a.title) || '' };
+  if (_nfRegister()) {
+    // Ins Register – beim Speichern der Kachel, mit dem Recht des Registers.
+    _nfEditing.registerRto[String(id)] = h;
+    if (h === '') delete _nfEditing.assetRto[id]; else _nfEditing.assetRto[id] = { rto: h, title: (a && a.title) || '' };
+  } else if (h === '') delete _nfEditing.assetRto[id]; else _nfEditing.assetRto[id] = { rto: h, title: (a && a.title) || '' };
   _nfLueckenNeu();
 }
 
@@ -582,24 +651,36 @@ function _nfAssetsHtml() {
   const selIds = new Set(sel.map(a => a.id));
   const loaded = _nfAssets || [];
   const filter = String(document.getElementById('nf-asset-filter')?.value || '').toLowerCase().trim();
+  const register = _nfRegister();
+  const darfRegister = !register || typeof canWriteTab !== 'function' || canWriteTab('assets');
   const rtoZeile = (a) => {
-    const e = nfDauerEingabe(_nfEditing.assetRto[a.id] ? _nfEditing.assetRto[a.id].rto : '');
-    return `<span style="margin-left:auto;white-space:nowrap;font-size:.75rem;color:var(--c-muted)" title="Wie lange braucht die Wiederherstellung dieses Assets? Gilt für alle Prozesse, die daran hängen.">Wiederherstellung
+    const reg = _nfAssetVon(a.id);
+    const wert = (register && reg && reg.wiederherstellung !== '' && !(String(a.id) in _nfEditing.registerRto)) ? reg.wiederherstellung
+      : (_nfEditing.assetRto[a.id] ? _nfEditing.assetRto[a.id].rto : '');
+    const e = nfDauerEingabe(wert);
+    if (!darfRegister) return `<span style="margin-left:auto;white-space:nowrap;font-size:.75rem;color:var(--c-muted)" title="Wird im Assetregister gepflegt">Wiederherstellung ${wert === '' ? '<b style="color:#b45309">fehlt</b>' : `<b>${esc(nfDauerText(wert))}</b>`}</span>`;
+    return `<span style="margin-left:auto;white-space:nowrap;font-size:.75rem;color:var(--c-muted)" title="${register ? 'Wird beim Speichern ins Assetregister geschrieben – die eine Wahrheit für alle Prozesse.' : 'Wie lange braucht die Wiederherstellung dieses Assets? Gilt für alle Prozesse, die daran hängen.'}">Wiederherstellung
       <input type="number" min="0" step="0.5" id="nf-arto-${esc(a.id)}-wert" value="${esc(e.wert)}" style="width:60px" onchange="nfAssetRtoSetzen('${esc(a.id)}')">
       <select id="nf-arto-${esc(a.id)}-einheit" onchange="nfAssetRtoSetzen('${esc(a.id)}')">${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x}</option>`).join('')}</select></span>`;
   };
+  const sbBadge = (a) => {
+    if (!register || !a.verfuegbarkeit) return '';
+    const col = a.verfuegbarkeit === 'sehr hoch' ? '#b91c1c' : a.verfuegbarkeit === 'hoch' ? '#b45309' : '#15803d';
+    return ` <span style="font-size:.66rem;color:${col};font-weight:700" title="Verfügbarkeit laut Assetregister">A: ${esc(a.verfuegbarkeit)}</span>`;
+  };
   const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:center;display:flex;gap:8px">
     <input type="checkbox" ${checked ? 'checked' : ''} onchange="nfAssetUmschalten('${esc(String(a.id))}',this.checked)">
-    <span><b>${esc(a.title)}</b> ${_nfWerkTag(a.werke)}${nfAssetFremd(a, _lkWerk) ? ' <span style="color:#b45309" title="Steht laut Liste in einem anderen Werk">⚠</span>' : ''}${a.sub ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}</span>
+    <span><b>${esc(a.title)}</b> ${_nfWerkTag(a.werke)}${sbBadge(a)}${nfAssetFremd(a, _lkWerk) ? ' <span style="color:#b45309" title="Steht laut Liste in einem anderen Werk">⚠</span>' : ''}${a.sub && !register ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}${register && a.kategorie ? ` <span style="color:var(--c-faint)">${esc(a.kategorie)}</span>` : ''}</span>
     ${checked ? rtoZeile({ id: String(a.id), title: a.title }) : ''}</label>`;
   let html = '';
   if (_nfAssets === null || (_nfAssets.length === 0 && !_nfAssetsFehler)) html += '<div class="field-hint">Lade Assets aus der ISMS-Liste „Assets" …</div>';
   else if (!loaded.length) html += `<div class="field-hint" style="margin-bottom:4px">${esc(_nfAssetsFehler || 'Keine Assets in der ISMS-Liste „Assets".')}</div>`;
   const loadedIds = new Set(loaded.map(a => String(a.id)));
-  const items = _nfAssetsSichtbar().filter(a => !filter || (a.title + ' ' + (a.sub || '') + ' ' + (a.werke || []).join(' ')).toLowerCase().includes(filter));
+  const items = _nfAssetsSichtbar().filter(a => a.status !== 'außer Betrieb' || selIds.has(String(a.id)))
+    .filter(a => !filter || (a.title + ' ' + (a.sub || '') + ' ' + (a.werke || []).join(' ')).toLowerCase().includes(filter));
   // Gewählte zuerst – die sind das, worum es geht.
   html += items.filter(a => selIds.has(String(a.id))).map(a => row(a, true)).join('');
-  if (!filter) html += sel.filter(a => !loadedIds.has(a.id)).map(a => row(a, true)).join('');
+  if (!filter) html += sel.filter(a => !loadedIds.has(a.id) && !_nfAssetVon(a.id)).map(a => row(a, true)).join('');
   // Dann die des eigenen Werks und die konzernweiten; fremde Werke darunter –
   // wählbar bleiben sie: Ein HOL-Prozess kann an einem Server in WGC hängen.
   const offen = items.filter(a => !selIds.has(String(a.id)));
@@ -618,7 +699,7 @@ function _nfLueckenNeu() {
 
 function _nfLueckenHtml() {
   const k = { id: _nfEditing.id, name: _nfEditing.name, verantwortlich: _nfEditing.verantwortlich, bcm: _nfEditing.bcm };
-  const p = nfPruefung(k, { assetRto: _nfEditing.assetRto, uebungen: _nfUebungen || [], werk: _lkWerk });
+  const p = nfPruefung(k, { assetRto: Object.assign({}, _nfAssetRtoMap(), _nfEditing.assetRto), assetInfo: _nfAssetInfo(), uebungen: _nfUebungen || [], werk: _lkWerk });
   if (!p.fehler.length && !p.hinweise.length) return `<div class="col-warning" style="display:block;border-color:#bbf7d0;background:#f0fdf4;color:#166534">✓ Vollständig – nichts fehlt.</div>`;
   return `${p.fehler.length ? `<div class="col-warning" style="display:block"><b>Lücken (${p.fehler.length}):</b>
     <ul style="margin:6px 0 0 18px;padding:0">${p.fehler.map(x => `<li style="margin:2px 0">${esc(x)}</li>`).join('')}</ul></div>` : ''}
@@ -667,7 +748,7 @@ function renderNfEditor() {
       <div id="nf-eskalation" style="margin-top:4px">${_nfEskalationHtml()}</div>
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 4px">Wovon hängt der Prozess ab? <span class="field-hint" style="font-weight:400">${b.assets.length} Asset(s)</span></div>
-      <div class="field-hint" style="margin-bottom:6px">Aus der ISMS-Liste „Assets". Je Asset die Wiederherstellzeit – gilt für alle Prozesse, die daran hängen: Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</div>
+      <div class="field-hint" style="margin-bottom:6px">${_nfRegister() ? 'Aus dem <b>Assetregister</b> – Schutzbedarf, Werk und Wiederherstellzeit kommen von dort.' : 'Aus der ISMS-Liste „Assets".'} Je Asset die Wiederherstellzeit – gilt für alle Prozesse, die daran hängen: Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</div>
       <input type="text" id="nf-asset-filter" class="sort-select" placeholder="Assets filtern …" oninput="document.getElementById('nf-assets').innerHTML=_nfAssetsHtml()" style="width:100%;margin-bottom:6px">
       <div id="nf-assets" style="max-height:220px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:6px 10px">${_nfAssetsHtml()}</div>
 
@@ -729,7 +810,16 @@ async function nfKachelSpeichern() {
   if (biaAlt !== biaNeu) b.standAm = new Date().toISOString();
   if (planAlt !== planNeu) b.plan.standAm = new Date().toISOString();
   k.bcm = b;
-  nfDaten().assetRto = e.assetRto;
+  // Wiederherstellzeiten: mit Register dorthin (eine Wahrheit), sonst in die Landkarte.
+  if (_nfRegister()) {
+    const darf = typeof canWriteTab !== 'function' || canWriteTab('assets');
+    for (const [id, h] of Object.entries(e.registerRto || {})) {
+      const a = _nfAssetVon(id);
+      if (!a || !darf) continue;
+      try { await spUpdateAsset(a.id, Object.assign({}, a, { wiederherstellung: h })); a.wiederherstellung = h; }
+      catch (err) { toast(`Wiederherstellzeit „${a.title}" nicht gespeichert: ${err.message}`, 'error'); }
+    }
+  } else nfDaten().assetRto = e.assetRto;
   const teile = [];
   if (alt.kritikalitaet !== b.kritikalitaet) teile.push(`Kritikalität ${alt.kritikalitaet || '–'} → ${b.kritikalitaet || '–'}`);
   if (alt.rto !== b.rto) teile.push(`RTO ${nfDauerText(alt.rto) || '–'} → ${nfDauerText(b.rto) || '–'}`);
@@ -755,7 +845,7 @@ function _nfFenster(html) {
 function _nfDruckDaten(nurKachel) {
   const karte = lkKarte();
   return { werk: _lkWerk, werkLabel: lkWerkLabel(_lkWerk), karte, stab: karte.krisenstab || null,
-    assetRto: nfDaten().assetRto, uebungen: _nfUebungen || [], personName: _nfName,
+    assetRto: _nfAssetRtoMap(), uebungen: _nfUebungen || [], personName: _nfName,
     stand: new Date().toLocaleString('de-DE'), nurKachel: nurKachel || '' };
 }
 
@@ -792,6 +882,7 @@ function nfKachelZeile(k, werk) {
   const darf = typeof canReadTab !== 'function' || canReadTab('notfall');
   if (!darf) return '';
   const letzte = nfLetzteUebung(_nfUebungen, werk, k.id);
+  if (_nfAssets === null) _nfAssetsLaden();
   const p = nfPruefung(k, _nfKontext(werk));
   const text = !b.kritikalitaet ? '<span style="color:#b45309">Keine Business-Impact-Analyse</span>'
     : `Kritikalität ${_nfKritBadge(b.kritikalitaet)}${b.rto !== '' ? ` · RTO <b>${esc(nfDauerText(b.rto))}</b>` : ''}${

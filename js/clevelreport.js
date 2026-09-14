@@ -147,6 +147,15 @@ async function _clevelGather() {
     }
   } catch (e) { m.wirksamkeit = null; m.fehler.push('Wirksamkeit: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
 
+  // Assetregister (A.5.9 Inventar, A.5.12 Klassifizierung)
+  try {
+    if (typeof amKennzahlen !== 'function' || typeof spGetAssetRegisterLeise !== 'function') { m.assets = null; }
+    else {
+      const liste = await spGetAssetRegisterLeise();
+      m.assets = Array.isArray(liste) ? amKennzahlen(liste, { werke: (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null }) : null;
+    }
+  } catch (e) { m.assets = null; m.fehler.push('Assets: ' + e.message); }
+
   // Notfallmanagement (A.5.29/A.5.30, NIS2 Art. 21 (2c)): BIA und Pläne hängen
   // an den Kacheln der Landkarte, die Übungen stehen im Wirksamkeits-Register.
   // Das Modell rechnet auf dem rohen Datenobjekt – die Landkarte-Ansicht wird
@@ -274,6 +283,20 @@ function _clevelIsoRows(m) {
     add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'warn', 'Register „Wirksamkeit" nicht auswertbar.');
   }
 
+  // Inventar (A.5.9): Ein Asset ohne Eigentümer pflegt niemand – das ist die
+  // Feststellung, die jeder Auditor als Erstes trifft. A.5.12: Klassifizierung.
+  if (m.assets) {
+    const a = m.assets;
+    if (!a.aktiv) add('ISO A.5.9', 'Inventar der Werte', 'gap', 'Kein Asset im Register.');
+    else if (a.ohneVerantwortlichen || a.ohneSchutzbedarf || a.eolAbgelaufen)
+      add('ISO A.5.9', 'Inventar der Werte', 'gap', `${a.aktiv} Assets; ${a.ohneVerantwortlichen} ohne Verantwortlichen, ${a.ohneSchutzbedarf} ohne Schutzbedarf${a.eolAbgelaufen ? `, ${a.eolAbgelaufen} mit abgelaufenem Support` : ''}.`);
+    else if (a.sehrHochOhneRto || a.vererbung || a.faellig)
+      add('ISO A.5.9', 'Inventar der Werte', 'warn', `${a.aktiv} Assets mit Verantwortlichen und Schutzbedarf; ${a.sehrHochOhneRto} „sehr hoch" ohne Wiederherstellzeit, ${a.vererbung} mit zu niedrigem Schutzbedarf, ${a.faellig} laufen in ${AM_VORLAUF_TAGE} Tagen aus.`);
+    else add('ISO A.5.9', 'Inventar der Werte', 'ok', `${a.aktiv} Assets, alle mit Verantwortlichen und Schutzbedarf.`);
+    if (a.aktiv && a.ohneKlassifizierung) add('ISO A.5.12', 'Klassifizierung von Informationen', 'warn', `${a.ohneKlassifizierung} von ${a.aktiv} Assets ohne Klassifizierung.`);
+    else if (a.aktiv) add('ISO A.5.12', 'Klassifizierung von Informationen', 'ok', 'Alle Assets klassifiziert.');
+  } else add('ISO A.5.9', 'Inventar der Werte', 'warn', 'Assetregister nicht auswertbar – Inventar nicht nachweisbar.');
+
   // Notfallmanagement: A.5.30 will die IKT-Bereitschaft geplant, umgesetzt,
   // aufrechterhalten UND geprüft. Ein Plan, den es nicht gibt, ist die Lücke;
   // ein Plan, den niemand geübt hat, der Hinweis. Und ohne BIA weiß niemand,
@@ -372,6 +395,7 @@ function _clevelReportHtml(m) {
   if (m.risiken) details.push(`<b>Risiken:</b> ${m.risiken.gesamt} gesamt, ${m.risiken.offen} offen, ${m.risiken.hoch} hoch, ${m.risiken.mUeber} Maßnahmen überfällig`);
   if (m.ausnahmen) details.push(`<b>Ausnahmen:</b> ${m.ausnahmen.gesamt} erfasst, ${m.ausnahmen.aktiv} gültig, ${m.ausnahmen.abgelaufen} abgelaufen, ${m.ausnahmen.wartend} unentschieden`);
   if (m.wirksamkeit) details.push(`<b>Wirksamkeit:</b> ${m.wirksamkeit.audits} Audit(s), letzte Bewertung ${m.wirksamkeit.letzteBewertung || '–'}, ${m.wirksamkeit.abwOffen} Abweichung(en) offen, ${m.wirksamkeit.ohneWirksamkeit} ohne Wirksamkeitsbeleg`);
+  if (m.assets) details.push(`<b>Assets:</b> ${m.assets.aktiv} im Inventar, ${m.assets.ohneVerantwortlichen} ohne Verantwortlichen, ${m.assets.sehrHoch} mit Verfügbarkeit „sehr hoch", ${m.assets.personenbezogen} mit Personendaten`);
   if (m.notfall) details.push(`<b>Notfall:</b> ${m.notfall.bewertet}/${m.notfall.prozesse} Prozesse mit BIA, ${m.notfall.kritisch} kritisch, ${m.notfall.mitPlan} mit Plan, ${m.notfall.geuebt} geübt, ${m.notfall.rtoKonflikte} RTO-Konflikt(e), Krisenstab vollständig in ${m.notfall.stabOk}/${m.notfall.werke} Werk(en)`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);
   if (m.faellig) details.push(`<b>Fälligkeiten:</b> ${m.faellig.overdue} überfällig, ${m.faellig.soon} in ≤ 30 Tagen`);

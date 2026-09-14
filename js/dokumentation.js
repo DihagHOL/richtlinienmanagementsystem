@@ -45,6 +45,7 @@ const _DOKU_TOC = [
   ['abdeckung',     'IMS-Abdeckung & SoA'],
   ['faelligkeit',   'Fälligkeiten / Wiedervorlage'],
   ['risiken',       'Risiko-Register'],
+  ['assets',        'Assetregister (Inventar)'],
   ['ausnahmen',     'Ausnahmeregister (Abweichungen)'],
   ['wirksamkeit',   'Wirksamkeit & Verbesserung'],
   ['notfall',       'Notfall & Krisenstab (BCM)'],
@@ -375,6 +376,31 @@ function _dokuSections() {
       <div style="${hint}">📧 Der Erinnerungs-Cron mailt <b>überfällige Maßnahmen und Risiko-Reviews</b> automatisch an die Admins (mit Direktlink). Exporte: <b>🖨 Risikobericht</b> (Druck/PDF) und <b>⬇ CSV</b>. Tipp: Statt Löschen besser „Status: geschlossen" – so bleibt der Audit-Trail erhalten.</div>`,
       'ISO 27001 Klausel 6.1.2 (Risikobeurteilung), 6.1.3 (Risikobehandlung), 8.2/8.3 (Durchführung), A.5.2 (Verantwortlichkeiten); NIS2 Art. 21(1) (Risikomanagementmaßnahmen).'),
 
+
+    sec('assets', 'Assetregister (Inventar)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Assetregister"</b> ist das Inventar nach <b>ISO 27001 A.5.9</b> – die eigene Liste der App auf der ISMS-Site (wird beim ersten Öffnen angelegt), mit Anlegen, Bearbeiten und Löschen. Bisher las die App eine fremde Liste „Assets" und erriet ihre Spalten; die lässt sich mit <b>„⬇ Aus ISMS-Liste"</b> übernehmen (Titel, Werk, Kurzbeschreibung), alte Verweise aus Risiken und Notfallplänen laufen über die gemerkte Quell-Id weiter.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Je Asset das, was ein Auditor fragt und was das Notfallmanagement rechnen muss:</p>
+      ${tbl([
+        ['Verantwortlich', 'A.5.9 – ein Asset ohne Eigentümer pflegt niemand. Plus Vertretung und Betreiber.'],
+        ['Schutzbedarf V / I / A', 'Vertraulichkeit, Integrität, Verfügbarkeit nach BSI 200-2: normal, hoch, sehr hoch. <b>„sehr hoch" verlangt Wiederherstellzeit und RPO</b> (Reifegrad R093).'],
+        ['Klassifizierung', 'öffentlich · intern · vertraulich · streng vertraulich (A.5.12). Pflicht bei Informationen und bei Vertraulichkeit „hoch"; Haken „personenbezogen" für die DSGVO.'],
+        ['Werke', 'Kürzel oder konzernweit – die Trennung nach Gesellschaft und die Notfall-Sichten hängen daran.'],
+        ['Wiederherstellzeit, RPO, Datensicherung', 'Die Zahl, an der jede Prozess-RTO hängt: Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt. Der Notfall-Reiter liest sie von hier.'],
+        ['Hängt ab von', 'Asset → Asset. Fällt das Netz, fällt SAP mit – die Ausfall-Sicht rechnet die Kette durch („reißt mit"). Kreise werden abgewiesen.'],
+        ['Lebenszyklus', 'Inbetriebnahme, Support-Ende (EOL), Status. ' + (typeof AM_VORLAUF_TAGE !== "undefined" ? AM_VORLAUF_TAGE : 90) + ' Tage vor EOL oder Vertragsende mahnt das System; abgelaufener Support ist eine Lücke.'],
+        ['Hersteller, Lieferant, Support-Kontakt, Vertragsende', 'A.5.19–5.22 – und die Nummer, die man nachts braucht.'],
+        ['Zusatzfelder', 'Aus <b>Einstellungen → Assetregister</b>: Inventarnummer, Kostenstelle, Wartungsfenster, Raum – Text, Zahl, Datum, Auswahl oder Ja/Nein, wahlweise Pflicht. Kein SharePoint-Umbau nötig; die Werte liegen als JSON am Asset. Auch die Kategorien sind dort änderbar.'],
+      ])}
+      <div style="${h3}">Was das Register daraus macht</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>Schutzbedarfs-Vererbung</b> (BSI-Maximumprinzip): Hängt ein kritischer Prozess an einem Asset, braucht es Verfügbarkeit „sehr hoch", bei „mittel" mindestens „hoch". Steht weniger im Register, sagt eine der beiden Zahlen falsch – Hinweis im Register <i>und</i> im Notfallplan.</li>
+        <li style="${li}"><b>Verwendung</b>: je Asset die Prozesse (aus der Landkarte) und die offenen Risiken, die darauf verweisen. Beim Löschen wird gewarnt; „außer Betrieb" ist meist die bessere Wahl – das Inventar zeigt dann, was es gab.</li>
+        <li style="${li}"><b>Cockpit</b> (Assets, ohne Verantwortlichen, „sehr hoch" ohne Wiederherstellzeit), <b>Audit Report</b> (A.5.9 und A.5.12 als eigene Zeilen), <b>Asset-Digest</b> im Cron (auslaufender Support, fehlende Verantwortliche, fehlende Zeiten).</li>
+        <li style="${li}"><b>🖨 Inventar</b> als PDF – nach Kategorien, mit Schutzbedarf, Zeiten und Lieferant: der Nachweis zu A.5.9. <b>⬇ CSV</b> mit allen Feldern einschließlich Zusatzfeldern.</li>
+      </ul>
+      <div style="${hint}">Der Reiter ist standardmäßig nur für die Administration sichtbar – unter „Einstellungen" je Person freischaltbar. Die Wiederherstellzeit im Notfall-Editor schreibt ins Register und braucht dessen Schreibrecht; ohne es steht sie dort nur zum Lesen.</div>`,
+      'ISO 27001 A.5.9 (Inventar der Informationen und anderen Werte), A.5.10 (zulässige Verwendung), A.5.12 (Klassifizierung), A.5.19–5.22 (Lieferanten); BSI-Standard 200-2 (Strukturanalyse, Schutzbedarfsfeststellung, Vererbung); NIS2 Art. 21 (2i); Reifegrad R093.'),
+
     sec('ausnahmen', 'Ausnahmeregister (Abweichungen)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Ausnahmen"</b>: dokumentierte, <b>befristete</b> Abweichungen von einer Richtlinie. Der Reifegrad-Katalog verlangt sie in <b>R130</b> – „Ausnahmen: Mit Risikobewertung, befristet, Entscheidung dokumentiert, ISB einbeziehen". Jedes dieser vier Worte ist hier eine Bedingung, keine Beschriftung: Fehlt eines, verweigert das Register die Genehmigung. Die SharePoint-Liste „Ausnahmen" liegt wie die Risiken auf der ISMS-Site und wird beim ersten Öffnen automatisch angelegt.</p>
       <div style="${h3}">Was eine Genehmigung verlangt</div>
@@ -444,7 +470,7 @@ function _dokuSections() {
         ['MTPD', 'Maximal tolerierbare Ausfallzeit – ab wann der Schaden nicht mehr tragbar ist.'],
         ['RTO', 'Wiederanlaufzeit – bis wann der Prozess wieder laufen muss. Muss <b>unter</b> der MTPD liegen; liegt sie darüber, ist das eine Lücke.'],
         ['RPO', 'Tolerierbarer Datenverlust – wie alt der letzte gesicherte Stand sein darf.'],
-        ['Assets', 'Aus der ISMS-Liste „Assets", je Asset eine <b>Wiederherstellzeit</b>, die für alle Prozesse gilt. Daraus die Zahl, die alle raten und niemand rechnet: <b>Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</b> Ist die RTO kürzer als die Wiederherstellzeit eines Assets, ist sie nicht haltbar – und das steht dann so da.'],
+        ['Assets', 'Aus dem <b>Assetregister</b> (Reiter „Assetregister"), je Asset eine <b>Wiederherstellzeit</b>, die für alle Prozesse gilt. Daraus die Zahl, die alle raten und niemand rechnet: <b>Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</b> Ist die RTO kürzer als die Wiederherstellzeit eines Assets, ist sie nicht haltbar – und das steht dann so da.'],
       ])}
       <div style="${h3}">Der Notfallplan</div>
       <p style="margin:0 0 8px;line-height:1.55">In der Reihenfolge, in der er gebraucht wird. Kurz, konkret, für jemanden, der den Prozess nicht kennt.</p>

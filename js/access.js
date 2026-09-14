@@ -685,6 +685,7 @@ const GOVERNABLE_TABS = [
   { view: 'abdeckung',   label: 'IMS-Abdeckung (inkl. SoA)' , kurz: 'Abdeckung' },
   { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
   { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },
+  { view: 'assets',      label: 'Assetregister' , kurz: 'Assets' },
   { view: 'vorschlaege', label: 'Vorschläge' , kurz: 'Vorschläge' },
   { view: 'freigaben',   label: 'Freigaben' , kurz: 'Freigaben' },
   { view: 'ausnahmen',   label: 'Ausnahmeregister' , kurz: 'Ausnahmen' },
@@ -795,7 +796,7 @@ function initRoleNav() {
   const v = {};
   ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
    'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance', 'ausnahmen',
-   'wirksamkeit', 'notfall'].forEach(t => { v[t] = canReadTab(t); });
+   'wirksamkeit', 'notfall', 'assets'].forEach(t => { v[t] = canReadTab(t); });
 
   // Einzelne Reiter
   show('nav-cockpit',       v.cockpit);
@@ -808,6 +809,7 @@ function initRoleNav() {
   show('nav-ausnahmen',     v.ausnahmen);
   show('nav-faelligkeit',   v.faelligkeit);
   show('nav-risiken',       v.risiken);
+  show('nav-assets',        v.assets);
   show('nav-wirksamkeit',   v.wirksamkeit);
   show('nav-notfall',       v.notfall);
   show('nav-vorschlaege',   v.vorschlaege);
@@ -821,7 +823,7 @@ function initRoleNav() {
   // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
   show('nav-grp-governance',  v.governance || v.govstruktur);
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
-  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse || v.wirksamkeit || v.notfall);
+  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse || v.wirksamkeit || v.notfall || v.assets);
   show('nav-grp-verwaltung',  v.compliance || admin);
 
   // Zuletzt: Läuft gerade ein Probelauf, bleibt die Leiste auf das Nötige

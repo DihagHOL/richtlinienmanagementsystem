@@ -268,7 +268,8 @@ async function openRiskEditor(id) {
     spGetMembers().then(m => { _riskMembers = m; const dl = document.getElementById('rk-people'); if (dl) dl.innerHTML = m.map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join(''); }).catch(() => { _riskMembers = []; });
   }
   if (_riskAssets === null && typeof spGetAssets === 'function') {
-    spGetAssets().then(a => { _riskAssets = a; _riskAssetsError = null; rkRenderAssets(); })
+    const lader = (typeof spGetAssetsVereint === 'function') ? spGetAssetsVereint : spGetAssets;
+    lader().then(a => { _riskAssets = a; _riskAssetsError = null; rkRenderAssets(); })
       .catch(e => { _riskAssets = []; _riskAssetsError = e.message || 'Assets nicht ladbar.'; rkRenderAssets(); });
   }
   renderRiskEditor();

@@ -38,6 +38,7 @@ function initCockpit() {
       ${tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
       ${tile('soa',       '📋', 'SoA – Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
+      ${tile('assets',    '🗂', 'Assetregister',            'assets')}
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
       ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
       ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
@@ -51,6 +52,7 @@ function initCockpit() {
   _ckRenderAbdeckung();
   _ckLoadSoa(seq);
   _ckLoadRisiken(seq);
+  _ckLoadAssets(seq);
   _ckLoadAusnahmen(seq);
   _ckLoadWirksamkeit(seq);
   _ckLoadNotfall(seq);
@@ -171,6 +173,21 @@ async function _ckLoadRisiken(seq) {
  * Gelesen wird still – die Kachel soll keine SharePoint-Liste anlegen. Wer den
  * Reiter öffnet, legt sie an; das Cockpit nur anzuzeigen ist kein Grund dafür.
  */
+/** Das Inventar: Assets, ohne Verantwortlichen, „sehr hoch" ohne Wiederherstellzeit – still gelesen. */
+async function _ckLoadAssets(seq) {
+  try {
+    if (typeof amKennzahlen !== 'function' || typeof spGetAssetRegisterLeise !== 'function') { _ckErr('assets', 'Modul nicht geladen.'); return; }
+    const liste = await spGetAssetRegisterLeise();
+    if (seq !== _cockpitSeq) return;
+    if (!Array.isArray(liste)) { _ckErr('assets', 'Noch kein Register – Reiter öffnen zum Anlegen.'); return; }
+    const z = amKennzahlen(liste, { werke: (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null });
+    _ckSet('assets',
+      _ckBig(z.aktiv, 'Assets im Inventar', z.aktiv ? '#17509e' : '#b45309') +
+      _ckBig(z.ohneVerantwortlichen, 'ohne Verantwortlichen', z.ohneVerantwortlichen ? '#b91c1c' : '#15803d') +
+      _ckBig(z.sehrHochOhneRto, '„sehr hoch" ohne Wiederherstellzeit', z.sehrHochOhneRto ? '#b91c1c' : '#15803d'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('assets', 'Nicht ladbar.'); }
+}
+
 async function _ckLoadAusnahmen(seq) {
   try {
     if (!_excs && typeof spGetExceptionsLeise === 'function') {

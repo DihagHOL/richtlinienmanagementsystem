@@ -24,7 +24,7 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
    schmale Spalte auch nicht. Der Entwurf (_cfgEdit) überlebt den Wechsel,
    ungespeicherte Änderungen gehen also nicht verloren. */
 
-let _cfgBereich = 'rollen';   // 'rollen' | 'reiter'
+let _cfgBereich = 'rollen';   // 'rollen' | 'reiter' | 'assets'
 
 function renderEinstellungen() {
   _cfgEdit = getAccessConfig();
@@ -38,7 +38,7 @@ function renderEinstellungen() {
 
 /** Bereich wechseln – ohne den Entwurf zu verlieren. */
 function cfgBereich(name) {
-  _cfgBereich = (name === 'reiter') ? 'reiter' : 'rollen';
+  _cfgBereich = ['reiter', 'assets'].includes(name) ? name : 'rollen';
   _cfgRenderBereich();
 }
 
@@ -48,22 +48,24 @@ function _cfgBereichLeiste() {
     return `<button type="button" onclick="cfgBereich('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label}</button>`;
   };
   return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
-    ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}</div>`;
+    ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}${seg('assets', '🗂 Assetregister')}</div>`;
 }
 
 function _cfgRenderBereich() {
   const v = document.getElementById('view-einstellungen');
   if (!v) return;
   const reiter = _cfgBereich === 'reiter';
+  const assets = _cfgBereich === 'assets';
   v.innerHTML = `
-    <div style="max-width:${reiter ? '1100px' : '680px'}">
+    <div style="max-width:${reiter ? '1100px' : assets ? '900px' : '680px'}">
       ${_cfgBereichLeiste()}
-      ${reiter ? _reiterBereichHtml() : _rollenBereichHtml()}
+      ${reiter ? _reiterBereichHtml() : assets ? _assetsBereichHtml() : _rollenBereichHtml()}
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
         <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
       </div>
     </div>`;
   if (reiter) { rrRenderBody(); rrRenderDomaenen(); renderCfgLists(); return; }
+  if (assets) return;
   renderCfgLists();
   renderZielgruppenMails();
   renderVertretungen();
@@ -1177,13 +1179,90 @@ function cfgSetPAScope(v) {
   _cfgEdit.genehmigungPA = scope !== 'aus';
 }
 
+
+/* ═══════════════════════════════════════════════════
+   Bereich „Assetregister": Kategorien und Zusatzfelder
+   ====================================================
+   Das Register ist erweiterbar, ohne dass jemand eine SharePoint-Spalte
+   anlegt: Zusatzfelder (Text, Zahl, Datum, Auswahl, Ja/Nein) stehen hier,
+   die Werte liegen als JSON am Asset. Die Kategorien sind die Standardliste
+   nach BSI-Strukturanalyse – ersetzbar, wenn das Haus andere Worte hat.
+═══════════════════════════════════════════════════ */
+
+function _cfgAssetKats() {
+  if (!Array.isArray(_cfgEdit.assetKategorien) || !_cfgEdit.assetKategorien.length) {
+    _cfgEdit.assetKategorien = (typeof AM_KATEGORIEN_STANDARD !== 'undefined' ? AM_KATEGORIEN_STANDARD : []).map(k => Object.assign({}, k));
+  }
+  return _cfgEdit.assetKategorien;
+}
+function _cfgAssetFelder() {
+  if (!Array.isArray(_cfgEdit.assetZusatzfelder)) _cfgEdit.assetZusatzfelder = [];
+  return _cfgEdit.assetZusatzfelder;
+}
+function cfgAssetKat(i, feld, wert) { const k = _cfgAssetKats()[i]; if (k) k[feld] = wert; }
+function cfgAssetKatWeg(i) { _cfgAssetKats().splice(i, 1); _cfgRenderBereich(); }
+function cfgAssetKatHinzu() { _cfgAssetKats().push({ key: '', label: '', symbol: '▫' }); _cfgRenderBereich(); }
+function cfgAssetKatStandard() {
+  _cfgEdit.assetKategorien = (typeof AM_KATEGORIEN_STANDARD !== 'undefined' ? AM_KATEGORIEN_STANDARD : []).map(k => Object.assign({}, k));
+  _cfgRenderBereich();
+}
+function cfgAssetFeld(i, feld, wert) {
+  const f = _cfgAssetFelder()[i];
+  if (!f) return;
+  f[feld] = (feld === 'pflicht') ? !!wert : wert;
+  if (feld === 'label' && !f.key) f.key = String(wert || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+  if (feld === 'typ') _cfgRenderBereich();
+}
+function cfgAssetFeldWeg(i) { _cfgAssetFelder().splice(i, 1); _cfgRenderBereich(); }
+function cfgAssetFeldHinzu() { _cfgAssetFelder().push({ key: '', label: '', typ: 'text', optionen: '', pflicht: false }); _cfgRenderBereich(); }
+function cfgAssetFeldBewegen(i, richtung) {
+  const f = _cfgAssetFelder(); const j = i + richtung;
+  if (j < 0 || j >= f.length) return;
+  [f[i], f[j]] = [f[j], f[i]];
+  _cfgRenderBereich();
+}
+
+function _assetsBereichHtml() {
+  const kats = _cfgAssetKats();
+  const felder = _cfgAssetFelder();
+  const typen = (typeof AM_ZUSATZ_TYPEN !== 'undefined') ? AM_ZUSATZ_TYPEN : { text: 'Text' };
+  const katRows = kats.map((k, i) => `<tr>
+    <td><input type="text" value="${esc(k.symbol || '')}" oninput="cfgAssetKat(${i},'symbol',this.value)" style="width:48px;text-align:center"></td>
+    <td><input type="text" value="${esc(k.label || '')}" oninput="cfgAssetKat(${i},'label',this.value)" placeholder="z. B. Roboter / Anlage" style="width:100%"></td>
+    <td><input type="text" value="${esc(k.key || '')}" oninput="cfgAssetKat(${i},'key',this.value)" placeholder="schluessel" style="width:140px;font-family:Consolas,monospace"></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="cfgAssetKatWeg(${i})" title="Entfernen">✕</button></td></tr>`).join('');
+  const feldRows = felder.map((f, i) => `<tr>
+    <td><input type="text" value="${esc(f.label || '')}" oninput="cfgAssetFeld(${i},'label',this.value)" placeholder="z. B. Inventarnummer" style="width:100%"></td>
+    <td><input type="text" value="${esc(f.key || '')}" oninput="cfgAssetFeld(${i},'key',this.value)" placeholder="wird aus dem Namen gebildet" style="width:150px;font-family:Consolas,monospace"></td>
+    <td><select onchange="cfgAssetFeld(${i},'typ',this.value)">${Object.entries(typen).map(([k, l]) => `<option value="${k}"${(f.typ || 'text') === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
+    <td>${(f.typ === 'auswahl') ? `<input type="text" value="${esc(Array.isArray(f.optionen) ? f.optionen.join('; ') : (f.optionen || ''))}" oninput="cfgAssetFeld(${i},'optionen',this.value)" placeholder="Option A; Option B" style="width:100%">` : '<span class="field-hint">–</span>'}</td>
+    <td style="text-align:center"><input type="checkbox" ${f.pflicht ? 'checked' : ''} onchange="cfgAssetFeld(${i},'pflicht',this.checked)" title="Pflichtfeld beim Speichern"></td>
+    <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="cfgAssetFeldBewegen(${i},-1)" title="Nach oben">↑</button><button class="btn btn-ghost btn-sm" onclick="cfgAssetFeldBewegen(${i},1)" title="Nach unten">↓</button><button class="btn btn-ghost btn-sm" onclick="cfgAssetFeldWeg(${i})" title="Entfernen">✕</button></td></tr>`).join('');
+  return `
+    <div class="item-card" style="margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:4px">Zusatzfelder</div>
+      <div class="field-hint" style="margin-bottom:8px">Was das Register nicht von sich aus kennt – Inventarnummer, Kostenstelle, Wartungsfenster, Raum –, steht hier. Jedes Feld erscheint im Asset-Editor, im CSV-Export und in der Suche; die Werte liegen als JSON am Asset, es braucht keine neue SharePoint-Spalte. Der Schlüssel bleibt stabil, auch wenn der Name sich ändert.</div>
+      <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Bezeichnung</th><th>Schlüssel</th><th>Typ</th><th>Optionen (bei Auswahl)</th><th>Pflicht</th><th></th></tr></thead>
+        <tbody>${feldRows || '<tr><td colspan="6" style="color:var(--c-muted)">Noch keine Zusatzfelder.</td></tr>'}</tbody></table></div>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="cfgAssetFeldHinzu()">+ Zusatzfeld</button>
+    </div>
+    <div class="item-card">
+      <div style="font-weight:700;margin-bottom:4px">Kategorien</div>
+      <div class="field-hint" style="margin-bottom:8px">Standard nach BSI-Strukturanalyse. Wer das Haus mit anderen Worten beschreibt, ändert sie hier – der Schlüssel bleibt an den Assets, nur die Beschriftung wechselt. Der Schlüssel <code>information</code> hat eine Bedeutung: Für ihn ist die Klassifizierung Pflicht (A.5.12).</div>
+      <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Symbol</th><th>Bezeichnung</th><th>Schlüssel</th><th></th></tr></thead>
+        <tbody>${katRows}</tbody></table></div>
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline btn-sm" onclick="cfgAssetKatHinzu()">+ Kategorie</button>
+        <button class="btn btn-ghost btn-sm" onclick="cfgAssetKatStandard()">Standard wiederherstellen</button></div>
+    </div>`;
+}
+
 async function saveCfg() {
   try {
     _rrGruppenNamenAufraeumen(_cfgEdit);
     await spSaveAccessConfig(_cfgEdit);
     setRuntimeConfig(JSON.parse(JSON.stringify(_cfgEdit)));
     initRoleNav();
-    toast('Rollen gespeichert ✓', 'success');
+    toast('Einstellungen gespeichert ✓', 'success');
   } catch (e) { toast('Fehler beim Speichern: ' + e.message, 'error'); }
 }
 

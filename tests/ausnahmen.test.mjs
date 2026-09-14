@@ -467,7 +467,7 @@ ok(/a\.abgelaufen \|\| a\.ohneNachweis/.test(cl),
   'Eine abgelaufene ist dagegen eine Lücke – dann handeln Leute nach einer Erlaubnis, die es nicht mehr gibt');
 
 const pl = lies('js/probelauf.js');
-ok(/'nav-risiken', 'nav-ausnahmen'/.test(pl),
+ok(/'nav-risiken', (?:'nav-[a-z]+', )*'nav-ausnahmen'/.test(pl),
   'Im Lernvideo wird der Reiter ausgeblendet wie das Risiko-Register');
 
 /* Der Dokumentationsabschnitt – wirklich gerendert, nicht nur vorhanden.

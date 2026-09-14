@@ -86,7 +86,7 @@ ok(/let _cfgBereich = 'rollen';/.test(eins), 'Die Einstellungen haben jetzt Unte
 ok(/function cfgBereich\(name\)/.test(eins) && !/_cfgEdit = getAccessConfig\(\);[\s\S]{0,80}_cfgRenderBereich/.test(eins.slice(eins.indexOf('function cfgBereich'))),
   'Ein Bereichswechsel wirft den Entwurf nicht weg');
 ok(/🔑 Reiter-Berechtigungen/.test(eins), 'Der zweite Bereich ist benannt');
-ok(/max-width:\$\{reiter \? '1100px' : '680px'\}/.test(eins), 'Für die Matrix wird die Seite breiter');
+ok(/max-width:\$\{reiter \? '1100px' : /.test(eins) && /'680px'\}/.test(eins), 'Für die Matrix wird die Seite breiter');
 ok(/onclick="saveCfg\(\)"/.test(eins) && (eins.match(/onclick="saveCfg\(\)"/g) || []).length === 1
   && eins.indexOf('onclick="saveCfg()"') > eins.indexOf('_cfgRenderBereich'),
   'Der Speichern-Knopf steht in beiden Bereichen (einmal, außerhalb)');

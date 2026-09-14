@@ -978,6 +978,57 @@ function kenntnisEskalationHtml(posten) {
     }
   } catch (e) { console.log('Notfall-Digest übersprungen:', e.message); }
 
+  // ── Asset-Digest: auslaufender Support, fehlende Verantwortliche, fehlende
+  //    Wiederherstellzeiten (ISO 27001 A.5.9, Reifegrad R093) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Asset-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Assetregister');
+      if (!liste) {
+        console.log('Asset-Digest: Liste „Assetregister" existiert (noch) nicht – übersprungen.');
+      } else {
+        const AM = _require('../js/assetmodell.js');
+        const roh = (await ismsItems(liste.id)).map((f) => ({
+          titel: f.Title, kategorie: f.Kategorie, werke: f.Werke, verantwortlich: f.Verantwortlich,
+          vertraulichkeit: f.Vertraulichkeit, integritaet: f.Integritaet, verfuegbarkeit: f.Verfuegbarkeit, klassifizierung: f.Klassifizierung,
+          status: f.AStatus, eol: f.EOL, vertragsende: f.Vertragsende, lieferant: f.Lieferant, supportKontakt: f.SupportKontakt,
+          wiederherstellung: f.Wiederherstellung ?? '', rpo: f.Rpo ?? '', personenbezogen: f.Personenbezogen,
+        }));
+        const rowsOut = [];
+        for (const f of AM.amFaelligkeiten(roh, AM.AM_VORLAUF_TAGE)) {
+          rowsOut.push({ titel: f.asset.titel, was: `${f.was} ${f.ueberfaellig ? `abgelaufen seit ${-f.tage} Tag(en)` : `endet in ${f.tage} Tag(en)`} (${f.datum})`,
+            wer: f.asset.verantwortlich, rang: f.ueberfaellig ? 0 : 1 });
+        }
+        for (const r of roh) {
+          const a = AM.amVon(r);
+          if (a.status === 'außer Betrieb') continue;
+          if (!a.verantwortlich) rowsOut.push({ titel: a.titel, was: 'kein Verantwortlicher (A.5.9)', wer: '', rang: 0 });
+          if (a.verfuegbarkeit === 'sehr hoch' && a.wiederherstellung === '') rowsOut.push({ titel: a.titel, was: 'Verfügbarkeit „sehr hoch" ohne Wiederherstellzeit (R093)', wer: a.verantwortlich, rang: 1 });
+        }
+        if (!rowsOut.length) {
+          console.log('Asset-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Assetregister: offene Punkte</b></p>
+            <p>Aus dem Inventar (ISO&nbsp;27001 A.5.9): Was ausläuft, was niemand verantwortet, was „sehr hoch" verfügbar sein soll und keine Wiederherstellzeit hat:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=assets" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Assetregister öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Assets: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Asset-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Asset-Digest übersprungen:', e.message); }
+
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 
 
