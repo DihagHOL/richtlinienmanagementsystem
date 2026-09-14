@@ -124,9 +124,12 @@ function renderNotfall() {
   if (!mount || !_lkDaten) return;
   if (typeof lkWerkAbsichern === 'function') lkWerkAbsichern();
   const schreiben = nfDarfSchreiben();
-  const werke = (typeof lkWerkeMitKarte === 'function') ? lkWerkeMitKarte() : [];
+  // Alle Werke, die diese Person sehen darf – auch die ohne Landkarte. Der
+  // Krisenstab gehört zu jedem Standort; die Prozesskacheln kommen später.
+  const werke = (typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar() : [_lkWerk];
   if (!werke.includes(_lkWerk)) werke.unshift(_lkWerk);
-  const z = nfKennzahlen(_lkDaten, _nfUebungen || [], _nfSichtbareWerke());
+  const mitKarte = new Set((typeof lkWerkeMitKarte === 'function') ? lkWerkeMitKarte() : []);
+  const z = nfKennzahlen(_lkDaten, _nfUebungen || [], _nfSichtbareWerke(), nfPflichtWerke());
 
   const kpi = (n, label, col) => `<div style="flex:1;min-width:120px;background:var(--c-surface,#fff);border:1px solid var(--c-border);border-radius:10px;padding:10px 13px">
     <div style="font-size:1.45rem;font-weight:800;color:${col}">${n}</div>
@@ -146,12 +149,14 @@ function renderNotfall() {
       ${kpi(`${z.geuebt}/${z.mitPlan}`, `in ${NF_UEBUNG_MONATE} Monaten geübt`, z.mitPlan && z.geuebt < z.mitPlan ? '#b45309' : '#15803d')}
       ${kpi(z.rtoKonflikte, 'RTO nicht haltbar', z.rtoKonflikte ? '#b91c1c' : '#15803d')}
       ${kpi(`${z.stabOk}/${z.werke}`, 'Werke mit vollständigem Krisenstab', z.werke && z.stabOk < z.werke ? '#b91c1c' : '#15803d')}
+      ${z.stabFehlt ? kpi(z.stabFehlt, 'Werke ohne Krisenstab', '#b91c1c') : ''}
       ${kpi(z.fehler, 'Lücken gesamt', z.fehler ? '#b45309' : '#15803d')}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <label style="font-size:.85rem;color:var(--c-muted)">Werk</label>
-      <select class="sort-select" onchange="nfSetWerk(this.value)">
-        ${werke.map(w => `<option value="${esc(w)}"${w === _lkWerk ? ' selected' : ''}>${esc(lkWerkLabel(w))}</option>`).join('')}
+      <select class="sort-select" onchange="nfSetWerk(this.value)" title="Alle Werke – auch ohne Landkarte; der Krisenstab gehört zu jedem">
+        ${werke.map(w => `<option value="${esc(w)}"${w === _lkWerk ? ' selected' : ''}>${esc(lkWerkLabel(w))}${
+          mitKarte.has(w) || w === 'KONZERN' ? '' : ' · ohne Landkarte'}</option>`).join('')}
       </select>
       ${tab('bia', '📊 BIA & Pläne')} ${tab('ausfall', '⚡ Ausfall-Sicht')} ${tab('krisenstab', '🧭 Krisenstab')}
       <div style="flex:1"></div>
@@ -297,11 +302,16 @@ function _nfStabHtml(schreiben) {
   const karte = (typeof lkKarte === 'function') ? lkKarte() : {};
   const stab = karte.krisenstab || null;
   const lu = nfStabLuecken(stab);
+  const z = nfKennzahlen(_lkDaten, [], _nfSichtbareWerke(), nfPflichtWerke());
+  const andere = z.stabOffen.filter(o => o.werk !== _lkWerk);
+  const uebersicht = andere.length ? `<div class="field-hint" style="margin-top:14px">In anderen Werken offen: ${
+    andere.map(o => `<a href="#" onclick="nfSetWerk('${esc(o.werk)}');return false" style="color:var(--c-primary);font-weight:600">${esc(lkWerkLabel(o.werk))}</a> (${o.fehlt ? 'kein Krisenstab' : `${o.luecken.length} Lücke(n)`})`).join(' · ')}</div>` : '';
   if (!stab) {
     return `${emptyState(`Für ${lkWerkLabel(_lkWerk)} ist noch kein Krisenstab angelegt.`, '🧭')}
       <div style="text-align:center;margin-top:-8px">
         <div class="field-hint" style="margin-bottom:10px">Die Vorlage bringt die acht Rollen nach BSI 200-4, eine dreistufige Alarmierung und die externen Stellen mit – auszufüllen sind Namen und Nummern.</div>
         ${schreiben ? `<button class="btn btn-primary" onclick="nfStabAnlegen()">+ Krisenstab anlegen</button>` : ''}
+        ${uebersicht}
       </div>`;
   }
   const st = nfStabVon(stab);
@@ -331,7 +341,8 @@ function _nfStabHtml(schreiben) {
     </div>
     ${st.externe.length ? `<div style="font-weight:700;font-size:.9rem;margin:12px 0 6px">Externe Stellen</div>
     <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem"><thead><tr><th>Stelle</th><th>Telefon</th><th>Hinweis</th></tr></thead>
-      <tbody>${st.externe.map(e => `<tr><td>${esc(e.wer)}</td><td style="white-space:nowrap">${esc(e.telefon) || '<span style="color:var(--c-faint)">–</span>'}</td><td>${esc(e.hinweis)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      <tbody>${st.externe.map(e => `<tr><td>${esc(e.wer)}</td><td style="white-space:nowrap">${esc(e.telefon) || '<span style="color:var(--c-faint)">–</span>'}</td><td>${esc(e.hinweis)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${uebersicht}`;
 }
 
 function nfStabAnlegen() {
@@ -427,6 +438,9 @@ async function nfStabSpeichern() {
   if (!nfDarfSchreiben() || !_nfStabEditing) return;
   const s = nfStabVon(_nfStabEditing);
   s.standAm = new Date().toISOString();
+  // lkKarte() legt für ein Werk ohne Landkarte eine leere an – der Stab hängt
+  // dann an einer Karte ohne Kacheln. Das ist gewollt: Erst der Krisenstab,
+  // die Prozesse kommen, wenn sie kommen.
   const karte = lkKarte();
   const neu = !karte.krisenstab;
   karte.krisenstab = s;

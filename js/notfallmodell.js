@@ -336,6 +336,18 @@ function nfSichtbareWerke() {
   return alle.filter(w => w === 'KONZERN' || meine.includes(w));
 }
 
+/**
+ * Die Werke, die einen Krisenstab haben müssen: jeder Standort – ob er schon
+ * eine Landkarte hat oder nicht. Ein Werk ohne Prozesskacheln hat trotzdem
+ * eine Pforte, eine Produktion und einen Brand. Die Konzern-Ebene steht
+ * nicht in der Pflicht; wer dort einen Stab pflegt, darf das.
+ */
+function nfPflichtWerke() {
+  const alle = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE.slice() : [];
+  const sichtbar = nfSichtbareWerke();
+  return sichtbar ? alle.filter(w => sichtbar.includes(w)) : alle;
+}
+
 /** Kacheln aller Karten als [{werk, kachel}], wahlweise auf Werke begrenzt. */
 function nfAlleKacheln(daten, werke) {
   const karten = (daten && daten.karten) || {};
@@ -391,17 +403,19 @@ function nfAssetTraeger(daten, werke) {
 
 /**
  * Kennzahlen für Cockpit und Audit Report.
- * @param {object} daten     Landkarte-Datenobjekt
- * @param {Array}  uebungen  Einträge des Wirksamkeits-Registers (alle Arten; gefiltert wird hier)
- * @param {string[]} [werke] sichtbare Werke (Trennung nach Gesellschaft)
+ * @param {object} daten        Landkarte-Datenobjekt
+ * @param {Array}  uebungen     Einträge des Wirksamkeits-Registers (alle Arten; gefiltert wird hier)
+ * @param {string[]} [werke]    sichtbare Werke (Trennung nach Gesellschaft); null = alle
+ * @param {string[]} [standorte] Werke, die einen Krisenstab haben müssen. Ohne Angabe:
+ *                              die Werke, die Kacheln haben (Rückfall, wenn STANDORTE unbekannt ist)
  */
-function nfKennzahlen(daten, uebungen, werke) {
+function nfKennzahlen(daten, uebungen, werke, standorte) {
   const alle = nfAlleKacheln(daten, werke);
   const assetRto = nfAssetRto(daten);
   const karten = (daten && daten.karten) || {};
   const z = { prozesse: alle.length, bewertet: 0, kritisch: 0, mitPlan: 0, ohnePlan: 0, geuebt: 0, ungeuebt: 0,
     ohneAssets: 0, rtoKonflikte: 0, fehler: 0, hinweise: 0, werke: 0, stabOk: 0, stabLuecken: 0, stabFehlt: 0,
-    offen: [] };
+    offen: [], stabOffen: [] };
   for (const { werk, kachel } of alle) {
     const b = nfBcmVon(kachel);
     if (b.kritikalitaet) z.bewertet++;
@@ -419,14 +433,18 @@ function nfKennzahlen(daten, uebungen, werke) {
     if (!b.assets.length) z.ohneAssets++;
     if (p.rtoKonflikt) z.rtoKonflikte++;
   }
-  Object.keys(karten).forEach(w => {
-    if (Array.isArray(werke) && !werke.includes(w)) return;
-    if (!Array.isArray(karten[w].kacheln) || !karten[w].kacheln.length) return;
+  // Der Krisenstab: je Standort, ob mit oder ohne Landkarte.
+  const pflicht = Array.isArray(standorte) ? standorte.filter(w => !Array.isArray(werke) || werke.includes(w))
+    : Object.keys(karten).filter(w => (!Array.isArray(werke) || werke.includes(w))
+        && Array.isArray(karten[w].kacheln) && karten[w].kacheln.length);
+  for (const w of pflicht) {
     z.werke++;
-    if (!karten[w].krisenstab) z.stabFehlt++;
-    else if (nfStabLuecken(karten[w].krisenstab).length) z.stabLuecken++;
+    const stab = karten[w] && karten[w].krisenstab;
+    const lu = nfStabLuecken(stab || null);
+    if (!stab) { z.stabFehlt++; z.stabOffen.push({ werk: w, fehlt: true, luecken: lu }); }
+    else if (lu.length) { z.stabLuecken++; z.stabOffen.push({ werk: w, fehlt: false, luecken: lu }); }
     else z.stabOk++;
-  });
+  }
   return z;
 }
 
@@ -585,6 +603,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { NF_KRITIKALITAET, NF_PLAN_TEILE, NF_UEBUNGSARTEN, NF_STAB_ROLLEN, NF_STAB_EXTERNE,
     NF_UEBUNG_MONATE, NF_STAB_MONATE, nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfPlanVon,
     nfIstKritisch, nfIstBewertet, nfHatPlan, nfZiel, nfUebungenZu, nfLetzteUebung, nfUebungFaellig, nfPruefung,
-    nfStabVon, nfStabVorlage, nfStabLuecken, nfSichtbareWerke, _nfSortZahl, nfAlleKacheln, nfAssetRto, nfAusfall, nfAssetTraeger, nfKennzahlen,
+    nfStabVon, nfStabVorlage, nfStabLuecken, nfSichtbareWerke, nfPflichtWerke, _nfSortZahl, nfAlleKacheln, nfAssetRto, nfAusfall, nfAssetTraeger, nfKennzahlen,
     nfHandbuchHtml, nfAlarmkarteHtml };
 }

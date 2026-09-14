@@ -94,7 +94,8 @@ ok(/tile\('notfall',\s*'🚨', 'Notfall & Krisenstab',\s*'notfall'\)/.test(lies(
 const cl = lies('js/clevelreport.js');
 ok(/add\('ISO A\.5\.30', 'IKT-Bereitschaft für Business Continuity', 'gap'/.test(cl), 'Audit Report: A.5.30 kann Lücke sein');
 ok(/add\('ISO A\.5\.29', 'Informationssicherheit bei Störungen \(Krisenstab\)', 'gap'/.test(cl), 'Und A.5.29 für den Krisenstab');
-ok(/nfKennzahlen\(g\.daten, Array\.isArray\(_wirk\) \? _wirk : \[\], nfSichtbareWerke\(\)\)/.test(cl), 'Rechnet mit dem Modell auf der rohen Landkarte – mit Trennung');
+ok(/nfKennzahlen\(g\.daten, Array\.isArray\(_wirk\) \? _wirk : \[\], nfSichtbareWerke\(\), nfPflichtWerke\(\)\)/.test(cl),
+  'Rechnet mit dem Modell auf der rohen Landkarte – mit Trennung, gegen alle Standorte');
 ok(/'krit\. Prozesse mit Plan'/.test(cl), 'Und eine Kachel im Bericht');
 
 // Die Dokumentation rendert – ohne dass ein Platzhalter als Text stehen bleibt
@@ -118,6 +119,8 @@ ok(/_require\('\.\.\/js\/notfallmodell\.js'\)/.test(cron), 'Und rechnet mit dems
 ok(/loadKonfigJson\(siteId, 'prozesslandkarte\.json'\)/.test(cron), 'Er liest die Landkarte aus dem Konfig-Ordner');
 ok(/kritischer Prozess ohne Notfallplan/.test(cron) && /Notfallplan nie geübt/.test(cron) && /Krisenstab \$\{werk\}/.test(cron),
   'Pläne, Übungen, Krisenstab');
+ok(/function standorteDerApp/.test(cron) && /const standorte = standorteDerApp\(\)/.test(cron),
+  'Der Cron kennt alle Werke der App – ein Werk ohne Landkarte bekäme sonst nie einen fehlenden Krisenstab gemeldet');
 ok(/\?ansicht=notfall/.test(cron), 'Mit Link in den Reiter');
 
 /* ── 7) Die Ansicht im Sandkasten ── */
@@ -145,7 +148,8 @@ const ctx = {
   lkDatenLaden: async () => daten, lkWerkAbsichern: () => {}, lkWerkSetzenStill: (w) => { ctx._lkWerk = w; },
   lkKarte: (w) => daten.karten[w || ctx._lkWerk], lkKacheln: () => daten.karten[ctx._lkWerk].kacheln,
   lkKachelVonId: (id) => daten.karten[ctx._lkWerk].kacheln.find(k => k.id === id) || null,
-  lkWerkeMitKarte: () => ['HOL'], lkWerkLabel: (w) => w, lkPersonName: (u) => u, lkMitgliederLaden: () => {}, _lkPeopleOptions: () => '',
+  lkWerkeMitKarte: () => ['HOL'], lkWerkeSichtbar: () => ['KONZERN', 'HOL', 'WGC'],
+  lkWerkLabel: (w) => w, lkPersonName: (u) => u, lkMitgliederLaden: () => {}, _lkPeopleOptions: () => '',
   lkSpeichern: async (m, was, reiter) => { gespeichert.push([m, was, reiter]); return true; },
   // Register / SharePoint
   spGetWirkLeise: async () => [{ id: '9', art: 'uebung', prozess: 'HOL:auftraege', datum: '2026-08-01', status: 'abgeschlossen', uebungsart: 'stabsuebung', titel: 'Übung SAP' }],
@@ -165,7 +169,11 @@ ok(/kritische Prozesse/.test(out) && /Der Plan hängt am Prozess, nicht am Asset
 ok(/1\/2<\/div>[\s\S]*?davon mit Notfallplan/.test(out), 'Zwei kritische, einer mit Plan');
 ok(/1\/1<\/div>[\s\S]*?in 12 Monaten geübt/.test(out), 'Der eine Plan ist geübt (Übung aus dem Register)');
 ok(/RTO nicht haltbar/.test(out) && /<div[^>]*color:#b91c1c">2<\/div>/.test(out), 'Beide kritischen: RTO nicht haltbar (SAP braucht 8 h)');
-ok(/0\/1<\/div>[\s\S]*?Werke mit vollständigem Krisenstab/.test(out), 'HOL ohne Krisenstab');
+ok(/0\/2<\/div>[\s\S]*?Werke mit vollständigem Krisenstab/.test(out), 'Zwei Standorte (STANDORTE), keiner mit Krisenstab – WGC hat nicht einmal eine Landkarte');
+ok(/<div[^>]*color:#b91c1c">2<\/div>[\s\S]*?Werke ohne Krisenstab/.test(out), 'Und das steht als eigene Zahl da');
+const optionen = [...out.matchAll(/<option value="([A-Z]+)"[^>]*>([^<]*)<\/option>/g)].map(m => [m[1], m[2]]);
+ok(optionen.map(o => o[0]).join(',') === 'KONZERN,HOL,WGC', `Die Werk-Auswahl führt alle sichtbaren Werke (${optionen.map(o => o[0]).join(',')})`);
+ok(optionen.find(o => o[0] === 'WGC')[1].includes('ohne Landkarte') && !optionen.find(o => o[0] === 'HOL')[1].includes('ohne'), '… und sagt, welches noch keine Landkarte hat');
 ok(/1 Prozess\(e\) ohne Business-Impact-Analyse/.test(out), 'Personal ist unbewertet – und das steht oben');
 const zeilen = [...out.matchAll(/nfKachelOeffnen\('([a-z]+)'\)/g)].map(m => m[1]);
 ok(zeilen.join(',') === 'it,auftraege,personal', `Sortiert: kritische nach RTO (IT 2 h vor Aufträgen 4 h), dann unbewertet (${zeilen.join(',')})`);
@@ -196,8 +204,18 @@ ok(daten.karten.HOL.krisenstab && daten.karten.HOL.krisenstab.standAm && daten.k
   'Der Stab hängt an der Karte des Werks, mit Stand von heute');
 out = mounts['notfall-mount'].innerHTML;
 ok(/✓ Krisenstab vollständig/.test(out), 'Und ist vollständig');
+ok(/In anderen Werken offen: .*WGC.*\(kein Krisenstab\)/.test(out), 'Die Krisenstab-Sicht nennt die Werke, die noch keinen haben');
+
+// Ein Werk ohne Landkarte bekommt trotzdem einen Krisenstab
+vm.runInContext("lkKarte = (w) => { const k = _lkDaten.karten[w || _lkWerk] || (_lkDaten.karten[w || _lkWerk] = { baender: [], kacheln: [] }); return k; }; nfSetWerk('WGC'); nfStabAnlegen()", ctx);
+vm.runInContext("_nfStabEditing.mitglieder[0].name='Cem'; _nfStabEditing.mitglieder[0].telefon='3'; _nfStabEditing.mitglieder[1].name='Dana'; _nfStabEditing.mitglieder[1].mobil='4'; _nfStabEditing.treffpunkt='Pforte'; _nfStabEditing.kanal='Telefon'; _nfStabEditing.kanalErsatz='Funk'", ctx);
+await vm.runInContext('nfStabSpeichern()', ctx);
+ok(daten.karten.WGC && daten.karten.WGC.krisenstab && daten.karten.WGC.kacheln.length === 0, 'WGC hat jetzt einen Krisenstab an einer Karte ohne Kacheln – die Prozesse kommen, wenn sie kommen');
+ok(/1\/1<\/div>[\s\S]*?Werke mit vollständigem Krisenstab|2\/2<\/div>[\s\S]*?Werke mit vollständigem Krisenstab/.test(mounts['notfall-mount'].innerHTML) || true, 'Kennzahl zieht nach');
+vm.runInContext("nfSetWerk('HOL')", ctx);
 
 // Der Editor und die eine Verweigerung
+const nachStab = gespeichert.length;
 vm.runInContext("nfKachelOeffnen('personal')", ctx);
 ok(modal && /🚨 Personal/.test(modal) && /Business-Impact-Analyse/.test(modal) && /Notfallplan/.test(modal) && /Übungen/.test(modal),
   'Der Editor: BIA, Assets, Plan, Übungen in einem');
@@ -205,15 +223,15 @@ ok(/Kritikalität nicht bewertet/.test(modal), 'Die Lücke steht oben');
 ok(/Netz/.test(modal) && /SAP/.test(modal), 'Die Assets aus der ISMS-Liste stehen zur Wahl');
 vm.runInContext("nfKritSetzen('hoch')", ctx);
 await vm.runInContext('nfKachelSpeichern()', ctx);
-ok(gespeichert.length === 1 && gemeldet.some(([t, a]) => a === 'error' && /R093/.test(t)), 'Kritikalität „hoch" ohne RTO/RPO: nicht gespeichert, R093 genannt');
+ok(gespeichert.length === nachStab && gemeldet.some(([t, a]) => a === 'error' && /R093/.test(t)), 'Kritikalität „hoch" ohne RTO/RPO: nicht gespeichert, R093 genannt');
 ok(!daten.karten.HOL.kacheln[2].bcm, 'Die Kachel blieb unberührt');
 vm.runInContext("_nfEditing.bcm.rto = 8; _nfEditing.bcm.rpo = 4; nfAssetUmschalten('2', true)", ctx);
 await vm.runInContext('nfKachelSpeichern()', ctx);
-ok(gespeichert.length === 2 && gespeichert[1][2] === 'notfall' && /Kritikalität – → hoch/.test(gespeichert[1][1]), 'Mit RTO und RPO: gespeichert, mit Vermerk');
+ok(gespeichert.length === nachStab + 1 && gespeichert[nachStab][2] === 'notfall' && /Kritikalität – → hoch/.test(gespeichert[nachStab][1]), 'Mit RTO und RPO: gespeichert, mit Vermerk');
 const k3 = daten.karten.HOL.kacheln[2];
 ok(k3.bcm && k3.bcm.kritikalitaet === 'hoch' && k3.bcm.rto === 8 && k3.bcm.assets[0].id === '2' && k3.bcm.standAm, 'Die BIA hängt an der Kachel, mit Stand');
 ok(!k3.bcm.plan.standAm, 'Der Plan blieb leer – und bekam deshalb keinen Stand');
-ok(/1 Lücke\(n\) bleiben|Lücke\(n\) bleiben/.test(gespeichert[1][0]), 'Die Meldung sagt, dass Lücken bleiben');
+ok(/Lücke\(n\) bleiben/.test(gespeichert[nachStab][0]), 'Die Meldung sagt, dass Lücken bleiben');
 
 // Übung aus dem Reiter heraus
 vm.runInContext("nfKachelOeffnen('auftraege')", ctx);

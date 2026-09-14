@@ -220,7 +220,7 @@ async function _ckLoadNotfall(seq) {
     let uebungen = Array.isArray(_wirk) ? _wirk : null;
     if (!uebungen && typeof spGetWirkLeise === 'function') { try { uebungen = await spGetWirkLeise(); } catch (e) { uebungen = []; } }
     if (seq !== _cockpitSeq) return;
-    const n = nfKennzahlen(g.daten, uebungen || [], nfSichtbareWerke());
+    const n = nfKennzahlen(g.daten, uebungen || [], nfSichtbareWerke(), nfPflichtWerke());
     _ckSet('notfall',
       _ckBig(n.kritisch, 'kritische Prozesse', n.kritisch ? '#17509e' : '#6b7280') +
       _ckBig(`${n.mitPlan}/${n.kritisch}`, 'mit Notfallplan', n.kritisch && n.mitPlan < n.kritisch ? '#b91c1c' : '#15803d') +

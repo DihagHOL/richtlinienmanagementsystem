@@ -23,7 +23,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 
 const M = require(path.join(ROOT, 'js', 'notfallmodell.js'));
 const { nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfHatPlan, nfPruefung, nfStabLuecken, nfStabVorlage,
-  nfAusfall, nfAssetTraeger, nfKennzahlen, nfLetzteUebung, nfUebungFaellig, nfHandbuchHtml, nfAlarmkarteHtml,
+  nfAusfall, nfAssetTraeger, nfKennzahlen, nfLetzteUebung, nfUebungFaellig, nfHandbuchHtml, nfAlarmkarteHtml, nfPflichtWerke,
   NF_PLAN_TEILE, NF_STAB_ROLLEN, NF_UEBUNGSARTEN, NF_KRITIKALITAET } = M;
 
 /* ── 1) Das Modell kennt keinen Browser ── */
@@ -166,6 +166,17 @@ ok(z.geuebt === 1 && z.ungeuebt === 0, 'Mit frischer Übung: geübt');
 z = nfKennzahlen(daten, [], ['WGC']);
 ok(z.prozesse === 1 && z.kritisch === 1 && z.werke === 1 && z.stabFehlt === 1, 'Mit Trennung nur WGC');
 ok(nfKennzahlen({}, [], null).prozesse === 0 && nfKennzahlen(null, null).kritisch === 0, 'Ohne Daten: Nullen, kein Absturz');
+
+// Der Krisenstab gehört zu jedem Standort – auch zu dem, der noch keine Landkarte hat.
+z = nfKennzahlen(daten, [], null, ['HOL', 'WGC', 'ZAI', 'SHB']);
+ok(z.werke === 4 && z.stabOk === 1 && z.stabFehlt === 3, 'Vier Standorte: HOL vollständig, WGC/ZAI/SHB ohne – ZAI und SHB haben nicht einmal Kacheln');
+ok(z.stabOffen.map(o => o.werk).join(',') === 'WGC,ZAI,SHB' && z.stabOffen.every(o => o.fehlt), 'Die fehlenden sind beim Namen genannt');
+z = nfKennzahlen(daten, [], ['WGC', 'SHB'], ['HOL', 'WGC', 'ZAI', 'SHB']);
+ok(z.werke === 2 && z.stabFehlt === 2, 'Mit Trennung nur die eigenen Standorte');
+ok(nfPflichtWerke().length === 0, 'Ohne STANDORTE (Cron, Test) ist die Pflichtliste leer – dann gilt der Rückfall');
+globalThis.STANDORTE = ['HOL', 'WGC', 'ZAI'];
+ok(nfPflichtWerke().join(',') === 'HOL,WGC,ZAI', 'Mit STANDORTE: alle Werke, ohne die Konzern-Ebene');
+delete globalThis.STANDORTE;
 
 /* ── 8) Der Druck ── */
 const hb = nfHandbuchHtml({ werk: 'HOL', werkLabel: 'Holding', karte: daten.karten.HOL, stab: voll, assetRto: daten.notfall.assetRto, uebungen: [], stand: '14.09.2026' });

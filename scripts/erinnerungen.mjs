@@ -29,8 +29,17 @@
    verwendbar. Eine Regel, zwei Stellen: Was der Reiter als Lücke zeigt,
    mahnt der Cron. */
 import { createRequire } from 'module';
+import { readFileSync } from 'fs';
 const _require = createRequire(import.meta.url);
 const NF = _require('../js/notfallmodell.js');
+/** Die Werke der App (STANDORTE in js/admin.js) – der Krisenstab gilt je Werk, ob mit Landkarte oder ohne. */
+function standorteDerApp() {
+  try {
+    const src = readFileSync(new URL('../js/admin.js', import.meta.url), 'utf8');
+    const m = src.match(/const STANDORTE = \[([^\]]*)\]/);
+    return m ? m[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) : [];
+  } catch { return []; }
+}
 
 const TENANT = need('AZURE_TENANT_ID');
 const CLIENT_ID = need('AZURE_CLIENT_ID');
@@ -936,9 +945,12 @@ function kenntnisEskalationHtml(posten) {
           if (pr.rtoKonflikt) rowsOut.push({ titel, was: 'RTO nicht haltbar – ein Asset braucht länger zur Wiederherstellung', wer, rang: 0 });
           if (!b.assets.length) rowsOut.push({ titel, was: 'keine Assets zugeordnet – der Plan sagt nicht, wovor er schützt', wer, rang: 1 });
         }
-        for (const werk of Object.keys(lk.karten)) {
+        // Jeder Standort braucht einen Krisenstab – auch der ohne Landkarte.
+        const standorte = standorteDerApp();
+        const pflicht = standorte.length ? standorte
+          : Object.keys(lk.karten).filter((w) => Array.isArray(lk.karten[w].kacheln) && lk.karten[w].kacheln.length);
+        for (const werk of pflicht) {
           const karte = lk.karten[werk] || {};
-          if (!Array.isArray(karte.kacheln) || !karte.kacheln.length) continue;
           const lu = NF.nfStabLuecken(karte.krisenstab || null);
           if (!karte.krisenstab) rowsOut.push({ titel: `Krisenstab ${werk}`, was: 'nicht angelegt (A.5.29)', wer: '', rang: 0 });
           else if (lu.length) rowsOut.push({ titel: `Krisenstab ${werk}`, was: `${lu.length} Lücke(n): ${lu.slice(0, 2).join(' ')}`, wer: '', rang: 1 });

@@ -158,7 +158,7 @@ async function _clevelGather() {
         : ((typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null);
       if (!g || !g.daten) { m.notfall = null; }
       else {
-        m.notfall = nfKennzahlen(g.daten, Array.isArray(_wirk) ? _wirk : [], nfSichtbareWerke());
+        m.notfall = nfKennzahlen(g.daten, Array.isArray(_wirk) ? _wirk : [], nfSichtbareWerke(), nfPflichtWerke());
       }
     }
   } catch (e) { m.notfall = null; m.fehler.push('Notfall: ' + e.message); }
@@ -290,10 +290,11 @@ function _clevelIsoRows(m) {
     else add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'ok',
       n.kritisch ? `${n.kritisch} kritische Prozesse, alle mit Notfallplan und geübt.` : `${n.bewertet} Prozesse bewertet, keiner kritisch.`);
 
-    // A.5.29 fragt nach der Organisation im Störfall – hier: der Krisenstab.
-    if (!n.werke) { /* ohne Karte schon oben gemeldet */ }
+    // A.5.29 fragt nach der Organisation im Störfall – hier: der Krisenstab,
+    // je Standort, ob er schon eine Landkarte hat oder nicht.
+    if (!n.werke) add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'warn', 'Keine Werke bekannt.');
     else if (n.stabFehlt) add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'gap',
-      `${n.stabFehlt} von ${n.werke} Werk(en) ohne Krisenstab.`);
+      `${n.stabFehlt} von ${n.werke} Werk(en) ohne Krisenstab: ${n.stabOffen.filter(o => o.fehlt).map(o => o.werk).join(', ')}.`);
     else if (n.stabLuecken) add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'warn',
       `${n.stabLuecken} von ${n.werke} Krisenstäbe(n) unvollständig (Leitung, Vertretung, Nummern, Treffpunkt, Kanal).`);
     else add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'ok', `Krisenstab in ${n.werke} Werk(en) vollständig.`);
