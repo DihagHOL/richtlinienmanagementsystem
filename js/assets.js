@@ -116,7 +116,7 @@ function _amGefiltert() {
   }
   if (f.werk) rows = rows.filter(a => a.werke.includes(f.werk) || a.werke.includes('ALLE'));
   if (f.kategorie) rows = rows.filter(a => amKategorieKey(a.kategorie, _amKats()) === f.kategorie);
-  if (f.verf) rows = rows.filter(a => a.verfuegbarkeit === f.verf);
+  if (f.verf) rows = rows.filter(a => amRang(a.verfuegbarkeit) === amRang(f.verf));
   if (f.status) rows = rows.filter(a => a.status === f.status);
   else rows = rows.filter(a => a.status !== 'außer Betrieb');
   // Was drängt, steht oben: Lücken, dann „sehr hoch", dann Name.
@@ -127,8 +127,9 @@ function _amGefiltert() {
 
 function _amSb(v) {
   if (!v) return '<span style="color:var(--c-faint)">–</span>';
-  const col = v === 'sehr hoch' ? '#b91c1c' : v === 'hoch' ? '#b45309' : '#15803d';
-  return `<span style="color:${col};font-weight:700;font-size:.75rem">${esc(v)}</span>`;
+  const r = amRang(v);
+  const col = r === 2 ? '#b91c1c' : r === 1 ? '#b45309' : r === 0 ? '#15803d' : '#6b7280';
+  return `<span style="color:${col};font-weight:700;font-size:.75rem" title="${r < 0 ? 'Bewertung aus der Liste – nicht einzuordnen' : 'Rang: ' + esc(amStufeLabel(r))}">${esc(v)}</span>`;
 }
 
 function renderAssets() {
@@ -193,6 +194,9 @@ function renderAssets() {
       ${kpi(z.faellig, `EOL / Vertrag in ${AM_VORLAUF_TAGE} Tagen`, z.faellig ? '#b45309' : '#15803d')}
       ${kpi(z.fehler, 'Lücken gesamt', z.fehler ? '#b45309' : '#15803d')}
     </div>
+    ${(typeof spAssetSpaltenBericht === 'function') ? `<details style="margin-bottom:12px;font-size:.8rem"><summary style="cursor:pointer;color:var(--c-muted)">Spaltenzuordnung – so liest die App Ihre Liste</summary>
+      <div style="overflow-x:auto;margin-top:6px"><table class="tbl" style="font-size:.78rem"><thead><tr><th>Die App erwartet</th><th>Gefunden in der Liste</th><th>Typ</th><th>Auswahl</th></tr></thead><tbody>${
+        spAssetSpaltenBericht().map(b => `<tr><td><code>${esc(b.erwartet)}</code></td><td>${b.gefunden ? `${esc(b.anzeige)}${b.anzeige !== b.gefunden ? ` <span style="color:var(--c-faint)">(${esc(b.gefunden)})</span>` : ''}` : '<span style="color:#b45309">fehlt</span>'}</td><td>${esc(b.spaltentyp || b.typ)}</td><td style="color:var(--c-muted)">${esc((b.choices || []).join(' · '))}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
     ${z.vererbung ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>${z.vererbung} Asset(s) mit zu niedrigem Schutzbedarf</b> – Prozesse, die daran hängen, verlangen mehr (Vererbung nach BSI-Maximumprinzip). Steht in der Spalte „Lücken" als Hinweis.</div>` : ''}
     ${faellig.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Läuft aus:</b> ${faellig.slice(0, 6).map(f => `${esc(f.asset.titel)} (${esc(f.was)} ${f.ueberfaellig ? `seit ${-f.tage} Tagen` : `in ${f.tage} Tagen`})`).join(' · ')}${faellig.length > 6 ? ` · +${faellig.length - 6}` : ''}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -321,9 +325,14 @@ function renderAssetEditor() {
       <select id="am-${feld}-einheit" onchange="amZeit('${feld}')"${ro}>${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x === 'h' ? 'Stunden' : 'Minuten'}</option>`).join('')}</select></div>
       <span class="field-hint">${hilfe}</span></div>`;
   };
-  const sb = (feld, label, hilfe) => `<div class="form-group"><label>${label}</label>
-    <select onchange="amSet('${feld}',this.value)"${ro}><option value=""${!a[feld] ? ' selected' : ''}>– nicht bewertet –</option>${AM_SCHUTZBEDARF.map(v => `<option value="${esc(v)}"${a[feld] === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>
-    <span class="field-hint">${hilfe}</span></div>`;
+  // Die Auswahl zeigt, was die Spalte der Liste kennt (Choice), sonst die BSI-Skala; ein Wert,
+  // der in keiner steht, bleibt als „(aus der Liste)" wählbar – nichts geht beim Öffnen verloren.
+  const wahlVon = (spalte) => { const b = (typeof spAssetSpaltenBericht === 'function') ? spAssetSpaltenBericht().find(x => x.erwartet === spalte) : null; return (b && b.choices && b.choices.length) ? b.choices : null; };
+  const sb = (feld, spalte, label, hilfe) => { const opts = wahlVon(spalte) || AM_SCHUTZBEDARF; const cur = a[feld];
+    const drin = opts.some(v => String(v).toLowerCase() === cur);
+    return `<div class="form-group"><label>${label}${cur && amRang(cur) >= 0 ? ` <span class="field-hint" style="font-weight:400">→ ${esc(amStufeLabel(amRang(cur)))}</span>` : ''}</label>
+    <select onchange="amSet('${feld}',this.value.toLowerCase())"${ro}><option value=""${!cur ? ' selected' : ''}>– nicht bewertet –</option>${opts.map(v => `<option value="${esc(v)}"${String(v).toLowerCase() === cur ? ' selected' : ''}>${esc(v)}</option>`).join('')}${cur && !drin ? `<option value="${esc(cur)}" selected>${esc(cur)} (aus der Liste)</option>` : ''}</select>
+    <span class="field-hint">${hilfe}</span></div>`; };
   const histRows = (a.historie || []).slice().reverse().slice(0, 15).map(h =>
     `<div style="font-size:.75rem;color:var(--c-muted);padding:2px 0">${fmtDateTime(h.datum)} · <b>${esc(h.wer || '')}</b> · ${esc(h.aktion || '')}</div>`).join('');
 
@@ -368,11 +377,11 @@ function renderAssetEditor() {
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Schutzbedarf <span class="field-hint" style="font-weight:400">BSI 200-2 · A.5.12</span></div>
       ${soll ? `<div class="field-hint" style="margin-bottom:6px">Vererbung: ${pr.length} Prozess(e) hängen daran${pr.some(p => p.kritikalitaet === 'hoch') ? `, ${pr.filter(p => p.kritikalitaet === 'hoch').length} kritische` : ''} → Verfügbarkeit mindestens <b>${esc(soll)}</b>.</div>` : ''}
       <div class="form-grid">
-        ${sb('vertraulichkeit', 'Vertraulichkeit', 'Was passiert, wenn es Unbefugte lesen?')}
-        ${sb('integritaet', 'Integrität', 'Was passiert, wenn es unbemerkt falsch ist?')}
-        ${sb('verfuegbarkeit', 'Verfügbarkeit', '„sehr hoch" verlangt Wiederherstellzeit und RPO (R093).')}
+        ${sb('vertraulichkeit', 'Vertraulichkeit', 'Vertraulichkeit', 'Was passiert, wenn es Unbefugte lesen?')}
+        ${sb('integritaet', 'Integritaet', 'Integrität', 'Was passiert, wenn es unbemerkt falsch ist?')}
+        ${sb('verfuegbarkeit', 'Verfuegbarkeit', 'Verfügbarkeit', '„sehr hoch" verlangt Wiederherstellzeit und RPO (R093).')}
         <div class="form-group"><label>Klassifizierung</label>
-          <select onchange="amSet('klassifizierung',this.value)"${ro}><option value=""${!a.klassifizierung ? ' selected' : ''}>–</option>${AM_KLASSIFIZIERUNG.map(v => `<option value="${esc(v)}"${a.klassifizierung === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>
+          <select onchange="amSet('klassifizierung',this.value.toLowerCase())"${ro}><option value=""${!a.klassifizierung ? ' selected' : ''}>–</option>${(wahlVon('Klassifizierung') || AM_KLASSIFIZIERUNG).map(v => `<option value="${esc(v)}"${String(v).toLowerCase() === a.klassifizierung ? ' selected' : ''}>${esc(v)}</option>`).join('')}${a.klassifizierung && !(wahlVon('Klassifizierung') || AM_KLASSIFIZIERUNG).some(v => String(v).toLowerCase() === a.klassifizierung) ? `<option value="${esc(a.klassifizierung)}" selected>${esc(a.klassifizierung)} (aus der Liste)</option>` : ''}</select>
           <span class="field-hint">Pflicht bei Informationen und bei Vertraulichkeit „hoch".</span></div>
         <div class="form-group"><label>Personenbezogene Daten</label>
           <label class="ack-check" style="font-weight:500;padding-top:6px"><input type="checkbox" ${a.personenbezogen ? 'checked' : ''} onchange="amSet('personenbezogen',this.checked)"${ro}> ja – DSGVO (72-h-Meldung, Verarbeitungsverzeichnis)</label></div>
@@ -380,8 +389,8 @@ function renderAssetEditor() {
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Betrieb und Wiederanlauf</div>
       <div class="form-grid">
-        ${zeit('wiederherstellung', 'Wiederherstellzeit', 'Wie lange braucht die Wiederherstellung? Kein Prozess kann schneller wieder da sein als das Langsamste, wovon er abhängt.', a.verfuegbarkeit === 'sehr hoch')}
-        ${zeit('rpo', 'RPO – tolerierbarer Datenverlust', 'Wie alt darf der letzte gesicherte Stand sein?', a.verfuegbarkeit === 'sehr hoch')}
+        ${zeit('wiederherstellung', 'Wiederherstellzeit', 'Wie lange braucht die Wiederherstellung? Kein Prozess kann schneller wieder da sein als das Langsamste, wovon er abhängt.', amRang(a.verfuegbarkeit) === 2)}
+        ${zeit('rpo', 'RPO – tolerierbarer Datenverlust', 'Wie alt darf der letzte gesicherte Stand sein?', amRang(a.verfuegbarkeit) === 2)}
         <div class="form-group full"><label>Datensicherung</label>
           <input type="text" value="${esc(a.backup)}" oninput="amSet('backup',this.value)" placeholder="Verfahren, Intervall, Ort, letzter Rücksicherungstest"${ro}></div>
         <div class="form-group"><label>Inbetriebnahme</label>

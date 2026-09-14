@@ -43,7 +43,9 @@ ok(!/QuelleId/.test(sp.slice(sp.indexOf('const ASSET_COLUMNS'), sp.indexOf('let 
 ok(/async function spErgaenzeAssetSpalten/.test(sp) && !/if \(create\) await _ergaenzeAssetSpalten/.test(sp), 'Fehlende Spalten nur auf Knopfdruck – nie still: die Liste gehört dem Haus');
 ok(/function spAssetSpalteDa\(name\)/.test(sp), 'Ob eine Spalte da ist, lässt sich fragen (Notfall braucht das für die Wiederherstellzeit)');
 ok(/assetRegListId: null/.test(sp), 'Die Listen-Id hat ihren Platz');
-ok(/function _assetErstes\(f, namen\)/.test(sp) && /\['Kategorie', 'Typ', 'AssetTyp'/.test(sp) && /\['Verantwortlich', 'Owner', 'Eigner'/.test(sp), 'Gewachsene Spaltennamen werden zum Lesen erkannt');
+ok(/const ASSET_ALIASE = \{/.test(sp) && /Kategorie:\s*\['Typ', 'AssetTyp'/.test(sp) && /Verantwortlich:\s*\['Owner', 'Eigner'/.test(sp) && /Werke:\s*\['Standort'/.test(sp),
+  'Gewachsene Spaltennamen werden erkannt – zum Lesen und als Schreibziel; Standort ist Werk');
+ok(/function _assetNorm\(s\)/.test(sp) && /_x\(\[0-9a-fA-F\]\{4\}\)_/.test(sp), 'Anzeigenamen mit Umlaut und kodierte interne Namen sind dasselbe');
 
 // _mapAsset / _assetFields: hin und zurück
 const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC'] };
@@ -58,6 +60,35 @@ ok(/sehr hoch/.test(gemappt.sub) && /HOL, WGC/.test(gemappt.sub), 'Die Kurzzeile
 const alt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 5, fields: { Title: 'Leitstand', Typ: 'OT', Standort: 'Wittenberge (WGC)', Owner: { LookupValue: 'Ben', Email: 'ben@x' }, Schutzbedarf: 'Hoch', RTO: 8, Klassifizierung: 'Intern' } })})`, sctx);
 ok(alt.kategorie === 'OT' && alt.werke.join() === 'WGC' && alt.standort === 'Wittenberge (WGC)' && alt.verantwortlich === 'ben@x', 'Typ, Standort → Werk, Person-Feld → E-Mail');
 ok(alt.vertraulichkeit === 'hoch' && alt.integritaet === 'hoch' && alt.verfuegbarkeit === 'hoch' && alt.wiederherstellung === 8 && alt.klassifizierung === 'intern', 'Ein Schutzbedarf für alle drei, RTO als Wiederherstellzeit');
+// Die Liste des Hauses, nachgestellt: Anzeigenamen mit Umlaut, kodierte interne Namen, Standort = Werke
+// (Mehrfachauswahl), Skala „1 – 3", Owner als Personenfeld, Wiederherstellzeit als field_9.
+vm.runInContext(`_assetColMeta = [
+  { name: 'Title', displayName: 'Titel', typ: 'text', choices: [] },
+  { name: 'Typ', displayName: 'Typ', typ: 'choice', choices: ['Server', 'Anwendung', 'Netzwerk'] },
+  { name: 'Standort', displayName: 'Standort', typ: 'choice', choices: ['HOL', 'SHB', 'WGC', 'ZAI'] },
+  { name: 'Owner', displayName: 'Verantwortlich', typ: 'person', choices: [] },
+  { name: 'Vertraulichkeit', displayName: 'Vertraulichkeit', typ: 'choice', choices: ['1 - niedrig', '2 - hoch', '3 - sehr hoch'] },
+  { name: 'Integrit_x00e4_t', displayName: 'Integrität', typ: 'choice', choices: ['1 - niedrig', '2 - hoch', '3 - sehr hoch'] },
+  { name: 'Verf_x00fc_gbarkeit', displayName: 'Verfügbarkeit', typ: 'choice', choices: ['1 - niedrig', '2 - hoch', '3 - sehr hoch'] },
+  { name: 'Status', displayName: 'Status', typ: 'choice', choices: ['in Betrieb', 'ausgemustert'] },
+  { name: 'field_9', displayName: 'Wiederherstellzeit', typ: 'number', choices: [] },
+]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti.add('Standort');`, sctx);
+sctx.amRang = (x) => ({ 'sehr hoch': 2, '3 - sehr hoch': 2, hoch: 1, '2 - hoch': 1, normal: 0, '1 - niedrig': 0 }[String(x).toLowerCase()] ?? -1);
+sctx.amStatusVon = (x) => (/ausgemustert|außer/.test(String(x)) ? 'außer Betrieb' : 'aktiv');
+const haus = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 7, fields: { Title: 'SAP', Typ: 'Anwendung', Standort: ['HOL', 'WGC'], Owner: { Email: 'anna@x' }, Vertraulichkeit: '2 - hoch', 'Integrit_x00e4_t': '3 - sehr hoch', 'Verf_x00fc_gbarkeit': '3 - sehr hoch', Status: 'in Betrieb', field_9: 12 } })})`, sctx);
+ok(haus.kategorie === 'Anwendung' && haus.werke.join() === 'HOL,WGC' && haus.standort === '' && haus.verantwortlich === 'anna@x', 'Typ, Standort (Mehrfachauswahl) als Werke – und nicht zugleich als Aufstellort –, Person als E-Mail');
+ok(haus.vertraulichkeit === '2 - hoch' && haus.integritaet === '3 - sehr hoch' && haus.verfuegbarkeit === '3 - sehr hoch' && haus.wiederherstellung === 12, 'Integrität über den Anzeigenamen (intern kodiert), die Skala bleibt wie sie ist, Wiederherstellzeit aus field_9');
+const zurueck = vm.runInContext(`_assetFields(${JSON.stringify(Object.assign({}, haus, { verfuegbarkeit: 'sehr hoch', status: 'außer Betrieb', werke: ['HOL', 'ZAI'], kategorie: 'anwendung', wiederherstellung: 8 }))})`, sctx);
+ok(zurueck['Verf_x00fc_gbarkeit'] === '3 - sehr hoch' && zurueck.Status === 'ausgemustert' && JSON.stringify(zurueck.Standort) === '["HOL","ZAI"]' && zurueck.Typ === 'Anwendung' && zurueck.field_9 === 8,
+  'Geschrieben in die Worte der Spalte: „sehr hoch" → „3 - sehr hoch", „außer Betrieb" → „ausgemustert", Werke → Standort als Array, Kategorie in die Auswahl von Typ');
+ok(!('Owner' in zurueck) && !('Werke' in zurueck) && !('Integritaet' in zurueck), 'Personenfelder schreibt die App nicht; keine zweite Spalte für dieselbe Sache');
+const fehlt = vm.runInContext('spMissingAssetColumns()', sctx);
+ok(!fehlt.includes('Integritaet') && !fehlt.includes('Werke') && !fehlt.includes('Wiederherstellung') && !fehlt.includes('AStatus') && fehlt.includes('Rpo') && fehlt.includes('EOL'),
+  'Fehlend ist nur, was es unter keinem Namen gibt');
+const bericht = vm.runInContext('spAssetSpaltenBericht()', sctx);
+ok(bericht.find(b => b.erwartet === 'Integritaet').gefunden === 'Integrit_x00e4_t' && bericht.find(b => b.erwartet === 'Integritaet').choices.length === 3 && bericht.find(b => b.erwartet === 'Rpo').gefunden === null,
+  'Der Bericht sagt, was wo gefunden wurde – mit der Auswahl der Spalte');
+vm.runInContext('_assetColMeta = []; _assetCols = null; _assetMulti = new Set();', sctx);
 const felder = vm.runInContext(`_assetFields(${JSON.stringify(gemappt)})`, sctx);
 ok(felder.Title === 'SAP' && felder.Werke === 'HOL,WGC' && felder.Wiederherstellung === 12 && felder.Rpo === null && felder.AbhaengigJson === '["3"]' && felder.Personenbezogen === 'ja' && felder.EOL === '2027-03-01T00:00:00.000Z',
   'Geschrieben: dieselben Werte, Leeres als null, Datum als ISO');

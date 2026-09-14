@@ -668,7 +668,8 @@ function _nfAssetsHtml() {
   };
   const sbBadge = (a) => {
     if (!register || !a.verfuegbarkeit) return '';
-    const col = a.verfuegbarkeit === 'sehr hoch' ? '#b91c1c' : a.verfuegbarkeit === 'hoch' ? '#b45309' : '#15803d';
+    const r = (typeof amRang === 'function') ? amRang(a.verfuegbarkeit) : -1;
+    const col = r === 2 ? '#b91c1c' : r === 1 ? '#b45309' : r === 0 ? '#15803d' : '#6b7280';
     return ` <span style="font-size:.66rem;color:${col};font-weight:700" title="Verfügbarkeit laut Assetregister">A: ${esc(a.verfuegbarkeit)}</span>`;
   };
   const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:center;display:flex;gap:8px">

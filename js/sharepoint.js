@@ -2973,21 +2973,99 @@ const ASSET_COLUMNS = [
   { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
 ];
 
-/** Gibt es diese Spalte in der Liste? (null = noch nicht geladen → optimistisch ja) */
-function spAssetSpalteDa(name) { return !_assetCols || _assetCols.has(name); }
 
-let _assetCols = null;
+let _assetCols = null;        // interne Spaltennamen
+let _assetColMeta = [];       // [{name, displayName, typ, choices}] – die Liste, wie sie wirklich ist
+let _assetMulti = new Set();  // Spalten, die beim Lesen Arrays liefern (Mehrfachauswahl)
 
-async function _loadAssetCols(token, siteId) {
-  try {
-    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name`, token);
-    _assetCols = new Set((cols.value || []).map(c => c.name));
-  } catch (e) { _assetCols = null; }
+/**
+ * Spaltennamen vergleichbar machen: Anzeigename „Integrität" und interner Name
+ * „Integrit_x00e4_t" und erwarteter Name „Integritaet" sind dasselbe.
+ */
+function _assetNorm(s) {
+  return String(s || '')
+    .replace(/_x([0-9a-fA-F]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
+    .toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]/g, '');
 }
 
 /**
- * Fehlende Spalten anlegen – ausdrücklich, auf Knopfdruck im Reiter. Wer das
- * Recht nicht hat, bekommt die Fehlermeldung; die Liste bleibt, wie sie war.
+ * Gewachsene Namen, unter denen dieselbe Sache in der Liste stehen kann. Beim
+ * Lesen werden sie der Reihe nach probiert; beim Schreiben ist der erste
+ * vorhandene das Ziel – so entsteht keine zweite Spalte für dieselbe Sache.
+ * „Werke" ↔ „Standort": Im Haus sind die Standorte die Werke.
+ */
+const ASSET_ALIASE = {
+  Kategorie:        ['Typ', 'AssetTyp', 'AssetType', 'Category', 'Type', 'Art', 'Assetart', 'Klasse'],
+  Beschreibung:     ['Description', 'Bemerkung', 'Kommentar', 'Notizen'],
+  Werke:            ['Standort', 'Standorte', 'Werk', 'Location', 'Site'],
+  Standort:         ['Raum', 'Gebaeude', 'Gebäude', 'Aufstellort'],
+  Verantwortlich:   ['Owner', 'Eigner', 'Eigentuemer', 'Eigentümer', 'AssetOwner', 'Verantwortlicher', 'Besitzer'],
+  Vertretung:       ['Stellvertreter', 'Stellvertretung', 'Vertreter'],
+  Betreiber:        ['Operator', 'Administrator'],
+  Vertraulichkeit:  ['Confidentiality', 'C'],
+  Integritaet:      ['Integrität', 'Integrity', 'I'],
+  Verfuegbarkeit:   ['Verfügbarkeit', 'Availability', 'A'],
+  Klassifizierung:  ['Classification', 'Klassifikation', 'Einstufung'],
+  Personenbezogen:  ['Personendaten', 'DSGVO', 'PII'],
+  AStatus:          ['Status', 'Lebenszyklus', 'Zustand'],
+  Inbetriebnahme:   ['Anschaffung', 'Anschaffungsdatum', 'Beschaffung'],
+  EOL:              ['SupportEnde', 'Support-Ende', 'EndOfLife', 'Ende'],
+  Wiederherstellung: ['RTO', 'Wiederherstellzeit', 'Wiederanlaufzeit', 'Wiederanlauf'],
+  Rpo:              ['RPO', 'Datenverlust'],
+  Backup:           ['Datensicherung', 'Sicherung'],
+  AbhaengigJson:    [],
+  Hersteller:       ['Manufacturer'],
+  Lieferant:        ['Dienstleister', 'Supplier', 'Vendor', 'Anbieter'],
+  SupportKontakt:   ['Support', 'Hotline', 'Kontakt', 'Ansprechpartner'],
+  Vertragsende:     ['Vertragslaufzeit', 'Vertrag', 'Laufzeit'],
+  Tags:             ['Schlagworte', 'Stichworte'],
+  ZusatzJson:       [],
+  HistorieJson:     [],
+};
+
+/** Die Spalte der Liste zu einem erwarteten Namen – über internen Namen, Anzeigenamen oder Alias; null, wenn es sie nicht gibt. */
+function _assetFeld(erwartet) {
+  if (!_assetCols) return erwartet;   // noch nichts geladen → optimistisch
+  const kandidaten = [erwartet].concat(ASSET_ALIASE[erwartet] || []);
+  for (const k of kandidaten) {
+    if (_assetCols.has(k)) return k;
+    const n = _assetNorm(k);
+    const hit = _assetColMeta.find(c => _assetNorm(c.name) === n || _assetNorm(c.displayName) === n);
+    if (hit) return hit.name;
+  }
+  return null;
+}
+function _assetMeta(erwartet) { const n = _assetFeld(erwartet); return n ? (_assetColMeta.find(c => c.name === n) || { name: n }) : null; }
+
+/** Gibt es diese Spalte in der Liste – unter irgendeinem ihrer Namen? */
+function spAssetSpalteDa(name) { return !!_assetFeld(name); }
+
+async function _loadAssetCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name,displayName,choice,boolean,number,dateTime,text,personOrGroup,lookup`, token);
+    _assetColMeta = (cols.value || []).map(c => ({
+      name: c.name, displayName: c.displayName || c.name,
+      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : 'text',
+      choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
+    }));
+    _assetCols = new Set(_assetColMeta.map(c => c.name));
+  } catch (e) { _assetCols = null; _assetColMeta = []; }
+}
+
+/** Was die App erwartet und was die Liste dafür hat – für den Reiter, damit niemand raten muss. */
+function spAssetSpaltenBericht() {
+  return ASSET_COLUMNS.map(c => {
+    const m = _assetMeta(c.name);
+    return { erwartet: c.name, typ: c.typ, gefunden: m ? m.name : null, anzeige: m ? m.displayName : null, spaltentyp: m ? m.typ : null, choices: m ? m.choices : [] };
+  });
+}
+
+/**
+ * Fehlende Spalten anlegen – ausdrücklich, auf Knopfdruck im Reiter. Nur die,
+ * die es unter keinem Namen gibt. Wer das Recht nicht hat, bekommt die
+ * Fehlermeldung; die Liste bleibt, wie sie war.
  * @returns {Promise<{angelegt:string[], fehler:string[]}>}
  */
 async function spErgaenzeAssetSpalten() {
@@ -2997,7 +3075,7 @@ async function spErgaenzeAssetSpalten() {
   if (!listId) throw new Error('Liste „Assets" nicht gefunden.');
   const siteId = await _ismsSiteId(token);
   if (!_assetCols) await _loadAssetCols(token, siteId);
-  const fehlend = ASSET_COLUMNS.filter(c => !_assetCols || !_assetCols.has(c.name));
+  const fehlend = ASSET_COLUMNS.filter(c => !_assetFeld(c.name));
   const angelegt = [], fehler = [];
   for (const c of fehlend) {
     try {
@@ -3039,9 +3117,10 @@ async function spEnsureAssetRegister(create = true) {
   return _sp.assetRegListId;
 }
 
+/** Fehlende Spalten – die es unter keinem ihrer Namen gibt. */
 function spMissingAssetColumns() {
   if (!_assetCols) return [];
-  return ASSET_COLUMNS.map(c => c.name).filter(n => !_assetCols.has(n));
+  return ASSET_COLUMNS.map(c => c.name).filter(n => !_assetFeld(n));
 }
 
 const _assetZahl = (v) => { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? '' : n; };
@@ -3053,49 +3132,63 @@ function _assetText(v) {
   if (typeof v === 'object') return String(v.Email || v.LookupValue || v.Label || v.Value || v.Title || v.DisplayName || '');
   return String(v);
 }
-/** Das erste befüllte von mehreren möglichen Spaltennamen – die Liste hat gewachsene Namen. */
-function _assetErstes(f, namen) {
-  for (const n of namen) { const t = _assetText(f[n]).trim(); if (t) return t; }
-  return '';
+
+/** Den Wert eines erwarteten Feldes aus dem Datensatz – über Alias, Anzeigename, Umlautkodierung. Rohwert, nicht Text. */
+function _assetRoh(f, erwartet) {
+  const n = _assetFeld(erwartet);
+  if (n && f[n] !== undefined && f[n] !== null && f[n] !== '') return f[n];
+  // Ohne Spaltenmeta (Test, Cron): die Namen direkt probieren, auch umlautkodiert.
+  for (const k of [erwartet].concat(ASSET_ALIASE[erwartet] || [])) {
+    if (f[k] !== undefined && f[k] !== null && f[k] !== '') return f[k];
+    const enc = k.replace(/[äöüÄÖÜß]/g, ch => '_x' + ch.charCodeAt(0).toString(16).padStart(4, '0') + '_');
+    if (enc !== k && f[enc] !== undefined && f[enc] !== null && f[enc] !== '') return f[enc];
+  }
+  return null;
 }
+function _assetLesen(f, erwartet) { return _assetText(_assetRoh(f, erwartet)).trim(); }
 
 function _mapAsset(it) {
   const f = it.fields || {};
-  // Werke: die Spalte „Werke", sonst Standort/Werk/Location tolerant zugeordnet (siehe _assetWerke).
-  const werkeSpalte = _assetText(f.Werke).split(/[;,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
-  const werke = werkeSpalte.length ? werkeSpalte : _assetWerke(f).werke;
+  for (const [k, v] of Object.entries(f)) if (Array.isArray(v)) _assetMulti.add(k);
+  // Werke: „Werke" oder – wie im Haus – „Standort"; Kürzel tolerant zugeordnet (siehe _assetWerke).
+  const werkeRoh = _assetRoh(f, 'Werke');
+  const werkeText = _assetText(werkeRoh);
+  const werkeDirekt = werkeText.split(/[;,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+  const kuerzel = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
+  const werke = werkeDirekt.every(w => w === 'ALLE' || kuerzel.includes(w)) && werkeDirekt.length ? werkeDirekt : _assetWerke(Object.assign({}, f, { Standort: werkeRoh })).werke;
   // Ein einzelner „Schutzbedarf" gilt für alle drei Ziele, solange es die drei nicht gibt.
-  const sb = _assetErstes(f, ['Schutzbedarf']);
+  const sb = _assetText(f.Schutzbedarf).trim();
   const a = {
     id: String(it.id),
     quelleId:       '',
     titel:          f.Title || f.LinkTitle || '',
-    kategorie:      _assetErstes(f, ['Kategorie', 'Typ', 'AssetTyp', 'AssetType', 'Category', 'Type']),
-    beschreibung:   _assetErstes(f, ['Beschreibung', 'Description', 'Bemerkung', 'Kommentar']),
+    kategorie:      _assetLesen(f, 'Kategorie'),
+    beschreibung:   _assetLesen(f, 'Beschreibung'),
     werke,
-    standort:       _assetErstes(f, ['Standort', 'Location', 'Raum', 'Gebaeude']),
-    verantwortlich: _assetErstes(f, ['Verantwortlich', 'Owner', 'Eigner', 'Eigentuemer', 'AssetOwner']),
-    vertretung:     _assetErstes(f, ['Vertretung', 'Stellvertreter']),
-    betreiber:      _assetErstes(f, ['Betreiber', 'Operator']),
-    vertraulichkeit: (_assetErstes(f, ['Vertraulichkeit']) || sb).toLowerCase(),
-    integritaet:    (_assetErstes(f, ['Integritaet', 'Integrit_x00e4_t']) || sb).toLowerCase(),
-    verfuegbarkeit: (_assetErstes(f, ['Verfuegbarkeit', 'Verf_x00fc_gbarkeit']) || sb).toLowerCase(),
-    klassifizierung: _assetErstes(f, ['Klassifizierung', 'Classification', 'Klassifikation']).toLowerCase(),
-    personenbezogen: /^(ja|true|1|yes)$/i.test(_assetErstes(f, ['Personenbezogen'])),
-    status:         _assetErstes(f, ['AStatus']) || 'aktiv',
-    inbetriebnahme: _assetErstes(f, ['Inbetriebnahme']).slice(0, 10),
-    eol:            _assetErstes(f, ['EOL', 'SupportEnde']).slice(0, 10),
-    wiederherstellung: _assetZahl(f.Wiederherstellung ?? f.RTO ?? f.Wiederherstellzeit),
-    rpo:            _assetZahl(f.Rpo ?? f.RPO),
-    backup:         _assetErstes(f, ['Backup', 'Datensicherung']),
-    abhaengigVon:   _riskParseJson(f.AbhaengigJson, []),
-    hersteller:     _assetErstes(f, ['Hersteller', 'Manufacturer']),
-    lieferant:      _assetErstes(f, ['Lieferant', 'Dienstleister', 'Supplier', 'Vendor']),
-    supportKontakt: _assetErstes(f, ['SupportKontakt', 'Support', 'Hotline']),
-    vertragsende:   _assetErstes(f, ['Vertragsende', 'Vertragslaufzeit']).slice(0, 10),
-    tags:           _assetText(f.Tags).split(',').map(x => x.trim()).filter(Boolean),
-    zusatz:         _riskParseJson(f.ZusatzJson, {}),
-    historie:       _riskParseJson(f.HistorieJson, []),
+    // Steht im „Standort" das Werk, ist er nicht zugleich der freie Aufstellort.
+    standort:       (_assetFeld('Standort') && _assetFeld('Standort') !== _assetFeld('Werke')) ? _assetLesen(f, 'Standort') : '',
+    verantwortlich: _assetLesen(f, 'Verantwortlich'),
+    vertretung:     _assetLesen(f, 'Vertretung'),
+    betreiber:      _assetLesen(f, 'Betreiber'),
+    vertraulichkeit: (_assetLesen(f, 'Vertraulichkeit') || sb).toLowerCase(),
+    integritaet:    (_assetLesen(f, 'Integritaet') || sb).toLowerCase(),
+    verfuegbarkeit: (_assetLesen(f, 'Verfuegbarkeit') || sb).toLowerCase(),
+    klassifizierung: _assetLesen(f, 'Klassifizierung').toLowerCase(),
+    personenbezogen: /^(ja|true|1|yes|x)$/i.test(_assetLesen(f, 'Personenbezogen')),
+    status:         _assetLesen(f, 'AStatus') || 'aktiv',
+    inbetriebnahme: _assetLesen(f, 'Inbetriebnahme').slice(0, 10),
+    eol:            _assetLesen(f, 'EOL').slice(0, 10),
+    wiederherstellung: _assetZahl(_assetRoh(f, 'Wiederherstellung')),
+    rpo:            _assetZahl(_assetRoh(f, 'Rpo')),
+    backup:         _assetLesen(f, 'Backup'),
+    abhaengigVon:   _riskParseJson(_assetLesen(f, 'AbhaengigJson'), []),
+    hersteller:     _assetLesen(f, 'Hersteller'),
+    lieferant:      _assetLesen(f, 'Lieferant'),
+    supportKontakt: _assetLesen(f, 'SupportKontakt'),
+    vertragsende:   _assetLesen(f, 'Vertragsende').slice(0, 10),
+    tags:           _assetLesen(f, 'Tags').split(',').map(x => x.trim()).filter(Boolean),
+    zusatz:         _riskParseJson(_assetLesen(f, 'ZusatzJson'), {}),
+    historie:       _riskParseJson(_assetLesen(f, 'HistorieJson'), []),
     created:        it.createdDateTime || '',
     modified:       it.lastModifiedDateTime || '',
     url:            it.webUrl || '',
@@ -3106,21 +3199,42 @@ function _mapAsset(it) {
   return a;
 }
 
+/**
+ * Einen Wert in die Auswahl der Spalte übersetzen: Unsere Stufe „sehr hoch"
+ * wird zu der Wahl, die dieselbe Stufe meint („3 – sehr hoch", „very high"),
+ * falls die Spalte Wahlmöglichkeiten hat. Sonst der Wert selbst.
+ */
+function _assetInWahl(wert, meta, art) {
+  const w = String(wert || '');
+  if (!meta || !meta.choices || !meta.choices.length || !w) return w;
+  if (meta.choices.includes(w)) return w;
+  const gleich = meta.choices.find(c => String(c).toLowerCase() === w.toLowerCase())
+    || meta.choices.find(c => _assetNorm(c) === _assetNorm(w));
+  if (gleich) return gleich;
+  // Dieselbe Bedeutung in den Worten der Spalte: „sehr hoch" → „3 – sehr hoch", „aktiv" → „in Betrieb".
+  if (art === 'stufe' && typeof amRang === 'function') { const r = amRang(w); const t = r >= 0 ? meta.choices.find(c => amRang(c) === r) : null; if (t) return t; }
+  if (art === 'status' && typeof amStatusVon === 'function') { const t = meta.choices.find(c => amStatusVon(c) === amStatusVon(w)); if (t) return t; }
+  if (art === 'klasse' && typeof amKlasseVon === 'function') { const t = meta.choices.find(c => amKlasseVon(c) === amKlasseVon(w)); if (t) return t; }
+  return w;
+}
+const _ASSET_WAHLART = { Vertraulichkeit: 'stufe', Integritaet: 'stufe', Verfuegbarkeit: 'stufe', AStatus: 'status', Klassifizierung: 'klasse' };
+
 function _assetFields(a) {
   const datum = (d) => (d ? new Date(String(d).slice(0, 10) + 'T00:00:00Z').toISOString() : null);
   const zahl = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+  const werke = Array.isArray(a.werke) ? a.werke : [];
   const all = {
     Title:          String(a.titel || a.title || '(ohne Titel)').slice(0, 255),
     Kategorie:      String(a.kategorie || '').slice(0, 60),
     Beschreibung:   a.beschreibung || '',
-    Werke:          (Array.isArray(a.werke) ? a.werke : []).join(','),
+    Werke:          werke.join(','),
     Standort:       String(a.standort || '').slice(0, 255),
     Verantwortlich: String(a.verantwortlich || '').slice(0, 255),
     Vertretung:     String(a.vertretung || '').slice(0, 255),
     Betreiber:      String(a.betreiber || '').slice(0, 255),
-    Vertraulichkeit: String(a.vertraulichkeit || '').slice(0, 20),
-    Integritaet:    String(a.integritaet || '').slice(0, 20),
-    Verfuegbarkeit: String(a.verfuegbarkeit || '').slice(0, 20),
+    Vertraulichkeit: String(a.vertraulichkeit || '').slice(0, 40),
+    Integritaet:    String(a.integritaet || '').slice(0, 40),
+    Verfuegbarkeit: String(a.verfuegbarkeit || '').slice(0, 40),
     Klassifizierung: String(a.klassifizierung || '').slice(0, 40),
     Personenbezogen: a.personenbezogen ? 'ja' : 'nein',
     AStatus:        String(a.status || 'aktiv').slice(0, 40),
@@ -3138,9 +3252,24 @@ function _assetFields(a) {
     ZusatzJson:     JSON.stringify(a.zusatz || {}),
     HistorieJson:   JSON.stringify(a.historie || []),
   };
-  const fields = {};
-  for (const [k, v] of Object.entries(all)) {
-    if (k === 'Title' || !_assetCols || _assetCols.has(k)) fields[k] = v;
+  const fields = { Title: all.Title };
+  const belegt = new Set(['Title']);
+  for (const [erwartet, v] of Object.entries(all)) {
+    if (erwartet === 'Title') continue;
+    const ziel = _assetFeld(erwartet);
+    if (!ziel || belegt.has(ziel)) continue;       // keine Spalte dafür – oder schon von einem anderen Feld belegt (Werke ↔ Standort)
+    belegt.add(ziel);
+    const meta = _assetColMeta.find(c => c.name === ziel);
+    let wert = v;
+    if (meta && meta.typ === 'boolean') wert = (erwartet === 'Personenbezogen') ? !!a.personenbezogen : !!v;
+    else if (meta && meta.typ === 'choice') {
+      // Mehrfachauswahl (Werke als Standorte) bekommt ein Array, Einzelauswahl den passenden Eintrag.
+      if (_assetMulti.has(ziel) || erwartet === 'Werke') wert = (erwartet === 'Werke' ? werke : String(v || '').split(',').map(x => x.trim()).filter(Boolean)).map(x => _assetInWahl(x, meta, _ASSET_WAHLART[erwartet]));
+      else wert = _assetInWahl(v, meta, _ASSET_WAHLART[erwartet]);
+    } else if (meta && (meta.typ === 'person' || meta.typ === 'lookup')) {
+      continue;   // Personen- und Nachschlagefelder schreibt die App nicht – sie kennt deren Ids nicht
+    }
+    fields[ziel] = wert;
   }
   return fields;
 }

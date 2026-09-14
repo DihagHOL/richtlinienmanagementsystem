@@ -68,7 +68,46 @@ function _amListe(v) {
   if (Array.isArray(v)) return v.map(_amText).filter(Boolean);
   return _amText(v).split(/[;,]+/).map(s => s.trim()).filter(Boolean);
 }
-function _amStufe(v, liste) { const s = _amText(v).toLowerCase(); return liste.find(x => x.toLowerCase() === s) || ''; }
+/** Ein Bewertungswert bleibt, wie die Liste ihn hat – nur klein geschrieben. Verglichen wird über den Rang. */
+function _amStufe(v) { return _amText(v).toLowerCase(); }
+
+/**
+ * Der Rang eines Schutzbedarfs – tolerant gegen die Skala des Hauses:
+ * „sehr hoch", „3 – sehr hoch", „very high" → 2; „hoch", „high", „2", auch
+ * „mittel" (die Mitte einer Dreierskala) → 1; „normal", „niedrig", „gering",
+ * „low", „1" → 0; alles andere → -1 (bewertet, aber nicht einzuordnen).
+ */
+function amRang(stufe) {
+  const s = String(stufe || '').toLowerCase().replace(/[\s_\-–—]+/g, ' ').trim();
+  if (!s) return -1;
+  if (/sehr ?hoch|very ?high|^3\b|h(ö|oe)chst|kritisch|critical|^sh$/.test(s)) return 2;
+  if (/hoch|high|^2\b|erh(ö|oe)ht|^h$|mittel|medium|^m$/.test(s)) return 1;
+  if (/normal|niedrig|gering|low|basis|^1\b|^n$|klein|standard|^0\b/.test(s)) return 0;
+  return -1;
+}
+/** Die BSI-Bezeichnung zu einem Rang. */
+function amStufeLabel(rang) { return AM_SCHUTZBEDARF[rang] || ''; }
+
+/** Ein Status des Hauses auf die vier Stufen der App – tolerant. */
+function amStatusVon(text) {
+  const s = String(text || '').toLowerCase();
+  if (!s) return 'aktiv';
+  if (/au(ß|ss)er betrieb|ausgemustert|inaktiv|retired|decommission|stillgelegt|entsorgt|abgebaut|ausser|archiv/.test(s)) return 'außer Betrieb';
+  if (/beschaffung|geplant|bestellt|planned|ordered|in planung/.test(s)) return 'in Beschaffung';
+  if (/auslauf|phase.?out|abk(ü|ue)ndig|ablösung|abloesung|end of life/.test(s)) return 'auslaufend';
+  return 'aktiv';
+}
+
+/** Eine Klassifizierung des Hauses auf die vier Stufen – tolerant; Unbekanntes bleibt Text. */
+function amKlasseVon(text) {
+  const s = String(text || '').toLowerCase().trim();
+  if (!s) return '';
+  if (/streng|strictly|secret|geheim|top/.test(s)) return 'streng vertraulich';
+  if (/vertraulich|confidential/.test(s)) return 'vertraulich';
+  if (/intern|internal/.test(s)) return 'intern';
+  if (/öffentlich|oeffentlich|public/.test(s)) return 'öffentlich';
+  return s;
+}
 
 /** Ein Asset – immer vollständig, nie undefined. Nimmt Rohes aus der Liste oder aus der Oberfläche. */
 function amVon(a) {
@@ -85,12 +124,12 @@ function amVon(a) {
     verantwortlich: _amText(r.verantwortlich),
     vertretung: _amText(r.vertretung),
     betreiber: _amText(r.betreiber),
-    vertraulichkeit: _amStufe(r.vertraulichkeit, AM_SCHUTZBEDARF),
-    integritaet: _amStufe(r.integritaet, AM_SCHUTZBEDARF),
-    verfuegbarkeit: _amStufe(r.verfuegbarkeit, AM_SCHUTZBEDARF),
-    klassifizierung: _amStufe(r.klassifizierung, AM_KLASSIFIZIERUNG),
-    personenbezogen: r.personenbezogen === true || /^(ja|true|1)$/i.test(_amText(r.personenbezogen)),
-    status: AM_STATUS.includes(_amText(r.status)) ? _amText(r.status) : 'aktiv',
+    vertraulichkeit: _amStufe(r.vertraulichkeit),
+    integritaet: _amStufe(r.integritaet),
+    verfuegbarkeit: _amStufe(r.verfuegbarkeit),
+    klassifizierung: amKlasseVon(r.klassifizierung),
+    personenbezogen: r.personenbezogen === true || /^(ja|true|1|yes|x)$/i.test(_amText(r.personenbezogen)),
+    status: amStatusVon(r.status),
     inbetriebnahme: _amDatum(r.inbetriebnahme),
     eol: _amDatum(r.eol),
     wiederherstellung: _amZahl(r.wiederherstellung),   // Stunden – die Zahl, an der jede Prozess-RTO hängt
@@ -159,8 +198,6 @@ function amZusatzfelder(cfg) {
 
 /* ── Ableitungen ── */
 
-function amRang(stufe) { return AM_SCHUTZBEDARF.indexOf(stufe); }
-
 /**
  * Schutzbedarfs-Vererbung (BSI, Maximumprinzip): Ein Asset braucht mindestens
  * die Verfügbarkeit, die der kritischste Prozess verlangt, der daran hängt.
@@ -219,8 +256,10 @@ function amLuecken(roh, ctx) {
   if (!a.klassifizierung && (katKey === 'information' || amRang(a.vertraulichkeit) >= 1)) {
     fehler.push('Klassifizierung fehlt (A.5.12) – bei Informationen und bei Vertraulichkeit „hoch" Pflicht.');
   }
+  const unklar = [['vertraulichkeit', 'Vertraulichkeit'], ['integritaet', 'Integrität'], ['verfuegbarkeit', 'Verfügbarkeit']].filter(([f]) => a[f] && amRang(a[f]) < 0);
+  if (unklar.length) hinweise.push(`Bewertung nicht einzuordnen: ${unklar.map(([f, l]) => `${l} „${a[f]}"`).join(', ')} – die App kennt normal / hoch / sehr hoch (auch „1–3", „low/high").`);
   // R093: Wer „sehr hoch" verfügbar sein muss, braucht Wiederherstellzeit und RPO.
-  if (a.verfuegbarkeit === 'sehr hoch') {
+  if (amRang(a.verfuegbarkeit) === 2) {
     if (a.wiederherstellung === '') fehler.push('Verfügbarkeit „sehr hoch", aber keine Wiederherstellzeit (Reifegrad R093).');
     if (a.rpo === '') fehler.push('Verfügbarkeit „sehr hoch", aber kein RPO (Reifegrad R093).');
   }
@@ -239,7 +278,7 @@ function amLuecken(roh, ctx) {
   }
   if ((katKey === 'cloud' || a.lieferant) && !a.supportKontakt) hinweise.push('Lieferant ohne Support-Kontakt (A.5.19) – wen ruft man nachts an?');
   if (a.personenbezogen && (!a.klassifizierung || a.klassifizierung === 'öffentlich')) hinweise.push('Personenbezogene Daten, aber Klassifizierung fehlt oder „öffentlich".');
-  if (a.verfuegbarkeit !== 'sehr hoch' && a.verfuegbarkeit && a.wiederherstellung === '') hinweise.push('Keine Wiederherstellzeit – die Prozesse, die daran hängen, können ihre RTO nicht prüfen.');
+  if (amRang(a.verfuegbarkeit) !== 2 && a.verfuegbarkeit && a.wiederherstellung === '') hinweise.push('Keine Wiederherstellzeit – die Prozesse, die daran hängen, können ihre RTO nicht prüfen.');
   return { fehler, hinweise };
 }
 
@@ -338,7 +377,7 @@ function amKennzahlen(liste, ctx) {
     if (!a.verantwortlich) z.ohneVerantwortlichen++;
     if (!a.vertraulichkeit && !a.integritaet && !a.verfuegbarkeit) z.ohneSchutzbedarf++;
     if (!a.klassifizierung) z.ohneKlassifizierung++;
-    if (a.verfuegbarkeit === 'sehr hoch') { z.sehrHoch++; if (a.wiederherstellung === '') z.sehrHochOhneRto++; }
+    if (amRang(a.verfuegbarkeit) === 2) { z.sehrHoch++; if (a.wiederherstellung === '') z.sehrHochOhneRto++; }
     const te = amTageBis(a.eol, c.heute);
     if (te !== null && te < 0) z.eolAbgelaufen++;
     if (a.personenbezogen) z.personenbezogen++;
@@ -359,6 +398,7 @@ function amInventarHtml(o) {
   const name = o.personName || ((x) => x);
   const kat = (k) => { const x = kats.find(y => y.key === k); return x ? x.label : (k || '–'); };
   const dauer = (h) => (h === '' ? '–' : (h < 1 ? `${Math.round(h * 60)} min` : h < 24 ? `${h} h` : `${+(h / 24).toFixed(1)} Tage`));
+  const sb = (v) => (amRang(v) === 2 ? `<span class="sh">${_amEsc(v)}</span>` : amRang(v) === 1 ? `<span class="h">${_amEsc(v)}</span>` : (_amEsc(v) || '–'));
   const gruppen = new Map();
   for (const a of liste) { const k = a.kategorie || ''; if (!gruppen.has(k)) gruppen.set(k, []); gruppen.get(k).push(a); }
   const stand = o.stand || new Date().toLocaleString('de-DE');
@@ -373,7 +413,7 @@ function amInventarHtml(o) {
     <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.9 (Inventar), A.5.12 (Klassifizierung) · BSI 200-2 Schutzbedarf · Stand ${_amEsc(stand)} · ${liste.length} Assets</div>
     ${[...gruppen.entries()].map(([k, arr]) => `<h2>${_amEsc(kat(k))} (${arr.length})</h2>
       <table><thead><tr><th>Asset</th><th>Werke</th><th>Verantwortlich</th><th>V</th><th>I</th><th>A</th><th>Klassifizierung</th><th>Wiederherst.</th><th>RPO</th><th>Status</th><th>EOL</th><th>Lieferant / Support</th></tr></thead><tbody>${
-        arr.sort((x, y) => x.titel.localeCompare(y.titel, 'de')).map(a => { const sb = (v) => v === 'sehr hoch' ? '<span class="sh">sehr hoch</span>' : v === 'hoch' ? '<span class="h">hoch</span>' : (_amEsc(v) || '–');
+        arr.sort((x, y) => x.titel.localeCompare(y.titel, 'de')).map(a => {
           return `<tr><td><b>${_amEsc(a.titel)}</b>${a.beschreibung ? `<div class="muted">${_amEsc(a.beschreibung.slice(0, 120))}</div>` : ''}</td><td>${_amEsc(a.werke.includes('ALLE') ? 'konzernweit' : a.werke.join(', ')) || '–'}</td><td>${_amEsc(name(a.verantwortlich)) || '<span class="sh">–</span>'}</td>
             <td>${sb(a.vertraulichkeit)}</td><td>${sb(a.integritaet)}</td><td>${sb(a.verfuegbarkeit)}</td><td>${_amEsc(a.klassifizierung) || '–'}</td><td>${dauer(a.wiederherstellung)}</td><td>${dauer(a.rpo)}</td><td>${_amEsc(a.status)}</td><td>${_amEsc(a.eol) || '–'}</td><td>${_amEsc([a.lieferant || a.hersteller, a.supportKontakt].filter(Boolean).join(' · ')) || '–'}</td></tr>`; }).join('')
       }</tbody></table>`).join('')}
@@ -383,6 +423,6 @@ function amInventarHtml(o) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { AM_KATEGORIEN_STANDARD, AM_SCHUTZBEDARF, AM_KLASSIFIZIERUNG, AM_STATUS, AM_ZUSATZ_TYPEN, AM_VORLAUF_TAGE,
-    amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken,
+    amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amStufeLabel, amStatusVon, amKlasseVon, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken,
     amKanon, amAbhaengige, amVoraussetzungen, amKreis, amSichtbar, amKennzahlen, amInventarHtml };
 }

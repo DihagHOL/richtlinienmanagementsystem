@@ -21,7 +21,7 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
 
 const A = require(path.join(ROOT, 'js', 'assetmodell.js'));
-const { amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
+const { amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amStufeLabel, amStatusVon, amKlasseVon, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
   amAbhaengige, amVoraussetzungen, amKreis, amSichtbar, amKennzahlen, amInventarHtml, AM_KATEGORIEN_STANDARD, AM_SCHUTZBEDARF, AM_VORLAUF_TAGE } = A;
 
 /* ── 1) Kein Browser ── */
@@ -49,12 +49,27 @@ ok(amKategorieKey('Server') === 'server' && amKategorieKey('Server / Datenbank')
   'Eine Beschriftung aus der Liste findet ihren Schlüssel; Unbekanntes bleibt Text');
 ok(amLuecken({ titel: 'X', kategorie: 'Information / Daten' }).fehler.some(x => /Klassifizierung fehlt/.test(x)), 'Auch als Beschriftung: eine Information verlangt Klassifizierung');
 
+/* ── 3b) Die Skala des Hauses – gelesen wie sie ist, verglichen über den Rang ── */
+const heute = '2026-09-14';
+ok(amRang('sehr hoch') === 2 && amRang('3 – sehr hoch') === 2 && amRang('very high') === 2 && amRang('3') === 2, '„sehr hoch" in jeder Schreibweise → Rang 2');
+ok(amRang('hoch') === 1 && amRang('2 - hoch') === 1 && amRang('High') === 1 && amRang('mittel') === 1, '„hoch", „2", „mittel" (Mitte einer Dreierskala) → Rang 1');
+ok(amRang('normal') === 0 && amRang('niedrig') === 0 && amRang('1 - niedrig') === 0 && amRang('low') === 0 && amRang('gering') === 0, '„normal", „niedrig", „1", „low" → Rang 0');
+ok(amRang('') === -1 && amRang('egal') === -1 && amStufeLabel(2) === 'sehr hoch' && amStufeLabel(-1) === '', 'Leer und Unbekanntes: kein Rang');
+ok(amVon({ vertraulichkeit: '3 - Sehr Hoch' }).vertraulichkeit === '3 - sehr hoch', 'Der Wert bleibt, wie die Liste ihn hat – nur klein');
+ok(amStatusVon('in Betrieb') === 'aktiv' && amStatusVon('ausgemustert') === 'außer Betrieb' && amStatusVon('geplant') === 'in Beschaffung' && amStatusVon('Phase-out') === 'auslaufend' && amStatusVon('') === 'aktiv',
+  'Ein Status des Hauses landet auf einer der vier Stufen');
+ok(amKlasseVon('Streng Vertraulich') === 'streng vertraulich' && amKlasseVon('Confidential') === 'vertraulich' && amKlasseVon('Public') === 'öffentlich' && amKlasseVon('TLP:GREEN') === 'tlp:green', 'Klassifizierung tolerant, Unbekanntes bleibt');
+let lu2 = amLuecken({ titel: 'X', kategorie: 'server', werke: ['HOL'], verantwortlich: 'a', vertraulichkeit: '2 - hoch', integritaet: '3 - sehr hoch', verfuegbarkeit: '3 - sehr hoch', klassifizierung: 'intern', wiederherstellung: 4, rpo: 1 }, { heute });
+ok(lu2.fehler.length === 0 && lu2.hinweise.length === 0, 'Eine Bewertung in der Skala des Hauses ist eine Bewertung – keine Lücke, kein Hinweis');
+lu2 = amLuecken({ titel: 'X', verfuegbarkeit: 'egal' }, { heute });
+ok(lu2.hinweise.some(x => /nicht einzuordnen: Verfügbarkeit „egal"/.test(x)), 'Ein Wert, den die App nicht einordnen kann, wird als Hinweis genannt – nicht als fehlend');
+ok(amKennzahlen([{ id: '1', titel: 'A', verfuegbarkeit: '3 - sehr hoch' }], { heute }).sehrHoch === 1, 'Die Kennzahl „sehr hoch" zählt über den Rang');
+
 /* ── 4) Die Vererbung ── */
 ok(amSollVerfuegbarkeit([{ kritikalitaet: 'hoch' }]) === 'sehr hoch' && amSollVerfuegbarkeit([{ kritikalitaet: 'mittel' }]) === 'hoch'
   && amSollVerfuegbarkeit([{ kritikalitaet: 'niedrig' }]) === 'normal' && amSollVerfuegbarkeit([]) === '', 'Maximumprinzip: der kritischste Prozess bestimmt');
 
 /* ── 5) Lücken ── */
-const heute = '2026-09-14';
 let l = amLuecken({ titel: 'SAP', kategorie: 'anwendung', werke: ['ALLE'], verantwortlich: 'a@x', vertraulichkeit: 'hoch', integritaet: 'hoch', verfuegbarkeit: 'sehr hoch', klassifizierung: 'intern', wiederherstellung: 12, rpo: 4 }, { heute });
 ok(l.fehler.length === 0 && l.hinweise.length === 0, `Ein vollständiges Asset hat keine Lücke (${l.fehler.join(' | ')})`);
 l = amLuecken({ titel: 'X' }, { heute });

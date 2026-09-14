@@ -297,10 +297,10 @@ function nfPruefung(k, ctx) {
   // Zahlen falsch – und das soll jemand entscheiden, nicht übersehen.
   if (c.assetInfo && b.kritikalitaet !== 'niedrig') {
     const soll = b.kritikalitaet === 'hoch' ? 'sehr hoch' : 'hoch';
-    const rang = { normal: 0, hoch: 1, 'sehr hoch': 2 };
+    const rang = (typeof amRang === 'function') ? amRang : (x) => ({ normal: 0, hoch: 1, 'sehr hoch': 2 }[String(x || '').toLowerCase()] ?? -1);
     for (const a of b.assets) {
       const info = c.assetInfo[a.id];
-      if (info && info.verfuegbarkeit && rang[info.verfuegbarkeit] < rang[soll]) {
+      if (info && info.verfuegbarkeit && rang(info.verfuegbarkeit) >= 0 && rang(info.verfuegbarkeit) < rang(soll)) {
         hinweise.push(`„${a.title}" ist im Assetregister mit Verfügbarkeit „${info.verfuegbarkeit}" bewertet – dieser Prozess verlangt „${soll}" (Vererbung).`);
       }
     }
