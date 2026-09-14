@@ -147,6 +147,22 @@ async function _clevelGather() {
     }
   } catch (e) { m.wirksamkeit = null; m.fehler.push('Wirksamkeit: ' + e.message + ' (Liste evtl. noch nicht angelegt)'); }
 
+  // Notfallmanagement (A.5.29/A.5.30, NIS2 Art. 21 (2c)): BIA und Pläne hängen
+  // an den Kacheln der Landkarte, die Übungen stehen im Wirksamkeits-Register.
+  // Das Modell rechnet auf dem rohen Datenobjekt – die Landkarte-Ansicht wird
+  // dafür nicht geladen.
+  try {
+    if (typeof nfKennzahlen !== 'function') { m.notfall = null; }
+    else {
+      const g = (typeof _lkDaten !== 'undefined' && _lkDaten) ? { daten: _lkDaten }
+        : ((typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null);
+      if (!g || !g.daten) { m.notfall = null; }
+      else {
+        m.notfall = nfKennzahlen(g.daten, Array.isArray(_wirk) ? _wirk : [], nfSichtbareWerke());
+      }
+    }
+  } catch (e) { m.notfall = null; m.fehler.push('Notfall: ' + e.message); }
+
   // Reifegrad IT/OT
   try {
     let cfg = (_reifegrad && _reifegrad.ratings) ? _reifegrad : null;
@@ -258,6 +274,31 @@ function _clevelIsoRows(m) {
     add('ISO 10.2', 'Nichtkonformität und Korrekturmaßnahmen', 'warn', 'Register „Wirksamkeit" nicht auswertbar.');
   }
 
+  // Notfallmanagement: A.5.30 will die IKT-Bereitschaft geplant, umgesetzt,
+  // aufrechterhalten UND geprüft. Ein Plan, den es nicht gibt, ist die Lücke;
+  // ein Plan, den niemand geübt hat, der Hinweis. Und ohne BIA weiß niemand,
+  // welche Prozesse überhaupt einen Plan bräuchten – auch das ist die Lücke.
+  if (m.notfall) {
+    const n = m.notfall;
+    if (!n.prozesse) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap', 'Keine Prozesslandkarte – ohne Prozesse keine Business-Impact-Analyse.');
+    else if (!n.bewertet) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap',
+      `${n.prozesse} Prozesse, keiner mit Business-Impact-Analyse.`);
+    else if (n.ohnePlan || n.rtoKonflikte) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap',
+      `${n.kritisch} kritische Prozesse, ${n.ohnePlan} ohne Notfallplan${n.rtoKonflikte ? `, ${n.rtoKonflikte} mit nicht haltbarer RTO` : ''}.`);
+    else if (n.ungeuebt || n.bewertet < n.prozesse) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'warn',
+      `${n.kritisch} kritische Prozesse mit Plan; ${n.ungeuebt} seit ${NF_UEBUNG_MONATE} Monaten nicht geübt${n.bewertet < n.prozesse ? `, ${n.prozesse - n.bewertet} Prozesse ohne BIA` : ''}.`);
+    else add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'ok',
+      n.kritisch ? `${n.kritisch} kritische Prozesse, alle mit Notfallplan und geübt.` : `${n.bewertet} Prozesse bewertet, keiner kritisch.`);
+
+    // A.5.29 fragt nach der Organisation im Störfall – hier: der Krisenstab.
+    if (!n.werke) { /* ohne Karte schon oben gemeldet */ }
+    else if (n.stabFehlt) add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'gap',
+      `${n.stabFehlt} von ${n.werke} Werk(en) ohne Krisenstab.`);
+    else if (n.stabLuecken) add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'warn',
+      `${n.stabLuecken} von ${n.werke} Krisenstäbe(n) unvollständig (Leitung, Vertretung, Nummern, Treffpunkt, Kanal).`);
+    else add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'ok', `Krisenstab in ${n.werke} Werk(en) vollständig.`);
+  } else add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'warn', 'Notfallmanagement nicht auswertbar.');
+
   // Überwachung / Reviews (Kap. 9)
   const revOver = (m.faellig ? m.faellig.overdue : 0) + (m.risiken ? m.risiken.revUeber : 0);
   add('ISO 9', 'Überwachung & Bewertung', revOver === 0 ? 'ok' : revOver <= 5 ? 'warn' : 'gap',
@@ -313,6 +354,7 @@ function _clevelReportHtml(m) {
       ${m.risiken ? _clTile(m.risiken.hoch, 'hohe Risiken', m.risiken.hoch ? '#b91c1c' : '#15803d') : ''}
       ${m.ausnahmen ? _clTile(m.ausnahmen.abgelaufen, 'Ausnahmen abgelaufen', m.ausnahmen.abgelaufen ? '#b91c1c' : '#15803d') : ''}
       ${m.wirksamkeit ? _clTile(m.wirksamkeit.abwOffen, 'Abweichungen offen', m.wirksamkeit.abwOffen ? '#b45309' : '#15803d') : ''}
+      ${m.notfall ? _clTile(`${m.notfall.mitPlan}/${m.notfall.kritisch}`, 'krit. Prozesse mit Plan', m.notfall.kritisch && m.notfall.mitPlan < m.notfall.kritisch ? '#b91c1c' : '#15803d') : ''}
       ${m.reifegrad ? _clTile(m.reifegrad.rot, 'IT/OT nicht gelebt', m.reifegrad.rot ? '#b91c1c' : '#15803d') : ''}
     </tr></table>`;
 
@@ -329,6 +371,7 @@ function _clevelReportHtml(m) {
   if (m.risiken) details.push(`<b>Risiken:</b> ${m.risiken.gesamt} gesamt, ${m.risiken.offen} offen, ${m.risiken.hoch} hoch, ${m.risiken.mUeber} Maßnahmen überfällig`);
   if (m.ausnahmen) details.push(`<b>Ausnahmen:</b> ${m.ausnahmen.gesamt} erfasst, ${m.ausnahmen.aktiv} gültig, ${m.ausnahmen.abgelaufen} abgelaufen, ${m.ausnahmen.wartend} unentschieden`);
   if (m.wirksamkeit) details.push(`<b>Wirksamkeit:</b> ${m.wirksamkeit.audits} Audit(s), letzte Bewertung ${m.wirksamkeit.letzteBewertung || '–'}, ${m.wirksamkeit.abwOffen} Abweichung(en) offen, ${m.wirksamkeit.ohneWirksamkeit} ohne Wirksamkeitsbeleg`);
+  if (m.notfall) details.push(`<b>Notfall:</b> ${m.notfall.bewertet}/${m.notfall.prozesse} Prozesse mit BIA, ${m.notfall.kritisch} kritisch, ${m.notfall.mitPlan} mit Plan, ${m.notfall.geuebt} geübt, ${m.notfall.rtoKonflikte} RTO-Konflikt(e), Krisenstab vollständig in ${m.notfall.stabOk}/${m.notfall.werke} Werk(en)`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);
   if (m.faellig) details.push(`<b>Fälligkeiten:</b> ${m.faellig.overdue} überfällig, ${m.faellig.soon} in ≤ 30 Tagen`);
 

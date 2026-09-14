@@ -40,6 +40,7 @@ function initCockpit() {
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
       ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
+      ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}
       ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
     </div>`;
@@ -52,6 +53,7 @@ function initCockpit() {
   _ckLoadRisiken(seq);
   _ckLoadAusnahmen(seq);
   _ckLoadWirksamkeit(seq);
+  _ckLoadNotfall(seq);
   _ckLoadCompliance(seq);
   _ckLoadVorschlaege(seq);
 }
@@ -206,6 +208,24 @@ async function _ckLoadWirksamkeit(seq) {
       _ckBig(ueber, 'Maßnahmen überfällig', ueber ? '#b91c1c' : '#15803d') +
       _ckBig(bew ? fmtDate(bew.datum) : '–', 'letzte Bewertung', bew ? '#17509e' : '#b91c1c'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('wirksamkeit', 'Nicht ladbar (Liste fehlt noch?).'); }
+}
+
+/** Kritische Prozesse, Pläne, Übungen – aus der Landkarte, still gelesen. */
+async function _ckLoadNotfall(seq) {
+  try {
+    if (typeof nfKennzahlen !== 'function' || typeof spLoadLandkarte !== 'function') { _ckErr('notfall', 'Modul nicht geladen.'); return; }
+    const g = (typeof _lkDaten !== 'undefined' && _lkDaten) ? { daten: _lkDaten } : await spLoadLandkarte();
+    if (seq !== _cockpitSeq) return;
+    if (!g || !g.daten) { _ckErr('notfall', 'Noch keine Prozesslandkarte – Reiter „Prozesse" öffnen.'); return; }
+    let uebungen = Array.isArray(_wirk) ? _wirk : null;
+    if (!uebungen && typeof spGetWirkLeise === 'function') { try { uebungen = await spGetWirkLeise(); } catch (e) { uebungen = []; } }
+    if (seq !== _cockpitSeq) return;
+    const n = nfKennzahlen(g.daten, uebungen || [], nfSichtbareWerke());
+    _ckSet('notfall',
+      _ckBig(n.kritisch, 'kritische Prozesse', n.kritisch ? '#17509e' : '#6b7280') +
+      _ckBig(`${n.mitPlan}/${n.kritisch}`, 'mit Notfallplan', n.kritisch && n.mitPlan < n.kritisch ? '#b91c1c' : '#15803d') +
+      _ckBig(`${n.stabOk}/${n.werke}`, 'Krisenstab vollständig', n.werke && n.stabOk < n.werke ? '#b91c1c' : '#15803d'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('notfall', 'Nicht ladbar.'); }
 }
 
 async function _ckLoadCompliance(seq) {

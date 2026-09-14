@@ -236,7 +236,7 @@ ok((doku.match(/Benennung:/g) || []).length === PROZESS_BAUSTEINE.length,
   'Die Bausteintabelle kommt aus den Daten – alle neun, keiner abgeschrieben');
 ok((doku.match(/>R\d</g) || []).length === PROZESS_REGELN.length, 'Die Regeltabelle ebenso');
 ok(doku.includes('Bedarf gemeldet'), 'Und die Schreibvorlage steht zum Abschreiben da');
-ok(/'prozessschema', 'dokumentation'/.test(lies('js/module.js')),
+ok(/dokumentation:\s*\['prozessschema',[^\]]*'dokumentation'\]/.test(lies('js/module.js')),
   'Der Doku-Reiter lädt das Schema mit – sonst blieben seine Tabellen leer');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);

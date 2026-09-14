@@ -1461,8 +1461,9 @@ function lkBaenderVon(werk) {
   return (k && Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender;
 }
 
-/** Darf die Karte bearbeitet werden? Wer den Reiter schreiben darf, darf es. */
-function lkDarfSchreiben() { return typeof canWriteTab !== 'function' || canWriteTab('prozesse'); }
+/** Darf die Karte bearbeitet werden? Wer den Reiter schreiben darf, darf es.
+ *  Der Notfall-Reiter schreibt in dieselbe Datei – mit seinem eigenen Recht. */
+function lkDarfSchreiben(reiter) { return typeof canWriteTab !== 'function' || canWriteTab(reiter || 'prozesse'); }
 
 /** Gilt die Kachel am gewählten Standort? Ohne Filter gilt alles. */
 function lkGiltDort(k, standort) {
@@ -1537,6 +1538,10 @@ async function lkDatenLaden() {
           // geschrieben.
           vorlagen: Array.isArray(d.vorlagen) ? d.vorlagen : [],
           vorlagenAus: Array.isArray(d.vorlagenAus) ? d.vorlagenAus : [],
+          // Notfall: Wiederherstellzeiten der Assets (einmal für alle Werke).
+          // BIA und Pläne hängen an den Kacheln, der Krisenstab an der Karte –
+          // die kommen mit `karten` von selbst mit.
+          notfall: (d.notfall && typeof d.notfall === 'object') ? d.notfall : {},
         };
       } else {
         // Fassung 1 kannte nur EINE Landkarte. Die abgestimmte Landschaft gehört
@@ -1580,8 +1585,8 @@ function _lkVerlauf(was) {
  * Speichern mit Gleichzeitigkeits-Prüfung: Hat jemand anders die Karte
  * inzwischen geändert, wird nichts überschrieben.
  */
-async function lkSpeichern(meldung, was) {
-  if (!lkDarfSchreiben()) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return false; }
+async function lkSpeichern(meldung, was, reiter) {
+  if (!lkDarfSchreiben(reiter)) { toast(`Nur Lesezugriff auf „${reiter === 'notfall' ? 'Notfall' : 'Prozesse'}".`, 'error'); return false; }
   try {
     if (typeof spLandkarteMeta === 'function') {
       const jetzt = await spLandkarteMeta();
@@ -1808,6 +1813,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
           ${person ? `<span class="lk-kachel-person" title="${esc(person)}">👤 ${esc(
             (typeof lkPersonName === 'function' ? lkPersonName(person) : person).split(' ')[0])}</span>` : ''}
           ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
+          ${(typeof nfKachelMarker === 'function') ? nfKachelMarker(k) : ''}
           ${_lkGliederungZeichen(_lkWerk, k)}
         </div>
       </div>
@@ -1819,7 +1825,7 @@ function _lkPfeilHtml(k, i, schreiben) {
   const g = _lkGeltungKurz(k);
   return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))}">
-      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>
+      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
       <span class="lk-pfeil-gliederung">${_lkGliederungZeichen(_lkWerk, k)}</span>
@@ -2675,6 +2681,7 @@ function lkKachelOeffnen(id) {
               k.vertretung ? ` <span class="field-hint">· Vertretung: ${esc(lkPersonName(k.vertretung))}</span>` : ''}`
           : `<span style="color:#b45309">👤 Kein Prozessverantwortlicher gepflegt</span>`}
       </div>
+      ${(typeof nfKachelZeile === 'function') ? nfKachelZeile(k, _lkWerk) : ''}
 
       <div style="border-top:1px solid var(--c-border);padding-top:12px">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">

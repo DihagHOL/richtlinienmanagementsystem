@@ -47,6 +47,7 @@ const _DOKU_TOC = [
   ['risiken',       'Risiko-Register'],
   ['ausnahmen',     'Ausnahmeregister (Abweichungen)'],
   ['wirksamkeit',   'Wirksamkeit & Verbesserung'],
+  ['notfall',       'Notfall & Krisenstab (BCM)'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
@@ -425,6 +426,61 @@ function _dokuSections() {
       </ul>
       <div style="${hint}">Die SharePoint-Liste „Wirksamkeit" liegt wie Risiken und Ausnahmen auf der ISMS-Site und wird beim ersten Öffnen automatisch angelegt. Export: <b>⬇ CSV</b> – mit einer Spalte „Nachweis vollständig", die sich einem Auditor ohne Erklärung erschließt. Tipp: Statt Löschen „verworfen" – eine gelöschte Feststellung lässt sich nicht mehr zeigen.</div>`,
       'ISO 27001 Klausel 9.2 (Internes Audit), 9.3 (Managementbewertung, Eingaben nach 9.3.2), 10.2 (Nichtkonformität und Korrekturmaßnahmen); ISO 9001/14001/45001 kennen dieselben Kapitel.'),
+
+
+    sec('notfall', 'Notfall &amp; Krisenstab (BCM)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Notfall &amp; Krisenstab"</b> beantwortet die Frage, die im Ernstfall gestellt wird: <i>„Der Server ist weg – was steht, was zuerst?"</i> Er folgt BSI-Standard 200-4 und ISO 22301; ISO 27001 verlangt es in <b>A.5.29</b> (Störungen) und <b>A.5.30</b> (IKT-Bereitschaft), NIS2 in Art. 21 (2c). Der Reifegrad-Katalog fragt es seit jeher ab (R093 RPO/RTO, R071 Systemverantwortliche) – jetzt kann die App antworten.</p>
+      <p style="margin:0 0 8px;line-height:1.55"><b>Der Plan hängt am Prozess, nicht am Asset.</b> Ein Server, der ausfällt, ist kein Notfall – ein Notfall ist der Prozess, der deshalb steht. Deshalb trägt jede Kachel der <b>Prozesslandkarte</b> ihre Business-Impact-Analyse, ihre Assets und ihren Plan. Nichts davon ist eine neue Liste: Es steht in derselben Datei wie die Landkarte, und die Trennung nach Gesellschaft gilt von selbst mit.</p>
+      <div style="${h3}">Drei Sichten</div>
+      ${tbl([
+        ['📊 BIA &amp; Pläne', 'Jeder Prozess des Werks mit Kritikalität, MTPD/RTO/RPO, Assets, Plan, letzter Übung und Lücken – sortiert: kritische zuerst, darin nach RTO. Klick öffnet BIA und Plan.'],
+        ['⚡ Ausfall-Sicht', 'Asset wählen → betroffene Prozesse in der Reihenfolge, in der sie wiederherzustellen sind (kürzeste RTO zuerst) → deren Pläne. Darunter: welche Assets <b>mehrere kritische Prozesse</b> tragen – der Single Point of Failure, den bisher niemand so genannt hat.'],
+        ['🧭 Krisenstab', 'Je Werk: Rollen, Namen, Nummern, Vertretungen, Alarmierungskette, Treffpunkt, Kommunikationskanal und Ersatzkanal, externe Stellen. Die Vorlage bringt die acht Rollen nach BSI 200-4 mit.'],
+      ])}
+      <div style="${h3}">Die Business-Impact-Analyse</div>
+      <table class="doku-tbl"><tbody>${Object.entries(typeof NF_KRITIKALITAET !== 'undefined' ? NF_KRITIKALITAET : {}).map(([k, v]) => `<tr>
+        <td style="font-weight:600;white-space:nowrap;color:${v.farbe}">${esc(v.label)}</td><td>${esc(v.text)}</td></tr>`).join('')}</tbody></table>
+      ${tbl([
+        ['MTPD', 'Maximal tolerierbare Ausfallzeit – ab wann der Schaden nicht mehr tragbar ist.'],
+        ['RTO', 'Wiederanlaufzeit – bis wann der Prozess wieder laufen muss. Muss <b>unter</b> der MTPD liegen; liegt sie darüber, ist das eine Lücke.'],
+        ['RPO', 'Tolerierbarer Datenverlust – wie alt der letzte gesicherte Stand sein darf.'],
+        ['Assets', 'Aus der ISMS-Liste „Assets", je Asset eine <b>Wiederherstellzeit</b>, die für alle Prozesse gilt. Daraus die Zahl, die alle raten und niemand rechnet: <b>Ein Prozess kann nicht schneller wieder da sein als das Langsamste, wovon er abhängt.</b> Ist die RTO kürzer als die Wiederherstellzeit eines Assets, ist sie nicht haltbar – und das steht dann so da.'],
+      ])}
+      <div style="${h3}">Der Notfallplan</div>
+      <p style="margin:0 0 8px;line-height:1.55">In der Reihenfolge, in der er gebraucht wird. Kurz, konkret, für jemanden, der den Prozess nicht kennt.</p>
+      <table class="doku-tbl"><tbody>${(typeof NF_PLAN_TEILE !== 'undefined' ? NF_PLAN_TEILE : []).map(t => `<tr>
+        <td style="font-weight:600;white-space:nowrap">${esc(t.titel)}${t.pflicht ? ' <span class="req">*</span>' : ''}</td><td>${esc(t.frage)}</td></tr>`).join('')}</tbody></table>
+      <p style="margin:8px 0;line-height:1.55">Dazu <b>Kontakte als Rollen</b> (wen ruft man um drei Uhr nachts an?) und eine verantwortliche Person. Der Krisenstab-Reiter ist die Vorlage dafür, nicht der Ersatz.</p>
+      <div style="${h3}">Was verweigert und was gemeldet wird</div>
+      ${tbl([
+        ['Kritikalität „hoch" ohne RTO und RPO', '<b>Wird nicht gespeichert</b> (Reifegrad R093). Wer „kritisch" sagt, muss sagen, was das heißt – oder vorerst „mittel" wählen.'],
+        ['Kritischer Prozess ohne Plan, ohne Assets, ohne Kontakte', 'Lücke – im Reiter, im Cockpit und im <b>Audit Report</b> (A.5.30). Gespeichert wird trotzdem: Ein halber Plan ist im Ernstfall besser als keiner.'],
+        ['RTO über MTPD, RTO kürzer als Asset-Wiederherstellung', 'Lücke – die Zahlen widersprechen sich.'],
+        ['Plan ohne Übung seit 12 Monaten', 'Hinweis im Reiter, Zeile im Notfall-Digest (Cron). Ein Plan ohne Übung ist Papier.'],
+        ['Krisenstab ohne Leitung, Vertretung, Nummern, Treffpunkt, Kanal, Ersatzkanal', 'Lücke – Audit Report A.5.29. Nach 12 Monaten ohne Aktualisierung mahnt der Cron: Telefonnummern veralten schneller als Pläne.'],
+      ])}
+      <div style="${h3}">Übungen</div>
+      <p style="margin:0 0 8px;line-height:1.55">Übungen sind die <b>vierte Satzart</b> im Wirksamkeits-Register: Eine Übung prüft einen Plan und findet Abweichungen – dieselbe Kette wie ein Audit. Gefundene Lücken werden dort zu Abweichungen mit Ursache, Frist und Wirksamkeitsprüfung. Abschließen lässt sich eine Übung erst mit Prozess, Übungsart, Szenario, Teilnehmenden und Ergebnis.</p>
+      <table class="doku-tbl"><tbody>${Object.values(typeof NF_UEBUNGSARTEN !== 'undefined' ? NF_UEBUNGSARTEN : {}).map(a => `<tr>
+        <td style="font-weight:600;white-space:nowrap">${esc(a.label)}</td><td>${esc(a.text)}</td></tr>`).join('')}</tbody></table>
+      <div style="${h3}">Der Krisenstab</div>
+      <table class="doku-tbl"><tbody>${(typeof NF_STAB_ROLLEN !== 'undefined' ? NF_STAB_ROLLEN : []).map(r => `<tr>
+        <td style="font-weight:600;white-space:nowrap">${esc(r.rolle)}${r.pflicht ? ' <span class="req">*</span>' : ''}</td><td>${esc(r.aufgabe)}</td></tr>`).join('')}</tbody></table>
+      <div style="${h3}">Drucken – bewusst</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>🖨 Notfallhandbuch:</b> Deckblatt, Krisenstab und Alarmierung, kritische Prozesse nach RTO, wovon sie abhängen, je Prozess der vollständige Plan. Als PDF in die Schublade – eine Web-App mit Anmeldung ist im Ernstfall vielleicht selbst das, was nicht geht.</li>
+        <li style="${li}"><b>🖨 Alarmkarte:</b> eine Seite, wen man anruft. Zum Aushängen an Pforte, Leitstand, Serverraum.</li>
+        <li style="${li}"><b>🖨 Plan drucken</b> im Editor: nur dieser Prozess – auch ungespeichert, mit dem Stand im Editor.</li>
+      </ul>
+      <div style="${h3}">Wo es sonst noch auftaucht</div>
+      <ul style="${ol}">
+        <li style="${li}">In der <b>Landkarte</b>: 🚨 an kritischen Kacheln; im Kachel-Dialog der Notfall-Stand mit Knopf zum Plan.</li>
+        <li style="${li}">Im <b>Cockpit</b>: kritische Prozesse, davon mit Plan, Krisenstab je Werk.</li>
+        <li style="${li}">Im <b>Audit Report</b> als Zeilen A.5.30 (Pläne, Übungen) und A.5.29 (Krisenstab).</li>
+        <li style="${li}">Im <b>Notfall-Digest</b> (Cron): kritische Prozesse ohne Plan, fällige Übungen, veraltete Krisenstäbe.</li>
+      </ul>
+      <div style="${hint}">Der Reiter ist standardmäßig nur für die Administration sichtbar – unter „Einstellungen" lässt er sich je Person freigeben. Wer den Krisenstab lesen soll, braucht nicht das Schreibrecht auf die Landkarte: Der Reiter hat sein eigenes.</div>`,
+      'ISO 27001 A.5.29 (Informationssicherheit bei Störungen), A.5.30 (IKT-Bereitschaft für Business Continuity); ISO 22301 (BCMS); BSI-Standard 200-4 (Business Continuity Management); NIS2 Art. 21 (2c) (Aufrechterhaltung des Betriebs, Backup, Wiederherstellung, Krisenmanagement); Reifegrad R071, R093.'),
 
     sec('ismsdocs', 'IMS-Dokumente (alle Normen)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>IMS-Dokumente</b> zeigt die Dokumente des

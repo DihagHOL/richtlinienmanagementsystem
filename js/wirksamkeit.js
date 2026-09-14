@@ -14,8 +14,11 @@
  *        Korrekturmaßnahmen     die Prüfung, ob es geholfen hat
  *   9.3  Managementbewertung    sieht auf beide und entscheidet
  *
- * **Ein Register, drei Satzarten** – nicht drei Register mit derselben
- * Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist
+ * **Ein Register, vier Satzarten** – nicht vier Register mit derselben
+ * Mechanik. Die vierte ist die Notfallübung: Sie prüft einen Notfallplan und
+ * findet Abweichungen – dieselbe Kette wie ein Audit, nur der Prüfling ist ein
+ * Plan statt eines Bereichs. Welcher Plan, steht im Feld `prozess`
+ * (WERK:kachel, siehe js/notfallmodell.js). Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist
  * eine; sie trägt nur ein Feld mehr, das sagt, woher sie stammt. Wer den
  * Zusammenhang in drei Listen zerlegt, muss ihn danach von Hand wieder
  * herstellen.
@@ -37,13 +40,14 @@ const WIRK_ARTEN = {
   abweichung: { label: 'Abweichung / Korrekturmaßnahme', icon: '⚠️', norm: 'ISO 27001 10.2' },
   audit:      { label: 'Internes Audit',                 icon: '🔍', norm: 'ISO 27001 9.2'  },
   bewertung:  { label: 'Managementbewertung',            icon: '⚖️', norm: 'ISO 27001 9.3'  },
+  uebung:     { label: 'Notfallübung',                   icon: '🚨', norm: 'ISO 27001 A.5.30 · ISO 22301 8.5 · BSI 200-4' },
 };
 
 const WIRK_STATUS = ['offen', 'in Umsetzung', 'abgeschlossen', 'verworfen'];
 const WIRK_MSTATUS = ['offen', 'in Umsetzung', 'erledigt'];
 
 /** Woher eine Abweichung kommt. „Wo ist das aufgefallen?" ist die erste Frage im Audit. */
-const WIRK_QUELLEN = ['internes Audit', 'externes Audit', 'Sicherheitsvorfall', 'Hinweis',
+const WIRK_QUELLEN = ['internes Audit', 'externes Audit', 'Notfallübung', 'Sicherheitsvorfall', 'Hinweis',
   'abgelaufene Ausnahme', 'Kennzahl / Messung', 'Beobachtung im Betrieb'];
 
 /**
@@ -69,6 +73,8 @@ let _wirkLoading = false;
 let _wirkEditing = null;
 let _wirkFilter = { q: '', art: '', status: '', werk: '' };
 let _wirkMembers = null;
+let _wirkProzesse = null;   // Kacheln der Landkarte als [{ziel, name, werk}] – für die Übung
+let _wirkDanach = null;     // wird nach dem nächsten erfolgreichen Speichern gerufen (Notfall-Reiter)
 
 /* ── Ableitungen ── */
 
@@ -114,6 +120,16 @@ function wirkAbschlussfehler(w) {
     if (!String(w.umfang || '').trim()) f.push('Der Auditumfang fehlt – was wurde geprüft?');
     if (!(w.beteiligte || []).length) f.push('Niemand als Auditor eingetragen.');
     if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten.');
+  }
+
+  if (w.art === 'uebung') {
+    // Eine Übung ohne Plan prüft nichts; ohne Szenario weiß niemand, was
+    // geprobt wurde; ohne Ergebnis war sie umsonst.
+    if (!String(w.prozess || '').trim()) f.push('Kein Prozess gewählt – welcher Notfallplan wurde geübt?');
+    if (!String(w.uebungsart || '').trim()) f.push('Übungsart fehlt (Planbesprechung, Stabsübung, Funktionstest, Vollübung).');
+    if (!String(w.umfang || '').trim()) f.push('Szenario fehlt – was wurde angenommen, was war Teil der Übung?');
+    if (!(w.beteiligte || []).length) f.push('Keine Teilnehmenden eingetragen.');
+    if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten – hat der Plan gehalten, wo hakte es?');
   }
 
   if (w.art === 'bewertung') {
@@ -271,9 +287,9 @@ function renderWirksamkeit() {
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      Nachweise zu <b>ISO 27001 9.2</b> (internes Audit), <b>9.3</b> (Managementbewertung) und
-      <b>10.2</b> (Nichtkonformität und Korrekturmaßnahmen) – in einem Register, weil die drei
-      zusammenhängen: Ein Audit findet Abweichungen, die Bewertung sieht auf beide.
+      Nachweise zu <b>ISO 27001 9.2</b> (internes Audit), <b>9.3</b> (Managementbewertung),
+      <b>10.2</b> (Nichtkonformität und Korrekturmaßnahmen) und <b>A.5.30</b> (Notfallübungen) – in einem
+      Register, weil sie zusammenhängen: Ein Audit oder eine Übung findet Abweichungen, die Bewertung sieht auf alles.
       <b>Abgeschlossen</b> wird ein Eintrag erst, wenn das da ist, was die Norm zum Nachweis verlangt.
     </div>
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
@@ -311,6 +327,7 @@ function renderWirksamkeit() {
       <button class="btn btn-outline btn-sm" onclick="wirkExportCsv()">⬇ CSV</button>
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'audit')">+ Audit</button>
         <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'bewertung')">+ Bewertung</button>
+        <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'uebung')" title="Notfallübung – prüft einen Notfallplan">+ Übung</button>
         <button class="btn btn-primary btn-sm" onclick="openWirkEditor(null,'abweichung')">+ Abweichung</button>` : ''}
     </div>
     ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf dieses Register.</div>'}
@@ -327,12 +344,53 @@ function _wirkNeu(art) {
     status: 'offen', quelle: '', herkunftId: '', ursache: '', massnahmen: [],
     wirksamkeit: '', wirksamAm: '', umfang: '', eingaben: [], ergebnis: '',
     normbezug: (WIRK_ARTEN[art || 'abweichung'] || {}).norm || '', historie: [],
+    prozess: '', uebungsart: '',
   };
+}
+
+/** Die Prozesse der Landkarte für die Auswahl – ohne das Landkarte-Modul zu brauchen. */
+async function _wirkProzesseLaden() {
+  if (_wirkProzesse) return _wirkProzesse;
+  try {
+    const g = (typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null;
+    const karten = (g && g.daten && g.daten.karten) || {};
+    const out = [];
+    Object.keys(karten).forEach(werk => (karten[werk].kacheln || []).forEach(k =>
+      out.push({ ziel: `${werk}:${k.id}`, name: k.name, werk, kritisch: !!(k.bcm && k.bcm.kritikalitaet === 'hoch') })));
+    out.sort((a, b) => (b.kritisch - a.kritisch) || a.werk.localeCompare(b.werk) || a.name.localeCompare(b.name, 'de'));
+    _wirkProzesse = out;
+  } catch (e) { _wirkProzesse = []; }
+  return _wirkProzesse;
+}
+
+/**
+ * Aus dem Notfall-Reiter heraus eine Übung zu einem Plan anlegen.
+ * @param {string} ziel   WERK:kachel
+ * @param {string} name   Prozessname (für den Titel)
+ * @param {string} werk   '' = konzernweit
+ * @param {Function} [danach] wird nach dem Speichern gerufen
+ */
+function wirkUebungFuer(ziel, name, werk, danach) {
+  _wirkEditing = _wirkNeu('uebung');
+  _wirkEditing.prozess = String(ziel || '');
+  _wirkEditing.titel = `Übung: ${name || ziel}`;
+  if (werk) _wirkEditing.werke = [werk];
+  _wirkDanach = (typeof danach === 'function') ? danach : null;
+  if (!_wirkProzesse) _wirkProzesse = [{ ziel: String(ziel || ''), name: String(name || ziel), werk: String(werk || '') }];
+  else if (!_wirkProzesse.some(p => p.ziel === ziel)) _wirkProzesse.push({ ziel, name: String(name || ziel), werk: String(werk || '') });
+  if (!_wirkMembers && typeof spGetMembers === 'function') {
+    spGetMembers().then(m => { _wirkMembers = m; }).catch(() => { _wirkMembers = []; });
+  }
+  renderWirkEditor();
 }
 
 async function openWirkEditor(id, art) {
   const src = id ? (_wirk || []).find(w => String(w.id) === String(id)) : null;
   _wirkEditing = src ? JSON.parse(JSON.stringify(src)) : _wirkNeu(art);
+  _wirkDanach = null;
+  if (_wirkEditing.art === 'uebung' && !_wirkProzesse) {
+    _wirkProzesseLaden().then(() => { if (_wirkEditing && _wirkEditing.art === 'uebung') renderWirkEditor(); });
+  }
   if (!_wirkMembers && typeof spGetMembers === 'function') {
     spGetMembers().then(m => {
       _wirkMembers = m;
@@ -398,7 +456,7 @@ function renderWirkEditor() {
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('wirksamkeit');
   const werke = (typeof STANDORTE !== 'undefined') ? STANDORTE : [];
   const luecken = wirkAbschlussfehler(w);
-  const quellen = (_wirk || []).filter(x => x.art === 'audit' || x.art === 'bewertung');
+  const quellen = (_wirk || []).filter(x => x.art === 'audit' || x.art === 'bewertung' || x.art === 'uebung');
   const histRows = (w.historie || []).slice().reverse().slice(0, 20).map(h =>
     `<div style="font-size:.75rem;color:var(--c-muted);padding:2px 0">${fmtDateTime(h.datum)} · <b>${esc(h.wer || '')}</b> · ${esc(h.aktion || '')}</div>`).join('');
 
@@ -417,6 +475,7 @@ function renderWirkEditor() {
           <input type="text" value="${esc(w.titel)}" oninput="_wirkEditing.titel=this.value"
             placeholder="${w.art === 'audit' ? 'z. B. Internes Audit Zutrittskontrolle WGC'
               : w.art === 'bewertung' ? 'z. B. Managementbewertung 1. Halbjahr'
+              : w.art === 'uebung' ? 'z. B. Übung: Ausfall SAP – Aufträge abwickeln'
               : 'z. B. Zugriffsrechte nach Austritt nicht entzogen'}"></div>
         <div class="form-group"><label>Datum <span class="req">*</span></label>
           <input type="date" value="${esc((w.datum || '').slice(0, 10))}"
@@ -424,7 +483,7 @@ function renderWirkEditor() {
         <div class="form-group"><label>Verantwortlich</label>
           <input type="text" list="wirk-people" value="${esc(w.verantwortlich)}" oninput="_wirkEditing.verantwortlich=this.value">
           <datalist id="wirk-people">${(_wirkMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('')}</datalist></div>
-        <div class="form-group full"><label>${w.art === 'bewertung' ? 'Teilnehmende' : w.art === 'audit' ? 'Auditoren' : 'Beteiligte'}${
+        <div class="form-group full"><label>${w.art === 'bewertung' || w.art === 'uebung' ? 'Teilnehmende' : w.art === 'audit' ? 'Auditoren' : 'Beteiligte'}${
           w.art !== 'abweichung' ? ' <span class="req">*</span>' : ''}</label>
           <input type="text" value="${esc((w.beteiligte || []).join(', '))}" oninput="wirkBeteiligteSetzen(this.value)"
             placeholder="E-Mail-Adressen, durch Komma getrennt"></div>
@@ -448,10 +507,10 @@ function renderWirkEditor() {
           <div class="form-group"><label>Wo ist es aufgefallen?</label>
             <input type="text" list="wirk-quellen" value="${esc(w.quelle)}" oninput="_wirkEditing.quelle=this.value">
             <datalist id="wirk-quellen">${WIRK_QUELLEN.map(q => `<option value="${esc(q)}">`).join('')}</datalist></div>
-          <div class="form-group"><label>Aus welchem Audit / welcher Bewertung?</label>
+          <div class="form-group"><label>Aus welchem Audit, welcher Bewertung, welcher Übung?</label>
             <select onchange="_wirkEditing.herkunftId=this.value">
               <option value="">– keins –</option>
-              ${quellen.map(q => `<option value="${esc(q.id)}"${String(w.herkunftId) === String(q.id) ? ' selected' : ''}>${esc(q.titel)}</option>`).join('')}
+              ${quellen.map(q => `<option value="${esc(q.id)}"${String(w.herkunftId) === String(q.id) ? ' selected' : ''}>${(WIRK_ARTEN[q.art] || {}).icon || ''} ${esc(q.titel)}</option>`).join('')}
             </select></div>
           <div class="form-group full"><label>Ursache <span class="req">*</span></label>
             <textarea oninput="_wirkEditing.ursache=this.value" placeholder="Warum konnte das passieren? Nicht das Symptom, sondern der Grund.">${esc(w.ursache)}</textarea>
@@ -476,6 +535,36 @@ function renderWirkEditor() {
           <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Feststellungen, Bewertung, Empfehlungen.">${esc(w.ergebnis)}</textarea></div>
         ${w.id ? `<div class="field-hint">Gefundene Abweichungen als eigene Einträge anlegen und hier als Herkunft wählen –
           dann hängen sie sichtbar zusammen. ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
+          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus('${esc(w.id)}')">+ Abweichung daraus</button></div>` : ''}
+      </div>` : ''}
+
+      ${w.art === 'uebung' ? `
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Übung (ISO 27001 A.5.30 · BSI 200-4)</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Geübter Notfallplan <span class="req">*</span></label>
+            <select onchange="_wirkEditing.prozess=this.value">
+              <option value="">– Prozess wählen –</option>
+              ${(_wirkProzesse || []).map(p => `<option value="${esc(p.ziel)}"${w.prozess === p.ziel ? ' selected' : ''}>${p.kritisch ? '🚨 ' : ''}${esc(p.name)} (${esc(p.werk)})</option>`).join('')}
+              ${w.prozess && !(_wirkProzesse || []).some(p => p.ziel === w.prozess) ? `<option value="${esc(w.prozess)}" selected>${esc(w.prozess)}</option>` : ''}
+            </select>
+            <div class="field-hint">${_wirkProzesse ? 'Aus der Prozesslandkarte; 🚨 = kritischer Prozess.' : 'Lade Prozesse …'}</div></div>
+          <div class="form-group"><label>Übungsart <span class="req">*</span></label>
+            <select onchange="_wirkEditing.uebungsart=this.value">
+              <option value="">– wählen –</option>
+              ${Object.entries(typeof NF_UEBUNGSARTEN !== 'undefined' ? NF_UEBUNGSARTEN : {}).map(([k, a]) =>
+                `<option value="${k}"${w.uebungsart === k ? ' selected' : ''} title="${esc(a.text)}">${esc(a.label)}</option>`).join('')}
+            </select>
+            <div class="field-hint">${w.uebungsart && typeof NF_UEBUNGSARTEN !== 'undefined' && NF_UEBUNGSARTEN[w.uebungsart] ? esc(NF_UEBUNGSARTEN[w.uebungsart].text) : 'Vom Leichten zum Schweren – die Planbesprechung ist der Anfang, nicht das Ziel.'}</div></div>
+          <div class="form-group full"><label>Szenario und Umfang <span class="req">*</span></label>
+            <textarea oninput="_wirkEditing.umfang=this.value" placeholder="Was wurde angenommen (z. B. SAP fällt am Montag 6 Uhr aus)? Welche Teile des Plans wurden geprobt?">${esc(w.umfang)}</textarea></div>
+          <div class="form-group full"><label>Ergebnis <span class="req">*</span></label>
+            <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Hat der Plan gehalten? Wo hakte es – fehlende Nummern, unklare Zuständigkeit, Ausweichsystem nicht erreichbar? Wurde die RTO eingehalten?">${esc(w.ergebnis)}</textarea></div>
+        </div>
+        <div style="font-weight:700;font-size:.85rem;margin:12px 0 6px">Verbesserungen aus der Übung</div>
+        ${_wirkMassnahmenHtml()}
+        ${w.id ? `<div class="field-hint" style="margin-top:8px">Größere Lücken als eigene Abweichung anlegen – dann bekommen sie Ursache, Frist und Wirksamkeitsprüfung.
+          ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
           <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus('${esc(w.id)}')">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
 
@@ -513,7 +602,7 @@ function wirkAbweichungAus(auditId) {
   const q = (_wirk || []).find(w => String(w.id) === String(auditId));
   _wirkEditing = _wirkNeu('abweichung');
   _wirkEditing.herkunftId = String(auditId || '');
-  _wirkEditing.quelle = 'internes Audit';
+  _wirkEditing.quelle = (q && q.art === 'uebung') ? 'Notfallübung' : 'internes Audit';
   if (q) _wirkEditing.werke = (q.werke || []).slice();
   renderWirkEditor();
 }
@@ -568,6 +657,9 @@ async function _wirkSchreiben(w, meldung) {
     if (typeof closeModal === 'function') closeModal();
     await refreshWirksamkeit();
     if (typeof toast === 'function') toast(meldung, 'success');
+    // Wer aus einem anderen Reiter kam (Notfall), will dort weitermachen.
+    const danach = _wirkDanach; _wirkDanach = null;
+    if (danach) { try { await danach(); } catch (e) { /* die Sicht dort ist nicht unsere Sache */ } }
   } catch (e) {
     w.historie.pop();
     if (btn) { btn.disabled = false; btn.textContent = 'Speichern'; }
@@ -597,7 +689,8 @@ async function deleteWirk(id) {
 function wirkExportCsv() {
   const rows = _wirkGefiltert();
   const kopf = ['Art', 'Bezeichnung', 'Datum', 'Verantwortlich', 'Beteiligte', 'Werke', 'Status',
-    'Quelle', 'Ursache', 'Maßnahmen', 'Wirksamkeit', 'Wirksam am', 'Umfang', 'Pflichteingaben', 'Ergebnis', 'Nachweis vollständig'];
+    'Quelle', 'Ursache', 'Maßnahmen', 'Wirksamkeit', 'Wirksam am', 'Umfang', 'Pflichteingaben', 'Ergebnis',
+    'Geübter Prozess', 'Übungsart', 'Nachweis vollständig'];
   const zelle = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
   const zeilen = rows.map(w => [
     (WIRK_ARTEN[w.art] || {}).label || w.art, w.titel, (w.datum || '').slice(0, 10), w.verantwortlich,
@@ -605,6 +698,7 @@ function wirkExportCsv() {
     (w.massnahmen || []).map(m => `${m.titel} (${m.status}${m.frist ? ', bis ' + String(m.frist).slice(0, 10) : ''})`).join(' | '),
     w.wirksamkeit, (w.wirksamAm || '').slice(0, 10), w.umfang,
     `${(w.eingaben || []).length}/${WIRK_EINGABEN.length}`, w.ergebnis,
+    w.prozess || '', w.uebungsart || '',
     wirkNachweisfaehig(w) ? 'ja' : 'nein',
   ].map(zelle).join(';'));
   const csv = '﻿' + [kopf.map(zelle).join(';')].concat(zeilen).join('\r\n');
@@ -618,5 +712,5 @@ function wirkExportCsv() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WIRK_ARTEN, WIRK_STATUS, WIRK_EINGABEN, WIRK_QUELLEN };
+  module.exports = { WIRK_ARTEN, WIRK_STATUS, WIRK_EINGABEN, WIRK_QUELLEN, wirkAbschlussfehler, wirkUebungFuer };
 }

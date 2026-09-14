@@ -37,7 +37,7 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
-  'risiken', 'ausnahmen', 'wirksamkeit', 'clevelreport'];
+  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -54,7 +54,13 @@ const MODUL_ANSICHTEN = {
   faelligkeit:   MODUL_ADMIN.concat(['faelligkeit']),
   ismsdocs:      MODUL_ADMIN.concat(['ismsdocs']),
   governance:    MODUL_ADMIN.concat(['governance']),
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'prozessmatrix', 'mindmapbaum', 'verknuepfungen']),
+  // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
+  // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'prozessmatrix', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
+  // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
+  // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
+  notfall:       MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'notfall']),
   anleitung:     MODUL_ADMIN.concat(['probelauf', 'tour', 'anleitung']),
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
@@ -62,13 +68,14 @@ const MODUL_ANSICHTEN = {
   abdeckung:    ['normen', 'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad'],
   risiken:      ['normen', 'risiken'],
   ausnahmen:    ['normen', 'risiken', 'ausnahmen'],
-  wirksamkeit:  ['wirksamkeit'],
+  // Die vierte Satzart (Notfallübung) liest ihre Übungsarten aus dem Modell.
+  wirksamkeit:  ['notfallmodell', 'wirksamkeit'],
   vorschlaege:  ['proposals'],
   // prozessschema steht dabei, weil der Abschnitt „Prozesse niederschreiben"
   // seine Tabellen AUS dessen Daten baut. Ohne das Modul blieben sie leer –
   // die Wächter fangen den Fehler ab, aber eine leere Tabelle ist auch keine
   // Auskunft.
-  dokumentation: ['prozessschema', 'dokumentation'],
+  dokumentation: ['prozessschema', 'notfallmodell', 'dokumentation'],
 };
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)

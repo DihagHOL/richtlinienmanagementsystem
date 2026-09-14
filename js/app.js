@@ -162,7 +162,7 @@ async function applyDeepLinkOrDefault() {
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
-    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit'].includes(ansicht)
+    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit', 'notfall'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
@@ -371,6 +371,7 @@ async function switchView(view) {
   if (view === 'risiken'      && typeof initRisiken === 'function')       initRisiken();
   if (view === 'ausnahmen'    && typeof initAusnahmen === 'function')     initAusnahmen();
   if (view === 'wirksamkeit'  && typeof initWirksamkeit === 'function')   initWirksamkeit();
+  if (view === 'notfall'      && typeof initNotfall === 'function')       initNotfall();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();

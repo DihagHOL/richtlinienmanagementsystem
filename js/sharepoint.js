@@ -2652,6 +2652,9 @@ const WIRK_COLUMNS = [
   { name: 'Ergebnis',         typ: 'Mehrere Zeilen Text' },
   { name: 'Normbezug',        typ: 'Einzelne Textzeile' },
   { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+  // Vierte Satzart „Notfallübung": welcher Plan geübt wurde (WERK:kachel) und wie.
+  { name: 'Prozess',          typ: 'Einzelne Textzeile' },
+  { name: 'Uebungsart',       typ: 'Einzelne Textzeile' },
 ];
 
 let _wirkCols = null;
@@ -2661,6 +2664,28 @@ async function _loadWirkCols(token, siteId) {
     const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.wirkListId}/columns?$select=name`, token);
     _wirkCols = new Set((cols.value || []).map(c => c.name));
   } catch (e) { _wirkCols = null; }
+}
+
+/**
+ * Spalten nachziehen, die seit dem Anlegen der Liste dazugekommen sind.
+ *
+ * `_wirkFields` schreibt nur Spalten, die es gibt – eine neue Spalte würde
+ * sonst still verschluckt: Der Eintrag ist gespeichert, das Feld ist weg,
+ * und niemand merkt es. Deshalb wird hier angelegt, was fehlt. Wer das Recht
+ * dazu nicht hat, bekommt weiter die Warnung im Reiter; nichts bricht.
+ */
+async function _ergaenzeWirkSpalten(token, siteId) {
+  if (!_wirkCols) return;
+  const fehlend = WIRK_COLUMNS.filter(c => !_wirkCols.has(c.name));
+  if (!fehlend.length) return;
+  let angelegt = 0;
+  for (const c of fehlend) {
+    try {
+      await _post(`${SP.graphBase}/sites/${siteId}/lists/${_sp.wirkListId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) });
+      angelegt++;
+    } catch (e) { console.warn('[wirksamkeit] Spalte nicht anlegbar:', c.name, e.message); }
+  }
+  if (angelegt) await _loadWirkCols(token, siteId);
 }
 
 /** Liste „Wirksamkeit" finden – oder anlegen. Auf der ISMS-Site, wie Risiken und Ausnahmen. */
@@ -2675,7 +2700,12 @@ async function spEnsureWirkList(create = true) {
     while (url) {
       const r = await _get(url, token);
       const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
-      if (hit) { _sp.wirkListId = hit.id; await _loadWirkCols(token, siteId); return _sp.wirkListId; }
+      if (hit) {
+        _sp.wirkListId = hit.id;
+        await _loadWirkCols(token, siteId);
+        if (create) await _ergaenzeWirkSpalten(token, siteId);
+        return _sp.wirkListId;
+      }
       url = r['@odata.nextLink'] || null;
     }
   } catch (e) { /* weiter → ggf. anlegen */ }
@@ -2713,6 +2743,8 @@ function _mapWirk(it) {
     ergebnis:       f.Ergebnis || '',
     normbezug:      f.Normbezug || '',
     historie:       _riskParseJson(f.HistorieJson, []),
+    prozess:        f.Prozess || '',
+    uebungsart:     f.Uebungsart || '',
     created:        it.createdDateTime || '',
     modified:       it.lastModifiedDateTime || '',
   };
@@ -2737,6 +2769,8 @@ function _wirkFields(w) {
     Ergebnis:       w.ergebnis || '',
     Normbezug:      String(w.normbezug || '').slice(0, 255),
     HistorieJson:   JSON.stringify(w.historie || []),
+    Prozess:        String(w.prozess || '').slice(0, 120),
+    Uebungsart:     String(w.uebungsart || '').slice(0, 40),
   };
   if (w.datum)     all.WDatum    = w.datum;
   if (w.wirksamAm) all.WirksamAm = w.wirksamAm;

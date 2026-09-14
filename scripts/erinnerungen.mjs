@@ -25,6 +25,13 @@
  * auflösen). Fehlt das Recht, überspringt der Lauf nur diesen Teil.
  */
 
+/* Das Notfall-Modell der App – ohne Browser-Abhängigkeit, deshalb hier
+   verwendbar. Eine Regel, zwei Stellen: Was der Reiter als Lücke zeigt,
+   mahnt der Cron. */
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const NF = _require('../js/notfallmodell.js');
+
 const TENANT = need('AZURE_TENANT_ID');
 const CLIENT_ID = need('AZURE_CLIENT_ID');
 const CLIENT_SECRET = need('AZURE_CLIENT_SECRET');
@@ -147,6 +154,22 @@ async function loadConfig(siteId) {
     if (!r.ok) return {};
     return await r.json();
   } catch { return {}; }
+}
+
+/** Eine JSON-Datei aus dem Konfig-Ordner der Dokumentbibliothek; null wenn es sie nicht gibt. */
+async function loadKonfigJson(siteId, name) {
+  const drives = await gget(`/sites/${siteId}/drives`);
+  const docDrive = (drives.value || []).find((d) =>
+    ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
+  ) || (drives.value || [])[0];
+  if (!docDrive) return null;
+  try {
+    const r = await fetch(`${GRAPH}/drives/${docDrive.id}/root:/${CONFIG_FOLDER}/${name}:/content`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
 }
 
 async function loadPolicies(siteId, listId) {
@@ -875,6 +898,73 @@ function kenntnisEskalationHtml(posten) {
       }
     }
   } catch (e) { console.log('Wirksamkeits-Digest übersprungen:', e.message); }
+
+  // ── Notfall-Digest: kritische Prozesse ohne Plan, fällige Übungen, veraltete
+  //    Krisenstäbe (ISO 27001 A.5.29/A.5.30, BSI 200-4) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Notfall-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const lk = await loadKonfigJson(siteId, 'prozesslandkarte.json');
+      if (!lk || !lk.karten) {
+        console.log('Notfall-Digest: keine Prozesslandkarte – übersprungen.');
+      } else {
+        // Übungen aus dem Wirksamkeits-Register – in der Feldform der App.
+        let uebungen = [];
+        const wl = await ismsListe('Wirksamkeit');
+        if (wl) {
+          uebungen = (await ismsItems(wl.id))
+            .filter((f) => f.Art === 'uebung')
+            .map((f) => ({ art: 'uebung', prozess: f.Prozess || '', datum: f.WDatum || '', status: f.WStatus || 'offen', uebungsart: f.Uebungsart || '' }));
+        }
+        const rowsOut = [];
+        const assetRto = NF.nfAssetRto(lk);
+        for (const { werk, kachel } of NF.nfAlleKacheln(lk)) {
+          const b = NF.nfBcmVon(kachel);
+          if (b.kritikalitaet !== 'hoch') continue;
+          const wer = b.plan.verantwortlich || kachel.verantwortlich || '';
+          const titel = `${kachel.name} (${werk})`;
+          const pr = NF.nfPruefung(kachel, { assetRto, uebungen, werk });
+          if (!NF.nfHatPlan(kachel)) {
+            rowsOut.push({ titel, was: 'kritischer Prozess ohne Notfallplan (A.5.30)', wer, rang: 0 });
+          } else {
+            const letzte = NF.nfLetzteUebung(uebungen, werk, kachel.id);
+            if (!letzte) rowsOut.push({ titel, was: 'Notfallplan nie geübt', wer, rang: 1 });
+            else if (NF.nfUebungFaellig(letzte)) rowsOut.push({ titel, was: `zuletzt geübt am ${String(letzte.datum).slice(0, 10)} – länger als ${NF.NF_UEBUNG_MONATE} Monate her`, wer, rang: 1 });
+          }
+          if (pr.rtoKonflikt) rowsOut.push({ titel, was: 'RTO nicht haltbar – ein Asset braucht länger zur Wiederherstellung', wer, rang: 0 });
+          if (!b.assets.length) rowsOut.push({ titel, was: 'keine Assets zugeordnet – der Plan sagt nicht, wovor er schützt', wer, rang: 1 });
+        }
+        for (const werk of Object.keys(lk.karten)) {
+          const karte = lk.karten[werk] || {};
+          if (!Array.isArray(karte.kacheln) || !karte.kacheln.length) continue;
+          const lu = NF.nfStabLuecken(karte.krisenstab || null);
+          if (!karte.krisenstab) rowsOut.push({ titel: `Krisenstab ${werk}`, was: 'nicht angelegt (A.5.29)', wer: '', rang: 0 });
+          else if (lu.length) rowsOut.push({ titel: `Krisenstab ${werk}`, was: `${lu.length} Lücke(n): ${lu.slice(0, 2).join(' ')}`, wer: '', rang: 1 });
+        }
+
+        if (!rowsOut.length) {
+          console.log('Notfall-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Notfall &amp; Krisenstab: offene Punkte</b></p>
+            <p>Aus der Business-Impact-Analyse, den Notfallplänen und den Krisenstäben (ISO&nbsp;27001 A.5.29/A.5.30, BSI 200-4). Ein Plan ohne Übung ist Papier; ein Krisenstab ohne aktuelle Nummern auch:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=notfall" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Notfall-Reiter öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Notfall: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Notfall-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Notfall-Digest übersprungen:', e.message); }
 
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 
