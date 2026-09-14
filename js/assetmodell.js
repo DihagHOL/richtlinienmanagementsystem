@@ -76,13 +76,16 @@ function _amStufe(v) { return _amText(v).toLowerCase(); }
  * „sehr hoch", „3 – sehr hoch", „very high" → 2; „hoch", „high", „2", auch
  * „mittel" (die Mitte einer Dreierskala) → 1; „normal", „niedrig", „gering",
  * „low", „1" → 0; alles andere → -1 (bewertet, aber nicht einzuordnen).
+ *
+ * Bei der Vertraulichkeit steht im Haus die Einstufung: öffentlich und intern
+ * → normal, vertraulich → hoch, streng vertraulich (geheim) → sehr hoch.
  */
 function amRang(stufe) {
   const s = String(stufe || '').toLowerCase().replace(/[\s_\-–—]+/g, ' ').trim();
   if (!s) return -1;
-  if (/sehr ?hoch|very ?high|^3\b|h(ö|oe)chst|kritisch|critical|^sh$/.test(s)) return 2;
-  if (/hoch|high|^2\b|erh(ö|oe)ht|^h$|mittel|medium|^m$/.test(s)) return 1;
-  if (/normal|niedrig|gering|low|basis|^1\b|^n$|klein|standard|^0\b/.test(s)) return 0;
+  if (/sehr ?hoch|very ?high|^3\b|h(ö|oe)chst|kritisch|critical|^sh$|streng|geheim|secret|top/.test(s)) return 2;
+  if (/hoch|high|^2\b|erh(ö|oe)ht|^h$|mittel|medium|^m$|vertraulich|confidential/.test(s)) return 1;
+  if (/normal|niedrig|gering|low|basis|^1\b|^n$|klein|standard|^0\b|intern|(ö|oe)ffentlich|public/.test(s)) return 0;
   return -1;
 }
 /** Die BSI-Bezeichnung zu einem Rang. */
@@ -127,7 +130,8 @@ function amVon(a) {
     vertraulichkeit: _amStufe(r.vertraulichkeit),
     integritaet: _amStufe(r.integritaet),
     verfuegbarkeit: _amStufe(r.verfuegbarkeit),
-    klassifizierung: amKlasseVon(r.klassifizierung),
+    // Steht bei der Vertraulichkeit die Einstufung (intern, vertraulich …), ist das zugleich die Klassifizierung.
+    klassifizierung: amKlasseVon(r.klassifizierung) || (AM_KLASSIFIZIERUNG.includes(amKlasseVon(r.vertraulichkeit)) ? amKlasseVon(r.vertraulichkeit) : ''),
     personenbezogen: r.personenbezogen === true || /^(ja|true|1|yes|x)$/i.test(_amText(r.personenbezogen)),
     status: amStatusVon(r.status),
     inbetriebnahme: _amDatum(r.inbetriebnahme),

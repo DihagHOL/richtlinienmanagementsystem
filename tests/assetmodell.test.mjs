@@ -55,6 +55,12 @@ ok(amRang('sehr hoch') === 2 && amRang('3 – sehr hoch') === 2 && amRang('very 
 ok(amRang('hoch') === 1 && amRang('2 - hoch') === 1 && amRang('High') === 1 && amRang('mittel') === 1, '„hoch", „2", „mittel" (Mitte einer Dreierskala) → Rang 1');
 ok(amRang('normal') === 0 && amRang('niedrig') === 0 && amRang('1 - niedrig') === 0 && amRang('low') === 0 && amRang('gering') === 0, '„normal", „niedrig", „1", „low" → Rang 0');
 ok(amRang('') === -1 && amRang('egal') === -1 && amStufeLabel(2) === 'sehr hoch' && amStufeLabel(-1) === '', 'Leer und Unbekanntes: kein Rang');
+ok(amRang('intern') === 0 && amRang('öffentlich') === 0 && amRang('vertraulich') === 1 && amRang('streng vertraulich') === 2 && amRang('Confidential') === 1,
+  'Die Einstufung bei der Vertraulichkeit: intern → normal, vertraulich → hoch, streng vertraulich → sehr hoch');
+const ein = amVon({ vertraulichkeit: 'vertraulich', integritaet: 'sehr hoch', verfuegbarkeit: 'sehr hoch' });
+ok(ein.klassifizierung === 'vertraulich' && ein.vertraulichkeit === 'vertraulich', 'Steht die Einstufung bei der Vertraulichkeit, ist sie zugleich die Klassifizierung');
+ok(amVon({ vertraulichkeit: 'hoch' }).klassifizierung === '' && amVon({ vertraulichkeit: 'intern', klassifizierung: 'Streng Vertraulich' }).klassifizierung === 'streng vertraulich',
+  '„hoch" ist keine Einstufung; eine eigene Klassifizierung geht vor');
 ok(amVon({ vertraulichkeit: '3 - Sehr Hoch' }).vertraulichkeit === '3 - sehr hoch', 'Der Wert bleibt, wie die Liste ihn hat – nur klein');
 ok(amStatusVon('in Betrieb') === 'aktiv' && amStatusVon('ausgemustert') === 'außer Betrieb' && amStatusVon('geplant') === 'in Beschaffung' && amStatusVon('Phase-out') === 'auslaufend' && amStatusVon('') === 'aktiv',
   'Ein Status des Hauses landet auf einer der vier Stufen');
