@@ -139,7 +139,8 @@ function nfBcmVon(k) {
     mtpd: _nfZahl(b.mtpd) === null ? '' : Number(b.mtpd),
     rto:  _nfZahl(b.rto)  === null ? '' : Number(b.rto),
     rpo:  _nfZahl(b.rpo)  === null ? '' : Number(b.rpo),
-    assets: Array.isArray(b.assets) ? b.assets.filter(a => a && a.id).map(a => ({ id: String(a.id), title: String(a.title || '#' + a.id) })) : [],
+    assets: Array.isArray(b.assets) ? b.assets.filter(a => a && a.id).map(a => ({ id: String(a.id), title: String(a.title || '#' + a.id),
+      werke: Array.isArray(a.werke) ? a.werke.map(String).filter(Boolean) : [] })) : [],
     standAm: String(b.standAm || ''),
     plan: nfPlanVon(b.plan),
   };
@@ -155,6 +156,30 @@ function nfPlanVon(p) {
 }
 
 function nfIstKritisch(k) { return nfBcmVon(k).kritikalitaet === 'hoch'; }
+
+/* ── Das Werk am Asset ──
+   Die ISMS-Liste trägt es. Ein Asset ohne Werk oder mit 'ALLE' gilt überall. */
+
+/** Gehört das Asset zu diesem Werk (oder ist es konzernweit)? */
+function nfAssetPasst(asset, werk) {
+  const w = (asset && Array.isArray(asset.werke)) ? asset.werke : [];
+  if (!w.length || w.includes('ALLE') || !werk || werk === 'KONZERN') return true;
+  return w.includes(werk);
+}
+
+/** Steht das Asset laut Liste ausdrücklich in einem anderen Werk? */
+function nfAssetFremd(asset, werk) {
+  const w = (asset && Array.isArray(asset.werke)) ? asset.werke : [];
+  return !!(w.length && !w.includes('ALLE') && werk && werk !== 'KONZERN' && !w.includes(werk));
+}
+
+/** Darf diese Person das Asset sehen? null = keine Trennung. Ohne Werk: ja. */
+function nfAssetSichtbar(asset, sichtbareWerke) {
+  if (!Array.isArray(sichtbareWerke)) return true;
+  const w = (asset && Array.isArray(asset.werke)) ? asset.werke : [];
+  if (!w.length || w.includes('ALLE')) return true;
+  return w.some(x => sichtbareWerke.includes(x));
+}
 function nfIstBewertet(k) { return !!nfBcmVon(k).kritikalitaet; }
 
 /** Gibt es einen Plan, der den Namen verdient? Die drei Pflichtteile sind da. */
@@ -238,6 +263,13 @@ function nfPruefung(k, ctx) {
         rtoKonflikt = true;
       }
     }
+  }
+
+  // Ein Asset, das laut Liste in einem anderen Werk steht: entweder eine
+  // echte Abhängigkeit, die niemand kennt, oder ein Pflegefehler. Beides
+  // sollte man sehen – als Hinweis, nicht als Lücke.
+  for (const a of b.assets) {
+    if (nfAssetFremd(a, c.werk)) hinweise.push(`„${a.title}" steht laut Asset-Liste in ${a.werke.join(', ')}, nicht in ${c.werk} – echte Abhängigkeit oder Pflegefehler?`);
   }
 
   const p = b.plan;
@@ -390,11 +422,12 @@ function nfAssetTraeger(daten, werke) {
   for (const { werk, kachel } of nfAlleKacheln(daten, werke)) {
     const b = nfBcmVon(kachel);
     for (const a of b.assets) {
-      if (!map.has(a.id)) map.set(a.id, { id: a.id, title: a.title, prozesse: [], kritisch: 0 });
+      if (!map.has(a.id)) map.set(a.id, { id: a.id, title: a.title, werke: [], prozesse: [], kritisch: 0 });
       const e = map.get(a.id);
       e.prozesse.push({ werk, id: kachel.id, name: kachel.name, kritikalitaet: b.kritikalitaet, rto: b.rto });
       if (b.kritikalitaet === 'hoch') e.kritisch++;
       if (!e.title && a.title) e.title = a.title;
+      if (!e.werke.length && a.werke.length) e.werke = a.werke.slice();
     }
   }
   return [...map.values()].sort((a, b) => (b.kritisch - a.kritisch) || (b.prozesse.length - a.prozesse.length)
@@ -518,7 +551,7 @@ function _nfPlanAbschnitt(werk, k, opt) {
       ${b.auswirkung ? `<tr><th>Auswirkung bei Ausfall</th><td colspan="3">${_nfEsc(b.auswirkung)}</td></tr>` : ''}
       <tr><th>Abhängig von</th><td colspan="3">${b.assets.length ? b.assets.map(a => {
         const r = o.assetRto && o.assetRto[a.id] && _nfZahl(o.assetRto[a.id].rto);
-        return `${_nfEsc(a.title)}${r !== null && r !== undefined ? ` <span class="muted">(Wiederherstellung ${_nfEsc(nfDauerText(r))})</span>` : ''}`;
+        return `${_nfEsc(a.title)}${a.werke.length ? ` <span class="muted">[${_nfEsc(a.werke.join(', '))}]</span>` : ''}${r !== null && r !== undefined ? ` <span class="muted">(Wiederherstellung ${_nfEsc(nfDauerText(r))})</span>` : ''}`;
       }).join(' · ') : '<span class="muted">keine Assets zugeordnet</span>'}</td></tr>
     </tbody></table>
     ${pr.fehler.length ? `<div class="warn"><b>Lücken (${pr.fehler.length}):</b> ${pr.fehler.map(_nfEsc).join(' · ')}</div>` : ''}
@@ -554,7 +587,7 @@ function nfHandbuchHtml(o) {
   const matrix = traeger.length ? `<table><thead><tr><th>Asset</th><th>Wiederherstellung</th><th>Trägt Prozesse (nach RTO)</th></tr></thead><tbody>${
     traeger.map(t => { const r = o.assetRto && o.assetRto[t.id] && _nfZahl(o.assetRto[t.id].rto);
       const pr = t.prozesse.slice().sort((a, b) => _nfSortZahl(a.rto) - _nfSortZahl(b.rto));
-      return `<tr><td><b>${_nfEsc(t.title)}</b>${t.kritisch > 1 ? ` <span class="k-hoch">⚠ ${t.kritisch} kritische</span>` : ''}</td><td>${r !== null && r !== undefined ? _nfEsc(nfDauerText(r)) : '–'}</td><td>${
+      return `<tr><td><b>${_nfEsc(t.title)}</b>${t.werke.length ? ` <span class="muted">[${_nfEsc(t.werke.join(', '))}]</span>` : ''}${t.kritisch > 1 ? ` <span class="k-hoch">⚠ ${t.kritisch} kritische</span>` : ''}</td><td>${r !== null && r !== undefined ? _nfEsc(nfDauerText(r)) : '–'}</td><td>${
         pr.map(p => `${_nfEsc(p.name)}${p.rto !== '' ? ` (${_nfEsc(nfDauerText(p.rto))})` : ''}`).join(' → ')}</td></tr>`; }).join('')
   }</tbody></table>` : '';
 
@@ -603,6 +636,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { NF_KRITIKALITAET, NF_PLAN_TEILE, NF_UEBUNGSARTEN, NF_STAB_ROLLEN, NF_STAB_EXTERNE,
     NF_UEBUNG_MONATE, NF_STAB_MONATE, nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfPlanVon,
     nfIstKritisch, nfIstBewertet, nfHatPlan, nfZiel, nfUebungenZu, nfLetzteUebung, nfUebungFaellig, nfPruefung,
+    nfAssetPasst, nfAssetFremd, nfAssetSichtbar,
     nfStabVon, nfStabVorlage, nfStabLuecken, nfSichtbareWerke, nfPflichtWerke, _nfSortZahl, nfAlleKacheln, nfAssetRto, nfAusfall, nfAssetTraeger, nfKennzahlen,
     nfHandbuchHtml, nfAlarmkarteHtml };
 }

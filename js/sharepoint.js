@@ -2866,6 +2866,40 @@ function _assetSub(f) {
   return parts.join(' · ');
 }
 
+/**
+ * Das Werk eines Assets – die Liste trägt es schon, in welcher Spalte auch
+ * immer. Gelesen werden die gängigen Namen; der Wert darf Text, Mehrfachwahl
+ * (Array), Lookup ({LookupValue}) oder eine Aufzählung „WGC; HOL" sein.
+ * Zugeordnet wird tolerant zu den Kürzeln der App (STANDORTE): Ein Wert wie
+ * „Wittenberge (WGC)" trifft WGC. „alle", „konzern", „zentral" heißt
+ * konzernweit ('ALLE'). Was sich nicht zuordnen lässt, bleibt als Text
+ * erhalten – sichtbar, aber ohne Wirkung.
+ * @returns {{werke: string[], text: string}}
+ */
+function _assetWerke(f) {
+  const keys = ['Standort', 'Standorte', 'Werk', 'Werke', 'Location', 'Site', 'Gesellschaft'];
+  let roh = null;
+  for (const k of keys) { if (f[k] !== undefined && f[k] !== null && f[k] !== '') { roh = f[k]; break; } }
+  const teile = [];
+  const nimm = (v) => {
+    if (v === null || v === undefined) return;
+    if (Array.isArray(v)) { v.forEach(nimm); return; }
+    if (typeof v === 'object') { nimm(v.LookupValue || v.Label || v.Value || v.Title || ''); return; }
+    String(v).split(/[;,|/]+/).map(s => s.trim()).filter(Boolean).forEach(s => teile.push(s));
+  };
+  nimm(roh);
+  const kuerzel = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
+  const werke = [];
+  for (const t of teile) {
+    const u = t.toUpperCase();
+    if (/^(ALLE|KONZERN|KONZERNWEIT|ZENTRAL|GRUPPE|ALL)$/.test(u)) { if (!werke.includes('ALLE')) werke.push('ALLE'); continue; }
+    const hit = kuerzel.find(w => u === w.toUpperCase() || new RegExp('(^|[^A-Z])' + w.toUpperCase() + '([^A-Z]|$)').test(u))
+      || (/^HOLDING$/.test(u) && kuerzel.includes('HOL') ? 'HOL' : null);
+    if (hit && !werke.includes(hit)) werke.push(hit);
+  }
+  return { werke, text: teile.join(', ') };
+}
+
 /** Assets aus der ISMS-Liste „Assets" laden (nur lesen). Wirft, wenn die Liste
  *  fehlt/kein Zugriff – die UI fängt das ab und zeigt einen Hinweis. */
 async function spGetAssets() {
@@ -2888,7 +2922,9 @@ async function spGetAssets() {
     const resp = await _get(url, token);
     for (const it of (resp.value || [])) {
       const f = it.fields || {};
-      out.push({ id: String(it.id), title: f.Title || f.LinkTitle || ('#' + it.id), sub: _assetSub(f), url: it.webUrl || '' });
+      const w = _assetWerke(f);
+      out.push({ id: String(it.id), title: f.Title || f.LinkTitle || ('#' + it.id), sub: _assetSub(f), url: it.webUrl || '',
+        werke: w.werke, werkText: w.text });
     }
     url = resp['@odata.nextLink'] || null;
   }

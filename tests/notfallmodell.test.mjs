@@ -24,6 +24,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++
 const M = require(path.join(ROOT, 'js', 'notfallmodell.js'));
 const { nfDauerText, nfDauerStunden, nfDauerEingabe, nfBcmVon, nfHatPlan, nfPruefung, nfStabLuecken, nfStabVorlage,
   nfAusfall, nfAssetTraeger, nfKennzahlen, nfLetzteUebung, nfUebungFaellig, nfHandbuchHtml, nfAlarmkarteHtml, nfPflichtWerke,
+  nfAssetPasst, nfAssetFremd, nfAssetSichtbar,
   NF_PLAN_TEILE, NF_STAB_ROLLEN, NF_UEBUNGSARTEN, NF_KRITIKALITAET } = M;
 
 /* ── 1) Das Modell kennt keinen Browser ── */
@@ -103,6 +104,20 @@ ok(p.hinweise.some(h => /Nie geübt/.test(h)), 'Eine verworfene Übung zählt ni
 ok(nfLetzteUebung([{ art: 'uebung', prozess: 'HOL:a', datum: '2025-01-01' }, { art: 'uebung', prozess: 'HOL:a', datum: '2026-01-01' }], 'HOL', 'a').datum === '2026-01-01',
   'Die letzte Übung ist die neueste');
 ok(nfUebungFaellig(null) && nfUebungFaellig({ datum: alt }) && !nfUebungFaellig({ datum: frisch }), 'Fällig: nie oder zu alt');
+
+/* ── 4b) Das Werk am Asset – die ISMS-Liste trägt es ── */
+ok(nfAssetPasst({ werke: [] }, 'HOL') && nfAssetPasst({ werke: ['ALLE'] }, 'HOL') && nfAssetPasst({ werke: ['HOL', 'WGC'] }, 'HOL'),
+  'Ohne Werk, konzernweit oder mit dem eigenen Werk: passt');
+ok(!nfAssetPasst({ werke: ['WGC'] }, 'HOL') && nfAssetPasst({ werke: ['WGC'] }, 'KONZERN'), 'Ein WGC-Asset passt nicht zu HOL – auf Konzern-Ebene passt alles');
+ok(nfAssetFremd({ werke: ['WGC'] }, 'HOL') && !nfAssetFremd({ werke: [] }, 'HOL') && !nfAssetFremd({ werke: ['ALLE'] }, 'HOL') && !nfAssetFremd({ werke: ['WGC'] }, 'KONZERN'),
+  'Fremd ist nur, was ausdrücklich woanders steht');
+ok(nfAssetSichtbar({ werke: ['WGC'] }, null) && nfAssetSichtbar({ werke: [] }, ['HOL']) && nfAssetSichtbar({ werke: ['WGC', 'HOL'] }, ['HOL']) && !nfAssetSichtbar({ werke: ['WGC'] }, ['HOL']),
+  'Die Trennung nach Gesellschaft gilt auch für Assets – ohne Werk bleibt es sichtbar');
+p = nfPruefung(hoch({ assets: [{ id: '1', title: 'Leitstand', werke: ['WGC'] }] }), { werk: 'HOL' });
+ok(p.fehler.length === 0 && p.hinweise.some(h => /„Leitstand" steht laut Asset-Liste in WGC, nicht in HOL/.test(h)),
+  'Ein Asset aus einem anderen Werk: Hinweis, keine Lücke – echte Abhängigkeit oder Pflegefehler');
+ok(nfBcmVon({ bcm: { assets: [{ id: '1', title: 'x', werke: ['WGC', 7] }] } }).assets[0].werke.join(',') === 'WGC,7', 'Die Werke bleiben am Asset-Link erhalten');
+ok(nfBcmVon({ bcm: { assets: [{ id: '1', title: 'x' }] } }).assets[0].werke.length === 0, 'Ein alter Link ohne Werke bleibt gültig');
 
 /* ── 5) Der Krisenstab ── */
 ok(nfStabLuecken(null).length === 1 && /Kein Krisenstab/.test(nfStabLuecken(null)[0]), 'Ohne Stab: eine Lücke');
@@ -186,6 +201,8 @@ const teil2 = hb.slice(hb.indexOf('2 · Kritische'));
 ok(teil2.indexOf('Aufträge abwickeln') < teil2.indexOf('>Personal<'), 'Aufträge (4 h) vor Personal (72 h) – nach RTO');
 ok(!/Strategie/.test(hb.slice(hb.indexOf('2 · '))) && !/Unbewertet/.test(hb.slice(hb.indexOf('2 · '))), 'Niedrig und unbewertet stehen nicht im Handbuch');
 ok(/Netz.*Wiederherstellung 8 h/.test(hb), 'Die Wiederherstellzeit der Assets steht dabei');
+const hbW = nfHandbuchHtml({ werk: 'HOL', karte: { kacheln: [{ id: 'a', name: 'A', bcm: { kritikalitaet: 'hoch', rto: 1, rpo: 1, assets: [{ id: '9', title: 'Ofen', werke: ['WGC'] }] } }] }, stab: null, assetRto: {}, uebungen: [] });
+ok(/Ofen <span class="muted">\[WGC\]<\/span>/.test(hbW), 'Das Werk des Assets steht im Handbuch');
 ok(/nicht haltbar/.test(hb), 'Die Lücke steht auch im Ausdruck – ein Handbuch, das lügt, hilft nicht');
 ok(/window\.print\(\)/.test(hb) && /class="noprint"/.test(hb), 'Druckknopf, der beim Drucken verschwindet');
 ok(/ohne Strom, Netz und Anmeldung/.test(hb), 'Das Deckblatt sagt, wofür der Ausdruck ist');

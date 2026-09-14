@@ -35,7 +35,19 @@ let _nfUebungen = null;        // Übungen aus dem Wirksamkeits-Register; null =
 let _nfEditing = null;         // { id, bcm, kachelName } im Editor
 let _nfStabEditing = null;
 let _nfAssetWahl = '';         // gewähltes Asset in der Ausfall-Sicht
+let _nfNurWerk = false;        // Ausfall-Sicht: nur Assets dieses Werks und konzernweite
 let _nfFilter = '';
+
+/** Die Assets, die diese Person sehen darf – die Trennung nach Gesellschaft gilt auch hier. */
+function _nfAssetsSichtbar() {
+  const s = _nfSichtbareWerke();
+  return (_nfAssets || []).filter(a => nfAssetSichtbar(a, s));
+}
+function _nfWerkTag(werke) {
+  const w = Array.isArray(werke) ? werke.filter(x => x !== 'ALLE') : [];
+  if (!w.length) return '';
+  return `<span class="ic-tag" style="font-size:.66rem;padding:0 6px" title="Werk laut Asset-Liste">${esc(w.join(', '))}</span>`;
+}
 
 function nfDarfSchreiben() { return typeof canWriteTab !== 'function' || canWriteTab('notfall'); }
 function nfHeute() { return new Date().toISOString().slice(0, 10); }
@@ -76,6 +88,14 @@ function _nfAssetsLaden() {
 
 /** Nach dem Laden der Assets die Stellen nachzeichnen, die sie zeigen. */
 function nfAssetsNeu() {
+  // Links aus der Zeit vor dem Werksbezug tragen kein Werk – im Editor nachziehen.
+  if (_nfEditing && Array.isArray(_nfAssets)) {
+    for (const a of _nfEditing.bcm.assets) {
+      if (a.werke && a.werke.length) continue;
+      const f = _nfAssets.find(x => String(x.id) === a.id);
+      if (f && Array.isArray(f.werke)) a.werke = f.werke.slice();
+    }
+  }
   const el = document.getElementById('nf-assets');
   if (el && _nfEditing) el.innerHTML = _nfAssetsHtml();
   if (_nfModus === 'ausfall') renderNotfall();
@@ -218,9 +238,18 @@ function _nfBiaHtml(schreiben) {
 
 function _nfAusfallHtml() {
   const werke = _nfSichtbareWerke();
-  const traeger = nfAssetTraeger(_lkDaten, werke);
+  const alleTraeger = nfAssetTraeger(_lkDaten, werke);
+  // Das Werk am Asset: aus der Liste, ersatzweise aus dem gespeicherten Link.
+  const werkeVon = (id) => {
+    const a = (_nfAssets || []).find(x => String(x.id) === id);
+    if (a && Array.isArray(a.werke) && a.werke.length) return a.werke;
+    const t = alleTraeger.find(x => x.id === id);
+    return (t && t.werke) || [];
+  };
+  const passt = (id) => !_nfNurWerk || nfAssetPasst({ werke: werkeVon(id) }, _lkWerk);
+  const traeger = alleTraeger.filter(t => nfAssetSichtbar({ werke: werkeVon(t.id) }, werke) && passt(t.id));
   const bekannt = new Map(traeger.map(t => [t.id, t.title]));
-  for (const a of (_nfAssets || [])) if (!bekannt.has(String(a.id))) bekannt.set(String(a.id), a.title);
+  for (const a of _nfAssetsSichtbar()) if (!bekannt.has(String(a.id)) && passt(String(a.id))) bekannt.set(String(a.id), a.title);
   const optionen = [...bekannt.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'de'));
   const rto = nfDaten().assetRto;
   const schreiben = nfDarfSchreiben();
@@ -234,7 +263,7 @@ function _nfAusfallHtml() {
       ? _risks.filter(x => (x.assets || []).some(a => String(a.id) === _nfAssetWahl) && x.status !== 'geschlossen').length : null;
     treffer = `<div class="item-card" style="margin-bottom:12px">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-        <b style="font-size:1rem">⚡ „${esc(titel)}" fällt aus</b>
+        <b style="font-size:1rem">⚡ „${esc(titel)}" fällt aus</b> ${_nfWerkTag(werkeVon(_nfAssetWahl))}
         <span class="field-hint">Wiederherstellung: ${r ? `<b>${esc(r)}</b>` : 'nicht gepflegt'}</span>
         ${risiken !== null && risiken ? `<span class="field-hint">· ${risiken} offene(s) Risiko/Risiken im Register</span>` : ''}
         ${schreiben ? `<span style="margin-left:auto;font-size:.8rem">Wiederherstellzeit:
@@ -257,12 +286,17 @@ function _nfAusfallHtml() {
   }
 
   const matrix = traeger.length ? `<div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem">
-    <thead><tr><th>Asset</th><th>Wiederherstellung</th><th>Trägt</th><th>Prozesse (nach RTO)</th></tr></thead>
+    <thead><tr><th>Asset</th><th>Werk</th><th>Wiederherstellung</th><th>Trägt</th><th>Prozesse (nach RTO)</th></tr></thead>
     <tbody>${traeger.map(t => {
       const r = rto[t.id] && nfDauerText(rto[t.id].rto);
       const pr = t.prozesse.slice().sort((a, b) => _nfSortZahl(a.rto) - _nfSortZahl(b.rto));
+      const aw = werkeVon(t.id);
+      // Prozesse, die laut Liste nicht in einem Werk dieses Assets liegen.
+      const fremd = pr.filter(p => nfAssetFremd({ werke: aw }, p.werk));
       return `<tr onclick="_nfAssetWahl='${esc(t.id)}';renderNotfall()" style="cursor:pointer${t.id === _nfAssetWahl ? ';background:var(--c-bg,#f8fafc)' : ''}">
         <td><b>${esc(t.title)}</b></td>
+        <td style="white-space:nowrap">${aw.length ? esc(aw.filter(x => x !== 'ALLE').join(', ') || 'konzernweit') : '<span style="color:var(--c-faint)">–</span>'}${
+          fremd.length ? ` <span style="color:#b45309" title="${esc(fremd.map(p => p.name + ' (' + p.werk + ')').join(', '))} hängen daran, liegen aber in einem anderen Werk">⚠</span>` : ''}</td>
         <td style="white-space:nowrap">${r ? esc(r) : '<span style="color:var(--c-faint)">–</span>'}</td>
         <td style="white-space:nowrap">${t.kritisch > 1 ? `<span style="color:#b91c1c;font-weight:700" title="Single Point of Failure: mehrere kritische Prozesse hängen daran">⚠ ${t.kritisch} kritische</span>`
           : t.kritisch === 1 ? '1 kritischen' : `${t.prozesse.length}`}</td>
@@ -278,7 +312,9 @@ function _nfAusfallHtml() {
         ${optionen.map(([id, t]) => `<option value="${esc(id)}"${id === _nfAssetWahl ? ' selected' : ''}>${esc(t)}${bekannt.has(id) && traeger.some(x => x.id === id) ? '' : ' (ohne Prozess)'}</option>`).join('')}
       </select>
       ${_nfAssetsFehler ? `<span class="field-hint" style="color:#b45309">ISMS-Liste „Assets": ${esc(_nfAssetsFehler)}</span>` : ''}
-      <span class="field-hint">${werke ? 'nur die Werke Ihrer Gesellschaft' : 'über alle Werke'}</span>
+      <label class="ack-check" style="font-weight:500;font-size:.82rem"><input type="checkbox" ${_nfNurWerk ? 'checked' : ''}
+        onchange="_nfNurWerk=this.checked;renderNotfall()"> nur Assets von ${esc(lkWerkLabel(_lkWerk))} und konzernweite</label>
+      <span class="field-hint">${werke ? 'nur die Werke Ihrer Gesellschaft' : 'über alle Werke'} · Werk laut Asset-Liste</span>
     </div>
     ${treffer}
     <div style="font-weight:700;font-size:.9rem;margin:6px 0">Welche Assets tragen wie viele Prozesse?</div>
@@ -482,7 +518,7 @@ function nfAssetUmschalten(id, an) {
   b.assets = b.assets.filter(a => a.id !== key);
   if (an) {
     const f = (_nfAssets || []).find(a => String(a.id) === key);
-    b.assets.push({ id: key, title: (f && f.title) || ('#' + key) });
+    b.assets.push({ id: key, title: (f && f.title) || ('#' + key), werke: (f && Array.isArray(f.werke)) ? f.werke.slice() : [] });
   }
   const el = document.getElementById('nf-assets');
   if (el) el.innerHTML = _nfAssetsHtml();
@@ -510,17 +546,24 @@ function _nfAssetsHtml() {
   };
   const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:center;display:flex;gap:8px">
     <input type="checkbox" ${checked ? 'checked' : ''} onchange="nfAssetUmschalten('${esc(String(a.id))}',this.checked)">
-    <span><b>${esc(a.title)}</b>${a.sub ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}</span>
+    <span><b>${esc(a.title)}</b> ${_nfWerkTag(a.werke)}${nfAssetFremd(a, _lkWerk) ? ' <span style="color:#b45309" title="Steht laut Liste in einem anderen Werk">⚠</span>' : ''}${a.sub ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}</span>
     ${checked ? rtoZeile({ id: String(a.id), title: a.title }) : ''}</label>`;
   let html = '';
   if (_nfAssets === null || (_nfAssets.length === 0 && !_nfAssetsFehler)) html += '<div class="field-hint">Lade Assets aus der ISMS-Liste „Assets" …</div>';
   else if (!loaded.length) html += `<div class="field-hint" style="margin-bottom:4px">${esc(_nfAssetsFehler || 'Keine Assets in der ISMS-Liste „Assets".')}</div>`;
   const loadedIds = new Set(loaded.map(a => String(a.id)));
-  const items = loaded.filter(a => !filter || (a.title + ' ' + (a.sub || '')).toLowerCase().includes(filter));
+  const items = _nfAssetsSichtbar().filter(a => !filter || (a.title + ' ' + (a.sub || '') + ' ' + (a.werke || []).join(' ')).toLowerCase().includes(filter));
   // Gewählte zuerst – die sind das, worum es geht.
   html += items.filter(a => selIds.has(String(a.id))).map(a => row(a, true)).join('');
   if (!filter) html += sel.filter(a => !loadedIds.has(a.id)).map(a => row(a, true)).join('');
-  html += items.filter(a => !selIds.has(String(a.id))).map(a => row(a, false)).join('');
+  // Dann die des eigenen Werks und die konzernweiten; fremde Werke darunter –
+  // wählbar bleiben sie: Ein HOL-Prozess kann an einem Server in WGC hängen.
+  const offen = items.filter(a => !selIds.has(String(a.id)));
+  const eigene = offen.filter(a => nfAssetPasst(a, _lkWerk));
+  const fremde = offen.filter(a => !nfAssetPasst(a, _lkWerk));
+  html += eigene.map(a => row(a, false)).join('');
+  if (fremde.length) html += `<div class="field-hint" style="margin:8px 0 4px;border-top:1px dashed var(--c-border);padding-top:6px">Assets anderer Werke (${fremde.length}) – laut Liste nicht in ${esc(lkWerkLabel(_lkWerk))}:</div>`
+    + fremde.map(a => row(a, false)).join('');
   return html || '<div class="field-hint">Keine Treffer.</div>';
 }
 

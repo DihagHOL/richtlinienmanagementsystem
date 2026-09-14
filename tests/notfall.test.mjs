@@ -70,6 +70,22 @@ ok(/prozess:\s*f\.Prozess \|\| ''/.test(sp) && /Prozess:\s*String\(w\.prozess \|
 ok(/async function _ergaenzeWirkSpalten/.test(sp) && /if \(create\) await _ergaenzeWirkSpalten\(token, siteId\)/.test(sp),
   'Eine schon angelegte Liste bekommt die neuen Spalten – sonst verschluckte _wirkFields sie still');
 
+// Das Werk am Asset – gelesen aus der Liste, tolerant zugeordnet
+const sctx = { console, JSON, STANDORTE: ['HOL', 'SHB', 'WGC', 'ZAI'] };
+sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
+vm.createContext(sctx);
+vm.runInContext(lies('js/sharepoint.js'), sctx);
+const aw = (f) => vm.runInContext(`_assetWerke(${JSON.stringify(f)})`, sctx);
+ok(aw({ Standort: 'WGC' }).werke.join() === 'WGC', 'Spalte „Standort" mit Kürzel');
+ok(aw({ Werk: 'Wittenberge (WGC)' }).werke.join() === 'WGC', 'Ein Kürzel in Klammern trifft auch');
+ok(aw({ Standort: 'WGC; HOL' }).werke.join() === 'WGC,HOL' && aw({ Standorte: ['HOL', 'ZAI'] }).werke.join() === 'HOL,ZAI', 'Aufzählung und Mehrfachwahl');
+ok(aw({ Standort: { LookupValue: 'SHB', LookupId: 3 } }).werke.join() === 'SHB', 'Ein Lookup-Feld ebenso');
+ok(aw({ Standort: 'alle' }).werke.join() === 'ALLE' && aw({ Location: 'Konzern' }).werke.join() === 'ALLE', '„alle" und „Konzern" heißen konzernweit');
+ok(aw({ Standort: 'Holding' }).werke.join() === 'HOL', '„Holding" ist HOL');
+ok(aw({ Standort: 'Berlin' }).werke.length === 0 && aw({ Standort: 'Berlin' }).text === 'Berlin', 'Unbekanntes bleibt als Text – sichtbar, ohne Wirkung');
+ok(aw({}).werke.length === 0 && aw({}).text === '', 'Ohne Spalte: nichts');
+ok(/werke: w\.werke, werkText: w\.text/.test(sp), 'spGetAssets gibt beides mit');
+
 /* ── 5) Das Register: die vierte Satzart ── */
 const W = require(path.join(ROOT, 'js', 'wirksamkeit.js'));
 ok(W.WIRK_ARTEN.uebung && W.WIRK_ARTEN.uebung.icon === '🚨' && /A\.5\.30/.test(W.WIRK_ARTEN.uebung.norm), 'WIRK_ARTEN kennt die Notfallübung');
@@ -153,7 +169,8 @@ const ctx = {
   lkSpeichern: async (m, was, reiter) => { gespeichert.push([m, was, reiter]); return true; },
   // Register / SharePoint
   spGetWirkLeise: async () => [{ id: '9', art: 'uebung', prozess: 'HOL:auftraege', datum: '2026-08-01', status: 'abgeschlossen', uebungsart: 'stabsuebung', titel: 'Übung SAP' }],
-  spGetAssets: async () => [{ id: '1', title: 'SAP', sub: 'ERP' }, { id: '2', title: 'Netz', sub: '' }],
+  spGetAssets: async () => [{ id: '1', title: 'SAP', sub: 'ERP', werke: ['ALLE'] }, { id: '2', title: 'Netz', sub: '', werke: ['HOL'] },
+    { id: '3', title: 'Leitstand WGC', sub: 'OT', werke: ['WGC'] }],
   wirkUebungFuer: (ziel, name, werk, danach) => { ctx.__uebung = { ziel, name, werk, danach }; },
   openWirkEditor: () => {}, wirkAbschlussfehler: () => [],
   module: { exports: {} },
@@ -188,6 +205,11 @@ ok(reihe.join(',') === 'IT,Aufträge abwickeln', `Betroffen in Wiederherstell-Re
 ok((out.match(/⚠ nicht haltbar/g) || []).length === 2, 'Beide als nicht haltbar markiert – SAP braucht 8 h');
 ok(/⚠ 2 kritische/.test(out), 'Die Trägertabelle nennt den Single Point of Failure');
 ok(/Netz.*\(ohne Prozess\)/.test(out), 'Ein Asset ohne Prozess steht in der Auswahl – markiert');
+ok(/<th>Werk<\/th>/.test(out) && /nur Assets von HOL und konzernweite/.test(out), 'Die Trägertabelle hat eine Werk-Spalte, die Sicht einen Werk-Filter');
+vm.runInContext("_nfNurWerk = true; renderNotfall()", ctx);
+ok(!/Leitstand WGC/.test(mounts['notfall-mount'].innerHTML), 'Mit Filter fällt das WGC-Asset aus der Auswahl');
+vm.runInContext("_nfNurWerk = false; renderNotfall()", ctx);
+ok(/Leitstand WGC/.test(mounts['notfall-mount'].innerHTML), 'Ohne Filter ist es wieder da');
 
 // Krisenstab
 vm.runInContext("nfSetModus('krisenstab')", ctx);
@@ -221,15 +243,21 @@ ok(modal && /🚨 Personal/.test(modal) && /Business-Impact-Analyse/.test(modal)
   'Der Editor: BIA, Assets, Plan, Übungen in einem');
 ok(/Kritikalität nicht bewertet/.test(modal), 'Die Lücke steht oben');
 ok(/Netz/.test(modal) && /SAP/.test(modal), 'Die Assets aus der ISMS-Liste stehen zur Wahl');
+ok(/Assets anderer Werke \(1\)/.test(modal) && modal.indexOf('Leitstand WGC') > modal.indexOf('Assets anderer Werke'),
+  'Das WGC-Asset steht unter „Assets anderer Werke" – wählbar, aber nicht vorne');
+ok(modal.indexOf('>Netz<') < modal.indexOf('Assets anderer Werke') && /title="Werk laut Asset-Liste">HOL</.test(modal),
+  'Das HOL-Asset steht vorne, mit seinem Werk als Tag');
 vm.runInContext("nfKritSetzen('hoch')", ctx);
 await vm.runInContext('nfKachelSpeichern()', ctx);
 ok(gespeichert.length === nachStab && gemeldet.some(([t, a]) => a === 'error' && /R093/.test(t)), 'Kritikalität „hoch" ohne RTO/RPO: nicht gespeichert, R093 genannt');
 ok(!daten.karten.HOL.kacheln[2].bcm, 'Die Kachel blieb unberührt');
-vm.runInContext("_nfEditing.bcm.rto = 8; _nfEditing.bcm.rpo = 4; nfAssetUmschalten('2', true)", ctx);
+vm.runInContext("_nfEditing.bcm.rto = 8; _nfEditing.bcm.rpo = 4; nfAssetUmschalten('2', true); nfAssetUmschalten('3', true)", ctx);
+ok(/steht laut Asset-Liste in WGC, nicht in HOL/.test(vm.runInContext('_nfLueckenHtml()', ctx)), 'Der Editor nennt das fremde Asset als Hinweis');
 await vm.runInContext('nfKachelSpeichern()', ctx);
 ok(gespeichert.length === nachStab + 1 && gespeichert[nachStab][2] === 'notfall' && /Kritikalität – → hoch/.test(gespeichert[nachStab][1]), 'Mit RTO und RPO: gespeichert, mit Vermerk');
 const k3 = daten.karten.HOL.kacheln[2];
 ok(k3.bcm && k3.bcm.kritikalitaet === 'hoch' && k3.bcm.rto === 8 && k3.bcm.assets[0].id === '2' && k3.bcm.standAm, 'Die BIA hängt an der Kachel, mit Stand');
+ok(k3.bcm.assets[0].werke.join(',') === 'HOL' && k3.bcm.assets[1].werke.join(',') === 'WGC', 'Und das Werk des Assets wird mitgespeichert – das Handbuch braucht die Liste dann nicht');
 ok(!k3.bcm.plan.standAm, 'Der Plan blieb leer – und bekam deshalb keinen Stand');
 ok(/Lücke\(n\) bleiben/.test(gespeichert[nachStab][0]), 'Die Meldung sagt, dass Lücken bleiben');
 
