@@ -21,7 +21,7 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
 
 const A = require(path.join(ROOT, 'js', 'assetmodell.js'));
-const { amVon, amKurz, amKategorien, amZusatzfelder, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
+const { amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
   amAbhaengige, amVoraussetzungen, amKreis, amSichtbar, amKennzahlen, amInventarHtml, AM_KATEGORIEN_STANDARD, AM_SCHUTZBEDARF, AM_VORLAUF_TAGE } = A;
 
 /* ── 1) Kein Browser ── */
@@ -44,6 +44,10 @@ ok(amKategorien({ assetKategorien: [{ key: 'Roboter 1', label: 'Roboter' }, { ke
 const zf = amZusatzfelder({ assetZusatzfelder: [{ label: 'Inventarnummer', typ: 'text', pflicht: true }, { label: 'Raum', typ: 'auswahl', optionen: 'EG; OG' }, { label: 'Wartung', typ: 'unsinn' }, { label: '' }, { label: 'Inventarnummer' }] });
 ok(zf.length === 3 && zf[0].key === 'inventarnummer' && zf[0].pflicht === true, 'Zusatzfelder: Schlüssel aus dem Namen, Pflicht bleibt, Doppeltes fällt weg');
 ok(zf[1].optionen.join() === 'EG,OG' && zf[2].typ === 'text', 'Optionen aufgeteilt, unbekannter Typ wird Text');
+
+ok(amKategorieKey('Server') === 'server' && amKategorieKey('Server / Datenbank') === 'server' && amKategorieKey('server') === 'server' && amKategorieKey('Roboter') === 'Roboter' && amKategorieKey('') === '',
+  'Eine Beschriftung aus der Liste findet ihren Schlüssel; Unbekanntes bleibt Text');
+ok(amLuecken({ titel: 'X', kategorie: 'Information / Daten' }).fehler.some(x => /Klassifizierung fehlt/.test(x)), 'Auch als Beschriftung: eine Information verlangt Klassifizierung');
 
 /* ── 4) Die Vererbung ── */
 ok(amSollVerfuegbarkeit([{ kritikalitaet: 'hoch' }]) === 'sehr hoch' && amSollVerfuegbarkeit([{ kritikalitaet: 'mittel' }]) === 'hoch'

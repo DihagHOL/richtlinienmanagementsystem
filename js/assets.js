@@ -4,9 +4,14 @@
  * Reiter „Assetregister" – die Ansicht
  * ====================================
  * Das Modell steht in `js/assetmodell.js`, die Liste in `js/sharepoint.js`
- * (Assetregister auf der ISMS-Site). Hier ist nur, was den Browser braucht:
- * Tabelle mit Filtern, Editor, Import aus der alten Liste „Assets", CSV und
- * das gedruckte Inventar (A.5.9 will es vorzeigbar).
+ * (die Liste „Assets" auf der ISMS-Site – dieselbe, die es schon gab, jetzt
+ * geführt statt nur gelesen). Hier ist nur, was den Browser braucht: Tabelle
+ * mit Filtern, Editor, CSV und das gedruckte Inventar (A.5.9 will es vorzeigbar).
+ *
+ * Die Spalten: Was die Liste schon hat, wird tolerant gelesen (Typ statt
+ * Kategorie, Owner statt Verantwortlich, ein einzelner Schutzbedarf für alle
+ * drei Ziele). Was fehlt, nennt der Reiter mit Typ – anlegen kann man es in
+ * SharePoint selbst oder auf Knopfdruck hier. Nie still.
  *
  * Was das Register mit dem Rest verbindet, ohne dass hier etwas doppelt
  * gespeichert würde:
@@ -25,13 +30,12 @@ let _amFilter = { q: '', werk: '', kategorie: '', verf: '', status: '' };
 let _amMembers = null;
 let _amLandkarte = null;       // Landkarte-Daten (nur lesen) – wer hängt an welchem Asset?
 let _amRisiken = null;         // Risiken (leise) – welche verweisen auf das Asset?
-let _amAlt = null;             // die alte ISMS-Liste „Assets" – für den Import
 
 function amDarfSchreiben() { return typeof canWriteTab !== 'function' || canWriteTab('assets'); }
 function _amCfg() { return (typeof getAccessConfig === 'function') ? getAccessConfig() : {}; }
 function _amKats() { return amKategorien(_amCfg()); }
 function _amFelder() { return amZusatzfelder(_amCfg()); }
-function _amKat(key) { return _amKats().find(k => k.key === key) || null; }
+function _amKat(key) { const k = amKategorieKey(key, _amKats()); return _amKats().find(x => x.key === k) || null; }
 function _amName(upn) {
   const u = String(upn || '').trim();
   const t = (_amMembers || []).find(m => String(m.upn || '').toLowerCase() === u.toLowerCase());
@@ -72,14 +76,14 @@ async function initAssets() {
     _am = await spGetAssetRegister();
   } catch (e) {
     _am = null; _amLoading = false;
-    const ismsUrl = (typeof spIsmsSiteUrl === 'function') ? spIsmsSiteUrl() : 'https://dihag.sharepoint.com/sites/ISMS';
+    const listUrl = (typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : 'https://dihag.sharepoint.com/sites/ISMS/Lists/Assets/AllItems.aspx';
     const cols = (typeof ASSET_COLUMNS !== 'undefined') ? ASSET_COLUMNS : [];
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Register nicht ladbar:</b> ${esc(e.message)}
-      <div style="margin-top:10px">Die Liste „Assetregister" liegt wie Risiken und Wirksamkeit auf der <b>ISMS-Site</b>
-        <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim ersten Zugriff an –
+      <div style="margin-top:10px">Das Register ist die Liste <b>„Assets"</b> auf der ISMS-Site:
+        <a href="${esc(listUrl)}" target="_blank" rel="noopener">${esc(listUrl)}</a>. Gibt es sie nicht, legt die App sie beim ersten Zugriff an –
         dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
-      <div style="margin-top:8px"><b>Manuell anlegen:</b> „+ Neu" → „Liste" → Name <code>Assetregister</code>, dann diese Spalten:</div>
+      <div style="margin-top:8px"><b>Erwartete Spalten</b> (Name genau so, Typ):</div>
       <div style="margin-top:8px;line-height:1.9">${cols.map(c => `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ')}</div></div>`;
     return;
   }
@@ -111,7 +115,7 @@ function _amGefiltert() {
       Object.values(a.zusatz).join(' ')].join(' ').toLowerCase().includes(q));
   }
   if (f.werk) rows = rows.filter(a => a.werke.includes(f.werk) || a.werke.includes('ALLE'));
-  if (f.kategorie) rows = rows.filter(a => a.kategorie === f.kategorie);
+  if (f.kategorie) rows = rows.filter(a => amKategorieKey(a.kategorie, _amKats()) === f.kategorie);
   if (f.verf) rows = rows.filter(a => a.verfuegbarkeit === f.verf);
   if (f.status) rows = rows.filter(a => a.status === f.status);
   else rows = rows.filter(a => a.status !== 'außer Betrieb');
@@ -153,7 +157,7 @@ function renderAssets() {
       const l = amLuecken(a, { prozesse: pr, heute: _amHeute() });
       return `<tr onclick="openAssetEditor('${esc(a.id)}')" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
         <td><b>${esc(a.titel)}</b>${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${a.abhaengigVon.length ? `<div style="font-size:.68rem;color:var(--c-faint)">↳ hängt an ${a.abhaengigVon.length} Asset(s)</div>` : ''}</td>
-        <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : '<span style="color:#b45309">–</span>'}</td>
+        <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : '<span style="color:#b45309">–</span>')}</td>
         <td style="white-space:nowrap">${a.werke.length ? (a.werke.includes('ALLE') ? 'konzernweit' : esc(a.werke.join(', '))) : '<span style="color:#b45309">–</span>'}</td>
         <td style="color:var(--c-muted)">${a.verantwortlich ? esc(_amName(a.verantwortlich)) : '<span style="color:#b91c1c">–</span>'}</td>
         <td>${_amSb(a.vertraulichkeit)}</td><td>${_amSb(a.integritaet)}</td><td>${_amSb(a.verfuegbarkeit)}</td>
@@ -173,7 +177,14 @@ function renderAssets() {
       Verfügbarkeit nach BSI), <b>Klassifizierung</b> (A.5.12), Werk, Wiederherstellzeit, Abhängigkeiten, Lebenszyklus und Lieferant.
       Risiken und Notfallpläne verweisen hierher – die Wiederherstellzeit hier ist die Zahl, an der jede Prozess-RTO hängt.
     </div>
-    ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>⚠ In der Liste „Assetregister" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')}</div>` : ''}
+    ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
+      <b>⚠ In der Liste „Assets" fehlen ${missing.length} von ${(typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).length} erwarteten Spalten</b> – was dort nicht steht, kann die App nicht speichern:
+      <div style="margin-top:6px;line-height:1.9">${missing.map(n => { const c = (typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).find(x => x.name === n); return `<code>${esc(n)}</code> <span style="color:var(--c-muted)">(${esc(c ? c.typ : '')})</span>`; }).join(' · ')}</div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a href="${esc((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Liste in SharePoint öffnen ↗</a>
+        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="assetsSpaltenAnlegen()" title="Legt genau diese Spalten mit diesen Typen an – nichts Vorhandenes wird verändert">Fehlende Spalten jetzt anlegen</button>` : ''}
+        <span class="field-hint">Vorhandene Spalten mit anderen Namen (Typ, Owner, Schutzbedarf, RTO …) werden zum Lesen weiter erkannt.</span>
+      </div></div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi(z.aktiv, 'Assets aktiv', '#17509e')}
       ${kpi(z.ohneVerantwortlichen, 'ohne Verantwortlichen', z.ohneVerantwortlichen ? '#b91c1c' : '#15803d')}
@@ -201,8 +212,8 @@ function renderAssets() {
       <div style="flex:1"></div>
       <button class="btn btn-outline btn-sm" onclick="assetsExportCsv()">⬇ CSV</button>
       <button class="btn btn-outline btn-sm" onclick="assetsInventarDrucken()" title="Das Inventar als PDF – der Nachweis zu A.5.9">🖨 Inventar</button>
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="assetsImportIsms()" title="Einträge der alten ISMS-Liste „Assets" übernehmen, die hier noch fehlen">⬇ Aus ISMS-Liste</button>
-        <button class="btn btn-primary btn-sm" onclick="openAssetEditor(null)">+ Asset</button>` : ''}
+      <a href="${esc((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Dieselbe Liste in SharePoint">↗ SharePoint</a>
+      ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openAssetEditor(null)">+ Asset</button>` : ''}
     </div>
     ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf dieses Register.</div>'}
     ${table}`;
@@ -326,7 +337,7 @@ function renderAssetEditor() {
         <div class="form-group full"><label>Bezeichnung <span class="req">*</span></label>
           <input type="text" value="${esc(a.titel)}" oninput="amSet('titel',this.value)" placeholder="z. B. SAP S/4HANA, Leitstand Gießerei 2, Kundenstammdaten"${ro}></div>
         <div class="form-group"><label>Kategorie <span class="req">*</span></label>
-          <select onchange="amSet('kategorie',this.value)"${ro}><option value=""${!a.kategorie ? ' selected' : ''}>– wählen –</option>${kats.map(k => `<option value="${esc(k.key)}"${a.kategorie === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}</select>
+          <select onchange="amSet('kategorie',this.value)"${ro}><option value=""${!a.kategorie ? ' selected' : ''}>– wählen –</option>${kats.map(k => `<option value="${esc(k.key)}"${amKategorieKey(a.kategorie, kats) === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}${a.kategorie && !kats.some(k => k.key === amKategorieKey(a.kategorie, kats)) ? `<option value="${esc(a.kategorie)}" selected>${esc(a.kategorie)} (aus der Liste)</option>` : ''}</select>
           <span class="field-hint">Nach BSI-Strukturanalyse; die Liste ist in den Einstellungen änderbar.</span></div>
         <div class="form-group"><label>Status</label>
           <select onchange="amSet('status',this.value)"${ro}>${AM_STATUS.map(v => `<option value="${esc(v)}"${a.status === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
@@ -401,7 +412,7 @@ function renderAssetEditor() {
       <div style="font-size:.85rem">
         <div><b>Prozesse:</b> ${pr.length ? pr.map(p => `${esc(p.name)} <span class="field-hint">(${esc(p.werk)}${p.kritikalitaet ? ', ' + esc(p.kritikalitaet) : ''})</span>`).join(' · ') : '<span class="field-hint">keiner – in der Business-Impact-Analyse (Notfall-Reiter) zuordnen</span>'}</div>
         <div style="margin-top:4px"><b>Risiken:</b> ${ri.length ? ri.map(r => esc(r.titel)).join(' · ') : '<span class="field-hint">keine offenen</span>'}</div>
-        ${a.quelleId ? `<div style="margin-top:4px" class="field-hint">Übernommen aus der ISMS-Liste „Assets" (Id ${esc(a.quelleId)}).</div>` : ''}
+        ${a.url ? `<div style="margin-top:4px" class="field-hint"><a href="${esc(a.url)}" target="_blank" rel="noopener" style="color:var(--c-primary)">In SharePoint öffnen ↗</a></div>` : ''}
       </div>
       ${histRows ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)"><div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verlauf</div>${histRows}</div>` : ''}
     </div>
@@ -465,31 +476,24 @@ async function deleteAsset(id) {
   } catch (e) { toast('Löschen fehlgeschlagen: ' + e.message, 'error'); }
 }
 
-/* ── Import aus der alten ISMS-Liste „Assets" ── */
+/* ── Fehlende Spalten anlegen – auf Knopfdruck, nie still ── */
 
-async function assetsImportIsms() {
-  if (!amDarfSchreiben()) return;
-  let alt;
-  try { alt = await spGetAssets(); }
-  catch (e) { toast('ISMS-Liste „Assets" nicht lesbar: ' + e.message, 'error'); return; }
-  const da = new Set((_am || []).map(amVon).map(a => a.quelleId).filter(Boolean));
-  const titel = new Set((_am || []).map(amVon).map(a => a.titel.toLowerCase()));
-  const neu = (alt || []).filter(a => !da.has(String(a.id)) && !titel.has(String(a.title || '').toLowerCase()));
-  if (!neu.length) { toast(alt && alt.length ? 'Alles schon übernommen.' : 'Die ISMS-Liste „Assets" ist leer.', 'success'); return; }
+async function assetsSpaltenAnlegen() {
+  if (!amDarfSchreiben() || typeof spErgaenzeAssetSpalten !== 'function') return;
+  const missing = (typeof spMissingAssetColumns === 'function') ? spMissingAssetColumns() : [];
+  if (!missing.length) { toast('Alle erwarteten Spalten sind da.', 'success'); return; }
   const ok = (typeof uiConfirm === 'function')
-    ? await uiConfirm(`${neu.length} Asset(s) aus der ISMS-Liste „Assets" übernehmen? Titel, Werk und Kurzbeschreibung werden übernommen; Schutzbedarf, Verantwortliche und Zeiten sind danach zu pflegen.`,
-        { title: 'Import', okLabel: `${neu.length} übernehmen` })
-    : confirm(`${neu.length} übernehmen?`);
+    ? await uiConfirm(`${missing.length} Spalte(n) in der Liste „Assets" anlegen?\n\n${missing.join(', ')}\n\nVorhandene Spalten und Einträge werden nicht verändert.`,
+        { title: 'Spalten anlegen', okLabel: `${missing.length} anlegen` })
+    : confirm(`${missing.length} Spalten anlegen?`);
   if (!ok) return;
-  let n = 0;
-  for (const a of neu) {
-    const d = amVon({ titel: a.title, werke: a.werke || [], standort: (a.werke || []).length ? '' : (a.werkText || ''), beschreibung: a.sub || '', quelleId: a.id, status: 'aktiv' });
-    _amVermerk(d, 'aus ISMS-Liste „Assets" übernommen');
-    try { await spAddAsset(d); n++; } catch (e) { console.warn('[assets] Import:', a.title, e.message); }
-  }
-  _am = null;
-  await initAssets();
-  toast(`${n} Asset(s) übernommen`, 'success');
+  try {
+    const r = await spErgaenzeAssetSpalten();
+    if (r.fehler.length) toast(`${r.angelegt.length} angelegt, ${r.fehler.length} nicht: ${r.fehler[0]}`, 'error', 8000);
+    else toast(`${r.angelegt.length} Spalte(n) angelegt ✓`, 'success');
+    _am = null;
+    await initAssets();
+  } catch (e) { toast('Spalten nicht anlegbar: ' + e.message, 'error'); }
 }
 
 /* ── Export, Druck ── */

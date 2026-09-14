@@ -19,7 +19,7 @@ const SP = {
   riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
   exceptionList: 'Ausnahmen',              // Ausnahmeregister (wird bei Bedarf angelegt)
   wirkList:     'Wirksamkeit',             // Audits, Managementbewertung, Korrekturmaßnahmen
-  assetRegList: 'Assetregister',           // eigenes Asset-Inventar (A.5.9), wird bei Bedarf angelegt
+  assetRegList: 'Assets',                  // das Asset-Inventar (A.5.9) – dieselbe Liste, jetzt geführt statt nur gelesen
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
 
   // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
@@ -2935,12 +2935,14 @@ async function spGetAssets() {
 
 
 /* ═══════════════════════════════════════════════════
-   Assetregister – die eigene Liste (ISMS-Site, wird bei Bedarf angelegt)
-   =====================================================================
-   Die fremde Liste „Assets" bleibt lesbar (Import); geführt wird ab jetzt hier.
-   Gleiche Mechanik wie Risiken/Ausnahmen/Wirksamkeit: spaltentolerantes
-   Schreiben, fehlende Spalten werden nachgezogen. Was das Modell nicht als
-   Spalte kennt, liegt als JSON (Zusatzfelder aus den Einstellungen).
+   Assetregister – die Liste „Assets" auf der ISMS-Site, geführt statt nur gelesen
+   ==============================================================================
+   Es gibt die Liste schon; sie wird nicht verdoppelt. Die App liest, was da
+   ist (auch unter älteren Spaltennamen), und schreibt in die Spalten, die es
+   gibt. Welche sie erwartet, steht in ASSET_COLUMNS – der Reiter nennt die
+   fehlenden mit Typ, und legt sie NUR auf Knopfdruck an, nie still: Die Liste
+   gehört dem Haus, nicht der App. Was das Modell nicht als Spalte kennt, liegt
+   als JSON (Zusatzfelder aus den Einstellungen).
 ═══════════════════════════════════════════════════ */
 const ASSET_COLUMNS = [
   { name: 'Kategorie',        typ: 'Einzelne Textzeile' },
@@ -2968,9 +2970,11 @@ const ASSET_COLUMNS = [
   { name: 'Vertragsende',     typ: 'Datum und Uhrzeit' },
   { name: 'Tags',             typ: 'Einzelne Textzeile' },
   { name: 'ZusatzJson',       typ: 'Mehrere Zeilen Text' },  // Zusatzfelder aus den Einstellungen
-  { name: 'QuelleId',         typ: 'Einzelne Textzeile' },   // Id in der alten Liste „Assets"
   { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
 ];
+
+/** Gibt es diese Spalte in der Liste? (null = noch nicht geladen → optimistisch ja) */
+function spAssetSpalteDa(name) { return !_assetCols || _assetCols.has(name); }
 
 let _assetCols = null;
 
@@ -2981,19 +2985,28 @@ async function _loadAssetCols(token, siteId) {
   } catch (e) { _assetCols = null; }
 }
 
-/** Fehlende Spalten anlegen – wer das Recht nicht hat, bekommt die Warnung im Reiter; nichts bricht. */
-async function _ergaenzeAssetSpalten(token, siteId) {
-  if (!_assetCols) return;
-  const fehlend = ASSET_COLUMNS.filter(c => !_assetCols.has(c.name));
-  if (!fehlend.length) return;
-  let angelegt = 0;
+/**
+ * Fehlende Spalten anlegen – ausdrücklich, auf Knopfdruck im Reiter. Wer das
+ * Recht nicht hat, bekommt die Fehlermeldung; die Liste bleibt, wie sie war.
+ * @returns {Promise<{angelegt:string[], fehler:string[]}>}
+ */
+async function spErgaenzeAssetSpalten() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureAssetRegister(false);
+  if (!listId) throw new Error('Liste „Assets" nicht gefunden.');
+  const siteId = await _ismsSiteId(token);
+  if (!_assetCols) await _loadAssetCols(token, siteId);
+  const fehlend = ASSET_COLUMNS.filter(c => !_assetCols || !_assetCols.has(c.name));
+  const angelegt = [], fehler = [];
   for (const c of fehlend) {
     try {
-      await _post(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) });
-      angelegt++;
-    } catch (e) { console.warn('[assets] Spalte nicht anlegbar:', c.name, e.message); }
+      await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) });
+      angelegt.push(c.name);
+    } catch (e) { fehler.push(`${c.name}: ${e.message}`); }
   }
-  if (angelegt) await _loadAssetCols(token, siteId);
+  await _loadAssetCols(token, siteId);
+  return { angelegt, fehler };
 }
 
 async function spEnsureAssetRegister(create = true) {
@@ -3010,7 +3023,6 @@ async function spEnsureAssetRegister(create = true) {
       if (hit) {
         _sp.assetRegListId = hit.id;
         await _loadAssetCols(token, siteId);
-        if (create) await _ergaenzeAssetSpalten(token, siteId);
         return _sp.assetRegListId;
       }
       url = r['@odata.nextLink'] || null;
@@ -3034,37 +3046,54 @@ function spMissingAssetColumns() {
 
 const _assetZahl = (v) => { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? '' : n; };
 
+/** Ein Feld, das Text, Auswahl, Mehrfachauswahl, Lookup oder Person sein kann – als Text. */
+function _assetText(v) {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return v.map(_assetText).filter(Boolean).join(', ');
+  if (typeof v === 'object') return String(v.Email || v.LookupValue || v.Label || v.Value || v.Title || v.DisplayName || '');
+  return String(v);
+}
+/** Das erste befüllte von mehreren möglichen Spaltennamen – die Liste hat gewachsene Namen. */
+function _assetErstes(f, namen) {
+  for (const n of namen) { const t = _assetText(f[n]).trim(); if (t) return t; }
+  return '';
+}
+
 function _mapAsset(it) {
   const f = it.fields || {};
-  const werke = String(f.Werke || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+  // Werke: die Spalte „Werke", sonst Standort/Werk/Location tolerant zugeordnet (siehe _assetWerke).
+  const werkeSpalte = _assetText(f.Werke).split(/[;,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+  const werke = werkeSpalte.length ? werkeSpalte : _assetWerke(f).werke;
+  // Ein einzelner „Schutzbedarf" gilt für alle drei Ziele, solange es die drei nicht gibt.
+  const sb = _assetErstes(f, ['Schutzbedarf']);
   const a = {
     id: String(it.id),
-    quelleId:       String(f.QuelleId || ''),
-    titel:          f.Title || '',
-    kategorie:      f.Kategorie || '',
-    beschreibung:   f.Beschreibung || '',
+    quelleId:       '',
+    titel:          f.Title || f.LinkTitle || '',
+    kategorie:      _assetErstes(f, ['Kategorie', 'Typ', 'AssetTyp', 'AssetType', 'Category', 'Type']),
+    beschreibung:   _assetErstes(f, ['Beschreibung', 'Description', 'Bemerkung', 'Kommentar']),
     werke,
-    standort:       f.Standort || '',
-    verantwortlich: f.Verantwortlich || '',
-    vertretung:     f.Vertretung || '',
-    betreiber:      f.Betreiber || '',
-    vertraulichkeit: f.Vertraulichkeit || '',
-    integritaet:    f.Integritaet || '',
-    verfuegbarkeit: f.Verfuegbarkeit || '',
-    klassifizierung: f.Klassifizierung || '',
-    personenbezogen: /^ja$/i.test(String(f.Personenbezogen || '')),
-    status:         f.AStatus || 'aktiv',
-    inbetriebnahme: String(f.Inbetriebnahme || '').slice(0, 10),
-    eol:            String(f.EOL || '').slice(0, 10),
-    wiederherstellung: _assetZahl(f.Wiederherstellung),
-    rpo:            _assetZahl(f.Rpo),
-    backup:         f.Backup || '',
+    standort:       _assetErstes(f, ['Standort', 'Location', 'Raum', 'Gebaeude']),
+    verantwortlich: _assetErstes(f, ['Verantwortlich', 'Owner', 'Eigner', 'Eigentuemer', 'AssetOwner']),
+    vertretung:     _assetErstes(f, ['Vertretung', 'Stellvertreter']),
+    betreiber:      _assetErstes(f, ['Betreiber', 'Operator']),
+    vertraulichkeit: (_assetErstes(f, ['Vertraulichkeit']) || sb).toLowerCase(),
+    integritaet:    (_assetErstes(f, ['Integritaet', 'Integrit_x00e4_t']) || sb).toLowerCase(),
+    verfuegbarkeit: (_assetErstes(f, ['Verfuegbarkeit', 'Verf_x00fc_gbarkeit']) || sb).toLowerCase(),
+    klassifizierung: _assetErstes(f, ['Klassifizierung', 'Classification', 'Klassifikation']).toLowerCase(),
+    personenbezogen: /^(ja|true|1|yes)$/i.test(_assetErstes(f, ['Personenbezogen'])),
+    status:         _assetErstes(f, ['AStatus']) || 'aktiv',
+    inbetriebnahme: _assetErstes(f, ['Inbetriebnahme']).slice(0, 10),
+    eol:            _assetErstes(f, ['EOL', 'SupportEnde']).slice(0, 10),
+    wiederherstellung: _assetZahl(f.Wiederherstellung ?? f.RTO ?? f.Wiederherstellzeit),
+    rpo:            _assetZahl(f.Rpo ?? f.RPO),
+    backup:         _assetErstes(f, ['Backup', 'Datensicherung']),
     abhaengigVon:   _riskParseJson(f.AbhaengigJson, []),
-    hersteller:     f.Hersteller || '',
-    lieferant:      f.Lieferant || '',
-    supportKontakt: f.SupportKontakt || '',
-    vertragsende:   String(f.Vertragsende || '').slice(0, 10),
-    tags:           String(f.Tags || '').split(',').map(x => x.trim()).filter(Boolean),
+    hersteller:     _assetErstes(f, ['Hersteller', 'Manufacturer']),
+    lieferant:      _assetErstes(f, ['Lieferant', 'Dienstleister', 'Supplier', 'Vendor']),
+    supportKontakt: _assetErstes(f, ['SupportKontakt', 'Support', 'Hotline']),
+    vertragsende:   _assetErstes(f, ['Vertragsende', 'Vertragslaufzeit']).slice(0, 10),
+    tags:           _assetText(f.Tags).split(',').map(x => x.trim()).filter(Boolean),
     zusatz:         _riskParseJson(f.ZusatzJson, {}),
     historie:       _riskParseJson(f.HistorieJson, []),
     created:        it.createdDateTime || '',
@@ -3107,7 +3136,6 @@ function _assetFields(a) {
     Vertragsende:   datum(a.vertragsende),
     Tags:           (Array.isArray(a.tags) ? a.tags : []).join(','),
     ZusatzJson:     JSON.stringify(a.zusatz || {}),
-    QuelleId:       String(a.quelleId || '').slice(0, 60),
     HistorieJson:   JSON.stringify(a.historie || []),
   };
   const fields = {};
@@ -3146,17 +3174,10 @@ async function spGetAssetRegisterLeise() {
   return _spAssetRegisterItems(listId, token);
 }
 
-/**
- * Die Assets, wie Risiken und Notfall sie brauchen: aus dem Register, wenn
- * es das gibt – sonst aus der alten ISMS-Liste „Assets", in derselben Form.
- * So bricht vor dem Import nichts, und nach dem Import zählt das Register.
- */
+/** Die Assets, wie Risiken und Notfall sie brauchen – aus der Liste, ohne sie anzulegen; leer, wenn es sie nicht gibt. */
 async function spGetAssetsVereint() {
   const reg = await spGetAssetRegisterLeise();
-  if (Array.isArray(reg)) return reg;
-  const alt = await spGetAssets();
-  return alt.map(a => Object.assign({}, a, { titel: a.title, quelleId: '', wiederherstellung: '', rpo: '', abhaengigVon: [],
-    verfuegbarkeit: '', kategorie: '', status: 'aktiv', quelle: 'isms' }));
+  return Array.isArray(reg) ? reg : [];
 }
 
 async function spAddAsset(a) {

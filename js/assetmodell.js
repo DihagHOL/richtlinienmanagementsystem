@@ -120,6 +120,19 @@ function amKurz(a, kategorien) {
 
 /* ── Einstellungen: Kategorien und Zusatzfelder ── */
 
+/**
+ * Den Schlüssel einer Kategorie finden – auch wenn in der Liste die Beschriftung
+ * steht („Server / Datenbank", „server", „Server"). Unbekanntes bleibt Text.
+ */
+function amKategorieKey(wert, kategorien) {
+  const t = _amText(wert);
+  if (!t) return '';
+  const kats = kategorien || AM_KATEGORIEN_STANDARD;
+  const u = t.toLowerCase();
+  const hit = kats.find(k => k.key === u || k.label.toLowerCase() === u || k.label.toLowerCase().split(/\s*\/\s*/).includes(u));
+  return hit ? hit.key : t;
+}
+
 function amKategorien(cfg) {
   const eigene = cfg && Array.isArray(cfg.assetKategorien) ? cfg.assetKategorien : [];
   const gut = eigene.filter(k => k && _amText(k.key) && _amText(k.label))
@@ -202,7 +215,8 @@ function amLuecken(roh, ctx) {
   const fehlend = [['vertraulichkeit', 'Vertraulichkeit'], ['integritaet', 'Integrität'], ['verfuegbarkeit', 'Verfügbarkeit']].filter(([f]) => !a[f]).map(([, l]) => l);
   if (fehlend.length === 3) fehler.push('Schutzbedarf nicht festgestellt (Vertraulichkeit, Integrität, Verfügbarkeit).');
   else if (fehlend.length) fehler.push(`Schutzbedarf unvollständig: ${fehlend.join(', ')} fehlt.`);
-  if (!a.klassifizierung && (a.kategorie === 'information' || amRang(a.vertraulichkeit) >= 1)) {
+  const katKey = amKategorieKey(a.kategorie, c.kategorien);
+  if (!a.klassifizierung && (katKey === 'information' || amRang(a.vertraulichkeit) >= 1)) {
     fehler.push('Klassifizierung fehlt (A.5.12) – bei Informationen und bei Vertraulichkeit „hoch" Pflicht.');
   }
   // R093: Wer „sehr hoch" verfügbar sein muss, braucht Wiederherstellzeit und RPO.
@@ -223,7 +237,7 @@ function amLuecken(roh, ctx) {
     const n = (c.prozesse || []).filter(p => p.kritikalitaet === 'hoch').length;
     hinweise.push(`Schutzbedarfs-Vererbung: ${n ? `${n} kritische Prozesse hängen daran` : 'Prozesse hängen daran'} → Verfügbarkeit mindestens „${soll}", eingetragen ist „${a.verfuegbarkeit || 'nichts'}".`);
   }
-  if ((a.kategorie === 'cloud' || a.lieferant) && !a.supportKontakt) hinweise.push('Lieferant ohne Support-Kontakt (A.5.19) – wen ruft man nachts an?');
+  if ((katKey === 'cloud' || a.lieferant) && !a.supportKontakt) hinweise.push('Lieferant ohne Support-Kontakt (A.5.19) – wen ruft man nachts an?');
   if (a.personenbezogen && (!a.klassifizierung || a.klassifizierung === 'öffentlich')) hinweise.push('Personenbezogene Daten, aber Klassifizierung fehlt oder „öffentlich".');
   if (a.verfuegbarkeit !== 'sehr hoch' && a.verfuegbarkeit && a.wiederherstellung === '') hinweise.push('Keine Wiederherstellzeit – die Prozesse, die daran hängen, können ihre RTO nicht prüfen.');
   return { fehler, hinweise };
@@ -369,6 +383,6 @@ function amInventarHtml(o) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { AM_KATEGORIEN_STANDARD, AM_SCHUTZBEDARF, AM_KLASSIFIZIERUNG, AM_STATUS, AM_ZUSATZ_TYPEN, AM_VORLAUF_TAGE,
-    amVon, amKurz, amKategorien, amZusatzfelder, amRang, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken,
+    amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken,
     amKanon, amAbhaengige, amVoraussetzungen, amKreis, amSichtbar, amKennzahlen, amInventarHtml };
 }

@@ -985,9 +985,9 @@ function kenntnisEskalationHtml(posten) {
     if (!admins.length) {
       console.log('Asset-Digest: keine Admins in der Config – übersprungen.');
     } else {
-      const liste = await ismsListe('Assetregister');
+      const liste = await ismsListe('Assets');
       if (!liste) {
-        console.log('Asset-Digest: Liste „Assetregister" existiert (noch) nicht – übersprungen.');
+        console.log('Asset-Digest: Liste „Assets" existiert (noch) nicht – übersprungen.');
       } else {
         const AM = _require('../js/assetmodell.js');
         const roh = (await ismsItems(liste.id)).map((f) => ({

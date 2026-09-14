@@ -35,8 +35,11 @@ let _nfAssets = null;          // Assets (Register, ersatzweise alte Liste); nul
 let _nfAssetsFehler = null;
 let _nfAssetIndex = new Map();  // Id → Asset, auch über die Id der alten Liste (quelleId)
 
-/** Kommt das Asset aus dem Register (dann pflegt es die Wiederherstellzeit selbst)? */
-function _nfRegister() { return Array.isArray(_nfAssets) && _nfAssets.length > 0 && _nfAssets.every(a => a.quelle !== 'isms'); }
+/** Trägt die Liste „Assets" die Spalte Wiederherstellung? Dann ist sie die eine Wahrheit – sonst bleibt die Landkarte es. */
+function _nfRegister() {
+  return Array.isArray(_nfAssets) && _nfAssets.length > 0
+    && (typeof spAssetSpalteDa !== 'function' || spAssetSpalteDa('Wiederherstellung'));
+}
 /** Die Id im Register zu einer gespeicherten Id – Links aus der Zeit der alten Liste laufen weiter. */
 function _nfKanon(id) { const a = _nfAssetIndex.get(String(id)); return a ? String(a.id) : String(id); }
 function _nfAssetVon(id) { return _nfAssetIndex.get(String(id)) || null; }

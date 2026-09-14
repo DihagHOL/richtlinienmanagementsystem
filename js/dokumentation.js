@@ -378,7 +378,7 @@ function _dokuSections() {
 
 
     sec('assets', 'Assetregister (Inventar)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Assetregister"</b> ist das Inventar nach <b>ISO 27001 A.5.9</b> – die eigene Liste der App auf der ISMS-Site (wird beim ersten Öffnen angelegt), mit Anlegen, Bearbeiten und Löschen. Bisher las die App eine fremde Liste „Assets" und erriet ihre Spalten; die lässt sich mit <b>„⬇ Aus ISMS-Liste"</b> übernehmen (Titel, Werk, Kurzbeschreibung), alte Verweise aus Risiken und Notfallplänen laufen über die gemerkte Quell-Id weiter.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Assetregister"</b> ist das Inventar nach <b>ISO 27001 A.5.9</b> – die Liste <b>„Assets"</b> auf der ISMS-Site, dieselbe wie bisher, jetzt geführt statt nur gelesen: Anlegen, Bearbeiten, Löschen. Was die Liste schon hat, wird tolerant gelesen (Typ statt Kategorie, Owner statt Verantwortlich, ein einzelner Schutzbedarf für alle drei Ziele). Welche Spalten die App erwartet, nennt der Reiter mit Typ – anlegen kann man sie in SharePoint selbst oder mit <b>„Fehlende Spalten jetzt anlegen"</b>; still legt die App nichts an, die Liste gehört dem Haus. Was in keiner Spalte steht, kann sie nicht speichern.</p>
       <p style="margin:0 0 8px;line-height:1.55">Je Asset das, was ein Auditor fragt und was das Notfallmanagement rechnen muss:</p>
       ${tbl([
         ['Verantwortlich', 'A.5.9 – ein Asset ohne Eigentümer pflegt niemand. Plus Vertretung und Betreiber.'],

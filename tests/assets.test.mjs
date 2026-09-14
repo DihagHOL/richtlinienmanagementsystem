@@ -35,13 +35,15 @@ ok(MODUL_ANSICHTEN.dokumentation.includes('assetmodell'), 'Die Dokumentation bau
 
 /* ── 2) Die Liste ── */
 const sp = lies('js/sharepoint.js');
-ok(/assetRegList: 'Assetregister'/.test(sp) && /const ASSET_COLUMNS = \[/.test(sp), 'Eine eigene Liste mit eigenem Spaltensatz');
-for (const c of ['Kategorie', 'Werke', 'Verantwortlich', 'Vertraulichkeit', 'Integritaet', 'Verfuegbarkeit', 'Klassifizierung', 'Wiederherstellung', 'Rpo', 'AbhaengigJson', 'EOL', 'Vertragsende', 'ZusatzJson', 'QuelleId']) {
+ok(/assetRegList: 'Assets'/.test(sp) && /const ASSET_COLUMNS = \[/.test(sp), 'Das Register IST die Liste „Assets" – keine zweite; die erwarteten Spalten stehen in ASSET_COLUMNS');
+for (const c of ['Kategorie', 'Werke', 'Verantwortlich', 'Vertraulichkeit', 'Integritaet', 'Verfuegbarkeit', 'Klassifizierung', 'Wiederherstellung', 'Rpo', 'AbhaengigJson', 'EOL', 'Vertragsende', 'ZusatzJson']) {
   ok(new RegExp(`\\{ name: '${c}',`).test(sp), `Spalte ${c}`);
 }
-ok(/async function _ergaenzeAssetSpalten/.test(sp) && /if \(create\) await _ergaenzeAssetSpalten\(token, siteId\)/.test(sp), 'Fehlende Spalten werden nachgezogen');
-ok(/async function spGetAssetsVereint/.test(sp) && /const alt = await spGetAssets\(\)/.test(sp), 'Vereint: Register, sonst die alte Liste – nichts bricht vor dem Import');
+ok(!/QuelleId/.test(sp.slice(sp.indexOf('const ASSET_COLUMNS'), sp.indexOf('let _assetCols'))), 'Keine Quell-Id mehr – es ist dieselbe Liste, die Ids stimmen');
+ok(/async function spErgaenzeAssetSpalten/.test(sp) && !/if \(create\) await _ergaenzeAssetSpalten/.test(sp), 'Fehlende Spalten nur auf Knopfdruck – nie still: die Liste gehört dem Haus');
+ok(/function spAssetSpalteDa\(name\)/.test(sp), 'Ob eine Spalte da ist, lässt sich fragen (Notfall braucht das für die Wiederherstellzeit)');
 ok(/assetRegListId: null/.test(sp), 'Die Listen-Id hat ihren Platz');
+ok(/function _assetErstes\(f, namen\)/.test(sp) && /\['Kategorie', 'Typ', 'AssetTyp'/.test(sp) && /\['Verantwortlich', 'Owner', 'Eigner'/.test(sp), 'Gewachsene Spaltennamen werden zum Lesen erkannt');
 
 // _mapAsset / _assetFields: hin und zurück
 const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC'] };
@@ -52,12 +54,17 @@ const gemappt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 12, webUrl: 'u
 ok(gemappt.id === '12' && gemappt.titel === 'SAP' && gemappt.title === 'SAP' && gemappt.werke.join() === 'HOL,WGC', 'Gelesen: Id, Titel (beide Schreibweisen), Werke');
 ok(gemappt.wiederherstellung === 12 && gemappt.rpo === '' && gemappt.abhaengigVon.join() === '3' && gemappt.zusatz.inventarnummer === '4711' && gemappt.personenbezogen === true && gemappt.eol === '2027-03-01', 'Zahlen, JSON, Datum, Ja/Nein');
 ok(/sehr hoch/.test(gemappt.sub) && /HOL, WGC/.test(gemappt.sub), 'Die Kurzzeile für Risiken und Notfall');
+// Was die Liste heute schon hat – Typ, Owner (Person), ein Schutzbedarf, RTO, Standort mit Kürzel
+const alt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 5, fields: { Title: 'Leitstand', Typ: 'OT', Standort: 'Wittenberge (WGC)', Owner: { LookupValue: 'Ben', Email: 'ben@x' }, Schutzbedarf: 'Hoch', RTO: 8, Klassifizierung: 'Intern' } })})`, sctx);
+ok(alt.kategorie === 'OT' && alt.werke.join() === 'WGC' && alt.standort === 'Wittenberge (WGC)' && alt.verantwortlich === 'ben@x', 'Typ, Standort → Werk, Person-Feld → E-Mail');
+ok(alt.vertraulichkeit === 'hoch' && alt.integritaet === 'hoch' && alt.verfuegbarkeit === 'hoch' && alt.wiederherstellung === 8 && alt.klassifizierung === 'intern', 'Ein Schutzbedarf für alle drei, RTO als Wiederherstellzeit');
 const felder = vm.runInContext(`_assetFields(${JSON.stringify(gemappt)})`, sctx);
 ok(felder.Title === 'SAP' && felder.Werke === 'HOL,WGC' && felder.Wiederherstellung === 12 && felder.Rpo === null && felder.AbhaengigJson === '["3"]' && felder.Personenbezogen === 'ja' && felder.EOL === '2027-03-01T00:00:00.000Z',
   'Geschrieben: dieselben Werte, Leeres als null, Datum als ISO');
 
 /* ── 3) Risiken, Notfall, Cockpit, Report, Doku, Cron ── */
-ok(/const lader = \(typeof spGetAssetsVereint === 'function'\) \? spGetAssetsVereint : spGetAssets;/.test(lies('js/risiken.js')), 'Das Risiko-Register wählt Assets aus dem Register');
+ok(/const lader = \(typeof spGetAssetsVereint === 'function'\) \? spGetAssetsVereint : spGetAssets;/.test(lies('js/risiken.js')), 'Das Risiko-Register wählt Assets über denselben Leser');
+ok(/spAssetSpalteDa\('Wiederherstellung'\)/.test(lies('js/notfall.js')), 'Notfall nimmt die Wiederherstellzeit erst dann aus der Liste, wenn die Spalte da ist – sonst ginge sie verloren');
 const nf = lies('js/notfall.js');
 ok(/function _nfKanon\(id\)/.test(nf) && /function _nfAssetRtoMap\(\)/.test(nf) && /function _nfMitAusfall\(id\)/.test(nf), 'Notfall: kanonische Ids, Wiederherstellzeit vom Asset, mitgerissene Assets');
 ok(/await spUpdateAsset\(a\.id, Object\.assign\(\{\}, a, \{ wiederherstellung: h \}\)\)/.test(nf), 'Die Wiederherstellzeit wird ins Register geschrieben – eine Wahrheit');
@@ -66,7 +73,7 @@ ok(/tile\('assets',\s*'🗂', 'Assetregister',\s*'assets'\)/.test(lies('js/cockp
 const cl = lies('js/clevelreport.js');
 ok(/add\('ISO A\.5\.9', 'Inventar der Werte', 'gap'/.test(cl) && /add\('ISO A\.5\.12', 'Klassifizierung von Informationen'/.test(cl), 'Audit Report: A.5.9 und A.5.12');
 const cron = lies('scripts/erinnerungen.mjs');
-ok(/Asset-Digest/.test(cron) && /ismsListe\('Assetregister'\)/.test(cron) && /_require\('\.\.\/js\/assetmodell\.js'\)/.test(cron) && /\?ansicht=assets/.test(cron), 'Der Cron mahnt aus dem Register – mit demselben Modell');
+ok(/Asset-Digest/.test(cron) && /ismsListe\('Assets'\)/.test(cron) && /_require\('\.\.\/js\/assetmodell\.js'\)/.test(cron) && /\?ansicht=assets/.test(cron), 'Der Cron mahnt aus derselben Liste – mit demselben Modell');
 const eins = lies('js/einstellungen.js');
 ok(/seg\('assets', '🗂 Assetregister'\)/.test(eins) && /function _assetsBereichHtml/.test(eins) && /cfgAssetFeldHinzu/.test(eins) && /cfgAssetKatStandard/.test(eins), 'Einstellungen: dritter Bereich mit Zusatzfeldern und Kategorien');
 
@@ -107,12 +114,13 @@ const ctx = {
   spAddAsset: async (a) => { geschrieben.push(['add', a]); ctx.__bestand.push(Object.assign({}, a, { id: String(100 + geschrieben.length) })); return '100'; },
   spUpdateAsset: async (id, a) => { geschrieben.push(['update', id, a]); const i = ctx.__bestand.findIndex(x => String(x.id) === String(id)); if (i >= 0) ctx.__bestand[i] = Object.assign({}, a, { id: String(id) }); },
   spDeleteAsset: async (id) => { geschrieben.push(['delete', id]); ctx.__bestand = ctx.__bestand.filter(x => String(x.id) !== String(id)); },
-  spGetAssets: async () => [{ id: 'a9', title: 'Leitstand Gießerei', sub: 'OT', werke: ['WGC'], werkText: 'WGC' }, { id: 'a1', title: 'SAP S/4', sub: '', werke: [] }],
+  spErgaenzeAssetSpalten: async () => { ctx.__spalten = true; return { angelegt: ['Wiederherstellung', 'Rpo'], fehler: [] }; },
+  spAssetsListUrl: () => 'https://dihag.sharepoint.com/sites/ISMS/Lists/Assets/AllItems.aspx',
   spGetMembers: async () => [{ upn: 'anna@dihag.com', name: 'Anna Muster' }],
   spLoadLandkarte: async () => ({ daten: { karten: { HOL: { kacheln: [{ id: 'auftraege', name: 'Aufträge abwickeln', bcm: { kritikalitaet: 'hoch', rto: 8, assets: [{ id: '1' }, { id: '2' }] } }] } } } }),
   spGetRisks: async () => [{ id: 'r1', titel: 'SAP-Ausfall', status: 'offen', assets: [{ id: '1' }] }],
-  spMissingAssetColumns: () => [],
-  spIsmsSiteUrl: () => 'https://x', ASSET_COLUMNS: [],
+  spMissingAssetColumns: () => ctx.__fehlend || [],
+  spIsmsSiteUrl: () => 'https://x', ASSET_COLUMNS: [{ name: 'Kategorie', typ: 'Einzelne Textzeile' }, { name: 'Wiederherstellung', typ: 'Zahl' }, { name: 'Rpo', typ: 'Zahl' }],
   module: { exports: {} },
 };
 ctx.__bestand = JSON.parse(JSON.stringify(bestand));
@@ -134,7 +142,17 @@ ok(!/Alter Drucker/.test(out), 'Außer Betrieb ist ausgeblendet …');
 vm.runInContext("_amFilter.status = 'außer Betrieb'; renderAssets()", ctx);
 ok(/Alter Drucker/.test(mounts['assets-mount'].innerHTML), '… und mit Filter wieder da');
 vm.runInContext("_amFilter.status = ''; renderAssets()", ctx);
-ok(/⬇ Aus ISMS-Liste/.test(out) && /🖨 Inventar/.test(out) && /⬇ CSV/.test(out) && /\+ Asset/.test(out), 'Import, Inventar, CSV, Anlegen');
+ok(/↗ SharePoint/.test(out) && /🖨 Inventar/.test(out) && /⬇ CSV/.test(out) && /\+ Asset/.test(out) && !/Aus ISMS-Liste/.test(out), 'SharePoint-Link, Inventar, CSV, Anlegen – kein Import mehr, es ist dieselbe Liste');
+ok(!/fehlen .* erwarteten Spalten/.test(out), 'Sind alle Spalten da, steht keine Warnung');
+ctx.__fehlend = ['Wiederherstellung', 'Rpo'];
+vm.runInContext('renderAssets()', ctx);
+out = mounts['assets-mount'].innerHTML;
+ok(/fehlen 2 von \d+ erwarteten Spalten/.test(out) && /<code>Wiederherstellung<\/code> <span[^>]*>\(Zahl\)/.test(out) && /Fehlende Spalten jetzt anlegen/.test(out) && /Lists\/Assets\/AllItems\.aspx/.test(out),
+  'Fehlen Spalten: genannt mit Typ, Link in die Liste, Knopf zum Anlegen – nichts geschieht still');
+await vm.runInContext('assetsSpaltenAnlegen()', ctx);
+await new Promise(r => setTimeout(r, 10));
+ok(ctx.__spalten === true && gemeldet.some(([t]) => /2 Spalte\(n\) angelegt/.test(t)), 'Auf Knopfdruck (nach Bestätigung) werden sie angelegt');
+ctx.__fehlend = [];
 ok(/title="Aufträge abwickeln">1 <span[^>]*>🚨/.test(out), 'Die Spalte Prozesse zählt – und markiert kritische');
 
 // Editor
@@ -166,13 +184,6 @@ vm.runInContext("openAssetEditor('2')", ctx);
 await vm.runInContext("deleteAsset('2')", ctx);
 await new Promise(r => setTimeout(r, 10));
 ok(geschrieben.some(g => g[0] === 'delete' && g[1] === '2'), 'Gelöscht (nach Bestätigung)');
-
-// Import aus der alten Liste
-await vm.runInContext('assetsImportIsms()', ctx);
-await new Promise(r => setTimeout(r, 10));
-const importiert = geschrieben.filter(g => g[0] === 'add' && g[1].quelleId);
-ok(importiert.length === 1 && importiert[0][1].titel === 'Leitstand Gießerei' && importiert[0][1].quelleId === 'a9' && importiert[0][1].werke.join() === 'WGC',
-  'Import: nur, was fehlt – SAP gab es schon (Titel), Leitstand kommt mit Werk und Quell-Id');
 
 // Nur-Lese
 ctx.canWriteTab = () => false;
