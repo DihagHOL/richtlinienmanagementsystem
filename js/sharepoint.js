@@ -2869,36 +2869,17 @@ function _assetSub(f) {
 
 /**
  * Das Werk eines Assets – die Liste trägt es schon, in welcher Spalte auch
- * immer. Gelesen werden die gängigen Namen; der Wert darf Text, Mehrfachwahl
- * (Array), Lookup ({LookupValue}) oder eine Aufzählung „WGC; HOL" sein.
- * Zugeordnet wird tolerant zu den Kürzeln der App (STANDORTE): Ein Wert wie
- * „Wittenberge (WGC)" trifft WGC. „alle", „konzern", „zentral" heißt
- * konzernweit ('ALLE'). Was sich nicht zuordnen lässt, bleibt als Text
- * erhalten – sichtbar, aber ohne Wirkung.
+ * immer (Standort, Standorte, Werk …). Wie gelesen wird, steht im Modell
+ * (amWerkeVon): „Wittenberge (WGC)" trifft WGC, „Alle DIHAG-Standorte" heißt
+ * konzernweit. Ohne Modell (Kern allein) gibt es keine Zuordnung.
  * @returns {{werke: string[], text: string}}
  */
 function _assetWerke(f) {
   const keys = ['Standort', 'Standorte', 'Werk', 'Werke', 'Location', 'Site', 'Gesellschaft'];
   let roh = null;
   for (const k of keys) { if (f[k] !== undefined && f[k] !== null && f[k] !== '') { roh = f[k]; break; } }
-  const teile = [];
-  const nimm = (v) => {
-    if (v === null || v === undefined) return;
-    if (Array.isArray(v)) { v.forEach(nimm); return; }
-    if (typeof v === 'object') { nimm(v.LookupValue || v.Label || v.Value || v.Title || ''); return; }
-    String(v).split(/[;,|/]+/).map(s => s.trim()).filter(Boolean).forEach(s => teile.push(s));
-  };
-  nimm(roh);
-  const kuerzel = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
-  const werke = [];
-  for (const t of teile) {
-    const u = t.toUpperCase();
-    if (/^(ALLE|KONZERN|KONZERNWEIT|ZENTRAL|GRUPPE|ALL)$/.test(u)) { if (!werke.includes('ALLE')) werke.push('ALLE'); continue; }
-    const hit = kuerzel.find(w => u === w.toUpperCase() || new RegExp('(^|[^A-Z])' + w.toUpperCase() + '([^A-Z]|$)').test(u))
-      || (/^HOLDING$/.test(u) && kuerzel.includes('HOL') ? 'HOL' : null);
-    if (hit && !werke.includes(hit)) werke.push(hit);
-  }
-  return { werke, text: teile.join(', ') };
+  if (typeof amWerkeVon !== 'function') return { werke: [], text: '' };
+  return amWerkeVon(roh, (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : []);
 }
 
 /** Assets aus der ISMS-Liste „Assets" laden (nur lesen). Wirft, wenn die Liste
@@ -2945,6 +2926,7 @@ async function spGetAssets() {
    als JSON (Zusatzfelder aus den Einstellungen).
 ═══════════════════════════════════════════════════ */
 const ASSET_COLUMNS = [
+  { name: 'Art',              typ: 'Einzelne Textzeile' },   // primär | unterstützend (im Haus: „Asset-Typ")
   { name: 'Kategorie',        typ: 'Einzelne Textzeile' },
   { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
   { name: 'Werke',            typ: 'Einzelne Textzeile' },   // Kürzel, kommagetrennt; ALLE = konzernweit
@@ -2963,7 +2945,8 @@ const ASSET_COLUMNS = [
   { name: 'Wiederherstellung', typ: 'Zahl' },                // Stunden
   { name: 'Rpo',              typ: 'Zahl' },                 // Stunden
   { name: 'Backup',           typ: 'Mehrere Zeilen Text' },
-  { name: 'AbhaengigJson',    typ: 'Mehrere Zeilen Text' },  // Ids anderer Assets
+  { name: 'AbhaengigJson',    typ: 'Mehrere Zeilen Text' },  // Ids anderer Assets (im Haus: „Informationsträger", Nachschlagen auf die Liste selbst)
+  { name: 'Link',             typ: 'Einzelne Textzeile' },   // wo die Information liegt (im Haus: „Link zu den Informationen", Hyperlink)
   { name: 'Hersteller',       typ: 'Einzelne Textzeile' },
   { name: 'Lieferant',        typ: 'Einzelne Textzeile' },
   { name: 'SupportKontakt',   typ: 'Einzelne Textzeile' },
@@ -2975,80 +2958,44 @@ const ASSET_COLUMNS = [
 
 
 let _assetCols = null;        // interne Spaltennamen
-let _assetColMeta = [];       // [{name, displayName, typ, choices}] – die Liste, wie sie wirklich ist
+let _assetColMeta = [];       // [{name, displayName, typ, choices, lookupListId, lookupMulti}] – die Liste, wie sie wirklich ist
 let _assetMulti = new Set();  // Spalten, die beim Lesen Arrays liefern (Mehrfachauswahl)
 
-/**
- * Spaltennamen vergleichbar machen: Anzeigename „Integrität" und interner Name
- * „Integrit_x00e4_t" und erwarteter Name „Integritaet" sind dasselbe.
- */
-function _assetNorm(s) {
-  return String(s || '')
-    .replace(/_x([0-9a-fA-F]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
-    .toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]/g, '');
-}
+/** Spaltennamen vergleichbar machen – das Modell weiß, wie (amSpaltenNorm). */
+function _assetNorm(s) { return (typeof amSpaltenNorm === 'function') ? amSpaltenNorm(s) : String(s || '').toLowerCase(); }
 
 /**
- * Gewachsene Namen, unter denen dieselbe Sache in der Liste stehen kann. Beim
- * Lesen werden sie der Reihe nach probiert; beim Schreiben ist der erste
- * vorhandene das Ziel – so entsteht keine zweite Spalte für dieselbe Sache.
- * „Werke" ↔ „Standort": Im Haus sind die Standorte die Werke.
+ * Die Spalte der Liste zu einem erwarteten Namen – über internen Namen,
+ * Anzeigenamen oder Alias (amSpalteFinden); null, wenn es sie nicht gibt.
+ * Solange keine Spaltenmeta geladen sind: optimistisch der erwartete Name.
  */
-const ASSET_ALIASE = {
-  Kategorie:        ['Typ', 'AssetTyp', 'AssetType', 'Category', 'Type', 'Art', 'Assetart', 'Klasse'],
-  Beschreibung:     ['Description', 'Bemerkung', 'Kommentar', 'Notizen'],
-  Werke:            ['Standort', 'Standorte', 'Werk', 'Location', 'Site'],
-  Standort:         ['Raum', 'Gebaeude', 'Gebäude', 'Aufstellort'],
-  Verantwortlich:   ['Owner', 'Eigner', 'Eigentuemer', 'Eigentümer', 'AssetOwner', 'Verantwortlicher', 'Besitzer'],
-  Vertretung:       ['Stellvertreter', 'Stellvertretung', 'Vertreter'],
-  Betreiber:        ['Operator', 'Administrator'],
-  Vertraulichkeit:  ['Confidentiality', 'C'],
-  Integritaet:      ['Integrität', 'Integrity', 'I'],
-  Verfuegbarkeit:   ['Verfügbarkeit', 'Availability', 'A'],
-  Klassifizierung:  ['Classification', 'Klassifikation', 'Einstufung'],
-  Personenbezogen:  ['Personendaten', 'DSGVO', 'PII'],
-  AStatus:          ['Status', 'Lebenszyklus', 'Zustand'],
-  Inbetriebnahme:   ['Anschaffung', 'Anschaffungsdatum', 'Beschaffung'],
-  EOL:              ['SupportEnde', 'Support-Ende', 'EndOfLife', 'Ende'],
-  Wiederherstellung: ['RTO', 'Wiederherstellzeit', 'Wiederanlaufzeit', 'Wiederanlauf'],
-  Rpo:              ['RPO', 'Datenverlust'],
-  Backup:           ['Datensicherung', 'Sicherung'],
-  AbhaengigJson:    [],
-  Hersteller:       ['Manufacturer'],
-  Lieferant:        ['Dienstleister', 'Supplier', 'Vendor', 'Anbieter'],
-  SupportKontakt:   ['Support', 'Hotline', 'Kontakt', 'Ansprechpartner'],
-  Vertragsende:     ['Vertragslaufzeit', 'Vertrag', 'Laufzeit'],
-  Tags:             ['Schlagworte', 'Stichworte'],
-  ZusatzJson:       [],
-  HistorieJson:     [],
-};
-
-/** Die Spalte der Liste zu einem erwarteten Namen – über internen Namen, Anzeigenamen oder Alias; null, wenn es sie nicht gibt. */
 function _assetFeld(erwartet) {
-  if (!_assetCols) return erwartet;   // noch nichts geladen → optimistisch
-  const kandidaten = [erwartet].concat(ASSET_ALIASE[erwartet] || []);
-  for (const k of kandidaten) {
-    if (_assetCols.has(k)) return k;
-    const n = _assetNorm(k);
-    const hit = _assetColMeta.find(c => _assetNorm(c.name) === n || _assetNorm(c.displayName) === n);
-    if (hit) return hit.name;
-  }
-  return null;
+  if (!_assetCols) return erwartet;
+  if (typeof amSpalteFinden !== 'function') return _assetCols.has(erwartet) ? erwartet : null;
+  return amSpalteFinden(_assetColMeta, erwartet);
 }
 function _assetMeta(erwartet) { const n = _assetFeld(erwartet); return n ? (_assetColMeta.find(c => c.name === n) || { name: n }) : null; }
+
+/** Ein Nachschlagefeld: zeigt es auf die Liste „Assets" selbst (dann sind seine Ids Asset-Ids), und erlaubt es mehrere Werte? */
+function _assetLookupInfo(name) {
+  const m = _assetColMeta.find(c => c.name === name);
+  if (!m || m.typ !== 'lookup') return null;
+  const guid = (s) => String(s || '').toLowerCase().replace(/[{}]/g, '');
+  return { selbst: !!_sp.assetRegListId && guid(m.lookupListId) === guid(_sp.assetRegListId), multi: !!m.lookupMulti };
+}
 
 /** Gibt es diese Spalte in der Liste – unter irgendeinem ihrer Namen? */
 function spAssetSpalteDa(name) { return !!_assetFeld(name); }
 
 async function _loadAssetCols(token, siteId) {
   try {
-    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name,displayName,choice,boolean,number,dateTime,text,personOrGroup,lookup`, token);
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name,displayName,choice,boolean,number,dateTime,text,personOrGroup,lookup,hyperlinkOrPicture`, token);
     _assetColMeta = (cols.value || []).map(c => ({
       name: c.name, displayName: c.displayName || c.name,
-      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : 'text',
+      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.hyperlinkOrPicture ? 'link' : 'text',
       choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
+      lookupListId: c.lookup ? (c.lookup.listId || '') : '',
+      lookupMulti: !!(c.lookup && c.lookup.allowMultipleValues),
     }));
     _assetCols = new Set(_assetColMeta.map(c => c.name));
   } catch (e) { _assetCols = null; _assetColMeta = []; }
@@ -3058,7 +3005,9 @@ async function _loadAssetCols(token, siteId) {
 function spAssetSpaltenBericht() {
   return ASSET_COLUMNS.map(c => {
     const m = _assetMeta(c.name);
-    return { erwartet: c.name, typ: c.typ, gefunden: m ? m.name : null, anzeige: m ? m.displayName : null, spaltentyp: m ? m.typ : null, choices: m ? m.choices : [] };
+    const lk = m ? _assetLookupInfo(m.name) : null;
+    return { erwartet: c.name, typ: c.typ, gefunden: m ? m.name : null, anzeige: m ? m.displayName : null, spaltentyp: m ? m.typ : null, choices: m ? (m.choices || []) : [],
+      selbst: !!(lk && lk.selbst), nurLesen: !!(m && (m.typ === 'person' || (m.typ === 'lookup' && !(lk && lk.selbst)))) };
   });
 }
 
@@ -3125,78 +3074,35 @@ function spMissingAssetColumns() {
 
 const _assetZahl = (v) => { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? '' : n; };
 
-/** Ein Feld, das Text, Auswahl, Mehrfachauswahl, Lookup oder Person sein kann – als Text. */
+/** Ein Feld, das Text, Auswahl, Mehrfachauswahl, Lookup, Person oder Hyperlink sein kann – als Text (amFeldText). */
 function _assetText(v) {
-  if (v === null || v === undefined) return '';
-  if (Array.isArray(v)) return v.map(_assetText).filter(Boolean).join(', ');
-  if (typeof v === 'object') return String(v.Email || v.LookupValue || v.Label || v.Value || v.Title || v.DisplayName || '');
-  return String(v);
+  if (typeof amFeldText === 'function') return amFeldText(v);
+  return v === null || v === undefined ? '' : (typeof v === 'object' ? '' : String(v));
 }
 
-/** Den Wert eines erwarteten Feldes aus dem Datensatz – über Alias, Anzeigename, Umlautkodierung. Rohwert, nicht Text. */
+/** Den Wert eines erwarteten Feldes aus dem Datensatz – über Alias, Anzeigename, Umlautkodierung (amFeldKey). Rohwert, nicht Text. */
 function _assetRoh(f, erwartet) {
-  const n = _assetFeld(erwartet);
-  if (n && f[n] !== undefined && f[n] !== null && f[n] !== '') return f[n];
-  // Ohne Spaltenmeta (Test, Cron): die Namen direkt probieren, auch umlautkodiert.
-  for (const k of [erwartet].concat(ASSET_ALIASE[erwartet] || [])) {
-    if (f[k] !== undefined && f[k] !== null && f[k] !== '') return f[k];
-    const enc = k.replace(/[äöüÄÖÜß]/g, ch => '_x' + ch.charCodeAt(0).toString(16).padStart(4, '0') + '_');
-    if (enc !== k && f[enc] !== undefined && f[enc] !== null && f[enc] !== '') return f[enc];
-  }
-  return null;
+  if (typeof amFeldKey !== 'function') { const n = _assetFeld(erwartet); return (n && f[n] !== undefined) ? f[n] : null; }
+  const k = amFeldKey(f, erwartet, _assetCols ? _assetFeld(erwartet) : undefined);
+  return k ? f[k] : null;
 }
 function _assetLesen(f, erwartet) { return _assetText(_assetRoh(f, erwartet)).trim(); }
 
+/**
+ * Ein Eintrag der Liste, gelesen wie das Haus ihn führt – das Modell weiß wie
+ * (amAusFeldern): „Asset-Typ" ist die Art, „Standorte" sind die Werke,
+ * „Asset-Owner" der Verantwortliche, „Informationsträger" die Abhängigkeit,
+ * „Link zu den Informationen" der Link, „weitere Infos" die Beschreibung.
+ */
 function _mapAsset(it) {
   const f = it.fields || {};
   for (const [k, v] of Object.entries(f)) if (Array.isArray(v)) _assetMulti.add(k);
-  // Werke: „Werke" oder – wie im Haus – „Standort"; Kürzel tolerant zugeordnet (siehe _assetWerke).
-  const werkeRoh = _assetRoh(f, 'Werke');
-  const werkeText = _assetText(werkeRoh);
-  const werkeDirekt = werkeText.split(/[;,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
-  const kuerzel = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
-  const werke = werkeDirekt.every(w => w === 'ALLE' || kuerzel.includes(w)) && werkeDirekt.length ? werkeDirekt : _assetWerke(Object.assign({}, f, { Standort: werkeRoh })).werke;
-  // Ein einzelner „Schutzbedarf" gilt für alle drei Ziele, solange es die drei nicht gibt.
-  const sb = _assetText(f.Schutzbedarf).trim();
-  const a = {
-    id: String(it.id),
-    quelleId:       '',
-    titel:          f.Title || f.LinkTitle || '',
-    kategorie:      _assetLesen(f, 'Kategorie'),
-    beschreibung:   _assetLesen(f, 'Beschreibung'),
-    werke,
-    // Steht im „Standort" das Werk, ist er nicht zugleich der freie Aufstellort.
-    standort:       (_assetFeld('Standort') && _assetFeld('Standort') !== _assetFeld('Werke')) ? _assetLesen(f, 'Standort') : '',
-    verantwortlich: _assetLesen(f, 'Verantwortlich'),
-    vertretung:     _assetLesen(f, 'Vertretung'),
-    betreiber:      _assetLesen(f, 'Betreiber'),
-    vertraulichkeit: (_assetLesen(f, 'Vertraulichkeit') || sb).toLowerCase(),
-    integritaet:    (_assetLesen(f, 'Integritaet') || sb).toLowerCase(),
-    verfuegbarkeit: (_assetLesen(f, 'Verfuegbarkeit') || sb).toLowerCase(),
-    klassifizierung: _assetLesen(f, 'Klassifizierung').toLowerCase(),
-    personenbezogen: /^(ja|true|1|yes|x)$/i.test(_assetLesen(f, 'Personenbezogen')),
-    status:         _assetLesen(f, 'AStatus') || 'aktiv',
-    inbetriebnahme: _assetLesen(f, 'Inbetriebnahme').slice(0, 10),
-    eol:            _assetLesen(f, 'EOL').slice(0, 10),
-    wiederherstellung: _assetZahl(_assetRoh(f, 'Wiederherstellung')),
-    rpo:            _assetZahl(_assetRoh(f, 'Rpo')),
-    backup:         _assetLesen(f, 'Backup'),
-    abhaengigVon:   _riskParseJson(_assetLesen(f, 'AbhaengigJson'), []),
-    hersteller:     _assetLesen(f, 'Hersteller'),
-    lieferant:      _assetLesen(f, 'Lieferant'),
-    supportKontakt: _assetLesen(f, 'SupportKontakt'),
-    vertragsende:   _assetLesen(f, 'Vertragsende').slice(0, 10),
-    tags:           _assetLesen(f, 'Tags').split(',').map(x => x.trim()).filter(Boolean),
-    zusatz:         _riskParseJson(_assetLesen(f, 'ZusatzJson'), {}),
-    historie:       _riskParseJson(_assetLesen(f, 'HistorieJson'), []),
-    created:        it.createdDateTime || '',
-    modified:       it.lastModifiedDateTime || '',
-    url:            it.webUrl || '',
-  };
-  // Für alle, die Assets bisher nur als {id, title, sub, werke} kannten (Risiken, Notfall).
-  a.title = a.titel;
-  a.sub = [a.kategorie, werke.includes('ALLE') ? 'konzernweit' : werke.join(', '), a.verfuegbarkeit ? 'Verfügbarkeit ' + a.verfuegbarkeit : ''].filter(Boolean).join(' · ');
-  return a;
+  if (typeof amAusFeldern !== 'function') throw new Error('Assetmodell nicht geladen.');
+  return amAusFeldern(it, {
+    feld: _assetCols ? _assetFeld : undefined,
+    standorte: (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [],
+    lookup: _assetLookupInfo,
+  });
 }
 
 /**
@@ -3215,18 +3121,24 @@ function _assetInWahl(wert, meta, art) {
   if (art === 'stufe' && typeof amRang === 'function') { const r = amRang(w); const t = r >= 0 ? meta.choices.find(c => amRang(c) === r) : null; if (t) return t; }
   if (art === 'status' && typeof amStatusVon === 'function') { const t = meta.choices.find(c => amStatusVon(c) === amStatusVon(w)); if (t) return t; }
   if (art === 'klasse' && typeof amKlasseVon === 'function') { const t = meta.choices.find(c => amKlasseVon(c) === amKlasseVon(w)); if (t) return t; }
+  if (art === 'art' && typeof amArtVon === 'function') { const t = meta.choices.find(c => amArtVon(c) === amArtVon(w)); if (t) return t; }
   return w;
 }
-const _ASSET_WAHLART = { Vertraulichkeit: 'stufe', Integritaet: 'stufe', Verfuegbarkeit: 'stufe', AStatus: 'status', Klassifizierung: 'klasse' };
+const _ASSET_WAHLART = { Vertraulichkeit: 'stufe', Integritaet: 'stufe', Verfuegbarkeit: 'stufe', AStatus: 'status', Klassifizierung: 'klasse', Art: 'art' };
 
 function _assetFields(a) {
   const datum = (d) => (d ? new Date(String(d).slice(0, 10) + 'T00:00:00Z').toISOString() : null);
   const zahl = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
   const werke = Array.isArray(a.werke) ? a.werke : [];
+  const link = (a.link && typeof a.link === 'object') ? a.link : { url: '', text: '' };
+  const artText = (typeof amArtText === 'function') ? amArtText(a.art) : String(a.art || '');
   const all = {
     Title:          String(a.titel || a.title || '(ohne Titel)').slice(0, 255),
-    Kategorie:      String(a.kategorie || '').slice(0, 60),
+    Art:            artText,
+    // Teilen sich Art und Kategorie eine Textspalte („Typ"), darf die Art nicht verloren gehen.
+    Kategorie:      String(a.kategorie || ((_assetFeld('Kategorie') && !_assetFeld('Art')) ? artText : '')).slice(0, 60),
     Beschreibung:   a.beschreibung || '',
+    Link:           link.url ? (link.url + (link.text ? ', ' + link.text : '')) : (link.text || ''),
     Werke:          werke.join(','),
     Standort:       String(a.standort || '').slice(0, 255),
     Verantwortlich: String(a.verantwortlich || '').slice(0, 255),
@@ -3266,23 +3178,51 @@ function _assetFields(a) {
       // Mehrfachauswahl (Werke als Standorte) bekommt ein Array, Einzelauswahl den passenden Eintrag.
       if (_assetMulti.has(ziel) || erwartet === 'Werke') wert = (erwartet === 'Werke' ? werke : String(v || '').split(',').map(x => x.trim()).filter(Boolean)).map(x => _assetInWahl(x, meta, _ASSET_WAHLART[erwartet]));
       else wert = _assetInWahl(v, meta, _ASSET_WAHLART[erwartet]);
-    } else if (meta && (meta.typ === 'person' || meta.typ === 'lookup')) {
-      continue;   // Personen- und Nachschlagefelder schreibt die App nicht – sie kennt deren Ids nicht
+    } else if (meta && meta.typ === 'link') {
+      wert = link.url ? { Url: link.url, Description: link.text || link.url } : null;
+    } else if (meta && meta.typ === 'lookup') {
+      // Nachschlagefelder auf die Liste selbst („Informationsträger"): die Ids der Assets, als LookupId.
+      const lk = _assetLookupInfo(ziel);
+      if (erwartet === 'AbhaengigJson' && lk && lk.selbst) {
+        const ids = (Array.isArray(a.abhaengigVon) ? a.abhaengigVon : []).map(x => Number(typeof x === 'object' && x ? x.id : x)).filter(n => Number.isFinite(n) && n > 0);
+        if (lk.multi) { fields[ziel + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; fields[ziel + 'LookupId'] = ids; }
+        else fields[ziel + 'LookupId'] = ids.length ? ids[0] : null;
+      }
+      continue;   // andere Nachschlagefelder (Asset-Owner, Standorte) pflegt man in SharePoint – die App kennt deren Ids nicht
+    } else if (meta && meta.typ === 'person') {
+      continue;   // Personenfelder schreibt die App nicht
     }
     fields[ziel] = wert;
   }
   return fields;
 }
 
+/**
+ * Alle Einträge – mit ausdrücklicher Feldauswahl: Nachschlage- und
+ * Personenfelder („Asset-Owner", „Standorte", „Informationsträger") liefern
+ * ihren Anzeigewert nur so, sonst kommt bloß die LookupId. Lehnt Graph die
+ * Auswahl ab, geht es ohne sie weiter. Das Modell wird bei Bedarf nachgeladen –
+ * die Risiken lesen Assets, ohne dass ihre Ansicht es mitbringt.
+ */
 async function _spAssetRegisterItems(listId, token) {
+  if (typeof amAusFeldern !== 'function' && typeof modulLaden === 'function') await modulLaden('assetmodell');
   const siteId = await _ismsSiteId(token);
-  const out = [];
-  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
-  while (url) {
-    const resp = await _get(url, token);
-    for (const it of (resp.value || [])) out.push(_mapAsset(it));
-    url = resp['@odata.nextLink'] || null;
-  }
+  const select = (_assetCols && typeof amSelectVon === 'function') ? amSelectVon(_assetColMeta, _assetFeld) : '';
+  const lade = async (mitAuswahl) => {
+    const roh = [];
+    let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}&$top=200`;
+    while (url) {
+      const resp = await _get(url, token);
+      for (const it of (resp.value || [])) roh.push(it);
+      url = resp['@odata.nextLink'] || null;
+    }
+    return roh;
+  };
+  let items;
+  try { items = await lade(!!select); }
+  catch (e) { if (!select) throw e; items = await lade(false); }
+  const out = items.map(_mapAsset);
+  if (typeof amTraegerAufloesen === 'function') amTraegerAufloesen(out);
   out.sort((x, y) => (x.titel || '').localeCompare(y.titel || '', 'de'));
   return out;
 }

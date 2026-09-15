@@ -26,7 +26,7 @@
 let _am = null;                // Assets (roh aus der Liste); null = noch nicht geladen
 let _amLoading = false;
 let _amEditing = null;
-let _amFilter = { q: '', werk: '', kategorie: '', verf: '', status: '' };
+let _amFilter = { q: '', werk: '', kategorie: '', art: '', verf: '', status: '' };
 let _amMembers = null;
 let _amLandkarte = null;       // Landkarte-Daten (nur lesen) – wer hängt an welchem Asset?
 let _amRisiken = null;         // Risiken (leise) – welche verweisen auf das Asset?
@@ -44,6 +44,15 @@ function _amName(upn) {
 function _amPeople() { return (_amMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join(''); }
 function _amWerke() { return (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null; }
 function _amHeute() { return new Date().toISOString().slice(0, 10); }
+/** Die Spalte der Liste zu einem erwarteten Namen – wie der Reiter sie sieht. */
+function _amSpalte(name) { return (typeof spAssetSpaltenBericht === 'function') ? (spAssetSpaltenBericht().find(x => x.erwartet === name) || null) : null; }
+/** Nachschlage- und Personenfelder (Asset-Owner, Standorte) pflegt man in SharePoint – der Editor zeigt sie nur. */
+function _amNurLesen(name) { const b = _amSpalte(name); return !!(b && b.nurLesen); }
+function _amRoHinweis(name) { return _amNurLesen(name) ? `<span class="field-hint">Nachschlagefeld „${esc(_amSpalte(name).anzeige)}" – wird in SharePoint gepflegt.</span>` : ''; }
+function _amTitelVon(id) { const x = (_am || []).find(y => String(y.id) === String(id)); return x ? (x.titel || x.title || '') : ''; }
+/** Worauf ein Asset liegt: die Titel seiner Abhängigkeiten plus Informationsträger, die kein Asset sind. */
+function _amTraegerText(a) { return a.abhaengigVon.map(_amTitelVon).filter(Boolean).concat(a.traeger || []); }
+function _amLuecken(a) { return amLuecken(a, { prozesse: _amProzesseVon(a.id, a.quelleId), heute: _amHeute(), liste: _am || [] }); }
 function _amDauer(h) { return (typeof nfDauerText === 'function') ? nfDauerText(h) : (h === '' ? '' : `${h} h`); }
 
 /** Die Prozesse der Landkarte, die an diesem Asset hängen – über beide Ids (Register und alte Liste). */
@@ -112,15 +121,16 @@ function _amGefiltert() {
   if (f.q) {
     const q = f.q.toLowerCase();
     rows = rows.filter(a => [a.titel, a.beschreibung, a.standort, a.verantwortlich, a.hersteller, a.lieferant, a.tags.join(' '), a.werke.join(' '),
-      Object.values(a.zusatz).join(' ')].join(' ').toLowerCase().includes(q));
+      a.art, a.link.text, a.link.url, _amTraegerText(a).join(' '), Object.values(a.zusatz).join(' ')].join(' ').toLowerCase().includes(q));
   }
   if (f.werk) rows = rows.filter(a => a.werke.includes(f.werk) || a.werke.includes('ALLE'));
   if (f.kategorie) rows = rows.filter(a => amKategorieKey(a.kategorie, _amKats()) === f.kategorie);
+  if (f.art) rows = rows.filter(a => a.art === f.art);
   if (f.verf) rows = rows.filter(a => amRang(a.verfuegbarkeit) === amRang(f.verf));
   if (f.status) rows = rows.filter(a => a.status === f.status);
   else rows = rows.filter(a => a.status !== 'außer Betrieb');
   // Was drängt, steht oben: Lücken, dann „sehr hoch", dann Name.
-  const rang = (a) => { const l = amLuecken(a, { prozesse: _amProzesseVon(a.id, a.quelleId) }); return (l.fehler.length ? 0 : 1) * 10 + (2 - Math.max(0, amRang(a.verfuegbarkeit))); };
+  const rang = (a) => { const l = _amLuecken(a); return (l.fehler.length ? 0 : 1) * 10 + (2 - Math.max(0, amRang(a.verfuegbarkeit))); };
   rows.sort((x, y) => (rang(x) - rang(y)) || x.titel.localeCompare(y.titel, 'de'));
   return rows;
 }
@@ -155,10 +165,11 @@ function renderAssets() {
       const k = _amKat(a.kategorie);
       const pr = _amProzesseVon(a.id, a.quelleId);
       const ri = _amRisikenVon(a.id, a.quelleId);
-      const l = amLuecken(a, { prozesse: pr, heute: _amHeute() });
+      const l = _amLuecken(a);
+      const traeger = _amTraegerText(a);
       return `<tr onclick="openAssetEditor('${esc(a.id)}')" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
-        <td><b>${esc(a.titel)}</b>${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${a.abhaengigVon.length ? `<div style="font-size:.68rem;color:var(--c-faint)">↳ hängt an ${a.abhaengigVon.length} Asset(s)</div>` : ''}</td>
-        <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : '<span style="color:#b45309">–</span>')}</td>
+        <td><b>${esc(a.titel)}</b>${a.link.url ? ` <a href="${esc(a.link.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.link.text || a.link.url)}" style="text-decoration:none">🔗</a>` : ''}${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${traeger.length ? `<div style="font-size:.68rem;color:var(--c-faint)" title="Liegt auf / hängt ab von">↳ ${esc(traeger.join(' · '))}</div>` : ''}</td>
+        <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
         <td style="white-space:nowrap">${a.werke.length ? (a.werke.includes('ALLE') ? 'konzernweit' : esc(a.werke.join(', '))) : '<span style="color:#b45309">–</span>'}</td>
         <td style="color:var(--c-muted)">${a.verantwortlich ? esc(_amName(a.verantwortlich)) : '<span style="color:#b91c1c">–</span>'}</td>
         <td>${_amSb(a.vertraulichkeit)}</td><td>${_amSb(a.integritaet)}</td><td>${_amSb(a.verfuegbarkeit)}</td>
@@ -207,6 +218,9 @@ function renderAssets() {
       <select class="sort-select" onchange="_amFilter.kategorie=this.value;renderAssets()">
         <option value="">alle Kategorien</option>${kats.map(k => `<option value="${esc(k.key)}"${_amFilter.kategorie === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}
       </select>
+      ${z.primaer ? `<select class="sort-select" onchange="_amFilter.art=this.value;renderAssets()" title="ISO 27005: primär = Informationen und Prozesse, unterstützend = Systeme und Medien, auf denen sie liegen">
+        <option value="">Art: alle</option>${AM_ART.map(v => `<option value="${esc(v)}"${_amFilter.art === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}
+      </select>` : ''}
       <select class="sort-select" onchange="_amFilter.verf=this.value;renderAssets()">
         <option value="">Verfügbarkeit: alle</option>${AM_SCHUTZBEDARF.map(v => `<option value="${esc(v)}"${_amFilter.verf === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}
       </select>
@@ -285,7 +299,7 @@ function _amLueckenNeu() {
 }
 function _amLueckenHtml() {
   const a = _amEditing;
-  const l = amLuecken(a, { prozesse: _amProzesseVon(a.id, a.quelleId), heute: _amHeute() });
+  const l = _amLuecken(a);
   if (!l.fehler.length && !l.hinweise.length) return `<div class="col-warning" style="display:block;border-color:#bbf7d0;background:#f0fdf4;color:#166534">✓ Vollständig.</div>`;
   return `${l.fehler.length ? `<div class="col-warning" style="display:block"><b>Lücken (${l.fehler.length}):</b><ul style="margin:6px 0 0 18px;padding:0">${l.fehler.map(x => `<li style="margin:2px 0">${esc(x)}</li>`).join('')}</ul></div>` : ''}
     ${l.hinweise.length ? `<div class="field-hint" style="margin-top:6px">Hinweise: ${l.hinweise.map(esc).join(' · ')}</div>` : ''}`;
@@ -345,18 +359,25 @@ function renderAssetEditor() {
       <div class="form-grid">
         <div class="form-group full"><label>Bezeichnung <span class="req">*</span></label>
           <input type="text" value="${esc(a.titel)}" oninput="amSet('titel',this.value)" placeholder="z. B. SAP S/4HANA, Leitstand Gießerei 2, Kundenstammdaten"${ro}></div>
-        <div class="form-group"><label>Kategorie <span class="req">*</span></label>
+        <div class="form-group"><label>Art <span class="field-hint" style="font-weight:400">ISO 27005</span></label>
+          <select onchange="amSet('art',this.value)"${ro}><option value=""${!a.art ? ' selected' : ''}>–</option>${AM_ART.map(v => `<option value="${esc(v)}"${a.art === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>
+          <span class="field-hint">Primär: die Information, der Prozess. Unterstützend: das System, das Medium, auf dem sie liegen.</span></div>
+        <div class="form-group"><label>Kategorie${a.art ? '' : ' <span class="req">*</span>'}</label>
           <select onchange="amSet('kategorie',this.value)"${ro}><option value=""${!a.kategorie ? ' selected' : ''}>– wählen –</option>${kats.map(k => `<option value="${esc(k.key)}"${amKategorieKey(a.kategorie, kats) === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}${a.kategorie && !kats.some(k => k.key === amKategorieKey(a.kategorie, kats)) ? `<option value="${esc(a.kategorie)}" selected>${esc(a.kategorie)} (aus der Liste)</option>` : ''}</select>
           <span class="field-hint">Nach BSI-Strukturanalyse; die Liste ist in den Einstellungen änderbar.</span></div>
         <div class="form-group"><label>Status</label>
           <select onchange="amSet('status',this.value)"${ro}>${AM_STATUS.map(v => `<option value="${esc(v)}"${a.status === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Link zu den Informationen</label>
+          <input type="url" value="${esc(a.link.url)}" oninput="amSet('link',{url:this.value,text:_amEditing.link.text})" placeholder="https://…"${ro}>
+          <input type="text" value="${esc(a.link.text)}" oninput="amSet('link',{url:_amEditing.link.url,text:this.value})" placeholder="Bezeichnung des Links" style="margin-top:4px"${ro}>
+          <span class="field-hint">Wo die Information liegt oder beschrieben ist – Prozesslandkarte, Ablage, Verfahren.</span></div>
         <div class="form-group full"><label>Beschreibung</label>
           <textarea oninput="amSet('beschreibung',this.value)" placeholder="Was ist es, wofür wird es gebraucht, was ist besonders?"${ro}>${esc(a.beschreibung)}</textarea></div>
         <div class="form-group full"><label>Werke <span class="req">*</span></label>
           <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:6px">
-            <label class="ack-check" style="font-weight:600"><input type="checkbox" ${a.werke.includes('ALLE') ? 'checked' : ''} onchange="amWerkToggle('ALLE',this.checked)"${ro}> konzernweit</label>
-            ${werke.map(w => `<label class="ack-check" style="font-weight:500${a.werke.includes('ALLE') ? ';opacity:.5' : ''}"><input type="checkbox" ${a.werke.includes(w) ? 'checked' : ''} ${a.werke.includes('ALLE') ? 'disabled' : ''} onchange="amWerkToggle('${esc(w)}',this.checked)"${ro}> ${esc(w)}</label>`).join('')}
-          </div><span class="field-hint">Die Trennung nach Gesellschaft und die Notfall-Sichten hängen daran.</span></div>
+            <label class="ack-check" style="font-weight:600"><input type="checkbox" ${a.werke.includes('ALLE') ? 'checked' : ''} onchange="amWerkToggle('ALLE',this.checked)"${ro || (_amNurLesen('Werke') ? ' disabled' : '')}> konzernweit</label>
+            ${werke.map(w => `<label class="ack-check" style="font-weight:500${a.werke.includes('ALLE') ? ';opacity:.5' : ''}"><input type="checkbox" ${a.werke.includes(w) ? 'checked' : ''} ${a.werke.includes('ALLE') || _amNurLesen('Werke') ? 'disabled' : ''} onchange="amWerkToggle('${esc(w)}',this.checked)"${ro}> ${esc(w)}</label>`).join('')}
+          </div><span class="field-hint">Die Trennung nach Gesellschaft und die Notfall-Sichten hängen daran.</span>${_amRoHinweis('Werke')}</div>
         <div class="form-group"><label>Standort (frei)</label>
           <input type="text" value="${esc(a.standort)}" oninput="amSet('standort',this.value)" placeholder="Gebäude, Raum, Rack, Halle"${ro}></div>
         <div class="form-group"><label>Tags</label>
@@ -365,13 +386,13 @@ function renderAssetEditor() {
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Verantwortung <span class="field-hint" style="font-weight:400">A.5.9 – ohne Eigentümer kein Inventar</span></div>
       <div class="form-grid">
-        <div class="form-group"><label>Verantwortlich (E-Mail) <span class="req">*</span></label>
-          <input type="text" list="am-people" value="${esc(a.verantwortlich)}" oninput="amSet('verantwortlich',this.value)" placeholder="name@dihag.com"${ro}>
-          <datalist id="am-people">${_amPeople()}</datalist></div>
-        <div class="form-group"><label>Vertretung (E-Mail)</label>
-          <input type="text" list="am-people" value="${esc(a.vertretung)}" oninput="amSet('vertretung',this.value)"${ro}></div>
+        <div class="form-group"><label>Verantwortlich${_amNurLesen('Verantwortlich') ? '' : ' (E-Mail)'} <span class="req">*</span></label>
+          <input type="text" list="am-people" value="${esc(a.verantwortlich)}" oninput="amSet('verantwortlich',this.value)" placeholder="name@dihag.com"${ro || (_amNurLesen('Verantwortlich') ? ' disabled' : '')}>
+          <datalist id="am-people">${_amPeople()}</datalist>${_amRoHinweis('Verantwortlich')}</div>
+        <div class="form-group"><label>Vertretung${_amNurLesen('Vertretung') ? '' : ' (E-Mail)'}</label>
+          <input type="text" list="am-people" value="${esc(a.vertretung)}" oninput="amSet('vertretung',this.value)"${ro || (_amNurLesen('Vertretung') ? ' disabled' : '')}>${_amRoHinweis('Vertretung')}</div>
         <div class="form-group full"><label>Betreiber</label>
-          <input type="text" value="${esc(a.betreiber)}" oninput="amSet('betreiber',this.value)" placeholder="interne IT, OT-Team, externer Dienstleister …"${ro}></div>
+          <input type="text" value="${esc(a.betreiber)}" oninput="amSet('betreiber',this.value)" placeholder="interne IT, OT-Team, externer Dienstleister …"${ro || (_amNurLesen('Betreiber') ? ' disabled' : '')}>${_amRoHinweis('Betreiber')}</div>
       </div>
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Schutzbedarf <span class="field-hint" style="font-weight:400">BSI 200-2 · A.5.12</span></div>
@@ -408,8 +429,9 @@ function renderAssetEditor() {
         <div class="form-group"><label>Vertragsende</label><input type="date" value="${esc(a.vertragsende)}" onchange="amSet('vertragsende',this.value)"${ro}></div>
       </div>
 
-      <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Hängt ab von <span class="field-hint" style="font-weight:400">${a.abhaengigVon.length} Asset(s)</span></div>
-      <div class="field-hint" style="margin-bottom:6px">Fällt eines davon aus, fällt dieses mit – die Ausfall-Sicht im Notfall-Reiter rechnet damit.</div>
+      <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Liegt auf / hängt ab von <span class="field-hint" style="font-weight:400">${a.abhaengigVon.length} Asset(s)${_amSpalte('AbhaengigJson') && _amSpalte('AbhaengigJson').gefunden && _amSpalte('AbhaengigJson').anzeige !== 'AbhaengigJson' ? ` · Spalte „${esc(_amSpalte('AbhaengigJson').anzeige)}"` : ''}</span></div>
+      <div class="field-hint" style="margin-bottom:6px">Fällt eines davon aus, fällt dieses mit – die Ausfall-Sicht im Notfall-Reiter rechnet damit. Und der Schutzbedarf vererbt sich: Was hier liegt, verlangt ihn von dem, worauf es liegt.</div>
+      ${(a.traeger || []).length ? `<div class="col-warning" style="display:block;margin-bottom:6px">Informationsträger aus der Liste, die kein Asset sind: <b>${esc(a.traeger.join(', '))}</b> – als Asset anlegen, dann rechnet die App damit.</div>` : ''}
       <input type="text" id="am-abh-filter" class="sort-select" placeholder="Assets filtern …" oninput="document.getElementById('am-abh').innerHTML=_amAbhHtml()" style="width:100%;margin-bottom:6px"${ro}>
       <div id="am-abh" style="max-height:180px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:6px 10px">${_amAbhHtml()}</div>
       ${abhaengige.length ? `<div class="field-hint" style="margin-top:6px">Davon hängen ab (auch mittelbar): ${abhaengige.map(x => esc(x.titel)).join(', ')}</div>` : ''}
@@ -455,7 +477,7 @@ async function saveAsset() {
     _amEditing = null;
     _am = null;
     await initAssets();
-    const l = amLuecken(a, { prozesse: _amProzesseVon(a.id, a.quelleId), heute: _amHeute() });
+    const l = _amLuecken(a);
     toast(l.fehler.length ? `Gespeichert – ${l.fehler.length} Lücke(n) bleiben` : 'Gespeichert ✓', 'success');
   } catch (e) {
     a.historie.pop();
@@ -510,15 +532,14 @@ async function assetsSpaltenAnlegen() {
 function assetsExportCsv() {
   const rows = _amGefiltert();
   const felder = _amFelder();
-  const kopf = ['Bezeichnung', 'Kategorie', 'Werke', 'Standort', 'Verantwortlich', 'Vertretung', 'Betreiber', 'Vertraulichkeit', 'Integrität', 'Verfügbarkeit',
-    'Klassifizierung', 'Personenbezogen', 'Status', 'Inbetriebnahme', 'EOL', 'Wiederherstellzeit (h)', 'RPO (h)', 'Datensicherung', 'Hängt ab von',
+  const kopf = ['Bezeichnung', 'Art', 'Kategorie', 'Werke', 'Standort', 'Verantwortlich', 'Vertretung', 'Betreiber', 'Vertraulichkeit', 'Integrität', 'Verfügbarkeit',
+    'Klassifizierung', 'Personenbezogen', 'Status', 'Inbetriebnahme', 'EOL', 'Wiederherstellzeit (h)', 'RPO (h)', 'Datensicherung', 'Liegt auf / hängt ab von', 'Link',
     'Hersteller', 'Lieferant', 'Support-Kontakt', 'Vertragsende', 'Tags', 'Prozesse', 'Lücken'].concat(felder.map(f => f.label));
   const zelle = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const titelVon = (id) => { const x = (_am || []).map(amVon).find(y => y.id === id); return x ? x.titel : id; };
-  const zeilen = rows.map(a => [a.titel, (_amKat(a.kategorie) || {}).label || a.kategorie, a.werke.join(' '), a.standort, a.verantwortlich, a.vertretung, a.betreiber,
+  const zeilen = rows.map(a => [a.titel, a.art, (_amKat(a.kategorie) || {}).label || a.kategorie, a.werke.join(' '), a.standort, a.verantwortlich, a.vertretung, a.betreiber,
     a.vertraulichkeit, a.integritaet, a.verfuegbarkeit, a.klassifizierung, a.personenbezogen ? 'ja' : 'nein', a.status, a.inbetriebnahme, a.eol,
-    a.wiederherstellung, a.rpo, a.backup, a.abhaengigVon.map(titelVon).join(' | '), a.hersteller, a.lieferant, a.supportKontakt, a.vertragsende, a.tags.join(' '),
-    _amProzesseVon(a.id, a.quelleId).map(p => p.name).join(' | '), amLuecken(a, { prozesse: _amProzesseVon(a.id, a.quelleId), heute: _amHeute() }).fehler.join(' | ')]
+    a.wiederherstellung, a.rpo, a.backup, _amTraegerText(a).join(' | '), a.link.url ? (a.link.text ? `${a.link.text} (${a.link.url})` : a.link.url) : a.link.text, a.hersteller, a.lieferant, a.supportKontakt, a.vertragsende, a.tags.join(' '),
+    _amProzesseVon(a.id, a.quelleId).map(p => p.name).join(' | '), _amLuecken(a).fehler.join(' | ')]
     .concat(felder.map(f => (a.zusatz || {})[f.key] || '')).map(zelle).join(';'));
   const csv = '﻿' + [kopf.map(zelle).join(';')].concat(zeilen).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });

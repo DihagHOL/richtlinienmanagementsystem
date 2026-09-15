@@ -21,7 +21,8 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
 
 const A = require(path.join(ROOT, 'js', 'assetmodell.js'));
-const { amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amStufeLabel, amStatusVon, amKlasseVon, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
+const { amVon, amKurz, amKategorien, amKategorieKey, amZusatzfelder, amRang, amStufeLabel, amStatusVon, amKlasseVon, amArtVon, amArtText, amLinkVon,
+  amSpaltenNorm, amSpalteFinden, amSelectVon, amFeldText, amFeldKey, amWerkeVon, amAbhaengigLesen, amAusFeldern, amTraegerAufloesen, AM_ALIASE, AM_ART, amSollVerfuegbarkeit, amTageBis, amFaelligkeiten, amLuecken, amKanon,
   amAbhaengige, amVoraussetzungen, amKreis, amSichtbar, amKennzahlen, amInventarHtml, AM_KATEGORIEN_STANDARD, AM_SCHUTZBEDARF, AM_VORLAUF_TAGE } = A;
 
 /* ── 1) Kein Browser ── */
@@ -70,6 +71,70 @@ ok(lu2.fehler.length === 0 && lu2.hinweise.length === 0, 'Eine Bewertung in der 
 lu2 = amLuecken({ titel: 'X', verfuegbarkeit: 'egal' }, { heute });
 ok(lu2.hinweise.some(x => /nicht einzuordnen: Verfügbarkeit „egal"/.test(x)), 'Ein Wert, den die App nicht einordnen kann, wird als Hinweis genannt – nicht als fehlend');
 ok(amKennzahlen([{ id: '1', titel: 'A', verfuegbarkeit: '3 - sehr hoch' }], { heute }).sehrHoch === 1, 'Die Kennzahl „sehr hoch" zählt über den Rang');
+
+/* ── 3c) Die Liste des Hauses – Asset-Typ, Standorte, Asset-Owner, Informationsträger, Link, weitere Infos ── */
+ok(amArtVon('Primär') === 'primär' && amArtVon('primary') === 'primär' && amArtVon('Sekundär') === 'unterstützend' && amArtVon('supporting') === 'unterstützend' && amArtVon('Server') === '' && AM_ART.length === 2,
+  'Die Art nach ISO 27005: Primär / Sekundär in jeder Schreibweise, sonst nichts');
+ok(amArtText('primär') === 'Primär' && amArtText('') === '', 'Die Art in Worten');
+ok(amLinkVon({ Url: 'https://x/y', Description: 'Prozesslandkarte' }).text === 'Prozesslandkarte' && amLinkVon('https://x/y, Doku').url === 'https://x/y' && amLinkVon('https://x/y, Doku').text === 'Doku' && amLinkVon('https://x/y').url === 'https://x/y' && amLinkVon('nur Text').text === 'nur Text' && amLinkVon('').url === '',
+  'Ein Link aus Hyperlink-Spalte, aus „Adresse, Text" oder nackter Adresse');
+ok(amSpaltenNorm('Integrit_x00e4_t') === 'integritaet' && amSpaltenNorm('Asset-Owner') === 'assetowner' && amSpaltenNorm('weitere Infos') === 'weitereinfos', 'Spaltennamen vergleichbar: kodiert, mit Umlaut, mit Bindestrich, mit Leerzeichen');
+const hausSpalten = [
+  { name: 'Title', displayName: 'Asset' }, { name: 'Asset_x002d_Typ', displayName: 'Asset-Typ' }, { name: 'Standorte', displayName: 'Standorte', lookup: { listId: 'b' } },
+  { name: 'Asset_x002d_Owner', displayName: 'Asset-Owner', lookup: { listId: 'c' } }, { name: 'Vertraulichkeit', displayName: 'Vertraulichkeit' },
+  { name: 'Integrit_x00e4_t', displayName: 'Integrität' }, { name: 'Verf_x00fc_gbarkeit', displayName: 'Verfügbarkeit' },
+  { name: 'LinkzudenInformationen', displayName: 'Link zu den Informationen' }, { name: 'Informationstr_x00e4_ger', displayName: 'Informationsträger', lookup: { listId: 'a', allowMultipleValues: true } },
+  { name: 'weitereInfos', displayName: 'weitere Infos' },
+];
+const hf = (e) => amSpalteFinden(hausSpalten, e);
+ok(hf('Art') === 'Asset_x002d_Typ' && hf('Kategorie') === null && hf('Werke') === 'Standorte' && hf('Verantwortlich') === 'Asset_x002d_Owner' && hf('AbhaengigJson') === 'Informationstr_x00e4_ger' && hf('Link') === 'LinkzudenInformationen' && hf('Beschreibung') === 'weitereInfos' && hf('Integritaet') === 'Integrit_x00e4_t' && hf('Rpo') === null,
+  'Jede Spalte des Hauses wird gefunden: Asset-Typ = Art, Standorte = Werke, Asset-Owner = Verantwortlich, Informationsträger = Abhängigkeit, Link, weitere Infos = Beschreibung');
+ok(amSpalteFinden([{ name: 'Typ', displayName: 'Typ', choices: ['Primär', 'Sekundär'] }], 'Art') === 'Typ' && amSpalteFinden([{ name: 'Typ', displayName: 'Typ', choices: ['Primär', 'Sekundär'] }], 'Kategorie') === null,
+  'Ein „Typ" mit Primär/Sekundär ist die Art …');
+ok(amSpalteFinden([{ name: 'Typ', displayName: 'Typ', choices: ['Server', 'Anwendung'] }], 'Kategorie') === 'Typ' && amSpalteFinden([{ name: 'Typ', displayName: 'Typ', choices: ['Server', 'Anwendung'] }], 'Art') === null && amSpalteFinden([{ name: 'Typ', displayName: 'Typ' }], 'Kategorie') === 'Typ',
+  '… ein „Typ" mit Server/Anwendung (oder ohne Auswahl) die Kategorie');
+const sel = amSelectVon(hausSpalten, hf).split(',');
+ok(sel[0] === 'id' && sel[1] === 'Title' && sel.includes('Asset_x002d_OwnerLookupId') && sel.includes('StandorteLookupId') && sel.includes('Informationstr_x00e4_gerLookupId') && !sel.includes('Kategorie') && !sel.includes('Rpo'),
+  'Die Feldauswahl: nur, was es gibt – Nachschlagefelder samt LookupId');
+ok(amFeldText({ Description: 'Doku', Url: 'https://x' }) === 'Doku' && amFeldText([{ LookupValue: 'A' }, { LookupValue: 'B' }]) === 'A, B' && amFeldText({ Email: 'a@x' }) === 'a@x', 'Ein Feld als Text: Hyperlink, Nachschlagen, Person');
+const w1 = amWerkeVon('Alle DIHAG-Standorte', ['HOL', 'WGC']), w2 = amWerkeVon([{ LookupValue: 'Wittenberge (WGC)' }, { LookupValue: 'HOL' }], ['HOL', 'WGC']), w3 = amWerkeVon('', ['HOL']);
+ok(w1.werke.join() === 'ALLE' && w2.werke.join() === 'WGC,HOL' && w3.werke.length === 0 && amWerkeVon('alle Werke', ['HOL']).werke.join() === 'ALLE', '„Alle DIHAG-Standorte" heißt konzernweit; Kürzel werden erkannt; leer bleibt leer');
+const lk = (n) => (n === 'Informationstr_x00e4_ger' ? { selbst: true, multi: true } : null);
+ok(amAbhaengigLesen({ 'Informationstr_x00e4_gerLookupId': [11, 12] }, 'Informationstr_x00e4_ger', lk).ids.join() === '11,12', 'Nachschlagen auf die Liste selbst: die LookupIds sind die Asset-Ids');
+ok(amAbhaengigLesen({ 'Informationstr_x00e4_ger': [{ LookupId: 11, LookupValue: 'Sharepoint' }] }, 'Informationstr_x00e4_ger', lk).ids.join() === '11', '… auch aus den Objekten');
+const fremd = amAbhaengigLesen({ Traeger: [{ LookupId: 5, LookupValue: 'Sharepoint' }, { LookupId: 6, LookupValue: 'KeePass (Passworttresor)' }] }, 'Traeger', () => ({ selbst: false, multi: true }));
+ok(fremd.ids.length === 0 && fremd.namen.join('|') === 'Sharepoint|KeePass (Passworttresor)', 'Nachschlagen in eine andere Liste: fremde Ids sind keine Asset-Ids – die Namen bleiben, zum Auflösen');
+ok(amAbhaengigLesen({ AbhaengigJson: '["3","4"]' }, 'AbhaengigJson', null).ids.join() === '3,4' && amAbhaengigLesen({}, null, null).ids.length === 0, 'Die eigene JSON-Spalte wie bisher');
+// Ohne Spaltenmeta (Cron, Test): die Namen werden direkt gefunden – auch kodiert und mit Bindestrich
+const ohneMeta = amAusFeldern({ id: 2, Title: 'Personaldaten', 'Asset_x002d_Typ': 'Primär', Standorte: 'Alle DIHAG-Standorte', 'Asset_x002d_Owner': 'Personal', Vertraulichkeit: 'vertraulich', 'Integrit_x00e4_t': 'hoch', 'Verf_x00fc_gbarkeit': 'sehr hoch',
+  LinkzudenInformationen: { Url: 'https://x', Description: 'Asset-Management' }, 'Informationstr_x00e4_ger': [{ LookupId: 11, LookupValue: 'Sharepoint' }], weitereInfos: 'Papierform' }, { standorte: ['HOL', 'WGC'] });
+ok(ohneMeta.id === '2' && ohneMeta.art === 'primär' && ohneMeta.kategorie === '' && ohneMeta.werke.join() === 'ALLE' && ohneMeta.verantwortlich === 'Personal' && ohneMeta.integritaet === 'hoch' && ohneMeta.link.text === 'Asset-Management' && ohneMeta.beschreibung === 'Papierform',
+  'Ohne Spaltenmeta: Asset-Typ, Standorte, Asset-Owner, Integrität (kodiert), Link, weitere Infos – alles gefunden');
+ok(ohneMeta.abhaengigVon.length === 0 && ohneMeta.traeger.join() === 'Sharepoint', 'Ohne zu wissen, wohin das Nachschlagen zeigt, bleibt der Informationsträger ein Name …');
+const liste = amTraegerAufloesen([ohneMeta, amAusFeldern({ id: 11, Title: 'Sharepoint', 'Asset_x002d_Typ': 'Sekundär' }, {})]);
+ok(liste[0].abhaengigVon.join() === '11' && liste[0].traeger.length === 0 && liste[1].art === 'unterstützend', '… und wird über den Titel zum Asset: Personaldaten hängt an Sharepoint');
+ok(amTraegerAufloesen([{ id: '1', titel: 'A', traeger: ['Gibt es nicht'], abhaengigVon: [] }])[0].traeger.join() === 'Gibt es nicht', 'Was kein Asset ist, bleibt als Name stehen');
+ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung' } }, { feld: (e) => (e === 'Kategorie' ? 'Typ' : e === 'Art' ? null : null) }).kategorie === 'Anwendung', 'Mit Spaltenmeta zählt, was die Meta sagt');
+ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung', Kategorie: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === 'Server' && amAusFeldern({ id: 4, fields: { Title: 'Y', Kategorie: '' , Typ: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === '',
+  'Ist die Spalte bekannt, zählt nur sie – ein leeres Feld greift nicht auf einen Alias zurück, der etwas anderes meinen könnte');
+// Vererbung Asset → Asset und die Art in den Lücken
+const pers = { id: '2', titel: 'Personaldaten', art: 'primär', werke: ['ALLE'], verantwortlich: 'Personal', vertraulichkeit: 'vertraulich', integritaet: 'hoch', verfuegbarkeit: 'sehr hoch', abhaengigVon: ['11'] };
+const shp = { id: '11', titel: 'Sharepoint', art: 'unterstützend', werke: ['ALLE'], verantwortlich: 'IT', vertraulichkeit: 'intern', integritaet: 'normal', verfuegbarkeit: 'sehr hoch', wiederherstellung: 4, rpo: 1 };
+const luShp = amLuecken(shp, { heute, liste: [pers, shp] });
+ok(!luShp.fehler.some(x => /Kategorie fehlt/.test(x)), 'Führt die Liste nur die Art, fehlt keine Kategorie');
+ok(luShp.hinweise.filter(x => /Vererbung/.test(x)).length === 2 && luShp.hinweise.some(x => /„Personaldaten" liegt hierauf und verlangt Vertraulichkeit „hoch", eingetragen ist „intern"/.test(x)) && luShp.hinweise.some(x => /Integrität „hoch"/.test(x)),
+  'Vererbung Asset → Asset: Personaldaten (vertraulich, hoch) liegt auf Sharepoint (intern, normal) → Sharepoint braucht mehr');
+ok(amLuecken(pers, { heute, liste: [pers, shp] }).hinweise.every(x => !/Vererbung/.test(x)), 'Die Information selbst erbt keinen Schutzbedarf von unten …');
+const luPers = amLuecken(pers, { heute, liste: [pers, shp] });
+ok(!luPers.fehler.some(x => /R093/.test(x)) && luPers.hinweise.some(x => /Wiederherstellzeit über die Informationsträger: 4 h – das Langsamste von „Sharepoint"/.test(x)),
+  '… aber die Wiederherstellzeit und das RPO: Personaldaten sind wieder da, wenn Sharepoint wieder da ist (R093 erfüllt über den Träger)');
+ok(amLuecken(pers, { heute }).fehler.filter(x => /R093/.test(x)).length === 2 && amLuecken(pers, { heute, liste: [pers, Object.assign({}, shp, { wiederherstellung: '' })] }).fehler.some(x => /keine Wiederherstellzeit/.test(x)),
+  'Ohne Träger – oder mit einem Träger ohne Zeit – fehlt sie wirklich');
+ok(amLuecken({ id: '5', titel: 'Passwörter', art: 'primär', werke: ['HOL'], verantwortlich: 'x', vertraulichkeit: 'streng vertraulich', integritaet: 'sehr hoch', verfuegbarkeit: 'hoch', klassifizierung: 'streng vertraulich', wiederherstellung: 1 }, { heute }).hinweise.some(x => /Primäres Asset ohne Informationsträger/.test(x)),
+  'Ein primäres Asset ohne Informationsträger: Hinweis – worauf liegt es?');
+ok(amKennzahlen([pers, shp], { heute }).primaer === 1 && amKennzahlen([pers, shp], { heute }).vererbung === 1, 'Kennzahlen: primäre Assets, Assets mit zu niedrigem Schutzbedarf (auch durch andere Assets)');
+ok(/Liegt auf \/ hängt ab von/.test(amInventarHtml({ liste: [pers, shp] })) && /Sharepoint<\/td>/.test(amInventarHtml({ liste: [pers, shp] })) && /Primäre Assets/.test(amInventarHtml({ liste: [pers, shp] })), 'Das Inventar zeigt, worauf etwas liegt, und gruppiert nach Art, wenn es keine Kategorie gibt');
+ok(amVon({ art: 'Primär', link: 'https://x, Doku', traeger: 'A; B' }).art === 'primär' && amVon({ link: 'https://x, Doku' }).link.text === 'Doku' && amVon({ traeger: ['A', 'B'] }).traeger.join() === 'A,B', 'amVon normalisiert Art, Link und Träger');
 
 /* ── 4) Die Vererbung ── */
 ok(amSollVerfuegbarkeit([{ kritikalitaet: 'hoch' }]) === 'sehr hoch' && amSollVerfuegbarkeit([{ kritikalitaet: 'mittel' }]) === 'hoch'

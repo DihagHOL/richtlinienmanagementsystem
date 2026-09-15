@@ -128,17 +128,32 @@ async function ismsListe(name) {
   return (r.value || [])[0] || null;
 }
 
-/** Alle Elemente einer Liste auf der ISMS-Site (mit Feldern). */
-async function ismsItems(listId) {
+/** Die Spalten einer Liste auf der ISMS-Site – Name, Anzeigename, Typ (für die tolerante Zuordnung). */
+async function ismsSpalten(listId) {
   const sid = await ismsSiteId();
-  const out = [];
-  let url = `/sites/${sid}/lists/${listId}/items?$expand=fields&$top=200`;
-  while (url) {
-    const resp = await gget(url);
-    for (const it of (resp.value || [])) out.push(it.fields || {});
-    url = resp['@odata.nextLink'] || null;
-  }
-  return out;
+  const r = await gget(`/sites/${sid}/lists/${listId}/columns?$select=name,displayName,choice,lookup,personOrGroup`);
+  return r.value || [];
+}
+
+/**
+ * Alle Elemente einer Liste auf der ISMS-Site (mit Feldern). Mit `select`
+ * werden genau diese Felder angefordert – Nachschlage- und Personenfelder
+ * liefern ihren Anzeigewert nur so; lehnt Graph die Auswahl ab, geht es ohne.
+ */
+async function ismsItems(listId, select) {
+  const sid = await ismsSiteId();
+  const lade = async (mitAuswahl) => {
+    const out = [];
+    let url = `/sites/${sid}/lists/${listId}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}&$top=200`;
+    while (url) {
+      const resp = await gget(url);
+      for (const it of (resp.value || [])) out.push(it.fields || {});
+      url = resp['@odata.nextLink'] || null;
+    }
+    return out;
+  };
+  try { return await lade(!!select); }
+  catch (e) { if (!select) throw e; return lade(false); }
 }
 
 async function resolveSiteAndList() {
@@ -990,12 +1005,13 @@ function kenntnisEskalationHtml(posten) {
         console.log('Asset-Digest: Liste „Assets" existiert (noch) nicht – übersprungen.');
       } else {
         const AM = _require('../js/assetmodell.js');
-        const roh = (await ismsItems(liste.id)).map((f) => ({
-          titel: f.Title, kategorie: f.Kategorie, werke: f.Werke, verantwortlich: f.Verantwortlich,
-          vertraulichkeit: f.Vertraulichkeit, integritaet: f.Integritaet, verfuegbarkeit: f.Verfuegbarkeit, klassifizierung: f.Klassifizierung,
-          status: f.AStatus, eol: f.EOL, vertragsende: f.Vertragsende, lieferant: f.Lieferant, supportKontakt: f.SupportKontakt,
-          wiederherstellung: f.Wiederherstellung ?? '', rpo: f.Rpo ?? '', personenbezogen: f.Personenbezogen,
-        }));
+        // Gelesen wie im Reiter: die Spalten des Hauses (Asset-Typ, Standorte, Asset-Owner, Informationsträger …) über dieselbe Zuordnung.
+        const spalten = await ismsSpalten(liste.id);
+        const feld = (erwartet) => AM.amSpalteFinden(spalten, erwartet);
+        const guid = (s) => String(s || '').toLowerCase().replace(/[{}]/g, '');
+        const lookup = (name) => { const c = spalten.find(x => x.name === name); return (c && c.lookup) ? { selbst: guid(c.lookup.listId) === guid(liste.id), multi: !!c.lookup.allowMultipleValues } : null; };
+        const roh = AM.amTraegerAufloesen((await ismsItems(liste.id, AM.amSelectVon(spalten, feld)))
+          .map((f) => AM.amAusFeldern(f, { feld, lookup, standorte: standorteDerApp() })));
         const rowsOut = [];
         for (const f of AM.amFaelligkeiten(roh, AM.AM_VORLAUF_TAGE)) {
           rowsOut.push({ titel: f.asset.titel, was: `${f.was} ${f.ueberfaellig ? `abgelaufen seit ${-f.tage} Tag(en)` : `endet in ${f.tage} Tag(en)`} (${f.datum})`,

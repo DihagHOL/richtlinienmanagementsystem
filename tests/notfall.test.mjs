@@ -70,10 +70,11 @@ ok(/prozess:\s*f\.Prozess \|\| ''/.test(sp) && /Prozess:\s*String\(w\.prozess \|
 ok(/async function _ergaenzeWirkSpalten/.test(sp) && /if \(create\) await _ergaenzeWirkSpalten\(token, siteId\)/.test(sp),
   'Eine schon angelegte Liste bekommt die neuen Spalten – sonst verschluckte _wirkFields sie still');
 
-// Das Werk am Asset – gelesen aus der Liste, tolerant zugeordnet
-const sctx = { console, JSON, STANDORTE: ['HOL', 'SHB', 'WGC', 'ZAI'] };
+// Das Werk am Asset – gelesen aus der Liste, tolerant zugeordnet (das Modell weiß wie: amWerkeVon)
+const sctx = { console, JSON, STANDORTE: ['HOL', 'SHB', 'WGC', 'ZAI'], module: { exports: {} } };
 sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
 vm.createContext(sctx);
+vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
 const aw = (f) => vm.runInContext(`_assetWerke(${JSON.stringify(f)})`, sctx);
 ok(aw({ Standort: 'WGC' }).werke.join() === 'WGC', 'Spalte „Standort" mit Kürzel');

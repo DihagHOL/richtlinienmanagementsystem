@@ -43,14 +43,23 @@ ok(!/QuelleId/.test(sp.slice(sp.indexOf('const ASSET_COLUMNS'), sp.indexOf('let 
 ok(/async function spErgaenzeAssetSpalten/.test(sp) && !/if \(create\) await _ergaenzeAssetSpalten/.test(sp), 'Fehlende Spalten nur auf Knopfdruck – nie still: die Liste gehört dem Haus');
 ok(/function spAssetSpalteDa\(name\)/.test(sp), 'Ob eine Spalte da ist, lässt sich fragen (Notfall braucht das für die Wiederherstellzeit)');
 ok(/assetRegListId: null/.test(sp), 'Die Listen-Id hat ihren Platz');
-ok(/const ASSET_ALIASE = \{/.test(sp) && /Kategorie:\s*\['Typ', 'AssetTyp'/.test(sp) && /Verantwortlich:\s*\['Owner', 'Eigner'/.test(sp) && /Werke:\s*\['Standort'/.test(sp),
-  'Gewachsene Spaltennamen werden erkannt – zum Lesen und als Schreibziel; Standort ist Werk');
-ok(/function _assetNorm\(s\)/.test(sp) && /_x\(\[0-9a-fA-F\]\{4\}\)_/.test(sp), 'Anzeigenamen mit Umlaut und kodierte interne Namen sind dasselbe');
+const am = lies('js/assetmodell.js');
+ok(/const AM_ALIASE = \{/.test(am) && /Art:\s*\['Asset-Typ'/.test(am) && /Verantwortlich:\s*\['Owner', 'Asset-Owner'/.test(am) && /Werke:\s*\['Standort', 'Standorte'/.test(am) && /AbhaengigJson:\s*\['Informationsträger'/.test(am) && /Link:\s*\['Link zu den Informationen'/.test(am) && /Beschreibung:\s*\[[^\]]*'weitere Infos'/.test(am),
+  'Gewachsene Spaltennamen stehen im Modell – Reiter und Cron lesen dieselbe Liste gleich: Asset-Typ, Asset-Owner, Standorte, Informationsträger, Link, weitere Infos');
+ok(!/const ASSET_ALIASE = \{/.test(sp) && /return amSpalteFinden\(_assetColMeta, erwartet\)/.test(sp) && /return amAusFeldern\(it, \{/.test(sp), 'sharepoint.js liest über das Modell – keine zweite Zuordnung');
+ok(/function amSpaltenNorm\(s\)/.test(am) && /_x\(\[0-9a-fA-F\]\{4\}\)_/.test(am), 'Anzeigenamen mit Umlaut und kodierte interne Namen sind dasselbe');
+for (const c of JSON.parse('[' + [...sp.slice(sp.indexOf('const ASSET_COLUMNS'), sp.indexOf('let _assetCols')).matchAll(/name: '([A-Za-z]+)'/g)].map(m => `"${m[1]}"`).join(',') + ']')) {
+  ok(new RegExp(`\\n  ${c}:\\s*\\[`).test(am), `Jede erwartete Spalte hat ihren Platz im Modell (${c})`);
+}
+ok(/\{ name: 'Art',/.test(sp) && /\{ name: 'Link',/.test(sp), 'Neue Spalten: Art (primär / unterstützend) und Link');
+ok(/modulLaden\('assetmodell'\)/.test(sp) && /\$expand=fields\$\{mitAuswahl \? `\(\$select=\$\{select\}\)` : ''\}/.test(sp) && /amTraegerAufloesen\(out\)/.test(sp),
+  'Beim Laden: Modell nachladen, Felder ausdrücklich auswählen (Nachschlagewerte!), Informationsträger auflösen');
 
 // _mapAsset / _assetFields: hin und zurück
-const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC'] };
+const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC', 'SHB', 'ZAI'], module: { exports: {} } };
 sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
 vm.createContext(sctx);
+vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
 const gemappt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 12, webUrl: 'u', fields: { Title: 'SAP', Kategorie: 'anwendung', Werke: 'hol, WGC', Verfuegbarkeit: 'sehr hoch', Wiederherstellung: 12, Rpo: null, AbhaengigJson: '["3"]', ZusatzJson: '{"inventarnummer":"4711"}', Personenbezogen: 'ja', EOL: '2027-03-01T00:00:00Z', AStatus: 'aktiv' } })})`, sctx);
 ok(gemappt.id === '12' && gemappt.titel === 'SAP' && gemappt.title === 'SAP' && gemappt.werke.join() === 'HOL,WGC', 'Gelesen: Id, Titel (beide Schreibweisen), Werke');
@@ -58,7 +67,7 @@ ok(gemappt.wiederherstellung === 12 && gemappt.rpo === '' && gemappt.abhaengigVo
 ok(/sehr hoch/.test(gemappt.sub) && /HOL, WGC/.test(gemappt.sub), 'Die Kurzzeile für Risiken und Notfall');
 // Was die Liste heute schon hat – Typ, Owner (Person), ein Schutzbedarf, RTO, Standort mit Kürzel
 const alt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 5, fields: { Title: 'Leitstand', Typ: 'OT', Standort: 'Wittenberge (WGC)', Owner: { LookupValue: 'Ben', Email: 'ben@x' }, Schutzbedarf: 'Hoch', RTO: 8, Klassifizierung: 'Intern' } })})`, sctx);
-ok(alt.kategorie === 'OT' && alt.werke.join() === 'WGC' && alt.standort === 'Wittenberge (WGC)' && alt.verantwortlich === 'ben@x', 'Typ, Standort → Werk, Person-Feld → E-Mail');
+ok(alt.kategorie === 'OT' && alt.werke.join() === 'WGC' && alt.standort === '' && alt.verantwortlich === 'ben@x', 'Typ, Standort → Werk (und nicht zugleich Aufstellort), Person-Feld → E-Mail');
 ok(alt.vertraulichkeit === 'hoch' && alt.integritaet === 'hoch' && alt.verfuegbarkeit === 'hoch' && alt.wiederherstellung === 8 && alt.klassifizierung === 'intern', 'Ein Schutzbedarf für alle drei, RTO als Wiederherstellzeit');
 // Die Liste des Hauses, nachgestellt: Anzeigenamen mit Umlaut, kodierte interne Namen, Standort = Werke
 // (Mehrfachauswahl), Skala „1 – 3", Owner als Personenfeld, Wiederherstellzeit als field_9.
@@ -73,8 +82,6 @@ vm.runInContext(`_assetColMeta = [
   { name: 'Status', displayName: 'Status', typ: 'choice', choices: ['in Betrieb', 'ausgemustert'] },
   { name: 'field_9', displayName: 'Wiederherstellzeit', typ: 'number', choices: [] },
 ]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti.add('Standort');`, sctx);
-sctx.amRang = (x) => ({ 'sehr hoch': 2, '3 - sehr hoch': 2, hoch: 1, '2 - hoch': 1, normal: 0, '1 - niedrig': 0 }[String(x).toLowerCase()] ?? -1);
-sctx.amStatusVon = (x) => (/ausgemustert|außer/.test(String(x)) ? 'außer Betrieb' : 'aktiv');
 const haus = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 7, fields: { Title: 'SAP', Typ: 'Anwendung', Standort: ['HOL', 'WGC'], Owner: { Email: 'anna@x' }, Vertraulichkeit: '2 - hoch', 'Integrit_x00e4_t': '3 - sehr hoch', 'Verf_x00fc_gbarkeit': '3 - sehr hoch', Status: 'in Betrieb', field_9: 12 } })})`, sctx);
 ok(haus.kategorie === 'Anwendung' && haus.werke.join() === 'HOL,WGC' && haus.standort === '' && haus.verantwortlich === 'anna@x', 'Typ, Standort (Mehrfachauswahl) als Werke – und nicht zugleich als Aufstellort –, Person als E-Mail');
 ok(haus.vertraulichkeit === '2 - hoch' && haus.integritaet === '3 - sehr hoch' && haus.verfuegbarkeit === '3 - sehr hoch' && haus.wiederherstellung === 12, 'Integrität über den Anzeigenamen (intern kodiert), die Skala bleibt wie sie ist, Wiederherstellzeit aus field_9');
@@ -88,10 +95,45 @@ ok(!fehlt.includes('Integritaet') && !fehlt.includes('Werke') && !fehlt.includes
 const bericht = vm.runInContext('spAssetSpaltenBericht()', sctx);
 ok(bericht.find(b => b.erwartet === 'Integritaet').gefunden === 'Integrit_x00e4_t' && bericht.find(b => b.erwartet === 'Integritaet').choices.length === 3 && bericht.find(b => b.erwartet === 'Rpo').gefunden === null,
   'Der Bericht sagt, was wo gefunden wurde – mit der Auswahl der Spalte');
-vm.runInContext('_assetColMeta = []; _assetCols = null; _assetMulti = new Set();', sctx);
+// Die Liste des Hauses, wie sie heute aussieht (Bild): Asset-Typ „Primär", Standorte als Nachschlagen auf eine andere
+// Liste („Alle DIHAG-Standorte"), Asset-Owner als Nachschlagen (Fachbereich), Informationsträger als Nachschlagen auf die
+// Liste SELBST, „Link zu den Informationen" als Hyperlink, „weitere Infos" als Text.
+vm.runInContext(`_sp.assetRegListId = '{AAAA-1}'; _assetColMeta = [
+  { name: 'Title', displayName: 'Asset', typ: 'text', choices: [] },
+  { name: 'Asset_x002d_Typ', displayName: 'Asset-Typ', typ: 'text', choices: [] },
+  { name: 'Standorte', displayName: 'Standorte', typ: 'lookup', choices: [], lookupListId: 'bbbb-2', lookupMulti: true },
+  { name: 'Asset_x002d_Owner', displayName: 'Asset-Owner', typ: 'lookup', choices: [], lookupListId: 'cccc-3', lookupMulti: false },
+  { name: 'Vertraulichkeit', displayName: 'Vertraulichkeit', typ: 'choice', choices: ['intern', 'vertraulich', 'streng vertraulich'] },
+  { name: 'Integrit_x00e4_t', displayName: 'Integrität', typ: 'choice', choices: ['normal', 'hoch', 'sehr hoch'] },
+  { name: 'Verf_x00fc_gbarkeit', displayName: 'Verfügbarkeit', typ: 'choice', choices: ['normal', 'hoch', 'sehr hoch'] },
+  { name: 'LinkzudenInformationen', displayName: 'Link zu den Informationen', typ: 'link', choices: [] },
+  { name: 'Informationstr_x00e4_ger', displayName: 'Informationsträger', typ: 'lookup', choices: [], lookupListId: 'aaaa-1', lookupMulti: true },
+  { name: 'weitereInfos', displayName: 'weitere Infos', typ: 'text', choices: [] },
+]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti = new Set();`, sctx);
+const bild = vm.runInContext('spAssetSpaltenBericht()', sctx);
+const gef = (e) => bild.find(b => b.erwartet === e);
+ok(gef('Art').gefunden === 'Asset_x002d_Typ' && gef('Kategorie').gefunden === null, 'Asset-Typ ist die Art (primär / unterstützend) – keine Kategorie');
+ok(gef('Werke').gefunden === 'Standorte' && gef('Werke').nurLesen && gef('Verantwortlich').gefunden === 'Asset_x002d_Owner' && gef('Verantwortlich').nurLesen, 'Standorte und Asset-Owner: gefunden, Nachschlagen in andere Listen → nur lesen');
+ok(gef('AbhaengigJson').gefunden === 'Informationstr_x00e4_ger' && gef('AbhaengigJson').selbst && !gef('AbhaengigJson').nurLesen, 'Informationsträger zeigt auf die Liste selbst – das sind die Abhängigkeiten, und die App darf sie schreiben');
+ok(gef('Link').gefunden === 'LinkzudenInformationen' && gef('Beschreibung').gefunden === 'weitereInfos', 'Link zu den Informationen und weitere Infos');
+ok(/^id,Title,/.test(vm.runInContext('amSelectVon(_assetColMeta, _assetFeld)', sctx)) && /Asset_x002d_OwnerLookupId/.test(vm.runInContext('amSelectVon(_assetColMeta, _assetFeld)', sctx)) && /Informationstr_x00e4_gerLookupId/.test(vm.runInContext('amSelectVon(_assetColMeta, _assetFeld)', sctx)),
+  'Die Feldauswahl fordert die Nachschlagewerte samt LookupId an');
+const pd = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 2, fields: { Title: 'Personaldaten', 'Asset_x002d_Typ': 'Primär', Standorte: [{ LookupId: 9, LookupValue: 'Alle DIHAG-Standorte' }], 'Asset_x002d_Owner': 'Personal', 'Asset_x002d_OwnerLookupId': '4',
+  Vertraulichkeit: 'vertraulich', 'Integrit_x00e4_t': 'hoch', 'Verf_x00fc_gbarkeit': 'sehr hoch', LinkzudenInformationen: { Url: 'https://x/asset', Description: 'Asset-Management' },
+  'Informationstr_x00e4_ger': [{ LookupId: 11, LookupValue: 'Sharepoint' }], 'Informationstr_x00e4_gerLookupId': [11], weitereInfos: 'Papierform alle außer SHB/WGC' } })})`, sctx);
+ok(pd.art === 'primär' && pd.kategorie === '' && pd.werke.join() === 'ALLE' && pd.verantwortlich === 'Personal', 'Gelesen: Primär → Art, „Alle DIHAG-Standorte" → konzernweit, Asset-Owner → Verantwortlich');
+ok(pd.abhaengigVon.join() === '11' && pd.traeger.length === 0 && pd.link.url === 'https://x/asset' && pd.link.text === 'Asset-Management' && pd.beschreibung === 'Papierform alle außer SHB/WGC', 'Informationsträger → hängt ab von Asset 11; Hyperlink → Link; weitere Infos → Beschreibung');
+ok(pd.vertraulichkeit === 'vertraulich' && amVonNorm(pd).klassifizierung === 'vertraulich', 'Die Einstufung bleibt und ist die Klassifizierung');
+const pdFelder = vm.runInContext(`_assetFields(${JSON.stringify(Object.assign({}, pd, { abhaengigVon: ['11', '12'], link: { url: 'https://x/neu', text: 'Neu' }, art: 'unterstützend' }))})`, sctx);
+ok(pdFelder['Informationstr_x00e4_gerLookupId'].join() === '11,12' && pdFelder['Informationstr_x00e4_gerLookupId@odata.type'] === 'Collection(Edm.Int32)', 'Geschrieben: die Abhängigkeiten als LookupIds in „Informationsträger"');
+ok(!('Standorte' in pdFelder) && !('StandorteLookupId' in pdFelder) && !('Asset_x002d_Owner' in pdFelder) && !('Asset_x002d_OwnerLookupId' in pdFelder), 'Nachschlagen in andere Listen schreibt die App nicht');
+ok(pdFelder.LinkzudenInformationen.Url === 'https://x/neu' && pdFelder.LinkzudenInformationen.Description === 'Neu' && pdFelder['Asset_x002d_Typ'] === 'Unterstützend' && pdFelder.weitereInfos === 'Papierform alle außer SHB/WGC' && !('Kategorie' in pdFelder),
+  'Hyperlink als {Url, Description}, die Art in Worten, die Beschreibung in „weitere Infos", keine erfundene Spalte');
+vm.runInContext('_sp.assetRegListId = null; _assetColMeta = []; _assetCols = null; _assetMulti = new Set();', sctx);
 const felder = vm.runInContext(`_assetFields(${JSON.stringify(gemappt)})`, sctx);
 ok(felder.Title === 'SAP' && felder.Werke === 'HOL,WGC' && felder.Wiederherstellung === 12 && felder.Rpo === null && felder.AbhaengigJson === '["3"]' && felder.Personenbezogen === 'ja' && felder.EOL === '2027-03-01T00:00:00.000Z',
   'Geschrieben: dieselben Werte, Leeres als null, Datum als ISO');
+function amVonNorm(a) { return vm.runInContext(`amVon(${JSON.stringify(a)})`, sctx); }
 
 /* ── 3) Risiken, Notfall, Cockpit, Report, Doku, Cron ── */
 ok(/const lader = \(typeof spGetAssetsVereint === 'function'\) \? spGetAssetsVereint : spGetAssets;/.test(lies('js/risiken.js')), 'Das Risiko-Register wählt Assets über denselben Leser');
@@ -105,6 +147,8 @@ const cl = lies('js/clevelreport.js');
 ok(/add\('ISO A\.5\.9', 'Inventar der Werte', 'gap'/.test(cl) && /add\('ISO A\.5\.12', 'Klassifizierung von Informationen'/.test(cl), 'Audit Report: A.5.9 und A.5.12');
 const cron = lies('scripts/erinnerungen.mjs');
 ok(/Asset-Digest/.test(cron) && /ismsListe\('Assets'\)/.test(cron) && /_require\('\.\.\/js\/assetmodell\.js'\)/.test(cron) && /\?ansicht=assets/.test(cron), 'Der Cron mahnt aus derselben Liste – mit demselben Modell');
+ok(/async function ismsSpalten\(listId\)/.test(cron) && /AM\.amSpalteFinden\(spalten, erwartet\)/.test(cron) && /AM\.amAusFeldern\(f, \{ feld, lookup, standorte: standorteDerApp\(\) \}\)/.test(cron) && /ismsItems\(liste\.id, AM\.amSelectVon\(spalten, feld\)\)/.test(cron),
+  'Der Cron liest die Spalten des Hauses über dieselbe Zuordnung – Asset-Owner ist ein Verantwortlicher, nicht „keiner"');
 const eins = lies('js/einstellungen.js');
 ok(/seg\('assets', '🗂 Assetregister'\)/.test(eins) && /function _assetsBereichHtml/.test(eins) && /cfgAssetFeldHinzu/.test(eins) && /cfgAssetKatStandard/.test(eins), 'Einstellungen: dritter Bereich mit Zusatzfeldern und Kategorien');
 
@@ -188,7 +232,7 @@ ok(/title="Aufträge abwickeln">1 <span[^>]*>🚨/.test(out), 'Die Spalte Prozes
 
 // Editor
 vm.runInContext("openAssetEditor('1')", ctx);
-ok(modal && /🗂 SAP S\/4/.test(modal) && /Stammdaten/.test(modal) && /Schutzbedarf/.test(modal) && /Hängt ab von/.test(modal) && /Zusatzfelder/.test(modal) && /Verwendung/.test(modal), 'Der Editor mit allen Abschnitten');
+ok(modal && /🗂 SAP S\/4/.test(modal) && /Stammdaten/.test(modal) && /Schutzbedarf/.test(modal) && /Liegt auf \/ hängt ab von/.test(modal) && /Zusatzfelder/.test(modal) && /Verwendung/.test(modal) && /Link zu den Informationen/.test(modal) && /<label>Art /.test(modal), 'Der Editor mit allen Abschnitten – auch Art und Link');
 ok(/Inventarnummer <span class="req">\*<\/span>/.test(modal) && /value="4711"/.test(modal) && /<option value="EG">/.test(modal), 'Zusatzfelder aus den Einstellungen: Pflicht-Text mit Wert, Auswahl mit Optionen');
 ok(/<b>Prozesse:<\/b> Aufträge abwickeln/.test(modal) && /<b>Risiken:<\/b> SAP-Ausfall/.test(modal), 'Verwendung: Prozess und Risiko');
 ok(/Netzwerk Werk/.test(modal) && /amAbhToggle\('2',this\.checked\)/.test(modal) && /checked onchange="amAbhToggle\('2'/.test(modal), 'Die Abhängigkeit auf Netz ist angehakt');
