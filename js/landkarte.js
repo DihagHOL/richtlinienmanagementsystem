@@ -53,9 +53,56 @@ function lkWerkAbsichern() {
   return _lkWerk;
 }
 
-/* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – die Kachel
-   trägt sie als Kante, damit die Zugehörigkeit ohne Legende lesbar bleibt. */
+/* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – für die
+   Bereiche, die keinem Prozesstyp entsprechen (die Konzernebene: Strategie,
+   Finanzierung, Beratung …). */
 const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
+
+/* ── Prozesstypen ───────────────────────────────────────────────────────
+   Jeder Prozess ist Führungs-, Kern- oder Unterstützungsprozess – die Farbe
+   sagt es, quer über alle Karten, auch dort, wo die Bänder anders heißen
+   (Strategie, Finanzierung, Beratung …). Was keinem Typ zugeordnet ist, ist
+   eine Kategorie: eine Überschrift, ein Sammelbegriff, kein Ablauf – dunkelblau.
+   In den klassischen drei Bändern ergibt sich der Typ aus dem Band; die
+   Kachel darf ihn überstimmen (ein Kernprozess im Band „Beratung"). */
+const LK_TYPEN = [
+  { key: 'fuehrung',       label: 'Führungsprozess',       kurz: 'Führung',       farbe: '#17509E' },   // Azurblau
+  { key: 'kern',           label: 'Kernprozess',           kurz: 'Kern',          farbe: '#F08300' },   // Orange
+  { key: 'unterstuetzung', label: 'Unterstützungsprozess', kurz: 'Unterstützung', farbe: '#5B8CB8' },   // Lichtblau
+];
+const LK_KATEGORIE_FARBE = '#1A2644';   // Navy – die reine Kategorie
+
+function lkTyp(key) { return LK_TYPEN.find(t => t.key === key) || null; }
+
+/** Der Typ, den ein Band von sich aus trägt – „Kernprozesse" heißt Kern, ob als Schlüssel oder als Titel. */
+function lkBandTyp(band) {
+  const b = (band && typeof band === 'object') ? band : lkBaender().find(x => x.key === band) || { key: String(band || ''), titel: '' };
+  if (lkTyp(b.key)) return b.key;
+  const t = String(b.titel || '').toLowerCase();
+  if (/f(ü|ue)hrung|management|steuerung/.test(t)) return 'fuehrung';
+  if (/kern|wertsch(ö|oe)pfung|leistung/.test(t)) return 'kern';
+  if (/unterst(ü|ue)tz|support/.test(t)) return 'unterstuetzung';
+  return '';
+}
+
+/**
+ * Der Prozesstyp einer Kachel: ausdrücklich gesetzt, sonst aus dem Band;
+ * '' heißt Kategorie. `kategorie` an der Kachel überstimmt auch ein typisiertes Band.
+ */
+function lkTypVon(k, band) {
+  const eigen = String((k && k.typ) || '');
+  if (eigen === 'kategorie') return '';
+  if (lkTyp(eigen)) return eigen;
+  return lkBandTyp(band !== undefined ? band : (k && k.band));
+}
+function lkTypFarbe(k, band) { const t = lkTyp(lkTypVon(k, band)); return t ? t.farbe : LK_KATEGORIE_FARBE; }
+function lkTypLabel(k, band) { const t = lkTyp(lkTypVon(k, band)); return t ? t.label : 'Kategorie'; }
+
+/** Die Legende unter der Karte – vier Farben, vier Worte. */
+function _lkLegendeHtml() {
+  const punkt = (farbe, text) => `<span class="lk-legende-punkt"><i style="background:${farbe}"></i>${esc(text)}</span>`;
+  return `<div class="lk-legende">${LK_TYPEN.map(t => punkt(t.farbe, t.label)).join('')}${punkt(LK_KATEGORIE_FARBE, 'Kategorie (kein Ablauf)')}</div>`;
+}
 
 /* ── Verweise zwischen Prozessen ──────────────────────────────────────────
    Drei Arten reichen für das, was auf einer Prozesslandkarte vorkommt:
@@ -1373,6 +1420,125 @@ const LK_SCH = {
   ],
 };
 
+/**
+ * SAP nach Prozesstypen: dieselben End-to-End-Ketten, aber in der Form, die
+ * jede Prozesslandkarte hat – Führung, Kern, Unterstützung. Die SAP-Klammern
+ * (Lead to Cash, Design to Operate, Source to Pay, Recruit to Retire, Record
+ * to Report) sind die Hauptprozesse ihres Bandes; ihre Schritte hängen als
+ * Unterprozesse darunter und laufen als Kette („Danach folgt"). So zeigt die
+ * Mindmap drei Ebenen: Typ → Kette → Schritt.
+ */
+const LK_SAP_TYPEN = {
+  baender: [
+    { key: 'fuehrung',       titel: 'Führungsprozesse' },
+    { key: 'kern',           titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    /* ── Führung ── */
+    { id: 'sapt-governance', band: 'fuehrung', name: 'Governance',
+      unter: 'Steuerung, Regelwerke, Compliance',
+      verweise: [{ ziel: 'sapt-regelwerke', art: 'unterprozess' }] },
+    { id: 'sapt-regelwerke', band: 'fuehrung', name: 'Regelwerk und Richtlinien',
+      unter: 'Konzernregelungen erstellen, freigeben, bekanntgeben' },
+
+    /* ── Kern: Lead to Cash ── */
+    { id: 'sapt-l2c', band: 'kern', name: 'Lead to Cash (Vertrieb)',
+      unter: 'Vom Interessenten zum Zahlungseingang',
+      verweise: [{ ziel: 'sapt-l2c-anfrage', art: 'unterprozess' }, { ziel: 'sapt-l2c-angebot', art: 'unterprozess' },
+                 { ziel: 'sapt-l2c-auftrag', art: 'unterprozess' }, { ziel: 'sapt-l2c-lieferung', art: 'unterprozess' },
+                 { ziel: 'sapt-l2c-faktura', art: 'unterprozess' }, { ziel: 'sapt-l2c-zahlung', art: 'unterprozess' }] },
+    { id: 'sapt-l2c-anfrage', band: 'kern', name: 'Anfrage und Machbarkeit',
+      unter: 'Kundenanfrage aufnehmen, technisch und kaufmännisch prüfen',
+      verweise: [{ ziel: 'sapt-l2c-angebot', art: 'folgt' }] },
+    { id: 'sapt-l2c-angebot', band: 'kern', name: 'Angebot und Kalkulation',
+      unter: 'Kalkulation, Angebot, Verhandlung',
+      verweise: [{ ziel: 'sapt-l2c-auftrag', art: 'folgt' }] },
+    { id: 'sapt-l2c-auftrag', band: 'kern', name: 'Auftragserfassung',
+      unter: 'Kundenauftrag anlegen, Verfügbarkeit und Termin zusagen',
+      verweise: [{ ziel: 'sapt-l2c-lieferung', art: 'folgt' }, { ziel: 'sapt-d2o-p2f', art: 'nutzt' }] },
+    { id: 'sapt-l2c-lieferung', band: 'kern', name: 'Lieferung',
+      unter: 'Lieferschein, Kommissionierung, Warenausgang',
+      verweise: [{ ziel: 'sapt-l2c-faktura', art: 'folgt' }] },
+    { id: 'sapt-l2c-faktura', band: 'kern', name: 'Faktura',
+      unter: 'Rechnungsstellung, Gutschriften, Preisfindung',
+      verweise: [{ ziel: 'sapt-l2c-zahlung', art: 'folgt' }] },
+    { id: 'sapt-l2c-zahlung', band: 'kern', name: 'Zahlungseingang',
+      unter: 'Debitoren, Mahnwesen, Kreditlimit',
+      verweise: [{ ziel: 'sapt-r2r', art: 'nutzt' }] },
+
+    /* ── Kern: Design to Operate ── */
+    { id: 'sapt-d2o', band: 'kern', name: 'Design to Operate (Produktion)',
+      unter: 'Produktentstehung, Fertigung und Anlagen unter einem Dach',
+      verweise: [{ ziel: 'sapt-d2o-i2m', art: 'unterprozess' }, { ziel: 'sapt-d2o-a2d', art: 'unterprozess' }, { ziel: 'sapt-d2o-p2f', art: 'unterprozess' }] },
+    { id: 'sapt-d2o-i2m', band: 'kern', name: 'Idea to Market',
+      unter: 'Von der Idee zum Serienteil: Entwicklung, Bemusterung, Freigabe' },
+    { id: 'sapt-d2o-a2d', band: 'kern', name: 'Acquire to Decommission',
+      unter: 'Von der Investition zur Stilllegung: Anlagen beschaffen, betreiben, instand halten' },
+    { id: 'sapt-d2o-p2f', band: 'kern', name: 'Plan to Fulfill',
+      unter: 'Von der Planung zur Lieferung: Planung, Disposition, Fertigung, Prüfung, Versand' },
+
+    /* ── Kern: Source to Pay ── */
+    { id: 'sapt-s2p', band: 'kern', name: 'Source to Pay (Einkauf)',
+      unter: 'Vom Bedarf zur bezahlten Rechnung',
+      verweise: [{ ziel: 'sapt-s2p-bedarf', art: 'unterprozess' }, { ziel: 'sapt-s2p-lieferant', art: 'unterprozess' },
+                 { ziel: 'sapt-s2p-bestellung', art: 'unterprozess' }, { ziel: 'sapt-s2p-wareneingang', art: 'unterprozess' },
+                 { ziel: 'sapt-s2p-rechnung', art: 'unterprozess' }] },
+    { id: 'sapt-s2p-bedarf', band: 'kern', name: 'Bedarfsanforderung',
+      unter: 'Bedarf melden, prüfen, freigeben',
+      verweise: [{ ziel: 'sapt-s2p-lieferant', art: 'folgt' }] },
+    { id: 'sapt-s2p-lieferant', band: 'kern', name: 'Lieferantenauswahl',
+      unter: 'Anfrage, Vergleich, Freigabe des Lieferanten',
+      verweise: [{ ziel: 'sapt-s2p-bestellung', art: 'folgt' }] },
+    { id: 'sapt-s2p-bestellung', band: 'kern', name: 'Bestellung',
+      unter: 'Bestellung, Auftragsbestätigung, Terminverfolgung',
+      verweise: [{ ziel: 'sapt-s2p-wareneingang', art: 'folgt' }] },
+    { id: 'sapt-s2p-wareneingang', band: 'kern', name: 'Wareneingang',
+      unter: 'Annahme, Prüfung, Einlagerung',
+      verweise: [{ ziel: 'sapt-s2p-rechnung', art: 'folgt' }] },
+    { id: 'sapt-s2p-rechnung', band: 'kern', name: 'Rechnungsprüfung und Zahlung',
+      unter: 'Rechnung prüfen, buchen, Zahlungslauf',
+      verweise: [{ ziel: 'sapt-r2r', art: 'nutzt' }] },
+
+    /* ── Unterstützung ── */
+    { id: 'sapt-h2r', band: 'unterstuetzung', name: 'Recruit to Retire (HR)',
+      unter: 'Von der Einstellung zum Austritt',
+      verweise: [{ ziel: 'sapt-h2r-bedarf', art: 'unterprozess' }, { ziel: 'sapt-h2r-eintritt', art: 'unterprozess' },
+                 { ziel: 'sapt-h2r-verwaltung', art: 'unterprozess' }, { ziel: 'sapt-h2r-entwicklung', art: 'unterprozess' },
+                 { ziel: 'sapt-h2r-austritt', art: 'unterprozess' }] },
+    { id: 'sapt-h2r-bedarf', band: 'unterstuetzung', name: 'Personalbedarf und Recruiting',
+      unter: 'Bedarf, Ausschreibung, Auswahl',
+      verweise: [{ ziel: 'sapt-h2r-eintritt', art: 'folgt' }] },
+    { id: 'sapt-h2r-eintritt', band: 'unterstuetzung', name: 'Einstellung und Onboarding',
+      unter: 'Vertrag, Ersteinweisung, Arbeitsmittel, Zugänge',
+      verweise: [{ ziel: 'sapt-h2r-verwaltung', art: 'folgt' }, { ziel: 'sapt-it', art: 'nutzt' }] },
+    { id: 'sapt-h2r-verwaltung', band: 'unterstuetzung', name: 'Personaladministration und Zeitwirtschaft',
+      unter: 'Stammdaten, Zeiterfassung, Abwesenheiten',
+      verweise: [{ ziel: 'sapt-h2r-entwicklung', art: 'folgt' }] },
+    { id: 'sapt-h2r-entwicklung', band: 'unterstuetzung', name: 'Qualifizierung und Entwicklung',
+      unter: 'Ausbildung, Weiterbildung, Qualifikationsmatrix',
+      verweise: [{ ziel: 'sapt-h2r-austritt', art: 'folgt' }] },
+    { id: 'sapt-h2r-austritt', band: 'unterstuetzung', name: 'Entgelt und Austritt',
+      unter: 'Abrechnung, Kündigung, Zeugnis, Zugänge sperren',
+      verweise: [{ ziel: 'sapt-it', art: 'nutzt' }] },
+    { id: 'sapt-it', band: 'unterstuetzung', name: 'IT',
+      unter: 'Betrieb, Support, Informationssicherheit',
+      verweise: [{ ziel: 'sapt-it-betrieb', art: 'unterprozess' }, { ziel: 'sapt-it-sicherheit', art: 'unterprozess' }] },
+    { id: 'sapt-it-betrieb', band: 'unterstuetzung', name: 'IT-Betrieb und Support',
+      unter: 'Systeme, Netz, Arbeitsplätze, Tickets' },
+    { id: 'sapt-it-sicherheit', band: 'unterstuetzung', name: 'Informationssicherheit und Berechtigungen',
+      unter: 'Zugänge, Schutz, Vorfälle' },
+    { id: 'sapt-r2r', band: 'unterstuetzung', name: 'Record to Report (Finanzen)',
+      unter: 'Von der Buchung zum Abschluss',
+      verweise: [{ ziel: 'sapt-r2r-buchung', art: 'unterprozess' }, { ziel: 'sapt-r2r-abschluss', art: 'unterprozess' }] },
+    { id: 'sapt-r2r-buchung', band: 'unterstuetzung', name: 'Hauptbuch und Nebenbücher',
+      unter: 'Belege, Kreditoren, Debitoren, Bank',
+      verweise: [{ ziel: 'sapt-r2r-abschluss', art: 'folgt' }] },
+    { id: 'sapt-r2r-abschluss', band: 'unterstuetzung', name: 'Abschluss und Reporting',
+      unter: 'Monats-, Jahres- und Konzernabschluss' },
+  ],
+};
+
 /* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
    null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
 const LK_VORLAGEN = [
@@ -1403,6 +1569,9 @@ const LK_VORLAGEN = [
   { key: 'sch', titel: 'Schmiedeberg (SCH) – Prozesslandkarte',
     zweck: 'Aus der Prozesslandkarte vom 14.07.2026: acht Prozesse in drei Bändern – bewusst grob, die Verfeinerung entsteht mit Teilprozessen und Modellen in der App.',
     karte: LK_SCH },
+  { key: 'sap-typen', titel: 'SAP – nach Prozesstypen',
+    zweck: 'Die SAP-Ketten in der Form jeder Prozesslandkarte: Führung (Governance), Kern (Lead to Cash, Design to Operate, Source to Pay) und Unterstützung (Recruit to Retire, IT, Record to Report). Jede Kette ist ein Hauptprozess, ihre Schritte hängen als Unterprozesse darunter – die Mindmap zeigt drei Ebenen: Typ, Kette, Schritt.',
+    karte: LK_SAP_TYPEN },
 ];
 
 function lkStartbestand() {
@@ -1715,6 +1884,7 @@ function _lkBandTitel(key) {
 function _lkKarteHtml(schreiben) {
   return `<div class="lk-karte">
       ${lkBaender().map((b, i) => _lkZeileHtml(b, i, schreiben)).join('')}
+      ${_lkLegendeHtml()}
     </div>`;
 }
 
@@ -1729,7 +1899,9 @@ function _lkZeileHtml(band, nr, schreiben) {
   // Der Index i bleibt der in lkKacheln() – daran hängt das Ziehen und Ablegen.
   const idx = _lkNurHaupt ? imBand.filter(x => !lkIstTeilprozess(_lkWerk, x.k)) : imBand;
   const eingeordnet = imBand.length - idx.length;
-  const farbe = LK_FARBEN[nr % LK_FARBEN.length];
+  // Ein Band, das einen Prozesstyp meint, trägt dessen Farbe; die anderen ihre Reihenfolge.
+  const bandTyp = lkTyp(lkBandTyp(band));
+  const farbe = bandTyp ? bandTyp.farbe : LK_FARBEN[nr % LK_FARBEN.length];
   const zahl = `${idx.length} ${idx.length === 1 ? 'Prozess' : 'Prozesse'}${
     eingeordnet ? ` · ${eingeordnet} eingeordnet` : ''}`;
   // Der Balken ist eine Schaltfläche, sobald man schreiben darf – ein Bereich
@@ -1803,8 +1975,9 @@ function _lkKachelHtml(k, i, band, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
   const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
-  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))}">
+  const typ = lkTyp(lkTypVon(k, band));
+  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
@@ -1815,6 +1988,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
           ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
           ${(typeof nfKachelMarker === 'function') ? nfKachelMarker(k) : ''}
           ${_lkGliederungZeichen(_lkWerk, k)}
+          ${typ && typ.key !== lkBandTyp(band) ? `<span class="lk-kachel-typ" style="color:${typ.farbe}" title="${esc(typ.label)}">${esc(typ.kurz)}</span>` : ''}
         </div>
       </div>
     </div>`;
@@ -1823,8 +1997,8 @@ function _lkKachelHtml(k, i, band, schreiben) {
 function _lkPfeilHtml(k, i, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
-  return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))}">
+  return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, 'kern')}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
       ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
@@ -2672,6 +2846,7 @@ function lkKachelOeffnen(id) {
     <div class="modal-body">
       ${k.unter ? `<p class="ic-desc" style="margin:0 0 12px">${esc(k.unter)}</p>` : ''}
       <div class="ic-tags" style="margin-bottom:14px">
+        <span class="ic-tag" style="background:${lkTypFarbe(k, k.band)};color:#fff;border-color:transparent" title="Prozesstyp">${esc(lkTypLabel(k, k.band))}</span>
         <span class="ic-tag">${esc(_lkBandTitel(k.band))}</span>
         <span class="ic-tag cat">${esc(gb || 'Geltungsbereich nicht gepflegt')}</span>
       </div>
@@ -3250,11 +3425,20 @@ function renderLkEditor() {
           <input type="text" value="${esc(k.unter || '')}" oninput="_lkEditing.unter=this.value" placeholder="z. B. Versand / Faktura">
           <span class="field-hint">Kurz – er steht klein unter dem Namen.</span>
         </div>
-        <div class="form-group full">
+        <div class="form-group">
           <label>Band</label>
-          <select onchange="_lkEditing.band=this.value">
+          <select onchange="_lkEditing.band=this.value;_lkTypHinweis()">
             ${lkBaender().map(b => `<option value="${esc(b.key)}"${b.key === k.band ? ' selected' : ''}>${esc(b.titel)}</option>`).join('')}
           </select>
+        </div>
+        <div class="form-group">
+          <label>Prozesstyp</label>
+          <select onchange="_lkEditing.typ=this.value;_lkTypHinweis()">
+            <option value=""${!k.typ ? ' selected' : ''}>automatisch aus dem Band</option>
+            ${LK_TYPEN.map(t => `<option value="${t.key}"${k.typ === t.key ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}
+            <option value="kategorie"${k.typ === 'kategorie' ? ' selected' : ''}>Kategorie – kein Ablauf (dunkelblau)</option>
+          </select>
+          <span class="field-hint" id="lk-typ-hinweis">${_lkTypHinweisText(k)}</span>
         </div>
         <div class="form-group">
           <label>Prozessverantwortlich (E-Mail)</label>
@@ -3277,6 +3461,16 @@ function renderLkEditor() {
     </div>`);
 }
 
+/** Was aus Band und Wahl folgt – in der Farbe, die die Kachel bekommt. */
+function _lkTypHinweisText(k) {
+  const farbe = lkTypFarbe(k, k.band);
+  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' – aus dem Band' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine reine Kategorie ist dunkelblau.`;
+}
+function _lkTypHinweis() {
+  const el = document.getElementById('lk-typ-hinweis');
+  if (el && _lkEditing) el.innerHTML = _lkTypHinweisText(_lkEditing);
+}
+
 async function lkEditorSpeichern() {
   const k = _lkEditing;
   if (!k) return;
@@ -3288,6 +3482,7 @@ async function lkEditorSpeichern() {
   if (k.neu) {
     const id = lkFreieKachelId(name);
     lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
+      typ: String(k.typ || ''),
       verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
       prozesse: [], regelwerke: [] });
     closeModal();
@@ -3298,16 +3493,18 @@ async function lkEditorSpeichern() {
   const ziel = lkKachelVonId(k.id);
   if (!ziel) return;
   const alt = { name: ziel.name, band: ziel.band, unter: ziel.unter || '', geltung: (ziel.geltung || []).join(','),
-    verantwortlich: ziel.verantwortlich || '' };
+    verantwortlich: ziel.verantwortlich || '', typ: lkTypLabel(ziel, ziel.band) };
   ziel.name = name;
   ziel.unter = String(k.unter || '').trim();
   ziel.band = k.band;
+  ziel.typ = String(k.typ || '');
   ziel.geltung = geltung;
   ziel.verantwortlich = String(k.verantwortlich || '').trim();
   ziel.vertretung = String(k.vertretung || '').trim();
   const teile = [];
   if (alt.name !== name) teile.push(`Name: „${alt.name}" → „${name}"`);
   if (alt.band !== ziel.band) teile.push(`Band: ${_lkBandTitel(alt.band)} → ${_lkBandTitel(ziel.band)}`);
+  if (alt.typ !== lkTypLabel(ziel, ziel.band)) teile.push(`Prozesstyp: ${alt.typ} → ${lkTypLabel(ziel, ziel.band)}`);
   if (alt.unter !== ziel.unter) teile.push('Untertitel geändert');
   if (alt.geltung !== geltung.join(',')) teile.push(`Geltungsbereich: ${geltungsbereichLabel(geltung)}`);
   if (alt.verantwortlich !== ziel.verantwortlich) {

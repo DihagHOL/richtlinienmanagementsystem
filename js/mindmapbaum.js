@@ -63,16 +63,60 @@ function vbWurzelId() {
   return 'wurzel';
 }
 
+/** Hat dieser Prozess einen Hauptprozess im selben Werk? Dann ist er ein Schritt – und hängt dort, nicht am Band. */
+function _vbIstTeilprozess(id) {
+  const n = _vkGraph.knoten.get(id);
+  if (!n || n.art !== 'prozess') return false;
+  return _vkGraph.kanten.some(k => {
+    if (k.nach !== id || k.typ !== 'unterprozesse') return false;
+    const p = _vkGraph.knoten.get(k.von);
+    return !!(p && p.art === 'prozess' && p.werk === n.werk);
+  });
+}
+
+/**
+ * Die Kinder eines Knotens. In der Übersicht zeigt das Band nur seine
+ * Hauptprozesse; die Schritte hängen unter ihrer Kette – Typ → Kette → Schritt,
+ * wie man eine Prozesslandschaft zeichnet. In der Abhängigkeits-Ansicht gelten
+ * alle Verweise.
+ */
 function _vbKinder(id) {
   if (!_vkGraph) return [];
+  const eltern = _vkGraph.knoten.get(id);
   const raus = [];
   _vkGraph.kanten.forEach(k => {
-    if (k.von !== id || !vbTypen().includes(k.typ)) return;
+    if (k.von !== id) return;
+    const erlaubt = vbTypen().includes(k.typ)
+      || (_vbModus === 'baum' && k.typ === 'unterprozesse' && eltern && eltern.art === 'prozess');
+    if (!erlaubt) return;
+    if (_vbModus === 'baum' && eltern && eltern.art === 'band' && k.typ === 'enthält' && _vbIstTeilprozess(k.nach)) return;
     if (raus.some(x => x.id === k.nach)) return;
     const n = _vkGraph.knoten.get(k.nach);
     if (n) raus.push({ id: k.nach, typ: k.typ, knoten: n });
   });
+  // Unterprozesse zuerst in der Reihenfolge ihrer Verweise, dann Modelle und Regelwerke.
   return raus;
+}
+
+/**
+ * Die Farbe eines Astes: Ein Band, das einen Prozesstyp meint, trägt dessen
+ * Farbe (Führung, Kern, Unterstützung); ein Prozess mit eigenem Typ seine;
+ * alles andere die Palette bzw. die Farbe von oben.
+ */
+function _vbFarbeFuer(kind, i, tiefe, oben) {
+  const n = kind.knoten || {};
+  const bandKey = (n.art === 'band') ? String(kind.id).split(':').slice(2).join(':') : '';
+  if (n.art === 'band' && typeof lkBandTyp === 'function' && typeof lkTyp === 'function') {
+    const baender = (typeof lkBaenderVon === 'function') ? lkBaenderVon(n.werk) : [];
+    const t = lkTyp(lkBandTyp(baender.find(b => b.key === bandKey) || bandKey));
+    if (t) return t.farbe;
+  }
+  if (n.art === 'prozess' && typeof lkTyp === 'function' && typeof lkAlleKacheln === 'function') {
+    const k = (lkAlleKacheln().find(x => x.werk === n.werk && x.kachel.id === n.kachelId) || {}).kachel;
+    if (k && k.typ && k.typ !== 'kategorie' && lkTyp(k.typ)) return lkTyp(k.typ).farbe;
+    if (k && k.typ === 'kategorie' && typeof LK_KATEGORIE_FARBE !== 'undefined') return LK_KATEGORIE_FARBE;
+  }
+  return tiefe === 0 ? VB_PALETTE[i % VB_PALETTE.length] : oben;
 }
 
 /**
@@ -89,8 +133,7 @@ function _vbAst(id, elternPfad, tiefe, farbe, ahnen) {
     anzahl: kinder.length, offen, kinder: [] };
   if (offen && kinder.length) {
     const weiter = new Set(ahnen); weiter.add(id);
-    ast.kinder = kinder.map((x, i) => _vbAst(x.id, pfad, tiefe + 1,
-      tiefe === 0 ? VB_PALETTE[i % VB_PALETTE.length] : farbe, weiter)).filter(Boolean);
+    ast.kinder = kinder.map((x, i) => _vbAst(x.id, pfad, tiefe + 1, _vbFarbeFuer(x, i, tiefe, farbe), weiter)).filter(Boolean);
   }
   return ast;
 }

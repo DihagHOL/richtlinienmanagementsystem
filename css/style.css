@@ -685,10 +685,12 @@ body.demo-mode .main { padding-bottom: 64px; }
 .lk-zeile-titel-klick:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
 .lk-reihe { display: grid; gap: 10px; }
 
-/* Kachel: helle Karte mit farbiger Oberkante – die Farbe kommt vom Band. */
+/* Kachel: helle Karte mit farbiger Oberkante – die Farbe ist der Prozesstyp
+   (Führung, Kern, Unterstützung), dunkelblau die reine Kategorie. */
 .lk-kachel {
   min-width: 0; cursor: pointer; background: #fff; border-radius: 12px;
-  border: 1px solid var(--c-border); border-top: 3px solid var(--lk-c, #17509E);
+  background: color-mix(in srgb, var(--lk-c, #1A2644) 9%, #fff);
+  border: 1px solid color-mix(in srgb, var(--lk-c, #1A2644) 35%, #fff); border-top: 4px solid var(--lk-c, #1A2644);
   box-shadow: 0 1px 2px rgba(15,23,42,.05);
   transition: box-shadow .14s ease, transform .14s ease;
   display: flex;
@@ -708,6 +710,11 @@ body.demo-mode .main { padding-bottom: 64px; }
 .lk-kachel-fuss { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lk-kachel-person { font-size: .68rem; font-weight: 600; color: var(--c-muted); }
 .lk-kachel-geltung { font-size: .66rem; font-weight: 700; color: var(--lk-c, #17509E); letter-spacing: .03em; opacity: .85; }
+/* Der Typ steht nur dann als Wort dabei, wenn er vom Band abweicht – sonst sagt es die Farbe. */
+.lk-kachel-typ { font-size: .64rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; margin-left: auto; }
+.lk-legende { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; padding: 8px 4px 0; font-size: .74rem; color: var(--c-muted); }
+.lk-legende-punkt { display: inline-flex; align-items: center; gap: 6px; }
+.lk-legende-punkt i, .lk-legende-farbe { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; }
 
 /* Gliederung: ausklappbare Unterprozesse und das Zeichen für geteilte Prozesse.
    Ein Prozess, der zu mehreren Hauptprozessen gehört, wird einmal gepflegt –

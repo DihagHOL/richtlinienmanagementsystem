@@ -173,6 +173,33 @@ ok(/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(html)
 ok(/lk-punkt-modell/.test(html) && /lk-punkt-offen/.test(html), 'Ein Punkt zeigt, ob ein Modell hinterlegt ist');
 ok(/2<\/b> von <b>17/.test(html), 'Und oben steht, wie viele Prozesse modelliert sind');
 
+/* ── 4b) Prozesstypen: Führung, Kern, Unterstützung je eine Farbe; die reine Kategorie dunkelblau ── */
+ok(w("LK_TYPEN.map(t => t.key).join()") === 'fuehrung,kern,unterstuetzung' && w("LK_TYPEN.map(t => t.farbe).join()") === '#17509E,#F08300,#5B8CB8' && w('LK_KATEGORIE_FARBE') === '#1A2644',
+  'Drei Typen in den Farben des Hauses – Azurblau, Orange, Lichtblau; die Kategorie Navy');
+ok(w("lkTypVon({ band: 'kern' })") === 'kern' && w("lkTypVon({ band: 'fuehrung' })") === 'fuehrung' && w("lkTypVon({ band: 'unterstuetzung' })") === 'unterstuetzung',
+  'In den klassischen Bändern ergibt sich der Typ aus dem Band');
+ok(w("lkTypVon({ band: 'strategie' })") === '' && w("lkTypFarbe({ band: 'strategie' })") === '#1A2644' && w("lkTypLabel({ band: 'strategie' })") === 'Kategorie',
+  'Ein Band, das keinen Typ meint (Strategie, Finanzierung …): Kategorie, dunkelblau');
+ok(w("lkTypVon({ band: 'strategie', typ: 'kern' })") === 'kern' && w("lkTypFarbe({ band: 'strategie', typ: 'kern' })") === '#F08300', 'Die Kachel darf ihren Typ selbst setzen …');
+ok(w("lkTypVon({ band: 'kern', typ: 'kategorie' })") === '' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie' })") === '#1A2644', '… und im Kernband ausdrücklich eine Kategorie sein');
+ok(w("lkBandTyp({ key: 'x1', titel: 'Managementprozesse' })") === 'fuehrung' && w("lkBandTyp({ key: 'x2', titel: 'Wertschöpfung' })") === 'kern' && w("lkBandTyp({ key: 'x3', titel: 'Supportprozesse' })") === 'unterstuetzung' && w("lkBandTyp({ key: 'x4', titel: 'Beratung' })") === '',
+  'Auch ein umbenanntes Band verrät seinen Typ über den Titel');
+w("lkKachelVonId('beschaffung').typ = 'kern'; lkKachelVonId('it').typ = 'kategorie'; renderLandkarte();");
+html = mount.innerHTML;
+ok(/class="lk-kachel" style="--lk-c:#17509E"[^>]*aria-label="Strategie"/.test(html), 'Die Führungskachel trägt Azurblau');
+ok(/class="lk-kachel" style="--lk-c:#F08300"[^>]*aria-label="Beschaffung"/.test(html) && /lk-kachel-typ" style="color:#F08300"[^>]*>Kern</.test(html), 'Beschaffung im Unterstützungsband als Kernprozess: orange, und das Wort steht dabei, weil es vom Band abweicht');
+ok(/class="lk-kachel" style="--lk-c:#1A2644"[^>]*aria-label="IT"/.test(html) && !/color:#1A2644"[^>]*>Kategorie</.test(html), 'IT als reine Kategorie: dunkelblau');
+ok(/class="lk-kachel" style="--lk-c:#5B8CB8"[^>]*aria-label="Personal"/.test(html) && !/lk-kachel-typ[^>]*>Unterstützung</.test(html), 'Personal im Unterstützungsband: lichtblau, ohne Wort – die Farbe sagt es');
+ok(/class="lk-pfeil" style="--lk-c:#F08300"/.test(html) && /lk-zeile lk-zeile-kern" style="--lk-c:#F08300"/.test(html) && /lk-zeile" style="--lk-c:#5B8CB8"/.test(html), 'Pfeile und Bänder in derselben Farbe wie ihr Typ');
+ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && /Kategorie \(kein Ablauf\)/.test(html), 'Die Legende unter der Karte');
+w("lkKachelVonId('beschaffung').typ = ''; lkKachelVonId('it').typ = '';");
+w("_lkEditing = Object.assign({ neu: false }, JSON.parse(JSON.stringify(lkKachelVonId('it'))), { geltung: ['ALLE'] }); renderLkEditor();");
+ok(/Prozesstyp/.test(w('_lkTypHinweisText(_lkEditing)')) || /aus dem Band/.test(w('_lkTypHinweisText(_lkEditing)')), 'Der Editor sagt, was aus dem Band folgt');
+w("_lkEditing.typ = 'kern';");
+await w('lkEditorSpeichern()');
+ok(w("lkKachelVonId('it').typ") === 'kern' && /Prozesstyp: Unterstützungsprozess → Kernprozess/.test(JSON.stringify(w('_lkDaten.historie').slice(-1))), 'Gespeichert – mit dem Wechsel im Verlauf');
+w("lkKachelVonId('it').typ = '';");
+
 w("_lkFilter = 'SHB'; lkKachelVonId('instandhaltung').geltung = ['HOL']; renderLandkarte();");
 html = mount.innerHTML;
 ok((html.match(/lk-aus/g) || []).length === 1, 'Mit Standortfilter wird ausgegraut, was dort nicht gilt');
@@ -349,8 +376,8 @@ ok(/prozesse: 'Prozesse & Landkarte'/.test(fs.readFileSync(path.join(ROOT, 'js/a
 /* ── 10) Vorlagen: der Konzern ist kein Werk in klein ──
    Eine Führungsholding steuert, finanziert, sichert ab, bündelt, kommuniziert
    und verändert – sie produziert nicht. Deshalb eine eigene Landschaft. */
-ok(w('LK_VORLAGEN.length') === 9, 'Neun Vorlagen zur Auswahl');
-ok(w("LK_VORLAGEN.map(v => v.key).join('|')") === 'konzern|gesellschaft|konzernkarte|holding|konzern-gesamt|sap|wgc|zai|sch',
+ok(w('LK_VORLAGEN.length') === 10, 'Zehn Vorlagen zur Auswahl');
+ok(w("LK_VORLAGEN.map(v => v.key).join('|')") === 'konzern|gesellschaft|konzernkarte|holding|konzern-gesamt|sap|wgc|zai|sch|sap-typen',
   'Neue Vorlagen kommen hinten dazu – wer die Reihenfolge kennt, findet die alten wieder');
 ok(w('LK_VORLAGEN.every(v => v.key && v.titel && v.zweck && v.karte)'),
   'Jede Vorlage nennt Kennung, Titel, Zweck und Karte');

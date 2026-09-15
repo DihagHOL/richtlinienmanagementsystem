@@ -136,5 +136,28 @@ const fremd = run(`lkVerweiseVon(lkKachelVonZiel('KONZERN:sap-l2c-markt').kachel
 ok(fremd.length === 1 && fremd[0].werk === 'KONZERN',
   'Auch mit einer anderen offenen Karte zeigen die Verweise weiter auf den Konzern');
 
+/* ── 8) SAP nach Prozesstypen: dieselben Ketten in der Form jeder Landkarte ──
+   Führung, Kern, Unterstützung als Bänder; jede Kette ein Hauptprozess, ihre
+   Schritte Unterprozesse darunter – drei Ebenen, wie das Bild der Mindmap. */
+ok(run(`LK_VORLAGEN.find(v => v.key === 'sap-typen').karte === LK_SAP_TYPEN`), 'Die Vorlage „SAP – nach Prozesstypen" steht zur Wahl');
+ok(run(`LK_SAP_TYPEN.baender.map(b => b.key).join()`) === 'fuehrung,kern,unterstuetzung', 'Drei Bänder: Führung, Kern, Unterstützung');
+const haupt = run(`LK_SAP_TYPEN.kacheln.filter(k => (k.verweise||[]).some(v => v.art === 'unterprozess')).map(k => k.name)`);
+ok(haupt.join('|') === 'Governance|Lead to Cash (Vertrieb)|Design to Operate (Produktion)|Source to Pay (Einkauf)|Recruit to Retire (HR)|IT|Record to Report (Finanzen)',
+  `Die Hauptprozesse wie im Bild: ${haupt.join(', ')}`);
+const l2cSchritte = run(`LK_SAP_TYPEN.kacheln.find(k => k.id === 'sapt-l2c').verweise.map(v => LK_SAP_TYPEN.kacheln.find(k => k.id === v.ziel).name)`);
+ok(l2cSchritte.join('|') === 'Anfrage und Machbarkeit|Angebot und Kalkulation|Auftragserfassung|Lieferung|Faktura|Zahlungseingang', 'Lead to Cash mit seinen sechs Schritten');
+ok(run(`LK_SAP_TYPEN.kacheln.find(k => k.id === 'sapt-d2o').verweise.length`) === 3 && run(`LK_SAP_TYPEN.kacheln.find(k => k.id === 'sapt-h2r').verweise.length`) === 5,
+  'Design to Operate mit drei Ketten, Recruit to Retire mit fünf Schritten');
+const ketteT = run(`['sapt-l2c-anfrage','sapt-l2c-angebot','sapt-l2c-auftrag','sapt-l2c-lieferung','sapt-l2c-faktura'].every((id, i) => LK_SAP_TYPEN.kacheln.find(k => k.id === id).verweise.some(v => v.art === 'folgt' && v.ziel === ['sapt-l2c-angebot','sapt-l2c-auftrag','sapt-l2c-lieferung','sapt-l2c-faktura','sapt-l2c-zahlung'][i]))`);
+ok(ketteT, 'Die Schritte laufen als Kette – Danach folgt');
+const alleIds = run(`LK_SAP_TYPEN.kacheln.map(k => k.id)`);
+ok(run(`LK_SAP_TYPEN.kacheln.every(k => (k.verweise||[]).every(v => LK_SAP_TYPEN.kacheln.some(x => x.id === v.ziel)))`), 'Jedes Verweisziel gibt es');
+run(`_lkDaten = { version: 2, karten: {} }; _lkWerk = 'SHB'; document.querySelector = () => ({ value: 'sap-typen' });`);
+await run(`lkVorlageAnwenden()`);
+ok(run(`lkKarte('SHB').kacheln.length`) === alleIds.length && run(`lkIstTeilprozess('SHB', lkKachelVonId('sapt-l2c-faktura'))`) && !run(`lkIstTeilprozess('SHB', lkKachelVonId('sapt-l2c'))`),
+  'Eingesetzt: die Schritte sind Teilprozesse, die Ketten Hauptprozesse – die Karte zeigt sieben Kacheln, die Schritte klappen auf');
+ok(run(`lkTypVon(lkKachelVonId('sapt-l2c'))`) === 'kern' && run(`lkTypVon(lkKachelVonId('sapt-governance'))`) === 'fuehrung' && run(`lkTypVon(lkKachelVonId('sapt-it'))`) === 'unterstuetzung',
+  'Und jede Kachel hat ihren Prozesstyp – aus dem Band');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

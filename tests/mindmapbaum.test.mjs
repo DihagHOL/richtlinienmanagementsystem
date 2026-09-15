@@ -80,10 +80,34 @@ ok(baum.tiefe === 0 && baum.kinder.length === 3, 'Unter der Wurzel liegen die dr
 ok(baum.kinder.every(k => k.kinder.length > 0), 'Die erste Ebene ist offen – man sieht die Gliederung sofort');
 ok(baum.kinder[0].kinder.every(k => !k.kinder.length && k.offen === false),
   'Die Prozesse selbst bleiben zu – sonst erschlägt einen der Baum');
-ok(baum.kinder.map(k => k.farbe).join(',') === w('VB_PALETTE.slice(0,3).join(",")'),
-  'Jeder Ast bekommt eine eigene Farbe aus dem Corporate Design');
+ok(baum.kinder.map(k => k.farbe).join(',') === w('LK_TYPEN.map(t => t.farbe).join(",")'),
+  'Die drei Bänder tragen die Farben ihrer Prozesstypen – Führung, Kern, Unterstützung');
 ok(baum.kinder[0].kinder.every(k => k.farbe === baum.kinder[0].farbe),
   'Und vererbt sie nach unten – so sieht man die Zugehörigkeit ohne Linien zu verfolgen');
+
+/* ── 2b) Typ → Kette → Schritt: Teilprozesse hängen unter ihrem Hauptprozess, nicht am Band ── */
+w(`_lkDaten.karten.WGC = { baender: lkKarte('HOL').baender, ergebnisse: [], kacheln: [
+     { id: 'l2c', band: 'kern', name: 'Lead to Cash', geltung: ['WGC'], prozesse: [], verweise: [{ ziel: 'WGC:l2c-anfrage', art: 'unterprozess' }, { ziel: 'WGC:l2c-angebot', art: 'unterprozess' }] },
+     { id: 'l2c-anfrage', band: 'kern', name: 'Anfrage', geltung: ['WGC'], prozesse: [], verweise: [{ ziel: 'WGC:l2c-angebot', art: 'folgt' }] },
+     { id: 'l2c-angebot', band: 'kern', name: 'Angebot', geltung: ['WGC'], prozesse: [] },
+     { id: 'it', band: 'unterstuetzung', name: 'IT', geltung: ['WGC'], prozesse: [], typ: 'kern' } ] };`);
+ctx.__graph = await w('vkGraphBauen()');
+w("_vkGraph = __graph; _lkWerk = 'WGC'; vbModusSetzen('baum', 'werk:WGC');");
+let wgc = w('vbBaum()');
+const kernAst = wgc.kinder.find(k => /Kern/.test(k.label));
+ok(kernAst.kinder.map(k => k.label).join('|') === 'Lead to Cash', 'Unter dem Kernband steht nur die Kette – die Schritte nicht daneben');
+w(`vbKlick(${JSON.stringify(kernAst.kinder[0].pfad)})`);
+wgc = w('vbBaum()');
+const l2c = wgc.kinder.find(k => /Kern/.test(k.label)).kinder[0];
+ok(l2c.offen && l2c.kinder.map(k => k.label).join('|') === 'Anfrage|Angebot' && l2c.kinder.every(k => k.farbe === l2c.farbe),
+  'Aufgeklappt hängen die Schritte darunter, in der Farbe der Kette – Typ → Kette → Schritt wie im Bild');
+const itAst = wgc.kinder.find(k => /Unterst/.test(k.label)).kinder.find(k => k.label === 'IT');
+ok(itAst.farbe === w("lkTyp('kern').farbe") && wgc.kinder.find(k => /Unterst/.test(k.label)).farbe === w("lkTyp('unterstuetzung').farbe"),
+  'Ein Prozess mit eigenem Typ trägt dessen Farbe – auch im Baum');
+w("vbModusSetzen('abhaengig', 'prozess:WGC:l2c-anfrage');");
+ok(w('vbBaum()').kinder.some(k => k.label === 'Angebot'), 'In der Abhängigkeits-Ansicht zählt „Danach folgt" weiter');
+w("vbModusSetzen('baum', ''); _lkWerk = 'HOL';");
+baum = w('vbBaum()');
 
 /* ── 3) Auf- und zuklappen ── */
 const pfadVertrieb = baum.kinder.find(k => /Kern/.test(k.label)).kinder.find(k => k.label === 'Vertrieb').pfad;
@@ -127,7 +151,7 @@ ok(doppelt.every(n => !n.pfad.slice(0, n.pfad.lastIndexOf('|')).includes(n.id)),
 ok(plan.flach.some(n => n.art === 'band' && w(`_vbLabel(${JSON.stringify({ art: 'band', label: n.label, daten: { werk: 'HOL' } })})`) === n.label.replace(' · HOL', '')),
   'Im Baum eines Werks fällt das „· HOL" am Band weg – es steht schon an der Wurzel');
 w("vbSetWurzel('wurzel')");
-ok(w('vbBaum()').kinder.map(k => k.label).sort().join('|') === 'HOL|SHB',
+ok(w('vbBaum()').kinder.map(k => k.label).sort().join('|') === 'HOL|SHB|WGC',
   'Mit dem Konzern als Wurzel sind die Werke die erste Ebene');
 w("vbSetWurzel('werk:HOL')");
 
