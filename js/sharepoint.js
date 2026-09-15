@@ -811,9 +811,11 @@ async function spGetDocVersions(driveId, itemId) {
  * pro Anmeldung, um zehn eigene Zeilen zu finden – und oberhalb der
  * SharePoint-Listenschwelle wird das unzuverlässig.
  *
- * Jetzt filtert SharePoint selbst. Ist die Spalte „BenutzerUPN" nicht indiziert,
- * lehnt Graph die Abfrage ab; dann greift der bisherige Weg als Rückfall, damit
- * nichts stehen bleibt. Sobald der Index existiert, ist die Abfrage schlank.
+ * Jetzt filtert SharePoint selbst. Ohne Index auf „BenutzerUPN" lehnt Graph
+ * die Abfrage ab, sobald die Liste die Schwelle von 5.000 Elementen erreicht –
+ * darunter geht es mit dem Prefer-Header. Damit es dauerhaft schlank bleibt,
+ * setzt der erste Admin, der die App öffnet, den Index selbst
+ * (spEnsureAckIndex); bis dahin greift der alte Weg als Rückfall.
  */
 async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
   const token = await acquireToken(SP.scopes);
@@ -825,11 +827,12 @@ async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
     const wert = String(filterUpn).replace(/'/g, "''");           // Hochkomma für OData verdoppeln
     const url = `${basis}?$expand=fields&$top=500&$filter=fields/BenutzerUPN eq '${encodeURIComponent(wert)}'`;
     try {
-      const items = await _getAll(url, token, 2000);
+      const items = await _getAll(url, token, 2000, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
       return items.map(_mapAck);
     } catch (e) {
       console.info('[sp] Serverseitiger Filter auf Bestätigungen nicht möglich '
         + '(Spalte „BenutzerUPN" indizieren macht es schnell) – lade ungefiltert:', e.message);
+      spEnsureAckIndex().catch(() => {});   // wer darf, richtet den Index ein – die nächste Anmeldung ist dann schlank
     }
   }
 
@@ -846,6 +849,37 @@ async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
     : out;
 }
 
+
+/**
+ * Den Index auf „BenutzerUPN" setzen – einmal je Sitzung, nur durch Admins
+ * (Leser haben das Recht nicht, und ihnen soll auch nichts fehlschlagen).
+ * Ohne Index lädt jede Anmeldung die ganze Liste, sobald sie die Schwelle von
+ * 5.000 Bestätigungen erreicht – bei 1.000 Leuten und zehn Pflicht-Regelwerken
+ * ist das nach dem ersten Jahr der Fall.
+ * @returns {Promise<'gesetzt'|'vorhanden'|'uebersprungen'|'fehlgeschlagen'>}
+ */
+let _ackIndexGeprueft = false;
+async function spEnsureAckIndex() {
+  if (_ackIndexGeprueft) return 'uebersprungen';
+  _ackIndexGeprueft = true;
+  if (typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return 'uebersprungen';
+  const token = await acquireToken(SP.scopes);
+  if (!token) return 'uebersprungen';
+  await spInit();
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`;
+  try {
+    const cols = await _get(`${basis}?$select=id,name,indexed`, token);
+    const spalte = (cols.value || []).find(c => c.name === 'BenutzerUPN');
+    if (!spalte) return 'fehlgeschlagen';
+    if (spalte.indexed === true) return 'vorhanden';
+    await _patch(`${basis}/${spalte.id}`, token, { indexed: true });
+    console.info('[sp] Index auf „BenutzerUPN" gesetzt – Bestätigungen werden ab jetzt serverseitig gefiltert.');
+    return 'gesetzt';
+  } catch (e) {
+    console.warn('[sp] Index auf „BenutzerUPN" konnte nicht gesetzt werden – bitte in den Listeneinstellungen (Indizierte Spalten) anlegen:', e.message);
+    return 'fehlgeschlagen';
+  }
+}
 
 function _mapAck(item) {
   const f = item.fields || {};
@@ -3477,10 +3511,10 @@ async function _parallel(aufgaben, gleichzeitig = 4) {
 }
 
 /** Alle Seiten einer Graph-Collection laden (folgt @odata.nextLink, cap gegen Endlosschleifen). */
-async function _getAll(url, token, cap = 5000) {
+async function _getAll(url, token, cap = 5000, extraHeaders) {
   let out = [], next = url;
   while (next) {
-    const page = await _get(next, token);
+    const page = await _get(next, token, extraHeaders);
     out = out.concat(page.value || []);
     next = page['@odata.nextLink'] || null;
     if (out.length >= cap) { console.warn(`[sp] _getAll: cap ${cap} erreicht`); break; }

@@ -119,5 +119,50 @@ ok(boot.indexOf('await daten;') > boot.indexOf('initRoleNav()'), 'Vor dem Render
 ok(/if \(rendern\) renderMeine\(\);/.test(app), 'Vorab-Laden zeichnet noch nichts (die Rollen fehlen da noch)');
 ok(/let _meineAbteilung = null;/.test(sp), 'Die eigene Abteilung wird nur einmal je Sitzung geholt');
 
+/* ── 7) 1.000 Leser: die Bestätigungen bleiben eine Abfrage je Person ──
+   Ohne Index auf „BenutzerUPN" lehnt Graph den Filter ab, sobald die Liste
+   5.000 Elemente hat – dann lüde jede Anmeldung die ganze Liste. Deshalb: der
+   Prefer-Header für kleine Listen, und der erste Admin setzt den Index. */
+const anfragen = [];
+const actx = { console, JSON, Date, Object, Array, String, Number, Math, Promise, Set, Map, encodeURIComponent, decodeURIComponent, setTimeout, parseFloat,
+  localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, module: { exports: {} } };
+actx.window = actx; actx.globalThis = actx; actx.location = { origin: '', pathname: '' };
+actx.__admin = true; actx.__indexed = false; actx.__filterKaputt = true;
+actx.isCurrentUserAdmin = () => actx.__admin;
+actx.fetch = async (url, opt) => {
+  anfragen.push({ url, method: (opt && opt.method) || 'GET', prefer: opt && opt.headers && opt.headers.Prefer, body: opt && opt.body });
+  const j = (o) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o), headers: { get: () => null } });
+  if (/\/columns\?\$select=id,name,indexed/.test(url)) return j({ value: [{ id: 'c1', name: 'Title', indexed: false }, { id: 'c9', name: 'BenutzerUPN', indexed: actx.__indexed }] });
+  if (/\/columns\/c9$/.test(url)) { actx.__indexed = true; return j({ id: 'c9', indexed: true }); }
+  if (/\/items\?.*\$filter=fields\/BenutzerUPN/.test(url)) {
+    if (actx.__filterKaputt) return { ok: false, status: 400, text: async () => 'Field BenutzerUPN cannot be referenced in filter', json: async () => ({}), headers: { get: () => null } };
+    return j({ value: [{ id: '1', fields: { BenutzerUPN: 'anna@dihag.com', RichtlinieId: '7' } }] });
+  }
+  if (/\/items\?\$expand=fields&\$top=500$/.test(url)) return j({ value: [{ id: '1', fields: { BenutzerUPN: 'anna@dihag.com', RichtlinieId: '7' } }, { id: '2', fields: { BenutzerUPN: 'ben@dihag.com', RichtlinieId: '7' } }] });
+  return { ok: false, status: 404, text: async () => 'nix', json: async () => ({}), headers: { get: () => null } };
+};
+vm.createContext(actx);
+vm.runInContext(sp, actx);
+vm.runInContext(`acquireToken = async () => 'tok'; _sp.appSiteId = 'S1'; _sp.ackListId = 'L2'; _sp.policyListId = 'L1'; _sp.appDriveId = 'D1'; _sp.ready = true;`, actx);
+let acks = await vm.runInContext("spGetAcknowledgements('anna@dihag.com')", actx);
+await new Promise(r => setTimeout(r, 20));
+const gefiltert = anfragen.find(a => /\$filter=fields\/BenutzerUPN/.test(a.url));
+ok(gefiltert && gefiltert.prefer === 'HonorNonIndexedQueriesWarningMayFailRandomly', 'Die gefilterte Abfrage trägt den Prefer-Header – ohne Index geht sie so bis zur Listenschwelle');
+ok(acks.length === 1 && acks[0].benutzerUpn === 'anna@dihag.com', 'Lehnt Graph den Filter ab, kommt die Liste als Rückfall – im Browser gefiltert, nichts bleibt stehen');
+ok(anfragen.some(a => a.method === 'PATCH' && /\/columns\/c9$/.test(a.url) && /"indexed":true/.test(a.body)), '… und der Admin setzt dabei den Index auf „BenutzerUPN"');
+anfragen.length = 0;
+await vm.runInContext("spGetAcknowledgements('anna@dihag.com')", actx);
+await new Promise(r => setTimeout(r, 20));
+ok(!anfragen.some(a => a.method === 'PATCH'), 'Einmal je Sitzung – nicht bei jeder Anmeldung wieder');
+vm.runInContext('_ackIndexGeprueft = false; __admin = false;', actx);
+anfragen.length = 0;
+ok(await vm.runInContext('spEnsureAckIndex()', actx) === 'uebersprungen' && !anfragen.length, 'Wer kein Admin ist, versucht es gar nicht – Leser sollen keinen Fehler sehen');
+vm.runInContext('_ackIndexGeprueft = false; __admin = true; __indexed = true;', actx);
+ok(await vm.runInContext('spEnsureAckIndex()', actx) === 'vorhanden', 'Ist der Index da, bleibt es beim Lesen');
+vm.runInContext('__filterKaputt = false;', actx);
+anfragen.length = 0;
+acks = await vm.runInContext("spGetAcknowledgements('anna@dihag.com')", actx);
+ok(acks.length === 1 && anfragen.length === 1, 'Mit Index: genau eine Abfrage je Person, nicht die ganze Liste');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
