@@ -185,18 +185,24 @@ ok(w("lkKategorieFarbe('Finanzierung')") === '#7A6417' && w("lkKategorieFarbe('K
 ok(w("lkKategorieFarbe('Sonstiges')") === '#1A2644' && w("lkKategorieFarbe('', 'Strategie')") === '#17509E' && w("lkBandFarbe({ key: 'x', titel: 'Finanzierung' })") === '#7A6417' && w("lkBandFarbe('kern')") === '#F08300',
   'Was zu keiner Gruppe passt, ist Navy; der zweite Name zählt, wenn der erste nichts sagt; ein typisiertes Band trägt seinen Typ');
 ok(w("lkTypVon({ band: 'strategie', typ: 'kern' })") === 'kern' && w("lkTypFarbe({ band: 'strategie', typ: 'kern' })") === '#F08300', 'Die Kachel darf ihren Typ selbst setzen …');
-ok(w("lkTypVon({ band: 'kern', typ: 'kategorie' })") === '' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie' })") === '#F08300' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie', name: 'Datenschutz' })") === '#8B1E3F',
-  '… und im Kernband ausdrücklich eine Kategorie sein – in der Farbe ihres Namens, sonst der des Bereichs');
+ok(w("lkTypVon({ band: 'kern', typ: 'kategorie' })") === '' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie' })") === '#F08300' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie', name: 'Datenschutz' })") === '#F08300',
+  '… und im Kernband ausdrücklich eine Kategorie sein – in der Farbe ihres Bereichs, nicht ihres Namens: alle Kategorien eines Bereichs in einer Farbe');
+ok(w("lkTypFarbe({ band: { key: 'ueberwachung', titel: 'Überwachung' }, name: 'Datenschutz' })") === '#8B1E3F' && w("lkTypFarbe({ band: { key: 'strategie', titel: 'Strategie' }, name: 'Kommunikation & Stakeholder' })") === '#17509E',
+  'Im Bereich Überwachung ist alles bordeaux, im Bereich Strategie alles azurblau – auch die Kachel „Kommunikation"');
 ok(w("lkBandTyp({ key: 'x1', titel: 'Managementprozesse' })") === 'fuehrung' && w("lkBandTyp({ key: 'x2', titel: 'Wertschöpfung' })") === 'kern' && w("lkBandTyp({ key: 'x3', titel: 'Supportprozesse' })") === 'unterstuetzung' && w("lkBandTyp({ key: 'x4', titel: 'Beratung' })") === '',
   'Auch ein umbenanntes Band verrät seinen Typ über den Titel');
 w("lkKachelVonId('beschaffung').typ = 'kern'; lkKachelVonId('it').typ = 'kategorie'; renderLandkarte();");
 html = mount.innerHTML;
 ok(/class="lk-kachel" style="--lk-c:#17509E"[^>]*aria-label="Strategie"/.test(html), 'Die Führungskachel trägt Azurblau');
 ok(/class="lk-kachel" style="--lk-c:#F08300"[^>]*aria-label="Beschaffung"/.test(html) && /lk-kachel-typ" style="color:#F08300"[^>]*>Kern</.test(html), 'Beschaffung im Unterstützungsband als Kernprozess: orange, und das Wort steht dabei, weil es vom Band abweicht');
-ok(/class="lk-kachel lk-kategorie" style="--lk-c:#5B21B6"[^>]*aria-label="IT"[^>]*Kategorie: IT &amp; Technik/.test(html), 'IT als reine Kategorie: gestrichelt, in der festen Farbe „IT & Technik"');
+ok(/class="lk-kachel lk-kategorie" style="--lk-c:#5B8CB8"[^>]*aria-label="IT"[^>]*Kategorie: Unterstützung &amp; Services/.test(html), 'IT als reine Kategorie: gestrichelt, in der Farbe seines Bereichs');
 ok(/class="lk-kachel" style="--lk-c:#5B8CB8"[^>]*aria-label="Personal"/.test(html) && !/lk-kachel-typ[^>]*>Unterstützung</.test(html), 'Personal im Unterstützungsband: lichtblau, ohne Wort – die Farbe sagt es');
 ok(/class="lk-pfeil" style="--lk-c:#F08300"/.test(html) && /lk-zeile lk-zeile-kern" style="--lk-c:#F08300"/.test(html) && /lk-zeile" style="--lk-c:#5B8CB8"/.test(html), 'Pfeile und Bänder in derselben Farbe wie ihr Typ');
-ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && /Kategorie: IT &amp; Technik/.test(html) && !/Kategorie: Strategie/.test(html), 'Die Legende unter der Karte nennt die Kategorie-Gruppen, die vorkommen');
+ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && !/Kategorie:/.test(html.slice(html.indexOf('lk-legende'))), 'Die Legende unter der Karte: in typisierten Bändern braucht eine Kategorie keinen eigenen Eintrag – sie trägt die Farbe des Bandes');
+w("_lkDaten.karten.KONZERN = { baender: [{ key: 'strategie', titel: 'Strategie' }, { key: 'ueberwachung', titel: 'Überwachung' }], kacheln: [{ id: 'k1', band: 'strategie', name: 'Vision', geltung: ['ALLE'] }, { id: 'k2', band: 'ueberwachung', name: 'Datenschutz', geltung: ['ALLE'] }] }; lkSetWerk('KONZERN');");
+ok(/Kategorie: Strategie &amp; Führung/.test(mount.innerHTML) && /Kategorie: Risiko, Recht &amp; Compliance/.test(mount.innerHTML) && /lk-kategorie" style="--lk-c:#8B1E3F"[^>]*aria-label="Datenschutz"/.test(mount.innerHTML),
+  'Auf einer Karte ohne Prozesstypen nennt die Legende die Gruppen der Bereiche, und jede Kachel trägt die Farbe ihres Bereichs');
+w("delete _lkDaten.karten.KONZERN; lkSetWerk('HOL');");
 w("lkKachelVonId('beschaffung').typ = ''; lkKachelVonId('it').typ = '';");
 w("_lkEditing = Object.assign({ neu: false }, JSON.parse(JSON.stringify(lkKachelVonId('it'))), { geltung: ['ALLE'] }); renderLkEditor();");
 ok(/Prozesstyp/.test(w('_lkTypHinweisText(_lkEditing)')) || /aus dem Band/.test(w('_lkTypHinweisText(_lkEditing)')), 'Der Editor sagt, was aus dem Band folgt');

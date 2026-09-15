@@ -113,7 +113,7 @@ function _vbFarbeFuer(kind, i, tiefe, oben) {
   if (n.art === 'prozess' && typeof lkTyp === 'function' && typeof lkAlleKacheln === 'function') {
     const k = (lkAlleKacheln().find(x => x.werk === n.werk && x.kachel.id === n.kachelId) || {}).kachel;
     if (k && k.typ && k.typ !== 'kategorie' && lkTyp(k.typ)) return lkTyp(k.typ).farbe;
-    if (k && k.typ === 'kategorie' && typeof lkKategorieFarbe === 'function') { const bb = ((typeof lkBaenderVon === 'function') ? lkBaenderVon(n.werk) : []).find(x => x.key === k.band); return lkKategorieFarbe(k.name, bb && bb.titel, k.band); }
+    if (k && k.typ === 'kategorie' && typeof lkBandFarbe === 'function') { const bb = ((typeof lkBaenderVon === 'function') ? lkBaenderVon(n.werk) : []).find(x => x.key === k.band); return lkBandFarbe(bb || k.band); }
   }
   return tiefe === 0 ? VB_PALETTE[i % VB_PALETTE.length] : oben;
 }

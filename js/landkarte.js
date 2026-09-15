@@ -133,20 +133,24 @@ function _lkBandObjekt(band) {
 }
 /**
  * Die Farbe einer Kachel: ihr Prozesstyp – oder, als Kategorie, die feste
- * Farbe ihrer Bedeutung: erst der eigene Name, dann der Bereich, sonst Navy.
+ * Farbe ihres Bereichs. Alle Kategorien eines Bereichs in einer Farbe: Ein
+ * Band, das nach Kacheln bunt wird, sieht nach Zufall aus, nicht nach Ordnung.
  */
 function lkTypFarbe(k, band) {
   const t = lkTyp(lkTypVon(k, band));
   if (t) return t.farbe;
-  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
-  return lkKategorieFarbe(k && k.name, b.titel, b.key);
+  return lkBandFarbe(band !== undefined ? band : (k && k.band));
 }
 function lkTypLabel(k, band) {
   const t = lkTyp(lkTypVon(k, band));
   if (t) return t.label;
-  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
-  const g = lkKategorieVon(k && k.name) || lkKategorieVon(b.titel) || lkKategorieVon(b.key);
+  const g = _lkBandGruppe(band !== undefined ? band : (k && k.band));
   return g ? `Kategorie: ${g.name}` : 'Kategorie';
+}
+/** Die Kategorie-Gruppe eines Bereichs – über seinen Titel, sonst seinen Schlüssel. */
+function _lkBandGruppe(band) {
+  const b = _lkBandObjekt(band);
+  return lkKategorieVon(b.titel) || lkKategorieVon(b.key);
 }
 /** Die Farbe eines Bereichs: sein Prozesstyp, sonst seine Kategorie, sonst Navy – fest, nicht nach Reihenfolge. */
 function lkBandFarbe(band) {
@@ -159,8 +163,8 @@ function lkBandFarbe(band) {
 function _lkLegendeHtml() {
   const punkt = (farbe, text) => `<span class="lk-legende-punkt"><i style="background:${farbe}"></i>${esc(text)}</span>`;
   const gruppen = new Map();
-  lkBaender().forEach(b => { if (!lkTyp(lkBandTyp(b))) { const g = lkKategorieVon(b.titel) || lkKategorieVon(b.key); gruppen.set(g ? g.key : '', g); } });
-  lkKacheln().forEach(k => { if (!lkTypVon(k)) { const b = _lkBandObjekt(k.band); const g = lkKategorieVon(k.name) || lkKategorieVon(b.titel) || lkKategorieVon(b.key); gruppen.set(g ? g.key : '', g); } });
+  lkBaender().forEach(b => { if (!lkTyp(lkBandTyp(b))) { const g = _lkBandGruppe(b); gruppen.set(g ? g.key : '', g); } });
+  lkKacheln().forEach(k => { if (!lkTypVon(k) && !lkTyp(lkBandTyp(k.band))) { const g = _lkBandGruppe(k.band); gruppen.set(g ? g.key : '', g); } });
   const kat = [...gruppen.values()].map(g => (g ? punkt(g.farbe, `Kategorie: ${g.name}`) : punkt(LK_KATEGORIE_FARBE, 'Kategorie (sonstige)'))).join('');
   return `<div class="lk-legende">${LK_TYPEN.map(t => punkt(t.farbe, t.label)).join('')}${kat}</div>`;
 }
@@ -3524,7 +3528,7 @@ function renderLkEditor() {
 /** Was aus Band und Wahl folgt – in der Farbe, die die Kachel bekommt. */
 function _lkTypHinweisText(k) {
   const farbe = lkTypFarbe(k, k.band);
-  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' – aus dem Band' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine Kategorie trägt die feste Farbe ihrer Bedeutung (Strategie, Finanzen, Risiko, Personal, IT …), sonst dunkelblau.`;
+  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' – aus dem Band' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine Kategorie trägt die feste Farbe ihres Bereichs (Strategie, Finanzen, Risiko, Personal, IT …), sonst dunkelblau.`;
 }
 function _lkTypHinweis() {
   const el = document.getElementById('lk-typ-hinweis');
