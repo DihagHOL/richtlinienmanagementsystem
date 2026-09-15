@@ -137,10 +137,31 @@ function _lkBandObjekt(band) {
  * Band, das nach Kacheln bunt wird, sieht nach Zufall aus, nicht nach Ordnung.
  */
 function lkTypFarbe(k, band) {
+  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
+  // Hat der Bereich eine eigene Farbe, tragen sie alle Kacheln darin – außer denen, die ihren Typ selbst gesetzt haben.
+  if (lkFarbeGueltig(b.farbe) && !lkTyp(String((k && k.typ) || ''))) return b.farbe;
   const t = lkTyp(lkTypVon(k, band));
   if (t) return t.farbe;
-  return lkBandFarbe(band !== undefined ? band : (k && k.band));
+  return lkBandFarbe(b);
 }
+/** Eine Farbe, wie sie gespeichert werden darf: #rrggbb. */
+function lkFarbeGueltig(f) { return /^#[0-9a-fA-F]{6}$/.test(String(f || '')); }
+/** Die Farbe, die ein Bereich von sich aus hätte – ohne eigene Wahl. */
+function lkBandStandardFarbe(band) {
+  const b = _lkBandObjekt(band);
+  const t = lkTyp(lkBandTyp(b));
+  return t ? t.farbe : lkKategorieFarbe(b.titel, b.key);
+}
+/** Was die Standardfarbe eines Bereichs bedeutet – für den Dialog. */
+function lkBandStandardLabel(band) {
+  const b = _lkBandObjekt(band);
+  const t = lkTyp(lkBandTyp(b));
+  if (t) return t.label;
+  const g = _lkBandGruppe(b);
+  return g ? `Kategorie: ${g.name}` : 'Kategorie (sonstige)';
+}
+/* Farben zur schnellen Wahl im Bereichs-Dialog: das Corporate Design und die Kategorie-Gruppen. */
+const LK_FARBWAHL = ['#17509E', '#1A2644', '#F08300', '#5B8CB8', '#99B7CD', '#424241', '#7A6417', '#8B1E3F', '#0F766E', '#5B21B6', '#0284C7', '#6D28D9', '#92400E', '#15803D'];
 function lkTypLabel(k, band) {
   const t = lkTyp(lkTypVon(k, band));
   if (t) return t.label;
@@ -152,21 +173,28 @@ function _lkBandGruppe(band) {
   const b = _lkBandObjekt(band);
   return lkKategorieVon(b.titel) || lkKategorieVon(b.key);
 }
-/** Die Farbe eines Bereichs: sein Prozesstyp, sonst seine Kategorie, sonst Navy – fest, nicht nach Reihenfolge. */
+/** Die Farbe eines Bereichs: die selbst gewählte, sonst sein Prozesstyp, sonst seine Kategorie, sonst Navy – fest, nicht nach Reihenfolge. */
 function lkBandFarbe(band) {
   const b = _lkBandObjekt(band);
-  const t = lkTyp(lkBandTyp(b));
-  return t ? t.farbe : lkKategorieFarbe(b.titel, b.key);
+  if (lkFarbeGueltig(b.farbe)) return b.farbe;
+  return lkBandStandardFarbe(b);
 }
 
-/** Die Legende unter der Karte: die drei Typen – und die Kategorie-Gruppen, die auf dieser Karte vorkommen. */
+/**
+ * Die Legende unter der Karte: die drei Typen, die Kategorie-Gruppen der
+ * Bereiche – und ein Bereich mit eigener Farbe unter seinem Namen.
+ */
 function _lkLegendeHtml() {
   const punkt = (farbe, text) => `<span class="lk-legende-punkt"><i style="background:${farbe}"></i>${esc(text)}</span>`;
-  const gruppen = new Map();
-  lkBaender().forEach(b => { if (!lkTyp(lkBandTyp(b))) { const g = _lkBandGruppe(b); gruppen.set(g ? g.key : '', g); } });
-  lkKacheln().forEach(k => { if (!lkTypVon(k) && !lkTyp(lkBandTyp(k.band))) { const g = _lkBandGruppe(k.band); gruppen.set(g ? g.key : '', g); } });
-  const kat = [...gruppen.values()].map(g => (g ? punkt(g.farbe, `Kategorie: ${g.name}`) : punkt(LK_KATEGORIE_FARBE, 'Kategorie (sonstige)'))).join('');
-  return `<div class="lk-legende">${LK_TYPEN.map(t => punkt(t.farbe, t.label)).join('')}${kat}</div>`;
+  const eintraege = new Map();
+  LK_TYPEN.forEach(t => eintraege.set(t.label, t.farbe));
+  lkBaender().forEach(b => {
+    if (lkFarbeGueltig(b.farbe)) { eintraege.set(b.titel, b.farbe); return; }
+    if (lkTyp(lkBandTyp(b))) return;
+    const g = _lkBandGruppe(b);
+    eintraege.set(g ? `Kategorie: ${g.name}` : 'Kategorie (sonstige)', g ? g.farbe : LK_KATEGORIE_FARBE);
+  });
+  return `<div class="lk-legende">${[...eintraege].map(([text, farbe]) => punkt(farbe, text)).join('')}</div>`;
 }
 
 /* ── Verweise zwischen Prozessen ──────────────────────────────────────────
@@ -3339,6 +3367,15 @@ function lkBandDialog(key) {
           placeholder="z. B. Überwachung" onkeydown="if(event.key==='Enter')lkBandSpeichern('${esc(key || '')}')">
         <span class="field-hint">Der Name lässt sich jederzeit ändern; die Zuordnung der Prozesse
           bleibt dabei erhalten.</span></div>
+      <div class="form-group full"><label>Farbe</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="color" id="lk-band-farbe" value="${esc(b ? lkBandFarbe(b) : LK_KATEGORIE_FARBE)}" oninput="lkBandFarbeWahl(this.value)" style="width:46px;height:32px;padding:2px;border:1px solid var(--c-border);border-radius:6px;cursor:pointer">
+          <input type="hidden" id="lk-band-farbe-eigen" value="${b && lkFarbeGueltig(b.farbe) ? '1' : ''}">
+          <span style="display:inline-flex;gap:4px;flex-wrap:wrap">${LK_FARBWAHL.map(f => `<button type="button" class="lk-farbknopf" style="background:${f}" title="${f}" onclick="lkBandFarbeWahl('${f}')"></button>`).join('')}</span>
+          ${b ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkBandFarbeStandard('${esc(b.key)}')">Standard</button>` : ''}
+        </div>
+        <span class="field-hint" id="lk-band-farbe-hinweis">${b ? _lkBandFarbeHinweis(b) : 'Ohne eigene Wahl ergibt sich die Farbe aus dem Namen: Führung, Kern, Unterstützung – oder die feste Farbe der Kategorie (Strategie, Finanzen, Risiko …).'}</span>
+        <span class="field-hint">Alle Kacheln des Bereichs tragen diese Farbe – außer Prozessen, die ihren Typ selbst gesetzt haben.</span></div>
       <div class="form-group full"><label>Darstellung</label>
         <select id="lk-band-form">
           <option value="kacheln"${b && lkBandPfeile(b) ? '' : ' selected'}>Kacheln nebeneinander</option>
@@ -3379,11 +3416,38 @@ function lkBandDialog(key) {
   if (el && el.focus) el.focus();
 }
 
+function _lkBandFarbeHinweis(b) {
+  return lkFarbeGueltig(b.farbe)
+    ? `Eigene Farbe ${b.farbe}. Standard wäre: <i class="lk-legende-farbe" style="background:${lkBandStandardFarbe(b)}"></i> ${esc(lkBandStandardLabel(b))}.`
+    : `Standard: <i class="lk-legende-farbe" style="background:${lkBandStandardFarbe(b)}"></i> ${esc(lkBandStandardLabel(b))} – aus dem Namen. Eine eigene Wahl bleibt, auch wenn der Name sich ändert.`;
+}
+/** Eine Farbe im Dialog wählen – Feld und Merker setzen. */
+function lkBandFarbeWahl(farbe) {
+  const el = document.getElementById('lk-band-farbe'), eigen = document.getElementById('lk-band-farbe-eigen');
+  if (!lkFarbeGueltig(farbe)) return;
+  if (el) el.value = farbe;
+  if (eigen) eigen.value = '1';
+  const h = document.getElementById('lk-band-farbe-hinweis');
+  if (h) h.innerHTML = `Eigene Farbe ${esc(farbe)}.`;
+}
+/** Zurück zur Standardfarbe – die eigene Wahl wird beim Speichern verworfen. */
+function lkBandFarbeStandard(key) {
+  const b = lkBaender().find(x => x.key === key);
+  const el = document.getElementById('lk-band-farbe'), eigen = document.getElementById('lk-band-farbe-eigen');
+  const std = b ? lkBandStandardFarbe(b) : LK_KATEGORIE_FARBE;
+  if (el) el.value = std;
+  if (eigen) eigen.value = '';
+  const h = document.getElementById('lk-band-farbe-hinweis');
+  if (h && b) h.innerHTML = `Standard: <i class="lk-legende-farbe" style="background:${std}"></i> ${esc(lkBandStandardLabel(b))} – aus dem Namen.`;
+}
+
 async function lkBandSpeichern(key) {
   if (!lkDarfSchreiben()) return;
   const titel = ((document.getElementById('lk-band-titel') || {}).value || '').trim();
   if (!titel) { toast('Bitte einen Namen angeben.', 'error'); return; }
   const form = ((document.getElementById('lk-band-form') || {}).value === 'pfeile') ? 'pfeile' : 'kacheln';
+  const farbeEigen = ((document.getElementById('lk-band-farbe-eigen') || {}).value === '1');
+  const farbe = farbeEigen ? String((document.getElementById('lk-band-farbe') || {}).value || '').toUpperCase() : '';
   const karte = lkKarte(_lkWerk);
   if (!Array.isArray(karte.baender) || !karte.baender.length) {
     karte.baender = JSON.parse(JSON.stringify(lkBaender()));
@@ -3392,16 +3456,20 @@ async function lkBandSpeichern(key) {
   if (key && !b) return;
 
   if (b) {
-    const alt = b.titel;
+    const alt = b.titel, altFarbe = b.farbe || '';
     b.titel = titel;                 // der Schlüssel bleibt – daran hängen die Kacheln
     b.form = form;
+    if (lkFarbeGueltig(farbe)) b.farbe = farbe; else delete b.farbe;
+    const teile = [];
+    if (alt !== titel) teile.push(`heißt jetzt „${titel}"`);
+    if ((b.farbe || '') !== altFarbe) teile.push(b.farbe ? `Farbe ${b.farbe}` : 'Farbe wieder Standard');
     closeModal();
-    await lkSpeichern('Bereich gespeichert ✓', alt === titel
-      ? `Darstellung von „${titel}" geändert`
-      : `Bereich „${alt}" heißt jetzt „${titel}"`);
+    await lkSpeichern('Bereich gespeichert ✓', teile.length ? `Bereich „${alt}" ${teile.join(', ')}` : `Darstellung von „${titel}" geändert`);
     return;
   }
-  karte.baender.push({ key: lkBandSchluessel(titel), titel, form });
+  const neu = { key: lkBandSchluessel(titel), titel, form };
+  if (lkFarbeGueltig(farbe)) neu.farbe = farbe;
+  karte.baender.push(neu);
   closeModal();
   await lkSpeichern(`Bereich „${titel}" angelegt ✓`, `Bereich „${titel}" angelegt`);
 }

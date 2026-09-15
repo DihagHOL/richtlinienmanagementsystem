@@ -202,6 +202,33 @@ ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && !/Kategorie:/.tes
 w("_lkDaten.karten.KONZERN = { baender: [{ key: 'strategie', titel: 'Strategie' }, { key: 'ueberwachung', titel: 'Überwachung' }], kacheln: [{ id: 'k1', band: 'strategie', name: 'Vision', geltung: ['ALLE'] }, { id: 'k2', band: 'ueberwachung', name: 'Datenschutz', geltung: ['ALLE'] }] }; lkSetWerk('KONZERN');");
 ok(/Kategorie: Strategie &amp; Führung/.test(mount.innerHTML) && /Kategorie: Risiko, Recht &amp; Compliance/.test(mount.innerHTML) && /lk-kategorie" style="--lk-c:#8B1E3F"[^>]*aria-label="Datenschutz"/.test(mount.innerHTML),
   'Auf einer Karte ohne Prozesstypen nennt die Legende die Gruppen der Bereiche, und jede Kachel trägt die Farbe ihres Bereichs');
+// Die Farbe eines Bereichs selbst wählen – sie gilt für alle Kacheln darin, außer für Prozesse mit eigenem Typ.
+w("_lkDaten.karten.KONZERN.baender[1].farbe = '#15803D'; _lkDaten.karten.KONZERN.kacheln.push({ id: 'k3', band: 'ueberwachung', name: 'Audit', geltung: ['ALLE'], typ: 'kern' }); renderLandkarte();");
+ok(w("lkBandFarbe(lkBaender()[1])") === '#15803D' && w("lkBandStandardFarbe(lkBaender()[1])") === '#8B1E3F' && /Standard-|Kategorie: Risiko/.test(w("lkBandStandardLabel(lkBaender()[1])")),
+  'Ein Bereich mit eigener Farbe trägt sie; der Standard bleibt bekannt');
+ok(/lk-kategorie" style="--lk-c:#15803D"[^>]*aria-label="Datenschutz"/.test(mount.innerHTML) && /style="--lk-c:#F08300"[^>]*aria-label="Audit"/.test(mount.innerHTML) && /lk-zeile" style="--lk-c:#15803D"/.test(mount.innerHTML),
+  'Die Kacheln des Bereichs folgen der eigenen Farbe – der Kernprozess darin behält Orange');
+ok(/lk-legende-punkt"><i style="background:#15803D"><\/i>Überwachung/.test(mount.innerHTML) && !/Kategorie: Risiko/.test(mount.innerHTML.slice(mount.innerHTML.indexOf('lk-legende'))),
+  'Die Legende nennt den Bereich unter seinem Namen statt seiner Gruppe');
+ok(!w("lkFarbeGueltig('rot')") && !w("lkFarbeGueltig('#abc')") && w("lkFarbeGueltig('#15803D')"), 'Gespeichert wird nur #rrggbb');
+// Der Dialog: Farbfeld, Hausfarben, Standard; Speichern übernimmt die Wahl, „Standard" verwirft sie
+let felder = {};
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : (felder[id] || null));
+ctx.openModal = (h) => { modalHtml = h; };
+let modalHtml = '';
+w("lkBandDialog('ueberwachung')");
+ok(/id="lk-band-farbe" value="#15803D"/.test(modalHtml) && /id="lk-band-farbe-eigen" value="1"/.test(modalHtml) && (modalHtml.match(/lk-farbknopf/g) || []).length === 14 && /lkBandFarbeStandard\('ueberwachung'\)/.test(modalHtml) && /Eigene Farbe #15803D/.test(modalHtml),
+  'Der Dialog zeigt die eigene Farbe, vierzehn Hausfarben und den Weg zurück zum Standard');
+felder = { 'lk-band-titel': { value: 'Überwachung' }, 'lk-band-form': { value: 'kacheln' }, 'lk-band-farbe': { value: '#0f766e' }, 'lk-band-farbe-eigen': { value: '1' }, 'lk-band-farbe-hinweis': { innerHTML: '' } };
+w("lkBandFarbeWahl('#0F766E')");
+await w("lkBandSpeichern('ueberwachung')");
+ok(w("lkBaender()[1].farbe") === '#0F766E' && /Farbe #0F766E/.test(JSON.stringify(w('_lkDaten.historie').slice(-1))), 'Gespeichert – groß geschrieben, mit Vermerk im Verlauf');
+w("lkBandFarbeStandard('ueberwachung')");
+ok(felder['lk-band-farbe-eigen'].value === '' && felder['lk-band-farbe'].value === '#8B1E3F', '„Standard" setzt das Feld auf die Standardfarbe und löscht den Merker …');
+await w("lkBandSpeichern('ueberwachung')");
+ok(w("lkBaender()[1].farbe") === undefined && /Farbe wieder Standard/.test(JSON.stringify(w('_lkDaten.historie').slice(-1))), '… und Speichern nimmt die eigene Farbe zurück');
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+ctx.openModal = () => {};
 w("delete _lkDaten.karten.KONZERN; lkSetWerk('HOL');");
 w("lkKachelVonId('beschaffung').typ = ''; lkKachelVonId('it').typ = '';");
 w("_lkEditing = Object.assign({ neu: false }, JSON.parse(JSON.stringify(lkKachelVonId('it'))), { geltung: ['ALLE'] }); renderLkEditor();");
