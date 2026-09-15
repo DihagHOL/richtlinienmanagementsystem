@@ -49,6 +49,7 @@ const _DOKU_TOC = [
   ['ausnahmen',     'Ausnahmeregister (Abweichungen)'],
   ['wirksamkeit',   'Wirksamkeit & Verbesserung'],
   ['notfall',       'Notfall & Krisenstab (BCM)'],
+  ['vorfaelle',     'Vorfälle & Ereignisse (Ticketsystem)'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
@@ -503,6 +504,29 @@ function _dokuSections() {
         <li style="${li}"><b>🖨 Notfallhandbuch:</b> Deckblatt, Krisenstab und Alarmierung, kritische Prozesse nach RTO, wovon sie abhängen, je Prozess der vollständige Plan. Als PDF in die Schublade – eine Web-App mit Anmeldung ist im Ernstfall vielleicht selbst das, was nicht geht.</li>
         <li style="${li}"><b>🖨 Alarmkarte:</b> eine Seite, wen man anruft. Zum Aushängen an Pforte, Leitstand, Serverraum.</li>
         <li style="${li}"><b>🖨 Plan drucken</b> im Editor: nur dieser Prozess – auch ungespeichert, mit dem Stand im Editor.</li>
+      </ul>
+    `),
+
+    sec('vorfaelle', 'Vorfälle &amp; Ereignisse (Ticketsystem)', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Vorfälle &amp; Ereignisse"</b> holt aus dem <b>Ticketsystem</b> (Site „ticket", Liste „Tickets"), was Informationssicherheit ist – über die <b>Kategorie</b> des Tickets. Dort landen Störungen, Änderungen und Dokumentationsaufträge, getrennt nach der <b>Art</b> des Tickets; der Reiter zeigt sie in drei Abschnitten: <b>Vorfälle &amp; Ereignisse</b> (ISO 27001 A.5.24–A.5.28, NIS2 Art. 23), <b>Änderungen</b> (A.8.32) und <b>Dokumentation</b> (A.5.37). Das Ticket bleibt, wo es ist – bearbeitet wird im Ticketsystem, die App schreibt nie hinein.</p>
+      <p style="margin:0 0 8px;line-height:1.55"><b>Was die App darüberlegt</b> – je Ticket, gespeichert in <code>vorfaelle.json</code> im Konfig-Ordner:</p>
+      ${tbl([
+        ['Beurteilung (A.5.25)', 'Ereignis oder Sicherheitsvorfall? Nach ' + (typeof VF_BEURTEILUNG_TAGE !== 'undefined' ? VF_BEURTEILUNG_TAGE : 2) + ' Tagen ohne Beurteilung ist das eine Lücke – im Reiter, im Cockpit, im Audit Report, im Cron.'],
+        ['Erheblich (NIS2 Art. 23)', 'Dann laufen die Fristen ab Kenntnis: <b>Frühwarnung 24 h</b>, <b>Meldung 72 h</b>, <b>Abschlussbericht ein Monat</b> nach der Meldung. Je Frist der Zeitstempel der Erledigung; überfällig ist rot, verspätet abgegeben bleibt sichtbar.'],
+        ['Personendaten (DSGVO Art. 33)', 'Meldung an die Aufsichtsbehörde binnen 72 h – als vierte Frist.'],
+        ['Eskalationsstufe', 'Störung, Notfall, Krise – dieselben Stufen wie im Notfall-Reiter. Ab Notfall ist der Krisenstab des Werks zuständig.'],
+        ['Ursache, Reaktion, Lehren (A.5.26 · A.5.27)', 'Ein erledigtes Ticket ohne Ursache und Lehre ist eine Lücke: Das Ticketsystem schließt Tickets, das ISMS lernt daraus.'],
+        ['Beweismittel (A.5.28)', 'Wo Logs, Screenshots, Forensik liegen. Bei erheblichen Vorfällen und Personendaten wird danach gefragt.'],
+        ['Korrekturmaßnahme (10.2)', '„+ Korrekturmaßnahme anlegen" öffnet das Wirksamkeits-Register mit Quelle „Sicherheitsvorfall" und Herkunft des Tickets – der Vorfall findet seine Maßnahme wieder.'],
+        ['🖨 Vorfallakte', 'Ticket, Beurteilung, Meldungen, Ursache, Lehren, Beweise auf einer Seite – als PDF der Nachweis, den ein Auditor sehen will.'],
+      ])}
+      <div style="${h3}">Einstellungen</div>
+      <p style="margin:0 0 8px;line-height:1.55">Unter <b>Einstellungen → Vorfälle</b> stehen die Kategorien der Ticketliste mit Anzahl; angehakt wird, was Informationssicherheit ist. Bis dahin gilt ein Muster (Sicherheit, Phishing, Malware, Datenschutz …). Ebenso lässt sich jede Art des Tickets einer Gruppe zuordnen, wenn das Haus andere Worte nutzt als Incident, Change, Doku. Gelesen werden die letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate.</p>
+      <div style="${h3}">Was daraus folgt</div>
+      <ul style="${ol}">
+        <li style="${li}"><b>Cockpit:</b> offene Vorfälle, nicht beurteilte, überfällige Meldefristen.</li>
+        <li style="${li}"><b>Audit Report:</b> A.5.24–A.5.28 (Beurteilung, Lehren), NIS2 Art. 23 (Fristen), A.8.32 (Änderungen).</li>
+        <li style="${li}"><b>Vorfall-Digest</b> im Cron: unbeurteilte Ereignisse, überfällige Fristen, erledigte Vorfälle ohne Lehre – an die Admins.</li>
       </ul>
       <div style="${h3}">Wo es sonst noch auftaucht</div>
       <ul style="${ol}">

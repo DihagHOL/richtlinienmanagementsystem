@@ -42,6 +42,7 @@ function initCockpit() {
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
       ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
       ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
+      ${tile('vorfaelle', '🎫', 'Vorfälle & Ereignisse',    'vorfaelle')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}
       ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
     </div>`;
@@ -56,6 +57,7 @@ function initCockpit() {
   _ckLoadAusnahmen(seq);
   _ckLoadWirksamkeit(seq);
   _ckLoadNotfall(seq);
+  _ckLoadVorfaelle(seq);
   _ckLoadCompliance(seq);
   _ckLoadVorschlaege(seq);
 }
@@ -186,6 +188,22 @@ async function _ckLoadAssets(seq) {
       _ckBig(z.ohneVerantwortlichen, 'ohne Verantwortlichen', z.ohneVerantwortlichen ? '#b91c1c' : '#15803d') +
       _ckBig(z.sehrHochOhneRto, '„sehr hoch" ohne Wiederherstellzeit', z.sehrHochOhneRto ? '#b91c1c' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('assets', 'Nicht ladbar.'); }
+}
+
+async function _ckLoadVorfaelle(seq) {
+  try {
+    if (typeof vfKennzahlen !== 'function' || typeof spGetTicketsLeise !== 'function') { _ckErr('vorfaelle', 'Modul nicht geladen.'); return; }
+    const [tk, bw] = await Promise.all([spGetTicketsLeise(), (typeof spLoadVorfaelle === 'function') ? spLoadVorfaelle() : { daten: { bewertungen: {} } }]);
+    if (seq !== _cockpitSeq) return;
+    if (!tk) { _ckErr('vorfaelle', 'Ticketsystem nicht erreichbar.'); return; }
+    const cfg = (typeof getAccessConfig === 'function') ? getAccessConfig() : {};
+    const sicher = tk.tickets.filter(t => vfIstSicherheit(t.kategorie, cfg));
+    const z = vfKennzahlen(sicher, bw.daten.bewertungen, { werke: (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null });
+    _ckSet('vorfaelle',
+      _ckBig(z.offeneIncidents, 'Vorfälle / Ereignisse offen', z.offeneIncidents ? '#b45309' : '#15803d') +
+      _ckBig(z.unbeurteilt, 'nicht beurteilt (A.5.25)', z.unbeurteilt ? '#b91c1c' : '#15803d') +
+      _ckBig(z.fristenUeberfaellig, 'Meldefristen überfällig (NIS2)', z.fristenUeberfaellig ? '#b91c1c' : '#15803d'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('vorfaelle', 'Nicht ladbar.'); }
 }
 
 async function _ckLoadAusnahmen(seq) {

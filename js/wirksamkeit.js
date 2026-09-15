@@ -384,6 +384,25 @@ function wirkUebungFuer(ziel, name, werk, danach) {
   renderWirkEditor();
 }
 
+/**
+ * Eine Abweichung / Korrekturmaßnahme von außen anlegen – aus einem
+ * Sicherheitsvorfall (Reiter Vorfälle): Quelle „Sicherheitsvorfall", Herkunft
+ * das Ticket. So findet der Vorfall seine Maßnahme wieder.
+ */
+function wirkAbweichungFuer(herkunftId, titel, werk, beschreibung, danach) {
+  _wirkEditing = _wirkNeu('abweichung');
+  _wirkEditing.titel = String(titel || '');
+  _wirkEditing.quelle = 'Sicherheitsvorfall';
+  _wirkEditing.herkunftId = String(herkunftId || '');
+  _wirkEditing.beschreibung = String(beschreibung || '');
+  if (werk) _wirkEditing.werke = [werk];
+  _wirkDanach = (typeof danach === 'function') ? danach : null;
+  if (!_wirkMembers && typeof spGetMembers === 'function') {
+    spGetMembers().then(m => { _wirkMembers = m; }).catch(() => { _wirkMembers = []; });
+  }
+  renderWirkEditor();
+}
+
 async function openWirkEditor(id, art) {
   const src = id ? (_wirk || []).find(w => String(w.id) === String(id)) : null;
   _wirkEditing = src ? JSON.parse(JSON.stringify(src)) : _wirkNeu(art);

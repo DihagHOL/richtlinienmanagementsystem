@@ -24,7 +24,8 @@ let _cfgEdit = null;          // Einstellungen-Entwurf
    schmale Spalte auch nicht. Der Entwurf (_cfgEdit) überlebt den Wechsel,
    ungespeicherte Änderungen gehen also nicht verloren. */
 
-let _cfgBereich = 'rollen';   // 'rollen' | 'reiter' | 'assets'
+let _cfgBereich = 'rollen';   // 'rollen' | 'reiter' | 'assets' | 'vorfaelle'
+let _cfgTickets = null;       // { tickets, kategorien, arten } – für die Auswahl der Sicherheits-Kategorien
 
 function renderEinstellungen() {
   _cfgEdit = getAccessConfig();
@@ -38,7 +39,7 @@ function renderEinstellungen() {
 
 /** Bereich wechseln – ohne den Entwurf zu verlieren. */
 function cfgBereich(name) {
-  _cfgBereich = ['reiter', 'assets'].includes(name) ? name : 'rollen';
+  _cfgBereich = ['reiter', 'assets', 'vorfaelle'].includes(name) ? name : 'rollen';
   _cfgRenderBereich();
 }
 
@@ -48,7 +49,7 @@ function _cfgBereichLeiste() {
     return `<button type="button" onclick="cfgBereich('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label}</button>`;
   };
   return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
-    ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}${seg('assets', '🗂 Assetregister')}</div>`;
+    ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}${seg('assets', '🗂 Assetregister')}${seg('vorfaelle', '🎫 Vorfälle')}</div>`;
 }
 
 function _cfgRenderBereich() {
@@ -56,16 +57,18 @@ function _cfgRenderBereich() {
   if (!v) return;
   const reiter = _cfgBereich === 'reiter';
   const assets = _cfgBereich === 'assets';
+  const vorfaelle = _cfgBereich === 'vorfaelle';
   v.innerHTML = `
-    <div style="max-width:${reiter ? '1100px' : assets ? '900px' : '680px'}">
+    <div style="max-width:${reiter ? '1100px' : (assets || vorfaelle) ? '900px' : '680px'}">
       ${_cfgBereichLeiste()}
-      ${reiter ? _reiterBereichHtml() : assets ? _assetsBereichHtml() : _rollenBereichHtml()}
+      ${reiter ? _reiterBereichHtml() : assets ? _assetsBereichHtml() : vorfaelle ? _vorfaelleBereichHtml() : _rollenBereichHtml()}
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
         <button class="btn btn-primary" onclick="saveCfg()">Einstellungen speichern</button>
       </div>
     </div>`;
   if (reiter) { rrRenderBody(); rrRenderDomaenen(); renderCfgLists(); return; }
   if (assets) return;
+  if (vorfaelle) { _cfgTicketsLaden(); return; }
   renderCfgLists();
   renderZielgruppenMails();
   renderVertretungen();
@@ -1253,6 +1256,71 @@ function _assetsBereichHtml() {
         <tbody>${katRows}</tbody></table></div>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline btn-sm" onclick="cfgAssetKatHinzu()">+ Kategorie</button>
         <button class="btn btn-ghost btn-sm" onclick="cfgAssetKatStandard()">Standard wiederherstellen</button></div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════
+   Bereich „Vorfälle": welche Tickets Informationssicherheit sind
+   ==============================================================
+   Die Kategorien der Ticketliste, mit Anzahl – angehakt wird, was zählt.
+   Ohne Auswahl gilt das Muster des Modells. Dazu die Zuordnung der Ticket-
+   Arten (Incident, Change, Doku), falls das Haus andere Worte nutzt.
+═══════════════════════════════════════════════════ */
+
+function _cfgVorfallKats() { if (!Array.isArray(_cfgEdit.vorfallKategorien)) _cfgEdit.vorfallKategorien = []; return _cfgEdit.vorfallKategorien; }
+function _cfgVorfallArten() { if (!_cfgEdit.vorfallArtZuordnung || typeof _cfgEdit.vorfallArtZuordnung !== 'object') _cfgEdit.vorfallArtZuordnung = {}; return _cfgEdit.vorfallArtZuordnung; }
+function cfgVorfallKat(name, an) {
+  const k = _cfgVorfallKats();
+  const i = k.findIndex(x => String(x).toLowerCase() === String(name).toLowerCase());
+  if (an && i < 0) k.push(name);
+  if (!an && i >= 0) k.splice(i, 1);
+  _cfgRenderBereich();
+}
+function cfgVorfallKatFrei(wert) {
+  const k = _cfgVorfallKats();
+  String(wert || '').split(/[;,]+/).map(s => s.trim()).filter(Boolean).forEach(n => { if (!k.some(x => x.toLowerCase() === n.toLowerCase())) k.push(n); });
+  _cfgRenderBereich();
+}
+function cfgVorfallArt(art, key) { const z = _cfgVorfallArten(); if (key) z[art] = key; else delete z[art]; }
+async function _cfgTicketsLaden() {
+  if (_cfgTickets || typeof spGetTicketsLeise !== 'function') return;
+  _cfgTickets = await spGetTicketsLeise() || { tickets: [], kategorien: [], arten: [], fehler: true };
+  if (_cfgBereich === 'vorfaelle') _cfgRenderBereich();
+}
+
+function _vorfaelleBereichHtml() {
+  const gewaehlt = _cfgVorfallKats();
+  const zuordnung = _cfgVorfallArten();
+  const tk = _cfgTickets;
+  const zaehl = {};
+  const artZaehl = {};
+  for (const t of ((tk && tk.tickets) || [])) { zaehl[t.kategorie || ''] = (zaehl[t.kategorie || ''] || 0) + 1; artZaehl[t.artRoh || ''] = (artZaehl[t.artRoh || ''] || 0) + 1; }
+  const kats = [...new Set(((tk && tk.kategorien) || []).concat(gewaehlt))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'de'));
+  const arten = [...new Set(((tk && tk.arten) || []).concat(Object.keys(zuordnung)))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'de'));
+  const muster = (typeof VF_SICHERHEIT_MUSTER !== 'undefined') ? VF_SICHERHEIT_MUSTER : /sicherheit/i;
+  const istGewaehlt = (k) => gewaehlt.some(x => x.toLowerCase() === k.toLowerCase());
+  const katRows = kats.map(k => `<tr>
+    <td style="text-align:center"><input type="checkbox" ${istGewaehlt(k) ? 'checked' : ''} onchange="cfgVorfallKat(${JSON.stringify(k).replace(/"/g, '&quot;')},this.checked)"></td>
+    <td>${esc(k)}${!gewaehlt.length && muster.test(k) ? ' <span class="field-hint" title="Ohne Auswahl zählt diese Kategorie über das Muster">(Muster)</span>' : ''}</td>
+    <td style="text-align:right;color:var(--c-muted)">${zaehl[k] || 0}</td></tr>`).join('');
+  const artRows = arten.map(a => { const auto = (typeof vfArtVon === 'function') ? vfArtVon(a, {}) : ''; const cur = zuordnung[a] || '';
+    return `<tr><td>${esc(a)}</td><td style="text-align:right;color:var(--c-muted)">${artZaehl[a] || 0}</td>
+    <td><select onchange="cfgVorfallArt(${JSON.stringify(a).replace(/"/g, '&quot;')},this.value)"><option value="">${auto ? `automatisch: ${esc((VF_ARTEN[auto] || {}).label || auto)}` : 'automatisch: keine Gruppe'}</option>${Object.values(typeof VF_ARTEN !== 'undefined' ? VF_ARTEN : {}).map(x => `<option value="${x.key}"${cur === x.key ? ' selected' : ''}>${x.icon} ${esc(x.label)}</option>`).join('')}</select></td></tr>`; }).join('');
+  return `
+    <div class="item-card" style="margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:4px">Welche Tickets sind Informationssicherheit?</div>
+      <div class="field-hint" style="margin-bottom:8px">Die Kategorien der Liste „Tickets" (Site „ticket") der letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate, mit Anzahl. Angehakt wird, was in den Reiter „Vorfälle" gehört – Störungen, Änderungen und Dokumentationsaufträge dieser Kategorien. Ohne Auswahl gilt ein Muster (Sicherheit, Phishing, Malware, Datenschutz …).</div>
+      ${!tk ? '<div class="doc-loading">Lade Tickets …</div>' : tk.fehler ? '<div class="col-warning" style="display:block">Ticketsystem nicht erreichbar – Kategorien lassen sich trotzdem frei eintragen.</div>' : ''}
+      <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th style="width:40px">zählt</th><th>Kategorie</th><th style="text-align:right">Tickets</th></tr></thead>
+        <tbody>${katRows || '<tr><td colspan="3" style="color:var(--c-muted)">Noch keine Kategorien bekannt.</td></tr>'}</tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="text" id="cfg-vf-kat-frei" placeholder="Kategorie von Hand (z. B. IT-Sicherheit; Datenschutz)" style="flex:1"><button class="btn btn-outline btn-sm" onclick="cfgVorfallKatFrei(document.getElementById('cfg-vf-kat-frei').value)">+ Hinzufügen</button></div>
+      <div class="field-hint" style="margin-top:6px">${gewaehlt.length ? `Gewählt: <b>${gewaehlt.map(esc).join(', ')}</b>` : 'Nichts gewählt – es gilt das Muster.'}</div>
+    </div>
+    <div class="item-card">
+      <div style="font-weight:700;margin-bottom:4px">Art des Tickets → Gruppe</div>
+      <div class="field-hint" style="margin-bottom:8px">Incident, Change und Doku erkennt die App von selbst – auch als „Störung", „Änderung", „Dokumentation". Nutzt das Haus andere Worte, steht hier, was sie meinen.</div>
+      <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Art in der Liste</th><th style="text-align:right">Tickets</th><th>Gruppe</th></tr></thead>
+        <tbody>${artRows || '<tr><td colspan="3" style="color:var(--c-muted)">Noch keine Arten bekannt.</td></tr>'}</tbody></table></div>
     </div>`;
 }
 

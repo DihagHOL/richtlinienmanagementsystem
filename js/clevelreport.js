@@ -172,6 +172,20 @@ async function _clevelGather() {
     }
   } catch (e) { m.notfall = null; m.fehler.push('Notfall: ' + e.message); }
 
+  // Vorfälle (A.5.24–A.5.28, A.8.32, NIS2 Art. 23): aus dem Ticketsystem, mit der Beurteilung aus vorfaelle.json.
+  try {
+    if (typeof vfKennzahlen !== 'function' || typeof spGetTicketsLeise !== 'function') { m.vorfaelle = null; }
+    else {
+      const [tk, bw] = await Promise.all([spGetTicketsLeise(), (typeof spLoadVorfaelle === 'function') ? spLoadVorfaelle() : { daten: { bewertungen: {} } }]);
+      if (!tk) m.vorfaelle = null;
+      else {
+        const cfg = (typeof getAccessConfig === 'function') ? getAccessConfig() : {};
+        m.vorfaelle = vfKennzahlen(tk.tickets.filter(t => vfIstSicherheit(t.kategorie, cfg)), bw.daten.bewertungen,
+          { werke: (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null, massnahmen: Array.isArray(_wirk) ? _wirk : [] });
+      }
+    }
+  } catch (e) { m.vorfaelle = null; m.fehler.push('Vorfälle: ' + e.message); }
+
   // Reifegrad IT/OT
   try {
     let cfg = (_reifegrad && _reifegrad.ratings) ? _reifegrad : null;
@@ -322,6 +336,24 @@ function _clevelIsoRows(m) {
       `${n.stabLuecken} von ${n.werke} Krisenstäbe(n) unvollständig (Leitung, Vertretung, Nummern, Treffpunkt, Kanal).`);
     else add('ISO A.5.29', 'Informationssicherheit bei Störungen (Krisenstab)', 'ok', `Krisenstab in ${n.werke} Werk(en) vollständig.`);
   } else add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'warn', 'Notfallmanagement nicht auswertbar.');
+
+  // Vorfälle: A.5.25 will jedes Ereignis beurteilt, A.5.27 aus jedem Vorfall
+  // gelernt; NIS2 Art. 23 setzt die Fristen. Kein Ticket ist keine Lücke – ein
+  // unbeurteiltes ist eine.
+  if (m.vorfaelle) {
+    const v = m.vorfaelle;
+    if (!v.incidents) add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', `Keine Vorfälle oder Ereignisse im Ticketsystem (${VF_MONATE} Monate) – Kategorien in den Einstellungen prüfen.`);
+    else if (v.unbeurteilt || v.ohneLessons) add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'gap',
+      `${v.incidents} Tickets; ${v.unbeurteilt} nicht beurteilt (A.5.25), ${v.ohneLessons} erledigte Vorfälle ohne Lehre (A.5.27).`);
+    else add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', v.offenAelter ? 'warn' : 'ok',
+      `${v.incidents} Tickets beurteilt: ${v.ereignisse} Ereignisse, ${v.vorfaelle} Vorfälle${v.offenAelter ? `; ${v.offenAelter} länger als ${VF_OFFEN_TAGE} Tage offen` : ''}.`);
+    if (v.erheblich || v.personendaten) add('NIS2 Art. 23', 'Meldung erheblicher Sicherheitsvorfälle', v.fristenUeberfaellig ? 'gap' : 'ok',
+      `${v.erheblich} erhebliche Vorfälle, ${v.personendaten} mit Personendaten; ${v.fristenUeberfaellig} Meldefrist(en) überfällig, ${v.fristenOffen} laufend.`);
+    else add('NIS2 Art. 23', 'Meldung erheblicher Sicherheitsvorfälle', v.vorfaelle && v.vorfaelle > 0 && v.fehler ? 'warn' : 'ok',
+      v.vorfaelle ? `${v.vorfaelle} Vorfälle, keiner als erheblich eingestuft.` : 'Kein meldepflichtiger Vorfall im Zeitraum.');
+    add('ISO A.8.32', 'Änderungsmanagement (sicherheitsrelevante Änderungen)', v.changes ? 'ok' : 'warn',
+      v.changes ? `${v.changes} Änderungen mit Sicherheitsbezug im Ticketsystem nachvollziehbar.` : 'Keine sicherheitsrelevanten Änderungen als Ticket – Änderungen laufen am Ticketsystem vorbei?');
+  } else add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', 'Ticketsystem nicht auswertbar.');
 
   // Überwachung / Reviews (Kap. 9)
   const revOver = (m.faellig ? m.faellig.overdue : 0) + (m.risiken ? m.risiken.revUeber : 0);

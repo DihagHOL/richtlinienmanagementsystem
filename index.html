@@ -114,6 +114,10 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59c.75 1.334-.213 2.98-1.742 2.98H3.48c-1.53 0-2.493-1.646-1.743-2.98l6.52-11.59zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
         Notfall &amp; Krisenstab
       </a>
+      <a class="nav-item" data-view="vorfaelle" id="nav-vorfaelle" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM9 6a1 1 0 112 0v4a1 1 0 11-2 0V6zm1 8a1.25 1.25 0 110-2.5A1.25 1.25 0 0110 14z" clip-rule="evenodd"/></svg>
+        Vorf&auml;lle &amp; Ereignisse
+      </a>
 
       <div class="nav-sep">KI-Governance</div>
       <a class="nav-item" href="ki/">
@@ -344,6 +348,16 @@
           <button class="btn btn-sm btn-ghost" onclick="refreshNotfall()" title="Aktualisieren">↻ Aktualisieren</button>
         </div>
         <div id="notfall-mount"></div>
+      </section>
+
+      <!-- Vorfälle & Ereignisse: aus dem Ticketsystem, mit der ISMS-Beurteilung -->
+      <section id="view-vorfaelle" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Vorf&auml;lle &amp; Ereignisse (ISO 27001 A.5.24&ndash;A.5.28 &middot; NIS2 Art. 23)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshVorfaelle()" title="Aktualisieren">&#8635; Aktualisieren</button>
+        </div>
+        <div id="vorfaelle-mount"></div>
       </section>
 
       <section id="view-risiken" class="view">

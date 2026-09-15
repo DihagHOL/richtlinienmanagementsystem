@@ -304,10 +304,11 @@ function amIstArtSpalte(meta) {
  * „Typ" kann die Art (primär/unterstützend) oder die Kategorie (Server,
  * Anwendung …) meinen – teilen sich beide eine Spalte, entscheidet deren Auswahl.
  */
-function amSpalteFinden(spalten, erwartet) {
+function amSpalteFinden(spalten, erwartet, aliase) {
+  const AL = (aliase && typeof aliase === 'object') ? aliase : AM_ALIASE;   // andere Listen (Tickets) bringen ihre eigenen Namen mit
   const arr = (Array.isArray(spalten) ? spalten : []).filter(Boolean);
   const such = (e) => {
-    for (const k of [e].concat(AM_ALIASE[e] || [])) {
+    for (const k of [e].concat(AL[e] || [])) {
       const n = amSpaltenNorm(k);
       const hit = arr.find(c => c.name === k || amSpaltenNorm(c.name) === n || amSpaltenNorm(c.displayName) === n);
       if (hit) return hit;
@@ -328,11 +329,12 @@ function amSpalteFinden(spalten, erwartet) {
  * felder liefern ihren Anzeigewert nur, wenn man sie ausdrücklich auswählt –
  * sonst kommt bloß die LookupId. `feld(erwartet)` → Spaltenname oder null.
  */
-function amSelectVon(spalten, feld) {
+function amSelectVon(spalten, feld, aliase) {
+  const AL = (aliase && typeof aliase === 'object') ? aliase : AM_ALIASE;
   const arr = (Array.isArray(spalten) ? spalten : []).filter(Boolean);
   const out = new Set(['id', 'Title']);
   const nachschlag = (c) => !!(c && (c.typ === 'lookup' || c.typ === 'person' || c.lookup || c.personOrGroup));
-  for (const e of Object.keys(AM_ALIASE)) {
+  for (const e of Object.keys(AL)) {
     const n = feld(e);
     if (!n) continue;
     out.add(n);
@@ -357,11 +359,12 @@ function amFeldText(v) {
  * Alias könnte etwas anderes meinen. Ohne Meta (Cron, Test) werden die Namen
  * direkt probiert: genau, umlautkodiert, normalisiert.
  */
-function amFeldKey(f, erwartet, name) {
+function amFeldKey(f, erwartet, name, aliase) {
+  const AL = (aliase && typeof aliase === 'object') ? aliase : AM_ALIASE;
   const da = (k) => { const v = f[k]; return v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length); };
   if (name) return da(name) ? name : null;
   if (name === null) return null;
-  const kand = [erwartet].concat(AM_ALIASE[erwartet] || []);
+  const kand = [erwartet].concat(AL[erwartet] || []);
   for (const k of kand) if (da(k)) return k;
   const keys = Object.keys(f);
   for (const k of kand) {

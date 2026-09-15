@@ -22,7 +22,7 @@ ok(/<a class="nav-item" data-view="assets" id="nav-assets"/.test(html) && html.i
 ok(/<section id="view-assets" class="view">[\s\S]*?<div id="assets-mount">/.test(html) && /onclick="refreshAssets\(\)"/.test(html), 'Ansicht mit Mount und Aktualisieren');
 const access = lies('js/access.js');
 ok(/\{ view: 'assets',\s*label: 'Assetregister'/.test(access) && /show\('nav-assets',\s*v\.assets\)/.test(access), 'Reiter-Rechte und Sichtbarkeit');
-ok(/if \(view === 'assets'\s*&& typeof initAssets === 'function'\)\s*initAssets\(\);/.test(lies('js/app.js')) && /'notfall', 'assets'\]\.includes\(ansicht\)/.test(lies('js/app.js')), 'switchView und Digest-Link');
+ok(/if \(view === 'assets'\s*&& typeof initAssets === 'function'\)\s*initAssets\(\);/.test(lies('js/app.js')) && /'notfall', 'vorfaelle', 'assets'\]\.includes\(ansicht\)/.test(lies('js/app.js')), 'switchView und Digest-Link');
 ok(/'nav-risiken', 'nav-assets'/.test(lies('js/probelauf.js')), 'Im Probelauf ausgeblendet');
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };

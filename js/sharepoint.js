@@ -26,6 +26,11 @@ const SP = {
   ismsSiteHost: 'dihag.sharepoint.com:/sites/ISMS',
   assetsList:   'Assets',                  // Asset-/Werte-Inventar auf der ISMS-Site (nur lesen)
 
+  // ── Ticketsystem: Störungen, Änderungen, Dokumentationsaufträge (nur lesen) ──
+  ticketSiteHost: 'dihag.sharepoint.com:/sites/ticket',
+  ticketList:   'Tickets',
+  vorfaelleDatei: 'vorfaelle.json',        // die ISMS-Bewertung je Ticket, im Konfig-Ordner
+
   scopes: [
     'https://graph.microsoft.com/Sites.ReadWrite.All',
     'https://graph.microsoft.com/Files.ReadWrite.All',
@@ -3280,6 +3285,149 @@ async function spDeleteAsset(id) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Tickets – die Liste „Tickets" auf der Site „ticket" (nur lesen)
+   =================================================================
+   Dort landen Störungen, Änderungen und Dokumentationsaufträge, getrennt nach
+   der Art des Tickets. Die App liest sie – über die Kategorie, was
+   Informationssicherheit ist – und schreibt nie hinein: Das Ticket wird im
+   Ticketsystem bearbeitet. Was das ISMS darüber legt (Beurteilung, Fristen,
+   Lehren), liegt in vorfaelle.json im Konfig-Ordner der App.
+═══════════════════════════════════════════════════ */
+const _tk = { siteId: null, listId: null, webUrl: '', cols: null };   // cols: [{name, displayName, typ, choices}]
+
+/** Browser-URL der Ticketliste. */
+function spTicketListUrl() { return 'https://' + SP.ticketSiteHost.replace(':/', '/') + '/Lists/' + encodeURIComponent(SP.ticketList) + '/AllItems.aspx'; }
+/** Browser-URL eines Tickets – die Anzeige im Ticketsystem. */
+function spTicketUrl(id) {
+  const basis = _tk.webUrl || ('https://' + SP.ticketSiteHost.replace(':/', '/') + '/Lists/' + encodeURIComponent(SP.ticketList));
+  return `${basis}/DispForm.aspx?ID=${encodeURIComponent(String(id))}`;
+}
+
+/** Die Spalten der Ticketliste, wie sie sind – für die Einstellungen (welche Kategorien gibt es?) und die Zuordnung. */
+function spTicketSpalten() { return _tk.cols || []; }
+function _tkFeld(erwartet) {
+  if (!_tk.cols) return undefined;
+  return (typeof amSpalteFinden === 'function' && typeof VF_ALIASE !== 'undefined') ? amSpalteFinden(_tk.cols, erwartet, VF_ALIASE) : null;
+}
+
+async function _ticketListe(token) {
+  if (_tk.listId) return _tk;
+  const site = await _get(`${SP.graphBase}/sites/${SP.ticketSiteHost}`, token);
+  _tk.siteId = site.id;
+  const target = _normName(SP.ticketList);
+  let url = `${SP.graphBase}/sites/${_tk.siteId}/lists?$select=id,displayName,name,webUrl&$top=200`;
+  while (url && !_tk.listId) {
+    const r = await _get(url, token);
+    const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+    if (hit) { _tk.listId = hit.id; _tk.webUrl = hit.webUrl || ''; }
+    url = r['@odata.nextLink'] || null;
+  }
+  if (!_tk.listId) throw new Error(`Liste „${SP.ticketList}" auf ${SP.ticketSiteHost} nicht gefunden.`);
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_tk.siteId}/lists/${_tk.listId}/columns?$select=name,displayName,choice,personOrGroup,lookup,dateTime,text`, token);
+    _tk.cols = (cols.value || []).map(c => ({
+      name: c.name, displayName: c.displayName || c.name,
+      typ: c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.dateTime ? 'dateTime' : 'text',
+      choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
+    }));
+  } catch (e) { _tk.cols = null; }
+  return _tk;
+}
+
+/**
+ * Die Tickets der letzten Monate – normalisiert (vfAusFeldern), NICHT auf
+ * Sicherheit gefiltert: Die Einstellungen wollen alle Kategorien sehen, um
+ * die richtigen zu wählen. Gelesen mit ausdrücklicher Feldauswahl und
+ * Zeitfilter; lehnt Graph eines davon ab, geht es ohne weiter.
+ * @param {object} [opt] { monate }
+ * @returns {Promise<{tickets: object[], kategorien: string[], arten: string[]}>}
+ */
+async function spGetTickets(opt) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return { tickets: [], kategorien: [], arten: [] };
+  if (typeof modulLaden === 'function') {
+    if (typeof amFeldKey !== 'function') await modulLaden('assetmodell');
+    if (typeof vfAusFeldern !== 'function') await modulLaden('vorfallmodell');
+  }
+  if (typeof vfAusFeldern !== 'function') throw new Error('Vorfallmodell nicht geladen.');
+  await _ticketListe(token);
+  const monate = Math.max(1, Number((opt && opt.monate) || (typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24)));
+  const seit = new Date(Date.now() - monate * 30.44 * 86400000).toISOString();
+  const select = (_tk.cols && typeof amSelectVon === 'function') ? amSelectVon(_tk.cols, _tkFeld, VF_ALIASE) + ',Created,Modified' : '';
+  const lade = async (mitAuswahl, mitFilter) => {
+    const out = [];
+    let url = `${SP.graphBase}/sites/${_tk.siteId}/lists/${_tk.listId}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}${mitFilter ? `&$filter=fields/Created ge '${seit}'` : ''}&$top=500`;
+    while (url) {
+      const resp = await _get(url, token, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+      for (const it of (resp.value || [])) out.push(it);
+      url = resp['@odata.nextLink'] || null;
+      if (out.length >= 10000) break;
+    }
+    return out;
+  };
+  let items;
+  try { items = await lade(!!select, true); }
+  catch (e1) {
+    try { items = await lade(!!select, false); }
+    catch (e2) { items = await lade(false, false); }
+  }
+  const cfg = (typeof getAccessConfig === 'function') ? getAccessConfig() : {};
+  const standorte = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
+  const tickets = items.map(it => vfAusFeldern(it, { feld: _tk.cols ? _tkFeld : undefined, standorte, zuordnung: cfg.vorfallArtZuordnung, urlVon: spTicketUrl }))
+    .filter(t => !t.erstellt || t.erstellt >= seit);
+  tickets.sort((a, b) => (b.erstellt || '').localeCompare(a.erstellt || ''));
+  const werte = (feld) => { const s = new Set(); for (const t of tickets) if (t[feld]) s.add(t[feld]); return [...s].sort((a, b) => a.localeCompare(b, 'de')); };
+  const spalte = (e) => { const n = _tkFeld(e); const c = n && _tk.cols ? _tk.cols.find(x => x.name === n) : null; return c ? c.choices : []; };
+  return {
+    tickets,
+    kategorien: [...new Set(spalte('Kategorie').concat(werte('kategorie')))].sort((a, b) => a.localeCompare(b, 'de')),
+    arten: [...new Set(spalte('Art').concat(werte('artRoh')))].sort((a, b) => a.localeCompare(b, 'de')),
+  };
+}
+
+/** Wie spGetTickets, aber null statt Fehler – fürs Cockpit und den Audit Report. */
+async function spGetTicketsLeise(opt) {
+  try { return await spGetTickets(opt); } catch (e) { console.warn('[sp] Tickets nicht ladbar:', e.message); return null; }
+}
+
+/* ── Die ISMS-Bewertung je Ticket: vorfaelle.json im Konfig-Ordner ── */
+function _vorfaellePfad() { return `${SP.configFolder}/${SP.vorfaelleDatei}`; }
+
+/** @returns {Promise<{daten:{version:number, bewertungen:object}, geaendertAm:string}>} – leer, wenn noch nie gespeichert. */
+async function spLoadVorfaelle() {
+  const leer = { daten: { version: 1, bewertungen: {} }, geaendertAm: '' };
+  const token = await acquireToken(SP.scopes);
+  if (!token) return leer;
+  await spInit();
+  if (!_sp.appDriveId) return leer;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_vorfaellePfad()}`;
+  let meta;
+  try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); } catch (e) { return leer; }
+  const resp = await fetch(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return leer;
+  const d = await resp.json();
+  return { daten: { version: 1, bewertungen: (d && d.bewertungen && typeof d.bewertungen === 'object') ? d.bewertungen : {} }, geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/**
+ * Eine Bewertung speichern – erst die Datei frisch laden, dann nur diesen
+ * Eintrag setzen: Zwei, die verschiedene Tickets beurteilen, überschreiben
+ * sich so nicht. @returns {Promise<{daten, geaendertAm}>}
+ */
+async function spSaveVorfallBewertung(ticketId, bewertung) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const akt = await spLoadVorfaelle();
+  const daten = akt.daten;
+  if (bewertung === null) delete daten.bewertungen[String(ticketId)];
+  else daten.bewertungen[String(ticketId)] = bewertung;
+  const item = await _uploadFile(token, _vorfaellePfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
+  return { daten, geaendertAm: (item && item.lastModifiedDateTime) || '' };
+}
+
+/* ═══════════════════════════════════════════════════
    Graph-Helper
 ═══════════════════════════════════════════════════ */
 
@@ -3307,8 +3455,8 @@ async function _uploadFile(token, path, bytes, contentType) {
   return resp.json();
 }
 
-async function _get(url, token) {
-  const resp = await _fetchRetry(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+async function _get(url, token, extraHeaders) {
+  const resp = await _fetchRetry(url, { headers: Object.assign({ Authorization: `Bearer ${token}`, Accept: 'application/json' }, extraHeaders || {}) });
   if (!resp.ok) throw new Error(`Graph GET (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
   return resp.json();
 }

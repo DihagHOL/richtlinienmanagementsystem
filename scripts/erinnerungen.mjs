@@ -49,6 +49,8 @@ const ENV_SENDER = process.env.MAIL_SENDER || '';   // Fallback; bevorzugt wird 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
 const ISMS_SITE_HOST = process.env.ISMS_SITE_HOST || 'dihag.sharepoint.com:/sites/ISMS';
+const TICKET_SITE_HOST = process.env.TICKET_SITE_HOST || 'dihag.sharepoint.com:/sites/ticket';   // das Ticketsystem (nur lesen)
+const TICKET_LIST = process.env.TICKET_LIST || 'Tickets';
 const POLICY_LIST = process.env.POLICY_LIST || 'Richtlinien';
 const CONFIG_FOLDER = process.env.CONFIG_FOLDER || 'Richtlinienmanagement';
 const APP_URL = process.env.APP_URL || 'https://rms.dihag.de/';
@@ -83,9 +85,9 @@ async function getToken() {
 }
 
 let TOKEN = '';
-async function gget(path) {
+async function gget(path, extraHeaders) {
   const r = await fetch(path.startsWith('http') ? path : GRAPH + path, {
-    headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' },
+    headers: Object.assign({ Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' }, extraHeaders || {}),
   });
   if (!r.ok) throw new Error(`GET ${path} (${r.status}): ${(await r.text()).slice(0, 300)}`);
   return r.json();
@@ -1044,6 +1046,75 @@ function kenntnisEskalationHtml(posten) {
       }
     }
   } catch (e) { console.log('Asset-Digest übersprungen:', e.message); }
+
+  // ── Vorfall-Digest: aus dem Ticketsystem, was Informationssicherheit ist –
+  //    unbeurteilte Ereignisse (A.5.25), überfällige Meldefristen (NIS2 Art. 23),
+  //    erledigte Vorfälle ohne Lehre (A.5.27). Gelesen wie im Reiter. ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Vorfall-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const AM = _require('../js/assetmodell.js');
+      const VF = _require('../js/vorfallmodell.js');
+      const tsite = await gget(`/sites/${TICKET_SITE_HOST}`);
+      const tl = (await gget(`/sites/${tsite.id}/lists?$select=id,displayName,name,webUrl&$top=200`)).value
+        .find((l) => [l.displayName, l.name].some((n) => String(n || '').toLowerCase() === TICKET_LIST.toLowerCase()));
+      if (!tl) {
+        console.log(`Vorfall-Digest: Liste „${TICKET_LIST}" nicht gefunden – übersprungen.`);
+      } else {
+        const spalten = (await gget(`/sites/${tsite.id}/lists/${tl.id}/columns?$select=name,displayName,choice,lookup,personOrGroup`)).value || [];
+        const feld = (e) => AM.amSpalteFinden(spalten, e, VF.VF_ALIASE);
+        const seit = new Date(Date.now() - VF.VF_MONATE * 30.44 * 86400000).toISOString();
+        const select = AM.amSelectVon(spalten, feld, VF.VF_ALIASE) + ',Created,Modified';
+        const lade = async (mitAuswahl, mitFilter) => {
+          const out = [];
+          let url = `/sites/${tsite.id}/lists/${tl.id}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}${mitFilter ? `&$filter=fields/Created ge '${seit}'` : ''}&$top=500`;
+          while (url) {
+            const resp = await gget(url, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+            for (const it of (resp.value || [])) out.push(it);
+            url = resp['@odata.nextLink'] || null;
+            if (out.length >= 10000) break;
+          }
+          return out;
+        };
+        let items;
+        try { items = await lade(true, true); } catch (e1) { try { items = await lade(true, false); } catch (e2) { items = await lade(false, false); } }
+        const urlVon = (id) => `${tl.webUrl || ''}/DispForm.aspx?ID=${id}`;
+        const tickets = items.map((it) => VF.vfAusFeldern(it, { feld, standorte: standorteDerApp(), zuordnung: cfg.vorfallArtZuordnung, urlVon }))
+          .filter((t) => (!t.erstellt || t.erstellt >= seit) && VF.vfIstSicherheit(t.kategorie, cfg));
+        const vj = (await loadKonfigJson(siteId, 'vorfaelle.json')) || {};
+        const bewertungen = (vj.bewertungen && typeof vj.bewertungen === 'object') ? vj.bewertungen : {};
+        let massnahmen = [];
+        const wl2 = await ismsListe('Wirksamkeit');
+        if (wl2) massnahmen = (await ismsItems(wl2.id)).map((f) => ({ herkunftId: f.HerkunftId || '', titel: f.Title || '', status: f.WStatus || '' }));
+        const rowsOut = [];
+        for (const t of tickets) {
+          if (t.art !== 'incident') continue;
+          const l = VF.vfLuecken(t, bewertungen[t.id], { massnahmen });
+          for (const f of l.fehler) rowsOut.push({ titel: `#${t.id} ${t.titel}${t.werke.length ? ` (${t.werke.join(', ')})` : ''}`, was: f, wer: t.zugewiesen, rang: /überfällig|Frühwarnung|Meldung/.test(f) ? 0 : 1 });
+        }
+        if (!rowsOut.length) {
+          console.log(`Vorfall-Digest: nichts offen (${tickets.length} Tickets mit Sicherheitsbezug).`);
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Vorfälle &amp; Ereignisse: offene Punkte</b></p>
+            <p>Aus dem Ticketsystem, was Informationssicherheit ist (ISO&nbsp;27001 A.5.24–A.5.28, NIS2 Art. 23): unbeurteilte Ereignisse, laufende und überfällige Meldefristen, erledigte Vorfälle ohne Lehre:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=vorfaelle" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Vorfälle öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Vorfälle: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Vorfall-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Vorfall-Digest übersprungen:', e.message); }
 
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 

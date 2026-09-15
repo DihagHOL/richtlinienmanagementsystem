@@ -37,7 +37,7 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
-  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'clevelreport'];
+  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -61,6 +61,7 @@ const MODUL_ANSICHTEN = {
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
   notfall:       MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'notfall']),
+  vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Das Assetregister: Modell im Verwaltungsblock (Report, Notfall, Risiken
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),
@@ -78,7 +79,7 @@ const MODUL_ANSICHTEN = {
   // seine Tabellen AUS dessen Daten baut. Ohne das Modul blieben sie leer –
   // die Wächter fangen den Fehler ab, aber eine leere Tabelle ist auch keine
   // Auskunft.
-  dokumentation: ['prozessschema', 'notfallmodell', 'assetmodell', 'dokumentation'],
+  dokumentation: ['prozessschema', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'dokumentation'],
 };
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)
