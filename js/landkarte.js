@@ -70,7 +70,38 @@ const LK_TYPEN = [
   { key: 'kern',           label: 'Kernprozess',           kurz: 'Kern',          farbe: '#F08300' },   // Orange
   { key: 'unterstuetzung', label: 'Unterstützungsprozess', kurz: 'Unterstützung', farbe: '#5B8CB8' },   // Lichtblau
 ];
-const LK_KATEGORIE_FARBE = '#1A2644';   // Navy – die reine Kategorie
+const LK_KATEGORIE_FARBE = '#1A2644';   // Navy – die Kategorie, die zu keiner Gruppe passt
+
+/* ── Kategorien: feste Farben nach Bedeutung ─────────────────────────────
+   Ein Bereich, der kein Prozesstyp ist (Strategie, Finanzierung, Beratung …),
+   und eine Kachel, die eine Kategorie ist, bekommen ihre Farbe nicht nach der
+   Reihenfolge auf der Karte, sondern nach dem, was sie bedeuten – dieselbe
+   Kategorie hat auf jeder Karte dieselbe Farbe. Erkannt wird über den Namen;
+   was zu keiner Gruppe passt, ist Navy. */
+const LK_KATEGORIE_FARBEN = [
+  { key: 'strategie',     name: 'Strategie & Führung',          farbe: '#17509E', muster: /strateg|vision|leitbild|f(ü|ue)hrung|management|steuer(n|ung)\b|unternehmen ?steuern|geschäftsf|gesch(ä|ae)ftsleit/ },
+  { key: 'wertschoepfung', name: 'Wertschöpfung & Betrieb',     farbe: '#F08300', muster: /kern|produktion|wertsch(ö|oe)pf|fertigung|gie(ß|ss)|operativ|t(ö|oe)chter|vertrieb|auftr(ä|ae)g|liefer/ },
+  { key: 'finanzen',      name: 'Finanzen & Controlling',       farbe: '#7A6417', muster: /finanz|controlling|buchhalt|steuern|treasury|kapital|rechnungswesen|abschluss|report/ },
+  { key: 'risiko',        name: 'Risiko, Recht & Compliance',   farbe: '#8B1E3F', muster: /risik|compliance|(ü|ue)berwach|revision|recht|legal|governance|datenschutz|sicherheit|audit/ },
+  { key: 'personal',      name: 'Personal & Organisation',      farbe: '#0F766E', muster: /personal|\bhr\b|mitarbeit|organisation|talent|recruit|arbeitssch/ },
+  { key: 'it',            name: 'IT & Technik',                 farbe: '#5B21B6', muster: /\bit\b|edv|digital|technik|system|software|infrastruktur|daten\b/ },
+  { key: 'kommunikation', name: 'Kommunikation & Markt',        farbe: '#0284C7', muster: /kommunikation|marketing|stakeholder|investor|presse|kunde/ },
+  { key: 'transformation', name: 'Transformation & Projekte',   farbe: '#6D28D9', muster: /transform|projekt|change|innovation|programm|verbesser|kvp|lean/ },
+  { key: 'beteiligungen', name: 'Beteiligungen & Konzern',      farbe: '#92400E', muster: /beteilig|portfolio|holding|konzern|gesellschaft/ },
+  { key: 'services',      name: 'Unterstützung & Services',     farbe: '#5B8CB8', muster: /unterst(ü|ue)tz|support|service|beratung|wissen|einkauf|beschaff|logistik|instandhalt|qualit|verwaltung|infrastruktur/ },
+];
+
+/** Die Kategorie-Gruppe zu einem Namen (Bereich oder Kachel) – null, wenn keine passt. */
+function lkKategorieVon(text) {
+  const s = String(text || '').toLowerCase();
+  if (!s.trim()) return null;
+  return LK_KATEGORIE_FARBEN.find(g => g.muster.test(s)) || null;
+}
+/** Die feste Farbe einer Kategorie – nach dem ersten Text, der eine Gruppe trifft; sonst Navy. */
+function lkKategorieFarbe(...texte) {
+  for (const t of texte) { const g = lkKategorieVon(t); if (g) return g.farbe; }
+  return LK_KATEGORIE_FARBE;
+}
 
 function lkTyp(key) { return LK_TYPEN.find(t => t.key === key) || null; }
 
@@ -95,13 +126,43 @@ function lkTypVon(k, band) {
   if (lkTyp(eigen)) return eigen;
   return lkBandTyp(band !== undefined ? band : (k && k.band));
 }
-function lkTypFarbe(k, band) { const t = lkTyp(lkTypVon(k, band)); return t ? t.farbe : LK_KATEGORIE_FARBE; }
-function lkTypLabel(k, band) { const t = lkTyp(lkTypVon(k, band)); return t ? t.label : 'Kategorie'; }
+/** Der Bereich zu einem Band-Schlüssel oder -Objekt – für die Farbe einer Kategorie zählt sein Titel. */
+function _lkBandObjekt(band) {
+  if (band && typeof band === 'object') return band;
+  return lkBaender().find(x => x.key === band) || { key: String(band || ''), titel: '' };
+}
+/**
+ * Die Farbe einer Kachel: ihr Prozesstyp – oder, als Kategorie, die feste
+ * Farbe ihrer Bedeutung: erst der eigene Name, dann der Bereich, sonst Navy.
+ */
+function lkTypFarbe(k, band) {
+  const t = lkTyp(lkTypVon(k, band));
+  if (t) return t.farbe;
+  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
+  return lkKategorieFarbe(k && k.name, b.titel, b.key);
+}
+function lkTypLabel(k, band) {
+  const t = lkTyp(lkTypVon(k, band));
+  if (t) return t.label;
+  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
+  const g = lkKategorieVon(k && k.name) || lkKategorieVon(b.titel) || lkKategorieVon(b.key);
+  return g ? `Kategorie: ${g.name}` : 'Kategorie';
+}
+/** Die Farbe eines Bereichs: sein Prozesstyp, sonst seine Kategorie, sonst Navy – fest, nicht nach Reihenfolge. */
+function lkBandFarbe(band) {
+  const b = _lkBandObjekt(band);
+  const t = lkTyp(lkBandTyp(b));
+  return t ? t.farbe : lkKategorieFarbe(b.titel, b.key);
+}
 
-/** Die Legende unter der Karte – vier Farben, vier Worte. */
+/** Die Legende unter der Karte: die drei Typen – und die Kategorie-Gruppen, die auf dieser Karte vorkommen. */
 function _lkLegendeHtml() {
   const punkt = (farbe, text) => `<span class="lk-legende-punkt"><i style="background:${farbe}"></i>${esc(text)}</span>`;
-  return `<div class="lk-legende">${LK_TYPEN.map(t => punkt(t.farbe, t.label)).join('')}${punkt(LK_KATEGORIE_FARBE, 'Kategorie (kein Ablauf)')}</div>`;
+  const gruppen = new Map();
+  lkBaender().forEach(b => { if (!lkTyp(lkBandTyp(b))) { const g = lkKategorieVon(b.titel) || lkKategorieVon(b.key); gruppen.set(g ? g.key : '', g); } });
+  lkKacheln().forEach(k => { if (!lkTypVon(k)) { const b = _lkBandObjekt(k.band); const g = lkKategorieVon(k.name) || lkKategorieVon(b.titel) || lkKategorieVon(b.key); gruppen.set(g ? g.key : '', g); } });
+  const kat = [...gruppen.values()].map(g => (g ? punkt(g.farbe, `Kategorie: ${g.name}`) : punkt(LK_KATEGORIE_FARBE, 'Kategorie (sonstige)'))).join('');
+  return `<div class="lk-legende">${LK_TYPEN.map(t => punkt(t.farbe, t.label)).join('')}${kat}</div>`;
 }
 
 /* ── Verweise zwischen Prozessen ──────────────────────────────────────────
@@ -1899,9 +1960,8 @@ function _lkZeileHtml(band, nr, schreiben) {
   // Der Index i bleibt der in lkKacheln() – daran hängt das Ziehen und Ablegen.
   const idx = _lkNurHaupt ? imBand.filter(x => !lkIstTeilprozess(_lkWerk, x.k)) : imBand;
   const eingeordnet = imBand.length - idx.length;
-  // Ein Band, das einen Prozesstyp meint, trägt dessen Farbe; die anderen ihre Reihenfolge.
-  const bandTyp = lkTyp(lkBandTyp(band));
-  const farbe = bandTyp ? bandTyp.farbe : LK_FARBEN[nr % LK_FARBEN.length];
+  // Ein Band, das einen Prozesstyp meint, trägt dessen Farbe; die anderen die feste Farbe ihrer Kategorie.
+  const farbe = lkBandFarbe(band);
   const zahl = `${idx.length} ${idx.length === 1 ? 'Prozess' : 'Prozesse'}${
     eingeordnet ? ` · ${eingeordnet} eingeordnet` : ''}`;
   // Der Balken ist eine Schaltfläche, sobald man schreiben darf – ein Bereich
@@ -1976,7 +2036,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
   const g = _lkGeltungKurz(k);
   const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
   const typ = lkTyp(lkTypVon(k, band));
-  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}${typ ? '' : ' lk-kategorie'}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
@@ -3464,7 +3524,7 @@ function renderLkEditor() {
 /** Was aus Band und Wahl folgt – in der Farbe, die die Kachel bekommt. */
 function _lkTypHinweisText(k) {
   const farbe = lkTypFarbe(k, k.band);
-  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' – aus dem Band' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine reine Kategorie ist dunkelblau.`;
+  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' – aus dem Band' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine Kategorie trägt die feste Farbe ihrer Bedeutung (Strategie, Finanzen, Risiko, Personal, IT …), sonst dunkelblau.`;
 }
 function _lkTypHinweis() {
   const el = document.getElementById('lk-typ-hinweis');

@@ -710,6 +710,8 @@ body.demo-mode .main { padding-bottom: 64px; }
 .lk-kachel-fuss { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lk-kachel-person { font-size: .68rem; font-weight: 600; color: var(--c-muted); }
 .lk-kachel-geltung { font-size: .66rem; font-weight: 700; color: var(--lk-c, #17509E); letter-spacing: .03em; opacity: .85; }
+/* Eine Kategorie ist kein Ablauf: gestrichelte Oberkante, damit sie sich von einem Prozess derselben Farbe unterscheidet. */
+.lk-kachel.lk-kategorie { border-top-style: dashed; }
 /* Der Typ steht nur dann als Wort dabei, wenn er vom Band abweicht – sonst sagt es die Farbe. */
 .lk-kachel-typ { font-size: .64rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; margin-left: auto; }
 .lk-legende { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; padding: 8px 4px 0; font-size: .74rem; color: var(--c-muted); }

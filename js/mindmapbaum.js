@@ -106,15 +106,14 @@ function _vbKinder(id) {
 function _vbFarbeFuer(kind, i, tiefe, oben) {
   const n = kind.knoten || {};
   const bandKey = (n.art === 'band') ? String(kind.id).split(':').slice(2).join(':') : '';
-  if (n.art === 'band' && typeof lkBandTyp === 'function' && typeof lkTyp === 'function') {
+  if (n.art === 'band' && typeof lkBandFarbe === 'function') {
     const baender = (typeof lkBaenderVon === 'function') ? lkBaenderVon(n.werk) : [];
-    const t = lkTyp(lkBandTyp(baender.find(b => b.key === bandKey) || bandKey));
-    if (t) return t.farbe;
+    return lkBandFarbe(baender.find(b => b.key === bandKey) || { key: bandKey, titel: n.label.replace(/ · [^·]*$/, '') });
   }
   if (n.art === 'prozess' && typeof lkTyp === 'function' && typeof lkAlleKacheln === 'function') {
     const k = (lkAlleKacheln().find(x => x.werk === n.werk && x.kachel.id === n.kachelId) || {}).kachel;
     if (k && k.typ && k.typ !== 'kategorie' && lkTyp(k.typ)) return lkTyp(k.typ).farbe;
-    if (k && k.typ === 'kategorie' && typeof LK_KATEGORIE_FARBE !== 'undefined') return LK_KATEGORIE_FARBE;
+    if (k && k.typ === 'kategorie' && typeof lkKategorieFarbe === 'function') { const bb = ((typeof lkBaenderVon === 'function') ? lkBaenderVon(n.werk) : []).find(x => x.key === k.band); return lkKategorieFarbe(k.name, bb && bb.titel, k.band); }
   }
   return tiefe === 0 ? VB_PALETTE[i % VB_PALETTE.length] : oben;
 }

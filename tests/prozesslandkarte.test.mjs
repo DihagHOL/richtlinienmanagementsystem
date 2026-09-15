@@ -178,20 +178,25 @@ ok(w("LK_TYPEN.map(t => t.key).join()") === 'fuehrung,kern,unterstuetzung' && w(
   'Drei Typen in den Farben des Hauses – Azurblau, Orange, Lichtblau; die Kategorie Navy');
 ok(w("lkTypVon({ band: 'kern' })") === 'kern' && w("lkTypVon({ band: 'fuehrung' })") === 'fuehrung' && w("lkTypVon({ band: 'unterstuetzung' })") === 'unterstuetzung',
   'In den klassischen Bändern ergibt sich der Typ aus dem Band');
-ok(w("lkTypVon({ band: 'strategie' })") === '' && w("lkTypFarbe({ band: 'strategie' })") === '#1A2644' && w("lkTypLabel({ band: 'strategie' })") === 'Kategorie',
-  'Ein Band, das keinen Typ meint (Strategie, Finanzierung …): Kategorie, dunkelblau');
+ok(w("lkTypVon({ band: 'strategie' })") === '' && w("lkTypFarbe({ band: 'strategie' })") === '#17509E' && w("lkTypLabel({ band: 'strategie' })") === 'Kategorie: Strategie & Führung',
+  'Ein Band, das keinen Typ meint (Strategie, Finanzierung …): Kategorie – mit der festen Farbe ihrer Bedeutung');
+ok(w("lkKategorieFarbe('Finanzierung')") === '#7A6417' && w("lkKategorieFarbe('Konzern-Controlling')") === '#7A6417' && w("lkKategorieFarbe('Überwachung')") === '#8B1E3F' && w("lkKategorieFarbe('Personalwesen und Organisation')") === '#0F766E' && w("lkKategorieFarbe('Beratung')") === '#5B8CB8' && w("lkKategorieFarbe('Beteiligungsverwaltung')") === '#92400E' && w("lkKategorieFarbe('Tochterunternehmen (operatives Geschäft)')") === '#F08300',
+  'Die Bereiche der Holding: Finanzen, Controlling, Überwachung, Personal, Beratung, Beteiligungen, Töchter – jeder seine feste Farbe');
+ok(w("lkKategorieFarbe('Sonstiges')") === '#1A2644' && w("lkKategorieFarbe('', 'Strategie')") === '#17509E' && w("lkBandFarbe({ key: 'x', titel: 'Finanzierung' })") === '#7A6417' && w("lkBandFarbe('kern')") === '#F08300',
+  'Was zu keiner Gruppe passt, ist Navy; der zweite Name zählt, wenn der erste nichts sagt; ein typisiertes Band trägt seinen Typ');
 ok(w("lkTypVon({ band: 'strategie', typ: 'kern' })") === 'kern' && w("lkTypFarbe({ band: 'strategie', typ: 'kern' })") === '#F08300', 'Die Kachel darf ihren Typ selbst setzen …');
-ok(w("lkTypVon({ band: 'kern', typ: 'kategorie' })") === '' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie' })") === '#1A2644', '… und im Kernband ausdrücklich eine Kategorie sein');
+ok(w("lkTypVon({ band: 'kern', typ: 'kategorie' })") === '' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie' })") === '#F08300' && w("lkTypFarbe({ band: 'kern', typ: 'kategorie', name: 'Datenschutz' })") === '#8B1E3F',
+  '… und im Kernband ausdrücklich eine Kategorie sein – in der Farbe ihres Namens, sonst der des Bereichs');
 ok(w("lkBandTyp({ key: 'x1', titel: 'Managementprozesse' })") === 'fuehrung' && w("lkBandTyp({ key: 'x2', titel: 'Wertschöpfung' })") === 'kern' && w("lkBandTyp({ key: 'x3', titel: 'Supportprozesse' })") === 'unterstuetzung' && w("lkBandTyp({ key: 'x4', titel: 'Beratung' })") === '',
   'Auch ein umbenanntes Band verrät seinen Typ über den Titel');
 w("lkKachelVonId('beschaffung').typ = 'kern'; lkKachelVonId('it').typ = 'kategorie'; renderLandkarte();");
 html = mount.innerHTML;
 ok(/class="lk-kachel" style="--lk-c:#17509E"[^>]*aria-label="Strategie"/.test(html), 'Die Führungskachel trägt Azurblau');
 ok(/class="lk-kachel" style="--lk-c:#F08300"[^>]*aria-label="Beschaffung"/.test(html) && /lk-kachel-typ" style="color:#F08300"[^>]*>Kern</.test(html), 'Beschaffung im Unterstützungsband als Kernprozess: orange, und das Wort steht dabei, weil es vom Band abweicht');
-ok(/class="lk-kachel" style="--lk-c:#1A2644"[^>]*aria-label="IT"/.test(html) && !/color:#1A2644"[^>]*>Kategorie</.test(html), 'IT als reine Kategorie: dunkelblau');
+ok(/class="lk-kachel lk-kategorie" style="--lk-c:#5B21B6"[^>]*aria-label="IT"[^>]*Kategorie: IT &amp; Technik/.test(html), 'IT als reine Kategorie: gestrichelt, in der festen Farbe „IT & Technik"');
 ok(/class="lk-kachel" style="--lk-c:#5B8CB8"[^>]*aria-label="Personal"/.test(html) && !/lk-kachel-typ[^>]*>Unterstützung</.test(html), 'Personal im Unterstützungsband: lichtblau, ohne Wort – die Farbe sagt es');
 ok(/class="lk-pfeil" style="--lk-c:#F08300"/.test(html) && /lk-zeile lk-zeile-kern" style="--lk-c:#F08300"/.test(html) && /lk-zeile" style="--lk-c:#5B8CB8"/.test(html), 'Pfeile und Bänder in derselben Farbe wie ihr Typ');
-ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && /Kategorie \(kein Ablauf\)/.test(html), 'Die Legende unter der Karte');
+ok(/lk-legende/.test(html) && /Führungsprozess/.test(html) && /Kategorie: IT &amp; Technik/.test(html) && !/Kategorie: Strategie/.test(html), 'Die Legende unter der Karte nennt die Kategorie-Gruppen, die vorkommen');
 w("lkKachelVonId('beschaffung').typ = ''; lkKachelVonId('it').typ = '';");
 w("_lkEditing = Object.assign({ neu: false }, JSON.parse(JSON.stringify(lkKachelVonId('it'))), { geltung: ['ALLE'] }); renderLkEditor();");
 ok(/Prozesstyp/.test(w('_lkTypHinweisText(_lkEditing)')) || /aus dem Band/.test(w('_lkTypHinweisText(_lkEditing)')), 'Der Editor sagt, was aus dem Band folgt');
