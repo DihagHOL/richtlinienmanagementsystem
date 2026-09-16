@@ -23,20 +23,26 @@
  * kennt sie keinen globalen Zustand und liegt hier, wo jede Datei sie erreicht.
  * Die Ablage selbst bleibt bei ihrem Eigentümer.
  *
- * `alt: true` heißt „unvollständig für die Kartenansicht" – dort fehlen
- * Anlagenzahl und Diagramm-Warnung. Die Kennungen selbst stehen in beiden
- * Formen vollständig drin.
+ * Seit die Modelle einander als Unterprozess einbinden, stehen zwei Felder
+ * mehr darin: `i` – die Kennung des Prozesses (das `id` von <bpmn:process>),
+ * und `u` – die Kennungen der eingebundenen Modelle ([[rms:modell=…]]).
  *
- * @returns {{p: string[], d: number, k: boolean, alt: boolean}|null}
+ * `alt: true` heißt „unvollständig für die Kartenansicht" – dort fehlen
+ * Anlagenzahl, Diagramm-Warnung oder die Unterprozesse. Die Richtlinien-
+ * Kennungen selbst stehen in allen Formen vollständig drin.
+ *
+ * @returns {{p: string[], d: number, k: boolean, i: string, u: string[], alt: boolean}|null}
  */
 function procLinkEintrag(e) {
   if (!e) return null;
-  if (Array.isArray(e)) return { p: e, d: 0, k: false, alt: true };
+  if (Array.isArray(e)) return { p: e, d: 0, k: false, i: '', u: [], alt: true };
   return {
     p: Array.isArray(e.p) ? e.p : [],
     d: Number(e.d) || 0,
     k: !!e.k,
-    alt: !('k' in e),
+    i: String(e.i || ''),
+    u: Array.isArray(e.u) ? e.u.map(String) : [],
+    alt: !('k' in e) || !('u' in e),
   };
 }
 

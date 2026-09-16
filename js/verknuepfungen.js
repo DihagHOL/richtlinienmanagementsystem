@@ -42,33 +42,41 @@ const VK_ARTEN = {
 
 /* ── Graph aufbauen ──────────────────────────────────────────────────── */
 
-/** Alle Regelwerks-Verknüpfungen der Modelle holen (mit dem Cache aus prozesse.js). */
-async function _vkModellLinks(p) {
+/**
+ * Den Cache-Eintrag eines Modells holen – Richtlinien, Anlagen, Kennung und
+ * eingebundene Unterprozesse (mit dem Cache aus prozesse.js).
+ *
+ * Über denselben Leser wie die Prozessliste: Der Cache liegt in localStorage
+ * und enthält je nach Alter mehrere Formen. Wer ihn selbst auspackt, bekommt
+ * irgendwann ein Objekt, wo er eine Liste erwartet. Ein alter Eintrag ohne
+ * Unterprozesse wird einmal nachgelesen – sonst fehlten genau die Kanten, um
+ * die es hier geht.
+ */
+async function _vkModellEintrag(p) {
   const key = p.itemId + '|' + p.modified;
-  // Über denselben Leser wie die Prozessliste: Der Cache liegt in
-  // localStorage und enthält je nach Alter zwei Formen. Wer ihn selbst
-  // auspackt, bekommt irgendwann ein Objekt, wo er eine Liste erwartet.
-  // Absichtlich ohne Rücksicht auf `alt`: Das Flag heißt „unvollständig für
-  // die Kartenansicht" – dort fehlen Anlagenzahl und Diagramm-Warnung. Die
-  // Kennungen selbst stehen in beiden Formen vollständig drin, und mehr
-  // braucht die Mindmap nicht. Sonst läse sie jedes gecachte Modell erneut.
-  const gemerkt = (typeof _procLinkCache !== 'undefined' && typeof procLinkEintrag === 'function')
-    ? procLinkEintrag(_procLinkCache[key]) : null;
-  if (gemerkt) return gemerkt.p;
+  // Im Browser steht procLinkEintrag (util.js) immer; der Rückfall ist für
+  // Tests, die diese Datei allein laden, und gilt bewusst als unvollständig.
+  const lesen = (e) => (typeof procLinkEintrag === 'function') ? procLinkEintrag(e)
+    : (e ? { p: Array.isArray(e) ? e : (e.p || []), d: 0, k: false, i: '', u: e.u || [], alt: true } : null);
+  const gemerkt = (typeof _procLinkCache !== 'undefined') ? lesen(_procLinkCache[key]) : null;
+  if (gemerkt && !gemerkt.alt) return gemerkt;
   try {
     const xml = await spGetProcessXml(p.itemId);
-    const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
-    // Dieselbe Form wie in prozesse.js schreiben – sonst vergiftet diese
-    // Ansicht den Cache für die Prozessliste und umgekehrt.
-    const eintrag = {
-      p: ids,
-      d: (typeof _parseProcessDocs === 'function') ? _parseProcessDocs(xml).length : 0,
-      k: !/<(bpmn:)?definitions[\s>]/i.test(String(xml || '')),
-    };
+    // Die Form des Eintrags bestimmt genau eine Stelle – procEintragAusXml in
+    // prozesse.js. Sonst vergiftet diese Ansicht den Cache für die
+    // Prozessliste und umgekehrt.
+    const eintrag = (typeof procEintragAusXml === 'function') ? procEintragAusXml(xml)
+      : { p: (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [], d: 0, k: false, i: '', u: [] };
     if (typeof procLinksMerken === 'function') procLinksMerken(key, eintrag);
     else if (typeof _procLinkCache !== 'undefined') _procLinkCache[key] = eintrag;
-    return ids;
-  } catch (e) { return []; }
+    return lesen(eintrag);
+  } catch (e) { return gemerkt || lesen({ p: [], d: 0, k: false, i: '', u: [] }); }
+}
+
+/** Alle Regelwerks-Verknüpfungen eines Modells (Kurzweg über den Eintrag). */
+async function _vkModellLinks(p) {
+  const e = await _vkModellEintrag(p);
+  return e ? e.p : [];
 }
 
 /**
@@ -112,6 +120,7 @@ async function vkGraphBauen() {
   // Jedes Werk mit eigener Landkarte hängt unter dem Konzern.
   [...new Set(alleKacheln.map(x => x.werk))].forEach(w => link('wurzel', werkKnoten(w), 'Landkarte von'));
 
+  const gesehen = new Set();   // Modelle, deren Kanten schon gezogen sind (siehe modellKanten)
   for (const eintrag of alleKacheln) {
     const w = eintrag.werk, k = eintrag.kachel;
     const pid = `prozess:${w}:${k.id}`;
@@ -154,12 +163,31 @@ async function vkGraphBauen() {
       const mid = 'modell:' + modell.itemId;
       add(mid, 'modell', modell.title, { itemId: modell.itemId, modellName: modell.title });
       link(pid, mid, 'modelliert in');
+      await modellKanten(modell, mid, regelwerkKnoten);
+    }
+  }
 
-      const ids = await _vkModellLinks(modell);
-      ids.forEach(rid => {
-        const rw = regelwerkKnoten(rid);
-        if (rw) link(mid, rw, 'setzt um');
-      });
+  /* Ein Modell, das ein anderes als Unterprozess einbindet: Das eingebundene
+     bekommt einen Knoten, auch wenn keine Kachel auf es zeigt – sonst hinge
+     die ⊞ im Diagramm an nichts. Was es selbst einbindet, folgt darunter;
+     `gesehen` verhindert, dass ein Kreis in den Daten hier endlos liefe. */
+  async function modellKanten(modell, mid, regelwerkKnoten) {
+    if (gesehen.has(mid)) return;
+    gesehen.add(mid);
+    const e = await _vkModellEintrag(modell);
+    if (!e) return;
+    e.p.forEach(rid => {
+      const rw = regelwerkKnoten(rid);
+      if (rw) link(mid, rw, 'setzt um');
+    });
+    const alleModelle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+    for (const uid of e.u) {
+      const unter = alleModelle.find(p => p.itemId === uid);
+      if (!unter) continue;
+      const umid = 'modell:' + uid;
+      add(umid, 'modell', unter.title, { itemId: uid, modellName: unter.title });
+      link(mid, umid, 'bindet ein');
+      await modellKanten(unter, umid, regelwerkKnoten);
     }
   }
 
@@ -246,7 +274,7 @@ function vkNachbarn(id) {
 function _vkGegenrichtung(typ) {
   return { 'gliedert': 'gehört zu', 'enthält': 'gehört zu', 'modelliert in': 'modelliert',
     'setzt um': 'umgesetzt in', 'gilt für': 'gilt hier', 'Landkarte von': 'gehört zum',
-    'geregelt durch': 'regelt' }[typ] || typ;
+    'geregelt durch': 'regelt', 'bindet ein': 'eingebunden in' }[typ] || typ;
 }
 
 /* ── Ansicht ─────────────────────────────────────────────────────────── */

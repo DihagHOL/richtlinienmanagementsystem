@@ -1,7 +1,7 @@
 /**
  * Hausschema für Prozessmodelle
  *
- * BPMN kennt über hundert Symbole. Das Schema lässt neun zu und legt fest, wie
+ * BPMN kennt über hundert Symbole. Das Schema lässt zehn zu und legt fest, wie
  * sie benannt werden – und die eigentliche Frage ist nicht, ob sich ein Modell
  * bauen lässt, sondern ob die Prüfung **anschlägt**. Ein Prüfer, der nie etwas
  * findet, ist kein Prüfer, sondern eine Beruhigung.
@@ -82,8 +82,9 @@ ok(prVorlage.zahlen.automatik === 2 && prVorlage.zahlen.handgriff === 1,
 
 /* Alle Bausteine des Katalogs kommen in der Vorlage wirklich vor – sonst wäre
    die Tabelle eine Behauptung. (Ohne die Aufteilung ✛, die einen zweiten
-   Strang bräuchte und die Vorlage unübersichtlich machte.) */
-for (const b of PROZESS_BAUSTEINE.filter(x => x.key !== 'parallel')) {
+   Strang bräuchte und die Vorlage unübersichtlich machte – und ohne den
+   Unterprozess ⊞, der ein zweites Modell braucht, auf das er zeigen kann.) */
+for (const b of PROZESS_BAUSTEINE.filter(x => x.key !== 'parallel' && x.key !== 'unter')) {
   ok(new RegExp('<bpmn:' + b.bpmn + '\\b').test(v.xml), `Die Vorlage zeigt „${b.titel}" (${b.symbol})`);
 }
 
@@ -192,14 +193,14 @@ ok(mitDoku.xml.indexOf('<bpmn:documentation>') < mitDoku.xml.indexOf('<bpmn:lane
   'Und zwar vor dem Bahnensatz – BPMN schreibt die Reihenfolge vor');
 
 /* ── 7) Katalog und Regeln sind Daten, nicht Prosa ── */
-ok(PROZESS_BAUSTEINE.length === 9, 'Neun Bausteine – nicht die über hundert, die BPMN kennt');
+ok(PROZESS_BAUSTEINE.length === 10, 'Zehn Bausteine – nicht die über hundert, die BPMN kennt');
 ok(PROZESS_BAUSTEINE.every(b => b.symbol && b.bpmn && b.zweck && b.benennung),
   'Jeder trägt Symbol, BPMN-Typ, Zweck und Benennungsregel');
-ok(new Set(PROZESS_BAUSTEINE.map(b => b.bpmn)).size === 9, 'Keine Dublette');
-ok(PROZESS_REGELN.length === 9 && PROZESS_REGELN.every(r => r.warum),
+ok(new Set(PROZESS_BAUSTEINE.map(b => b.bpmn)).size === 10, 'Keine Dublette');
+ok(PROZESS_REGELN.length === 10 && PROZESS_REGELN.every(r => r.warum),
   'Jede Regel trägt ihre Begründung – eine ohne wäre keine');
 const genutzt = new Set(
-  [...lies('js/prozessschema.js').matchAll(/melde\('(R\d)'|rate\('(R\d)'/g)].map(m => m[1] || m[2]));
+  [...lies('js/prozessschema.js').matchAll(/melde\('(R\d+)'|rate\('(R\d+)'/g)].map(m => m[1] || m[2]));
 ok(PROZESS_REGELN.every(r => genutzt.has(r.id)),
   'Jede Regel wird auch geprüft – eine Regel ohne Prüfung ist ein Wunsch');
 
@@ -211,7 +212,7 @@ ok(!/shapes\.push\(\{ id: tid, type: 'task'/.test(pjs),
   'Der frühere Generator ist abgelöst, nicht danebengestellt');
 ok(/onclick="prozessSchemaPruefung\(\)"/.test(pjs), 'Der Editor hat einen Knopf „🔍 Schema"');
 ok(/id="proc-schema"/.test(pjs), 'Und einen Kasten für das Ergebnis');
-ok(/function prozessSchemaLegende/.test(pjs), 'Die neun Bausteine stehen als Legende im Editor');
+ok(/function prozessSchemaLegende/.test(pjs), 'Die zehn Bausteine stehen als Legende im Editor');
 ok(/'prozessschema'/.test(lies('js/module.js')), 'Das Modul steht in der Nachlade-Karte');
 ok(lies('js/module.js').indexOf("'prozessschema'") < lies('js/module.js').indexOf("'prozesse'"),
   'Und wird vor prozesse.js geladen – die Datei ruft es beim Erzeugen auf');
@@ -233,8 +234,8 @@ const doku = teil.slice(0, teil.indexOf('id="doku-vorschlaege"'));
 ok(doku.length > 3000, 'Der Abschnitt „Prozesse niederschreiben" wird gezeichnet');
 ok(doku.indexOf(String.fromCharCode(36) + '{') < 0, 'Ohne sichtbaren Platzhalter');
 ok((doku.match(/Benennung:/g) || []).length === PROZESS_BAUSTEINE.length,
-  'Die Bausteintabelle kommt aus den Daten – alle neun, keiner abgeschrieben');
-ok((doku.match(/>R\d</g) || []).length === PROZESS_REGELN.length, 'Die Regeltabelle ebenso');
+  'Die Bausteintabelle kommt aus den Daten – alle zehn, keiner abgeschrieben');
+ok((doku.match(/>R\d+</g) || []).length === PROZESS_REGELN.length, 'Die Regeltabelle ebenso');
 ok(doku.includes('Bedarf gemeldet'), 'Und die Schreibvorlage steht zum Abschreiben da');
 ok(/dokumentation:\s*\['prozessschema',[^\]]*'dokumentation'\]/.test(lies('js/module.js')),
   'Der Doku-Reiter lädt das Schema mit – sonst blieben seine Tabellen leer');

@@ -4,7 +4,7 @@
  * Der Verknüpfungs-Cache (`_procLinkCache`, `itemId|modified → …`) hatte zwei
  * Schreiber mit verschiedenen Formen:
  *
- *   prozesse.js        procLinksMerken(key, { p: ids, d: docs, k: kaputt })
+ *   prozesse.js        procLinksMerken(key, { p: ids, d: docs, k: kaputt, i: kennung, u: unterprozesse })
  *   verknuepfungen.js  procLinksMerken(key, ids)
  *
  * Die Prozessliste fing beim Lesen beide Formen ab, die Mindmap gab den
@@ -43,9 +43,10 @@ const run = (s) => vm.runInContext(s, ctx);
 
 /* ── 1) Ein Leser, der beide Formen versteht ── */
 run(`_procLinkCache = {
-  neu:  { p: ['7', '9'], d: 2, k: false },
+  neu:  { p: ['7', '9'], d: 2, k: false, i: 'Process_m1abc', u: ['01B'] },
+  mittel: { p: ['7', '9'], d: 2, k: false },
   alt:  ['7', '9'],
-  leer: { p: [], d: 0, k: true },
+  leer: { p: [], d: 0, k: true, i: '', u: [] },
 };`);
 
 ok(run(`procLinksVon('fehlt')`) === null, 'Was nicht im Cache liegt, ergibt null');
@@ -53,7 +54,12 @@ ok(run(`procLinksVon('fehlt')`) === null, 'Was nicht im Cache liegt, ergibt null
 const neu = run(`procLinksVon('neu')`);
 ok(Array.isArray(neu.p) && neu.p.length === 2 && neu.d === 2 && neu.k === false,
   'Die heutige Form kommt unverändert zurück');
+ok(neu.i === 'Process_m1abc' && neu.u.length === 1 && neu.u[0] === '01B', 'Samt Prozess-Kennung und eingebundenen Modellen');
 ok(neu.alt === false, 'Und gilt als vollständig');
+
+const mittel = run(`procLinksVon('mittel')`);
+ok(mittel.alt === true && mittel.i === '' && mittel.u.length === 0,
+  'Ein Eintrag von vor den Unterprozessen gilt als unvollständig – sonst fehlten genau die Kanten, um die es geht');
 
 const alt = run(`procLinksVon('alt')`);
 ok(Array.isArray(alt.p) && alt.p.length === 2, 'Ein alter Eintrag (nur die Liste) wird zur heutigen Form');
@@ -61,7 +67,7 @@ ok(alt.alt === true, 'Ist aber als unvollständig gekennzeichnet – die Datei w
 ok(alt.d === 0 && alt.k === false, 'Anlagen und „kein Diagramm" sind dort schlicht unbekannt');
 
 /* ── 2) Der Absturz selbst: Objekt im Cache, Liste erwartet ── */
-run(`_procLinkCache = { '42|2026-08-28': { p: ['7'], d: 1, k: false } };`);
+run(`_procLinkCache = { '42|2026-08-28': { p: ['7'], d: 1, k: false, i: 'Process_x1', u: [] } };`);
 const ids = await run(`_vkModellLinks({ itemId: '42', modified: '2026-08-28' })`);
 ok(Array.isArray(ids), '_vkModellLinks liefert eine Liste, auch wenn im Cache ein Objekt liegt');
 ok(typeof ids.forEach === 'function' && ids.length === 1 && ids[0] === '7',
@@ -71,8 +77,8 @@ ok(typeof ids.forEach === 'function' && ids.length === 1 && ids[0] === '7',
 const vk = lies('js/verknuepfungen.js');
 ok(/procLinksMerken\(key, eintrag\)/.test(vk),
   'verknuepfungen.js schreibt die vollständige Form, nicht nur die Liste');
-ok(/d: \(typeof _parseProcessDocs === 'function'\)/.test(vk) && /k: !\/<\(bpmn:\)\?definitions/.test(vk),
-  'Also samt Anlagen-Zahl und der Frage, ob ein Diagramm drinsteht');
+ok(/procEintragAusXml\(xml\)/.test(vk) && /function procEintragAusXml\(xml\)/.test(lies('js/prozesse.js')),
+  'Die Form baut eine Stelle – procEintragAusXml in prozesse.js – für Liste, Mindmap und Editor');
 ok(!/return _procLinkCache\[key\]/.test(vk), 'Und packt den Cache nicht mehr selbst aus');
 
 /* ── 4) Die Form entscheidet genau eine Stelle ──

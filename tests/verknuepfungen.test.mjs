@@ -252,5 +252,24 @@ ok(/function _vkAktionenHtml/.test(vk) && /Regelwerke zuordnen/.test(vk),
 ok(/function vkZurKarte/.test(vk) && /lkSetWerk\(werk\)/.test(vk),
   'Und der Sprung in die Landkarte trifft das richtige Werk');
 
+/* ── 9) Ein Modell bindet ein anderes als Unterprozess ein ──
+   Das eingebundene Modell bekommt einen Knoten, auch wenn keine Kachel auf es
+   zeigt – sonst hinge die ⊞ im Diagramm an nichts. Die Kante zeigt vom
+   einbindenden zum eingebundenen Modell und heißt in der Gegenrichtung
+   „eingebunden in". */
+w(`_procLinkCache['m1|x'] = { p: ['2'], d: 0, k: false, i: 'Process_m1', u: ['m4'] };
+   _procLinkCache['m4|x'] = { p: [], d: 0, k: false, i: 'Process_m4', u: ['m1'] };`);   // m4 → m1: ein Kreis in den Daten
+const g9 = await ctx.vkGraphBauen();
+ok(g9.knoten.has('modell:m4'), 'Das eingebundene Modell „Ohne Bezug" ist jetzt ein Knoten – über die ⊞, nicht über eine Kachel');
+ok(g9.kanten.some(k => k.von === 'modell:m1' && k.nach === 'modell:m4' && k.typ === 'bindet ein'),
+  'Die Kante „bindet ein" zeigt vom einbindenden zum eingebundenen Modell');
+ok(g9.kanten.some(k => k.von === 'modell:m4' && k.nach === 'modell:m1' && k.typ === 'bindet ein')
+  && g9.kanten.filter(k => k.typ === 'bindet ein').length === 2,
+  'Ein Kreis in den Daten wird gezeichnet, aber nicht endlos verfolgt');
+ok(w("_vkGegenrichtung('bindet ein')") === 'eingebunden in', 'Gegenrichtung: „eingebunden in"');
+ok(/'bindet ein'/.test(lies('js/mindmapbaum.js')), 'Im Baum hängt das eingebundene Modell unter dem einbindenden');
+w(`_procLinkCache['m1|x'] = ['2']; delete _procLinkCache['m4|x'];`);
+w('_vkGraph = __g;');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

@@ -16,7 +16,7 @@
 
 /* Nur diese Beziehungen bilden die Hierarchie. „gilt für" verbindet quer und
    würde aus dem Baum wieder ein Netz machen. */
-const VB_TYPEN = ['Landkarte von', 'gliedert', 'enthält', 'modelliert in', 'setzt um', 'geregelt durch'];
+const VB_TYPEN = ['Landkarte von', 'gliedert', 'enthält', 'modelliert in', 'bindet ein', 'setzt um', 'geregelt durch'];
 
 /* In der Abhängigkeits-Ansicht gehören die Verweise zwischen Prozessen dazu:
    Sie sind der Grund, warum ein Prozess ein anderes Werk betrifft. In der

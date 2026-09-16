@@ -13,6 +13,7 @@
 let _processes = null;          // geladene Prozessliste (Cache)
 let _processesLoading = false;
 let _bpmnModeler = null;        // aktive Modeler-Instanz (im Editor)
+let _procDirty = false;         // seit dem letzten Speichern (oder Öffnen) am Diagramm geändert?
 let _procEditing = null;        // { itemId, origName } des aktuell bearbeiteten Prozesses
 let _bpmnLibLoading = null;     // Promise beim Nachladen der Bibliothek
 let _procLinkCache = {};        // itemId|modified → [policyId,…] (spart Refetch beim Filtern)
@@ -184,6 +185,7 @@ async function initProzesse() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   _destroyModeler();   // evtl. offenen Editor beenden → zurück zur Liste
+  _procPfad = [];      // der Weg durch die Unterprozesse endet mit der Liste
   if (_processes) renderProzesseAktuell();
   else mount.innerHTML = '<div class="doc-loading">Lade Prozesse …</div>';
   procLinksLaden();
@@ -267,7 +269,7 @@ function _renderProcCards() {
     // Ältere Stände kannten weder Anlagen noch die Frage, ob überhaupt ein
     // Diagramm drinsteht – die werden einmal nachgelesen, sonst bliebe die
     // Warnung bei genau den Modellen aus, die gerade im Cache liegen.
-    if (e && !e.alt) _renderCardLink(p.itemId, e.p, e.d, e.k);
+    if (e && !e.alt) _renderCardLink(p.itemId, e);
     else _enrichProcessCard(p, key);
   });
 }
@@ -337,39 +339,63 @@ async function _enrichProcessCard(p, key) {
     // Die Datei wird ohnehin gelesen – dann kann sie auch gleich sagen, ob sie
     // überhaupt ein Diagramm enthält. Sonst merkt man es erst beim Öffnen,
     // Modell für Modell.
-    const kaputt = !/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''));
-    const ids = _parsePolicyIds(xml);
-    const docs = _parseProcessDocs(xml).length;
-    procLinksMerken(key, { p: ids, d: docs, k: kaputt });
-    _renderCardLink(p.itemId, ids, docs, kaputt);
+    const eintrag = procEintragAusXml(xml);
+    procLinksMerken(key, eintrag);
+    _renderCardLink(p.itemId, procLinkEintrag(eintrag));
   } catch (e) {
     const el = document.getElementById('proc-link-' + p.itemId);
     if (el) el.textContent = '';
   }
 }
 
-function _renderCardLink(itemId, ids, docs, kaputt) {
+/** Die Zeile unter einer Karte: Richtlinien, Anlagen, Unterprozesse – aus dem Cache-Eintrag. */
+function _renderCardLink(itemId, e) {
   const el = document.getElementById('proc-link-' + itemId);
   if (!el) return;
+  const ids = e.p, docs = e.d, kaputt = e.k;
   const anlagen = docs ? `<span class="ic-tag" title="hinterlegte Dokumente">📎 ${docs}</span>` : '';
+  // ⊞ n: bindet n Modelle ein · ↰ n: ist in n Modellen eingebunden – wer das
+  // Modell ändert, ändert es dort mit.
+  const unter = (e.u || []).length
+    ? `<span class="ic-tag" style="background:#e6eef8;color:#1A2644" title="bindet ${e.u.length} Unterprozess${e.u.length > 1 ? 'e' : ''} ein">⊞ ${e.u.length}</span>` : '';
+  const oben = procEingebundenIn(itemId);
+  const drin = oben.length
+    ? `<span class="ic-tag" style="background:#e6eef8;color:#1A2644" title="eingebunden in: ${esc(oben.map(p => p.title).join(', '))}">↰ ${oben.length}</span>` : '';
+  const extra = [anlagen, unter, drin].filter(Boolean).join(' ');
   if (kaputt) {
     el.innerHTML = `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
-      title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${anlagen}`;
+      title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${extra}`;
     return;
   }
   if (!ids || !ids.length) {
-    el.innerHTML = `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${anlagen}`;
+    el.innerHTML = `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${extra}`;
     return;
   }
   el.innerHTML = '🔗 ' + ids.map(id => {
     const pol = policyZuId(id);
     return `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(pol ? pol.title : 'Richtlinie ' + id)}</span>`;
-  }).join(' ') + (anlagen ? ' ' + anlagen : '');
+  }).join(' ') + (extra ? ' ' + extra : '');
 }
 
 function _parsePolicyIds(xml) {
   const m = String(xml || '').match(PROC_POLICY_MARKER);
   return m ? m[1].split(',').map(s => s.trim()).filter(Boolean) : [];
+}
+
+/**
+ * Der Cache-Eintrag eines Modells aus seinem XML – die eine Stelle, die die
+ * Form bestimmt (Prozessliste, Mindmap und Editor lesen alle hierüber).
+ * @returns {{p:string[], d:number, k:boolean, i:string, u:string[]}}
+ */
+function procEintragAusXml(xml) {
+  const s = String(xml || '');
+  return {
+    p: _parsePolicyIds(s),
+    d: _parseProcessDocs(s).length,
+    k: !/<(bpmn:)?definitions[\s>]/i.test(s),
+    i: procKennungAusXml(s),
+    u: procUnterAusXml(s),
+  };
 }
 
 /* ═══════════════════════════════════════════════════
@@ -475,11 +501,9 @@ async function procSprungOeffnen(ziel) {
     toast('Dieser Prozess steht nicht mehr in der Landkarte – vielleicht wurde er gelöscht.', 'error');
     return;
   }
-  let offen = false;
-  try { offen = !!(_bpmnModeler && _bpmnModeler.get('commandStack').canUndo()); } catch (e) { /* egal */ }
-  if (offen && typeof uiConfirm === 'function') {
+  if (_procUngespeichert() && typeof uiConfirm === 'function') {
     const weiter = await uiConfirm(
-      'Im Diagramm gibt es ungespeicherte Änderungen.<br><span class="field-hint">Der Sprung in die Landkarte verwirft sie.</span>',
+      'Im Diagramm gibt es ungespeicherte Änderungen. Der Sprung in die Landkarte verwirft sie.',
       { title: 'Weiterspringen?', okLabel: 'Trotzdem springen' });
     if (!weiter) return;
   }
@@ -537,6 +561,495 @@ function procElementSprungWaehlen(ziel) {
   _renderElementSprung(true);
 }
 
+/* ═══════════════════════════════════════════════════
+   Unterprozesse einbinden – ein Modell im Modell
+   ═══════════════════════════════════════════════════
+   „Auftragserfassung" läuft in Lead to Cash und in Design to Operate. Wer den
+   Ablauf in beide Modelle hineinzeichnet, hat ihn zweimal – und nach der
+   ersten Änderung zwei verschiedene. BPMN hat dafür die Aufrufaktivität
+   (Call Activity, ⊞): ein Kasten, der sagt „hier läuft dieser Prozess", und
+   der auf ein eigenes Modell zeigt. Das Modell gibt es einmal; eingebunden
+   wird es so oft wie nötig.
+
+   Der Verweis liegt – wie der Übergang – in der Dokumentation des Elements und
+   damit in der Datei:  [[rms:modell=<Kennung der Datei>]]
+   Dazu `calledElement` mit der Prozess-Kennung des Ziels, damit ein fremdes
+   Werkzeug den Aufruf als das liest, was er ist. Die Datei-Kennung ist die
+   Wahrheit: Sie überlebt Umbenennen und Umzug; die Prozess-Kennung wird beim
+   Speichern nachgezogen.
+
+   Und weil eine ⊞ auf genau ein Modell zeigen muss, braucht jedes Modell eine
+   einmalige Prozess-Kennung. Bis hierher hieß jedes „Process_1" – beim
+   Speichern bekommt es eine eigene, die es behält. */
+const PROC_MODELL_MARKER = /\[\[rms:modell=([^\]]*)\]\]/;
+const PROC_MODELL_MARKER_ALLE = /\[\[rms:modell=([^\]]*)\]\]/g;
+const PROC_UNTER_TYP = 'rms-unter';          // Overlay-Kennung im Modeler
+const PROC_UNTER_TEXTZEILE = 'Unterprozess: ';
+const PROC_KENNUNG_RE = /<(?:\w+:)?process\b[^>]*\bid="([^"]+)"/;
+let _procPfad = [];    // Datei-Kennungen der Modelle, aus denen man in einen Unterprozess gewechselt ist
+
+function procNeueKennung() {
+  return (typeof prozessKennungNeu === 'function') ? prozessKennungNeu()
+    : 'Process_' + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36);
+}
+function procKennungGueltig(k) {
+  return (typeof prozessKennungGueltig === 'function') ? prozessKennungGueltig(k)
+    : (!!k && !/^Process_\d*$/.test(String(k)));
+}
+/** Ein leeres Diagramm mit eigener Kennung – „Process_1" trüge sonst jedes neue Modell. */
+function procLeeresBpmn() {
+  return DEFAULT_BPMN.split('Process_1').join(procNeueKennung());
+}
+/** Die Prozess-Kennung aus dem XML einer Datei ('' wenn keine). */
+function procKennungAusXml(xml) {
+  const m = String(xml || '').match(PROC_KENNUNG_RE);
+  return m ? m[1] : '';
+}
+/** Die Datei-Kennungen aller eingebundenen Modelle (ohne Doppel). */
+function procUnterAusXml(xml) {
+  const out = [];
+  String(xml || '').replace(PROC_MODELL_MARKER_ALLE, (_, id) => {
+    id = String(id).trim();
+    if (id && !out.includes(id)) out.push(id);
+    return '';
+  });
+  return out;
+}
+
+/** Der Cache-Eintrag eines Modells der Liste (null, solange die Datei ungelesen ist). */
+function procEintragVon(p) {
+  return p ? procLinksVon(p.itemId + '|' + p.modified) : null;
+}
+/** Das Modell der Liste zu einer Datei-Kennung. */
+function procModellVon(itemId) {
+  return (_processes || []).find(p => String(p.itemId) === String(itemId)) || null;
+}
+function _procWerkLabel(p) {
+  return (p && p.ordner) ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(p.ordner) : p.ordner) : '';
+}
+/** Die Prozess-Kennung eines Modells, sofern bekannt und nicht generisch. */
+function procKennungVon(itemId) {
+  const e = procEintragVon(procModellVon(itemId));
+  return (e && procKennungGueltig(e.i)) ? e.i : '';
+}
+/** Welche Modelle ein Modell einbindet (Datei-Kennungen; leer, solange unbekannt). */
+function procBindetEin(itemId) {
+  const e = procEintragVon(procModellVon(itemId));
+  return e ? e.u : [];
+}
+/** In welchen Modellen ein Modell eingebunden ist. */
+function procEingebundenIn(itemId) {
+  return (_processes || []).filter(p => String(p.itemId) !== String(itemId)
+    && procBindetEin(p.itemId).includes(String(itemId)));
+}
+/** Steckt `ziel` – über beliebig viele Stufen – in `start`? Die Kreisprüfung. */
+function procBindetTransitiv(start, ziel, gesehen) {
+  const g = gesehen || new Set();
+  for (const u of procBindetEin(start)) {
+    if (String(u) === String(ziel)) return true;
+    if (g.has(u)) continue;
+    g.add(u);
+    if (procBindetTransitiv(u, ziel, g)) return true;
+  }
+  return false;
+}
+/** Gibt es ein Modell dieses Namens schon – in irgendeinem Werk? */
+function procNamensDoppel(name, ausserId) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return [];
+  return (_processes || []).filter(p => String(p.itemId) !== String(ausserId || '')
+    && String(p.title || '').trim().toLowerCase() === n);
+}
+
+/**
+ * Die Einträge aller Modelle sicherstellen – für Kreisprüfung und „eingebunden
+ * in". Jede Datei wird höchstens einmal je Änderungsstand gelesen; der Cache
+ * überlebt die Sitzung. Fünf nebeneinander: bei fünfzig Modellen Sekunden,
+ * nicht Minuten.
+ */
+let _procEintraegeLauf = null;
+async function procEintraegeLaden() {
+  if (_procEintraegeLauf) return _procEintraegeLauf;
+  _procEintraegeLauf = (async () => {
+    const offen = (_processes || []).filter(p => { const e = procEintragVon(p); return !e || e.alt; });
+    for (let i = 0; i < offen.length; i += 5) {
+      await Promise.all(offen.slice(i, i + 5).map(async p => {
+        try { procLinksMerken(p.itemId + '|' + p.modified, procEintragAusXml(await spGetProcessXml(p.itemId))); }
+        catch (e) { /* diese Datei bleibt ungelesen – die Liste sagt es dann */ }
+      }));
+    }
+    return offen.length;
+  })();
+  try { return await _procEintraegeLauf; } finally { _procEintraegeLauf = null; }
+}
+
+/** Die Datei-Kennung des eingebundenen Modells eines Elements ('' = keins). */
+function procElementModell(el) {
+  const m = String(_elemDokuText(el)).match(PROC_MODELL_MARKER);
+  return m ? m[1].trim() : '';
+}
+/** Nur eine Aktivität kann ein Modell einbinden – kein Ereignis, kein Gateway, keine Bahn. */
+function procKannEinbinden(el) {
+  return /^bpmn:(Task|UserTask|ServiceTask|ManualTask|ScriptTask|SendTask|ReceiveTask|BusinessRuleTask|CallActivity)$/
+    .test(String((el && el.type) || ''));
+}
+/** Alle Elemente des offenen Modells, die ein Modell einbinden. */
+function procUnterElemente() {
+  if (!_bpmnModeler) return [];
+  try {
+    return _bpmnModeler.get('elementRegistry')
+      .filter(el => !el.labelTarget && el.type !== 'label' && !!procElementModell(el));
+  } catch (e) { return []; }
+}
+/** Das eine ausgewählte Element (bei einer Beschriftung das Element dahinter). */
+function _procAusgewaehlt() {
+  let auswahl = [];
+  try { auswahl = _bpmnModeler ? _bpmnModeler.get('selection').get() : []; } catch (e) { /* kein Modeler */ }
+  return _procGemeint(auswahl.length === 1 ? auswahl[0] : null);
+}
+
+/**
+ * Ein Modell an ein Element binden – oder lösen (itemId leer). Aus der
+ * Aufgabe wird eine ⊞ Aufrufaktivität; Name, Bahn und Verbindungen bleiben,
+ * ebenso der erklärende Text der Dokumentation. Über den commandStack, damit
+ * Rückgängig funktioniert und das Modell als geändert gilt.
+ * @returns das (womöglich ersetzte) Element oder null
+ */
+function procUnterprozessSetzen(el, itemId) {
+  if (!_bpmnModeler || !el || !el.businessObject) return null;
+  let ziel = el;
+  if (itemId && el.type !== 'bpmn:CallActivity') {
+    try { ziel = _bpmnModeler.get('bpmnReplace').replaceElement(el, { type: 'bpmn:CallActivity' }); }
+    catch (e) { console.warn('Element nicht ersetzbar:', e.message); return null; }
+  }
+  const behalten = _elemDokuText(ziel).split('\n')
+    .filter(z => !PROC_MODELL_MARKER.test(z) && z.indexOf(PROC_UNTER_TEXTZEILE) !== 0);
+  const props = {};
+  if (itemId) {
+    const m = procModellVon(itemId);
+    behalten.push(PROC_UNTER_TEXTZEILE + (m ? m.title : itemId));
+    behalten.push('[[rms:modell=' + itemId + ']]');
+    props.calledElement = procKennungVon(itemId) || undefined;
+    if (m && !String(ziel.businessObject.name || '').trim()) props.name = m.title;
+  } else {
+    props.calledElement = undefined;
+  }
+  const text = behalten.join('\n').trim();
+  const moddle = _bpmnModeler.get('moddle');
+  props.documentation = text ? [moddle.create('bpmn:Documentation', { text })] : undefined;
+  _bpmnModeler.get('modeling').updateProperties(ziel, props);
+  return ziel;
+}
+
+/** Das sichtbare Zeichen: ⊞ mit dem Namen des Modells – anklicken öffnet es. */
+function procUnterMarker() {
+  if (!_bpmnModeler) return;
+  let overlays;
+  try { overlays = _bpmnModeler.get('overlays'); } catch (e) { return; }
+  try { overlays.remove({ type: PROC_UNTER_TYP }); } catch (e) { /* noch keine */ }
+  procUnterElemente().forEach(el => {
+    const itemId = procElementModell(el);
+    const m = procModellVon(itemId);
+    const name = m ? m.title : 'Modell fehlt';
+    const titel = m
+      ? ('Unterprozess „' + m.title + '" öffnen' + (m.ordner ? ' (' + _procWerkLabel(m) + ')' : ''))
+      : 'Das eingebundene Modell gibt es nicht mehr';
+    try {
+      overlays.add(el.id, PROC_UNTER_TYP, {
+        position: { bottom: -10, left: 10 },
+        html: `<div onclick="procUnterprozessOeffnen('${esc(itemId)}')" title="${esc(titel)}"
+                 style="cursor:pointer;background:${m ? '#1A2644' : '#b45309'};color:#fff;border-radius:11px;
+                        padding:1px 7px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);
+                        white-space:nowrap">⊞ ${esc(name)}</div>`,
+      });
+    } catch (e) { /* Element ohne Darstellung – dann eben ohne Zeichen */ }
+  });
+}
+
+/**
+ * Ungespeichert heißt: seit dem letzten Speichern (oder Öffnen) geändert.
+ * „Gibt es einen Rückgängig-Schritt" wäre die falsche Frage – nach dem
+ * Speichern lässt sich weiterhin rückgängig machen, verloren ginge aber nichts.
+ */
+function _procUngespeichert() { return !!(_bpmnModeler && _procDirty); }
+
+/** In das eingebundene Modell wechseln – der Weg zurück steht dann oben in der Leiste. */
+async function procUnterprozessOeffnen(itemId) {
+  const m = procModellVon(itemId);
+  if (!m) { toast('Dieses Modell gibt es nicht mehr – vielleicht wurde es gelöscht.', 'error'); return; }
+  if (_procUngespeichert() && typeof uiConfirm === 'function') {
+    const weiter = await uiConfirm(
+      'Im Diagramm gibt es ungespeicherte Änderungen. Der Wechsel in den Unterprozess verwirft sie – vorher „💾 Speichern".',
+      { title: 'Unterprozess öffnen?', okLabel: 'Trotzdem wechseln' });
+    if (!weiter) return;
+  }
+  if (_procEditing && _procEditing.itemId) _procPfad.push(String(_procEditing.itemId));
+  await openProcessEditor(itemId);
+}
+
+/** Zurück in das Modell, aus dem man in den Unterprozess kam. */
+async function procZurueck() {
+  const zu = _procPfad.pop();
+  if (zu && procModellVon(zu)) await openProcessEditor(zu);
+  else await initProzesse();
+}
+
+/** Modelle, die sich an dieses Element binden lassen: nicht das eigene, kein Kreis. */
+function procEinbindbar(filter) {
+  const eigen = String((_procEditing && _procEditing.itemId) || '');
+  const f = String(filter || '').trim().toLowerCase();
+  const werke = (typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar() : [];
+  const getrennt = typeof trennungGreift === 'function' && trennungGreift();
+  const rang = (p) => { if (!p.ordner) return 9999; const i = werke.indexOf(p.ordner); return i < 0 ? 500 : i; };
+  return (_processes || [])
+    .filter(p => String(p.itemId) !== eigen)
+    .filter(p => !getrennt || !p.ordner || werke.includes(p.ordner))
+    .filter(p => !eigen || !procBindetTransitiv(p.itemId, eigen))
+    .filter(p => !f || String(p.title || '').toLowerCase().includes(f))
+    .sort((a, b) => (rang(a) - rang(b)) || (a.title || '').localeCompare(b.title || '', 'de'));
+}
+
+/** Die Liste im Kasten: einbinden, was es gibt – anlegen nur, was es nirgends gibt. */
+function _procUnterListeHtml(el, filter) {
+  const kand = procEinbindbar(filter);
+  const name = String((el && el.businessObject && el.businessObject.name) || '').trim();
+  const zeilen = kand.slice(0, 12).map(p => `
+    <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border)">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">⊞ ${esc(p.title)}${
+        p.ordner ? ` <span class="field-hint">· ${esc(_procWerkLabel(p))}</span>` : ''}${
+        procBindetEin(p.itemId).length ? ` <span class="field-hint" title="bindet selbst Unterprozesse ein">⊞ ${procBindetEin(p.itemId).length}</span>` : ''}</span>
+      <button class="btn btn-outline btn-sm" onclick="procUnterprozessEinbinden('${esc(p.itemId)}')">Einbinden</button>
+    </div>`).join('');
+  const mehr = kand.length > 12 ? `<div class="field-hint" style="margin-top:4px">… ${kand.length - 12} weitere – Suche eingrenzen.</div>` : '';
+  const doppel = name ? procNamensDoppel(name, _procEditing && _procEditing.itemId) : [];
+  let neu;
+  if (name && !doppel.length) {
+    neu = `<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="procUnterprozessAnlegen()"
+      title="Ein eigenes Modell dieses Namens anlegen und hier einbinden">+ „${esc(name)}" als neues Modell anlegen</button>`;
+  } else if (name) {
+    neu = `<div class="field-hint" style="margin-top:6px">„${esc(name)}" gibt es schon${
+      doppel[0].ordner ? ' in ' + esc(_procWerkLabel(doppel[0])) : ''} – oben einbinden statt ein zweites Mal anlegen.</div>`;
+  } else {
+    neu = '<div class="field-hint" style="margin-top:6px">Eine benannte Aufgabe lässt sich auch als neues Modell anlegen.</div>';
+  }
+  return (zeilen || `<div class="field-hint">${filter ? 'Kein Modell passt zur Suche.' : 'Noch kein anderes Modell vorhanden.'}</div>`) + mehr + neu;
+}
+
+/** Der Kasten in der Seitenspalte – er folgt der Auswahl im Diagramm. */
+function _renderElementUnter(canWrite) {
+  const host = document.getElementById('proc-unter');
+  if (!host) return;
+  let auswahl = [];
+  try { auswahl = _bpmnModeler ? _bpmnModeler.get('selection').get() : []; } catch (e) { /* kein Modeler */ }
+  const el = _procGemeint(auswahl.length === 1 ? auswahl[0] : null);
+  const eigene = procUnterElemente();
+  const eigen = String((_procEditing && _procEditing.itemId) || '');
+  const oben = eigen ? procEingebundenIn(eigen) : [];
+  const chip = (itemId) => {
+    const m = procModellVon(itemId);
+    return `<span class="ic-tag" style="cursor:pointer;background:#e6eef8;color:#1A2644"
+      onclick="procUnterprozessOeffnen('${esc(itemId)}')" title="öffnen">⊞ ${esc(m ? m.title : 'Modell fehlt')}</span>`;
+  };
+  const fuss = (eigene.length
+      ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${eigene.map(x => chip(procElementModell(x))).join('')}</div>` : '')
+    + (oben.length
+      ? `<div class="field-hint" style="margin-top:6px">↰ Dieses Modell ist eingebunden in ${oben.map(p =>
+          `<a href="#" onclick="procUnterprozessOeffnen('${esc(p.itemId)}');return false">${esc(p.title)}</a>`).join(', ')} – eine Änderung hier wirkt dort.</div>` : '');
+
+  if (!el) {
+    host.innerHTML = `<span class="field-hint">${auswahl.length > 1
+      ? 'Mehrere Elemente ausgewählt – bitte genau eine Aufgabe anklicken.'
+      : 'Eine Aufgabe im Diagramm anklicken.'}${
+      eigene.length ? ` Aktuell ${eigene.length} Unterprozess${eigene.length > 1 ? 'e' : ''} eingebunden.` : ''}</span>${fuss}`;
+    return;
+  }
+  const name = (el.businessObject && el.businessObject.name) || el.id;
+  const kopf = `<div style="font-weight:600;font-size:.82rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>`;
+  if (!procKannEinbinden(el)) {
+    host.innerHTML = kopf + `<span class="field-hint">${el.type === 'bpmn:SubProcess'
+      ? 'Ein ausgeschriebener Unterprozess – besser als eigenes Modell anlegen und von einer Aufgabe aus einbinden: dann gibt es ihn einmal.'
+      : 'Nur eine Aufgabe kann ein Modell einbinden.'}</span>${fuss}`;
+    return;
+  }
+  const itemId = procElementModell(el);
+  if (itemId) {
+    const m = procModellVon(itemId);
+    host.innerHTML = kopf + `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="flex:1;min-width:0">⊞ <b>${esc(m ? m.title : 'Modell fehlt')}</b>${
+          m && m.ordner ? ` <span class="field-hint">· ${esc(_procWerkLabel(m))}</span>` : ''}${
+          m ? '' : ' <span style="color:#b45309">– gibt es nicht mehr</span>'}</span>
+        ${m ? `<button class="btn btn-outline btn-sm" onclick="procUnterprozessOeffnen('${esc(itemId)}')">Öffnen</button>` : ''}
+        ${canWrite ? '<button class="btn btn-ghost btn-sm" onclick="procUnterprozessLoesen()">Lösen</button>' : ''}
+      </div>${fuss}`;
+    return;
+  }
+  if (!canWrite) { host.innerHTML = kopf + `<span class="field-hint">Kein Modell eingebunden.</span>${fuss}`; return; }
+  host.innerHTML = kopf + `<input type="text" id="proc-unter-suche" placeholder="Modell suchen …"
+      oninput="procUnterprozessSuche()" style="width:100%;margin-bottom:6px">
+    <div id="proc-unter-liste">${_procUnterListeHtml(el, '')}</div>${fuss}`;
+}
+
+/** Nur die Liste neu zeichnen – das Suchfeld behält den Fokus. */
+function procUnterprozessSuche() {
+  const liste = document.getElementById('proc-unter-liste');
+  const el = _procAusgewaehlt();
+  if (!liste || !el) return;
+  liste.innerHTML = _procUnterListeHtml(el, (document.getElementById('proc-unter-suche') || {}).value || '');
+}
+
+/** Auswahl im Kasten übernehmen: Element wird ⊞, Marker geschrieben, Zeichen gesetzt. */
+async function procUnterprozessEinbinden(itemId) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const el = _procAusgewaehlt();
+  if (!el || !procKannEinbinden(el)) { toast('Bitte eine Aufgabe im Diagramm auswählen.', 'error'); return; }
+  const m = procModellVon(itemId);
+  if (!m) { toast('Dieses Modell gibt es nicht (mehr).', 'error'); return; }
+  const eigen = String((_procEditing && _procEditing.itemId) || '');
+  if (eigen && String(itemId) === eigen) { toast('Ein Modell kann sich nicht selbst einbinden.', 'error'); return; }
+  if (eigen && procBindetTransitiv(itemId, eigen)) {
+    toast(`„${m.title}" bindet dieses Modell schon ein – das wäre ein Kreis.`, 'error'); return;
+  }
+  // Die Prozess-Kennung des Ziels: aus dem Cache, sonst einmal aus der Datei.
+  if (!procEintragVon(m)) {
+    try { procLinksMerken(m.itemId + '|' + m.modified, procEintragAusXml(await spGetProcessXml(m.itemId))); }
+    catch (e) { /* dann ohne calledElement – das Speichern zieht es nach */ }
+  }
+  const neu = procUnterprozessSetzen(el, String(itemId));
+  if (!neu) { toast('Einbinden fehlgeschlagen.', 'error'); return; }
+  try { _bpmnModeler.get('selection').select(neu); } catch (e) { /* egal */ }
+  procUnterMarker();
+  _renderElementUnter(true);
+  toast(`„${m.title}" eingebunden ✓ – Speichern nicht vergessen.`, 'success');
+}
+
+/** Das eingebundene Modell vom ausgewählten Element lösen. */
+function procUnterprozessLoesen() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const el = _procAusgewaehlt();
+  if (!el) return;
+  procUnterprozessSetzen(el, '');
+  procUnterMarker();
+  _renderElementUnter(true);
+  toast('Gelöst – das Modell selbst bleibt. Die ⊞ wird über das Schraubenschlüssel-Menü wieder zur Aufgabe.', 'success');
+}
+
+/**
+ * Ein neues Modell mit dem Namen der Aufgabe anlegen und einbinden – nur,
+ * wenn es den Namen nirgends gibt. Gibt es ihn, wird das vorhandene Modell
+ * eingebunden: Ein Unterprozess wird einmal angelegt.
+ */
+async function procUnterprozessAnlegen() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const el = _procAusgewaehlt();
+  if (!el || !procKannEinbinden(el)) { toast('Bitte eine Aufgabe im Diagramm auswählen.', 'error'); return; }
+  const name = String((el.businessObject && el.businessObject.name) || '').trim();
+  if (!name) { toast('Die Aufgabe braucht erst einen Namen – er wird der Name des Modells.', 'error'); return; }
+  const doppel = procNamensDoppel(name, _procEditing && _procEditing.itemId);
+  if (doppel.length) {
+    toast(`„${name}" gibt es schon – eingebunden statt doppelt angelegt.`, 'success');
+    await procUnterprozessEinbinden(doppel[0].itemId);
+    return;
+  }
+  const werk = (document.getElementById('proc-werk') || {}).value || '';
+  try {
+    // Ein Grundgerüst nach Hausschema mit eigener Kennung – im Ordner dieses Werks.
+    const erzeugt = _bpmnFromText('', name, []);
+    const item = await spSaveProcess(name, erzeugt.xml, werk);
+    if (!item || !item.id) throw new Error('keine Kennung erhalten');
+    // Die Liste kennt das neue Modell noch nicht – einmal neu lesen, damit
+    // Kasten, Zeichen und Kreisprüfung es finden.
+    try { _processes = await spListProcesses(); } catch (e) { /* dann steht es unten drin */ }
+    if (!procModellVon(item.id)) {
+      (_processes = _processes || []).push({ itemId: item.id, name: name + '.bpmn', title: name, ordner: werk,
+        modified: item.lastModifiedDateTime || '', modifiedBy: '' });
+    }
+    procLinksMerken(item.id + '|' + (procModellVon(item.id).modified || ''), procEintragAusXml(erzeugt.xml));
+    const neu = procUnterprozessSetzen(el, String(item.id));
+    if (!neu) throw new Error('Element nicht ersetzbar');
+    try { _bpmnModeler.get('selection').select(neu); } catch (e) { /* egal */ }
+    procUnterMarker();
+    _renderElementUnter(true);
+    const st = document.getElementById('proc-status');
+    if (st) st.innerHTML = `<span style="color:#15803d">Unterprozess „${esc(name)}" angelegt und eingebunden ✓ – dieses Modell speichern, damit der Verweis bleibt.</span>`;
+    toast(`Unterprozess „${name}" angelegt und eingebunden ✓`, 'success');
+  } catch (e) {
+    toast('Anlegen fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+/** Das <bpmn:process> des offenen Modells – bei einem Pool über den Teilnehmer. */
+function _procProzessBo() {
+  if (!_bpmnModeler) return null;
+  try {
+    const root = _bpmnModeler.get('canvas').getRootElement();
+    const bo = root && root.businessObject;
+    if (!bo) return null;
+    if (bo.$type === 'bpmn:Process') return { bo, shape: root };
+    const teilnehmer = (bo.participants || []).find(t => t.processRef);
+    if (teilnehmer) return { bo: teilnehmer.processRef, shape: null };
+    const defs = bo.$parent;
+    const proz = defs && (defs.rootElements || []).find(r => r.$type === 'bpmn:Process');
+    return proz ? { bo: proz, shape: null } : null;
+  } catch (e) { return null; }
+}
+
+/**
+ * Die Kennung des Modells festmachen: einmalig im Haus. „Process_1" (die
+ * Kennung jedes Modells bis hierher) und eine Kennung, die ein anderes Modell
+ * schon trägt (eine importierte Kopie), werden beim Speichern ersetzt – das
+ * ältere Modell behält seine. Ohne das könnte keine ⊞ eindeutig zeigen.
+ * @returns {{alt:string, neu:string}|null} – neu === alt, wenn nichts zu tun war
+ */
+function procKennungSichern() {
+  const p = _procProzessBo();
+  if (!p) return null;
+  const alt = String(p.bo.id || '');
+  const eigen = String((_procEditing && _procEditing.itemId) || '');
+  const fremde = new Set((_processes || []).filter(x => String(x.itemId) !== eigen)
+    .map(x => { const e = procEintragVon(x); return e ? e.i : ''; }).filter(Boolean));
+  if (procKennungGueltig(alt) && !fremde.has(alt)) return { alt, neu: alt };
+  let neu = procNeueKennung();
+  while (fremde.has(neu)) neu = procNeueKennung();
+  try {
+    if (p.shape) {
+      _bpmnModeler.get('modeling').updateProperties(p.shape, { id: neu });
+    } else {
+      // Der Prozess hinter einem Pool ist kein Element der Zeichenfläche –
+      // direkt setzen, wie die Prozess-Dokumentation beim Speichern auch.
+      const ids = _bpmnModeler.get('moddle').ids;
+      if (ids && typeof ids.unclaim === 'function') { try { ids.unclaim(alt); } catch (e) { /* egal */ } }
+      p.bo.id = neu;
+      if (ids && typeof ids.claim === 'function') { try { ids.claim(neu, p.bo); } catch (e) { /* egal */ } }
+    }
+  } catch (e) { console.warn('Kennung nicht gesetzt:', e.message); return { alt, neu: alt }; }
+  return { alt, neu };
+}
+
+/**
+ * Vor dem Speichern: jede ⊞ trägt die aktuelle Prozess-Kennung ihres Modells
+ * (`calledElement`) und dessen aktuellen Namen im Klartext. Beides kann sich
+ * geändert haben, seit der Verweis gesetzt wurde – die Datei-Kennung im
+ * Marker ist die Wahrheit, der Rest wird nachgezogen.
+ * @returns Zahl der nachgezogenen Angaben
+ */
+function procUnterprozesseAbgleichen() {
+  let n = 0;
+  procUnterElemente().forEach(el => {
+    const itemId = procElementModell(el);
+    const m = procModellVon(itemId);
+    const kennung = procKennungVon(itemId);
+    const bo = el.businessObject;
+    if (kennung && bo.calledElement !== kennung) { bo.calledElement = kennung; n++; }
+    if (m && bo.documentation && bo.documentation[0]) {
+      const zeilen = String(bo.documentation[0].text || '').split('\n');
+      const i = zeilen.findIndex(z => z.indexOf(PROC_UNTER_TEXTZEILE) === 0);
+      const soll = PROC_UNTER_TEXTZEILE + m.title;
+      if (i >= 0 && zeilen[i] !== soll) { zeilen[i] = soll; bo.documentation[0].text = zeilen.join('\n'); n++; }
+    }
+  });
+  return n;
+}
+
 /* ── Editor (bpmn-js Modeler) ── */
 
 async function openProcessEditor(itemId, seed) {
@@ -547,11 +1060,16 @@ async function openProcessEditor(itemId, seed) {
     origWerk: proc ? (proc.ordner || '') : '' };
   const startName = proc ? proc.title : (seed && seed.name ? seed.name : '');
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
+  // Wer aus einem Hauptprozess in den Unterprozess gewechselt ist, will auch
+  // zurück – nicht nur in die Liste.
+  const herkunft = _procPfad.length ? procModellVon(_procPfad[_procPfad.length - 1]) : null;
 
   mount.innerHTML = `
     <div id="proc-editor">
     <div class="view-toolbar">
       <button class="btn btn-sm btn-ghost" onclick="initProzesse()">← Zurück zur Liste</button>
+      ${herkunft ? `<button class="btn btn-sm btn-ghost" onclick="procZurueck()"
+        title="Zurück in das Modell, das diesen Unterprozess einbindet">↰ Zurück zu „${esc(herkunft.title)}"</button>` : ''}
       <div style="font-weight:700">${proc ? 'Prozess bearbeiten' : 'Neuer Prozess'}</div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-outline btn-sm" id="proc-seite-btn" onclick="prozessSeiteUmschalten()"
@@ -599,9 +1117,15 @@ async function openProcessEditor(itemId, seed) {
           <span class="field-hint">Ein Element im Diagramm anklicken und hier den Prozess wählen, in den der Ablauf
             an dieser Stelle übergeht. Am Element erscheint dann ein ↦ zum Weiterklicken – so steht der Übergang
             dort, wo er passiert, und nicht nur an der Kachel.</span></div>
+        <div class="form-group full"><label>Unterprozess – ein Modell einbinden</label>
+          <div id="proc-unter" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
+          <span class="field-hint">Eine Aufgabe anklicken und das Modell wählen, das an dieser Stelle im Ganzen läuft.
+            Die Aufgabe wird zur <b>⊞ Aufrufaktivität</b> (BPMN Call Activity); das Modell bleibt eines – einmal gepflegt,
+            überall eingebunden, ein Klick auf ⊞ öffnet es. Gibt es den Prozess noch nirgends, legt
+            „+ als neues Modell anlegen" ihn an.</span></div>
         <div class="form-group full"><label>Hausschema</label>
           <div id="proc-schema" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
-          <span class="field-hint">Neun Bausteine, neun Regeln – oben „🔍 Schema" prüft das Modell dagegen.
+          <span class="field-hint">Zehn Bausteine, zehn Regeln – oben „🔍 Schema" prüft das Modell dagegen.
             Ein Modell, das die Prüfung besteht, beantwortet ohne Rückfrage: wer ist zuständig, was läuft
             automatisch, wie geht die Sache aus.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
@@ -621,8 +1145,11 @@ async function openProcessEditor(itemId, seed) {
   }
   _destroyModeler();
   _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas' });
+  // Die Liste liefert Namen und Kennungen der anderen Modelle – ohne sie
+  // wüsste der Kasten „Unterprozess" nicht, was es einzubinden gibt.
+  if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { /* dann ohne */ } }
 
-  let xml = DEFAULT_BPMN, ids = [], unbrauchbar = false;
+  let xml = procLeeresBpmn(), ids = [], unbrauchbar = false;
   if (itemId) {
     try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); _procDocs = _parseProcessDocs(xml); }
     catch (e) { toast('Prozess laden fehlgeschlagen: ' + e.message, 'error'); }
@@ -635,7 +1162,7 @@ async function openProcessEditor(itemId, seed) {
   // laden, damit ein Speichern sie repariert. Die Kennung bleibt dabei – alle
   // Verweise aus Landkarte und Mindmap überstehen die Reparatur.
   if (!/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''))) {
-    unbrauchbar = true; xml = DEFAULT_BPMN; ids = []; _procDocs = [];
+    unbrauchbar = true; xml = procLeeresBpmn(); ids = []; _procDocs = [];
   }
   try {
     await _bpmnModeler.importXML(xml);
@@ -657,13 +1184,24 @@ async function openProcessEditor(itemId, seed) {
   if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* dann eben ohne Ziele */ } }
   try {
     const bus = _bpmnModeler.get('eventBus');
-    bus.on('selection.changed', () => _renderElementSprung(canWrite));
+    bus.on('selection.changed', () => { _renderElementSprung(canWrite); _renderElementUnter(canWrite); });
     // Nach jeder Änderung neu zeichnen: ein verschobenes Element nimmt sein
     // Zeichen sonst nicht mit, ein gelöschtes ließe es zurück.
-    bus.on('elements.changed', () => procSprungMarker());
+    bus.on('elements.changed', () => { procSprungMarker(); procUnterMarker(); });
+    bus.on('commandStack.changed', () => { _procDirty = true; });
   } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
+  _procDirty = false;
   procSprungMarker();
+  procUnterMarker();
   _renderElementSprung(canWrite);
+  _renderElementUnter(canWrite);
+  // Kreisprüfung und „eingebunden in" brauchen die Einträge aller Modelle –
+  // im Hintergrund, der Kasten zieht nach, sobald sie da sind.
+  procEintraegeLaden().then(n => {
+    if (!n || !_bpmnModeler) return;
+    procUnterMarker();
+    if (!(document.activeElement && document.activeElement.id === 'proc-unter-suche')) _renderElementUnter(canWrite);
+  }).catch(() => {});
   // Wer zuletzt im Vollbild gearbeitet hat, fängt dort wieder an.
   prozessSeiteUmschalten(_procGemerkt(PROC_SEITE_SPEICHER, true));
   if (_procGemerkt(PROC_VOLL_SPEICHER, false)) prozessVollbildUmschalten(true);
@@ -673,7 +1211,7 @@ async function openProcessEditor(itemId, seed) {
 
 /* ── Hausschema im Editor ── */
 
-/** Die neun Bausteine als Legende – die Vorlage dort, wo modelliert wird. */
+/** Die Bausteine als Legende – die Vorlage dort, wo modelliert wird. */
 function prozessSchemaLegende() {
   const host = document.getElementById('proc-schema');
   if (!host || typeof PROZESS_BAUSTEINE === 'undefined') return;
@@ -709,7 +1247,8 @@ async function prozessSchemaPruefung(still) {
         <b style="font-size:.95rem">${b.symbol}</b> ${esc(b.titel)}</span>`).join('')}
     </div>
     <div style="font-size:.8rem;color:var(--c-muted);margin-bottom:6px">
-      ${zahlen.bahnen} Bahn(en) · 👤 ${zahlen.mensch} · ⚙ ${zahlen.automatik} · ✋ ${zahlen.handgriff} · ${zahlen.fluesse} Verbindungen</div>
+      ${zahlen.bahnen} Bahn(en) · 👤 ${zahlen.mensch} · ⚙ ${zahlen.automatik} · ✋ ${zahlen.handgriff}${
+        zahlen.unterprozesse ? ` · ⊞ ${zahlen.unterprozesse}` : ''} · ${zahlen.fluesse} Verbindungen</div>
     ${r.fehler.length
       ? `<div class="col-warning" style="display:block"><b>${r.fehler.length} Regelverstoß/-verstöße:</b>
           <ul style="margin:6px 0 0 18px;padding:0">${r.fehler.map(f => zeile('f', f)).join('')}</ul></div>`
@@ -902,7 +1441,7 @@ async function prozessDokLink() {
 async function prozessDokEntfernen(i) {
   const d = _procDocs[i];
   if (!d) return;
-  if (!await uiConfirm(`„${esc(d.name)}" vom Prozess lösen?<br><span class="field-hint">Die Datei selbst bleibt in der Bibliothek liegen.</span>`,
+  if (!await uiConfirm(`„${d.name}" vom Prozess lösen? Die Datei selbst bleibt in der Bibliothek liegen.`,
     { title: 'Dokument lösen', okLabel: 'Lösen' })) return;
   _procDocs.splice(i, 1);
   _renderProcDocs(true);
@@ -946,14 +1485,27 @@ async function saveProcess() {
   const name = (document.getElementById('proc-name')?.value || '').trim();
   if (!name) { toast('Bitte einen Prozessnamen angeben.', 'error'); document.getElementById('proc-name')?.focus(); return; }
   if (!_bpmnModeler) return;
+  // Ein Name je Ordner: Dieselbe Datei ein zweites Mal anzulegen, überschriebe
+  // die erste – und ein Unterprozess wird ohnehin einmal modelliert und dann
+  // eingebunden. In einem anderen Werk darf der Name vorkommen (HOL/Vertrieb
+  // und SHB/Vertrieb sind zwei Dateien).
+  const werk = (document.getElementById('proc-werk') || {}).value || '';
+  const alt = _procEditing || {};
+  if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { /* dann ohne Doppelprüfung */ } }
+  const hier = procNamensDoppel(name, alt.itemId).find(p => (p.ordner || '') === werk);
+  if (hier) {
+    toast(`Ein Modell „${hier.title}" gibt es ${werk ? 'in ' + _procWerkLabel(hier) : 'hier'} schon – dort weiterarbeiten oder es als Unterprozess einbinden, statt es ein zweites Mal anzulegen.`, 'error');
+    document.getElementById('proc-name')?.focus();
+    return;
+  }
   const btn = document.getElementById('proc-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {
     _setProcessDoku(_selectedPolicyIds(), _procDocs);
+    const kennung = procKennungSichern();
+    procUnterprozesseAbgleichen();
     const { xml } = await _bpmnModeler.saveXML({ format: true });
-    const werk = (document.getElementById('proc-werk') || {}).value || '';
     const newFname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';
-    const alt = _procEditing || {};
     // Umbenennen oder in ein anderes Werk umziehen: erst die Datei selbst
     // verschieben – so behält sie ihre Kennung und alle Verknüpfungen aus
     // Landkarte und Mindmap überleben. (Ein Speichern unter neuem Namen würde
@@ -962,10 +1514,17 @@ async function saveProcess() {
       await spMoveProcess(alt.itemId, werk, newFname);
     }
     const saved = await spSaveProcess(name, xml, werk);
-    _processes = null; _procLinkCache = {};   // Liste neu laden, wenn man zurückgeht
     _procEditing = { itemId: (saved && saved.id) || alt.itemId, origName: newFname, origWerk: werk };
+    // Die Liste frisch halten – der Editor bleibt offen, und sein Kasten
+    // „Unterprozess" liest daraus. Der Eintrag des eigenen Modells kommt aus
+    // dem XML, das gerade geschrieben wurde.
+    try { _processes = await spListProcesses(); } catch (e) { _processes = null; }
+    const eigenes = procModellVon(_procEditing.itemId);
+    if (eigenes) procLinksMerken(eigenes.itemId + '|' + eigenes.modified, procEintragAusXml(xml));
+    _procDirty = false;
     const st = document.getElementById('proc-status');
-    if (st) st.innerHTML = `<span style="color:#15803d">Gespeichert: ${esc(newFname)} ✓</span>`;
+    if (st) st.innerHTML = `<span style="color:#15803d">Gespeichert: ${esc(newFname)} ✓${
+      kennung && kennung.neu !== kennung.alt ? ` · Kennung <code>${esc(kennung.neu)}</code> vergeben` : ''}</span>`;
     toast('Prozess gespeichert ✓', 'success');
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, 'error');
@@ -1299,5 +1858,6 @@ if (typeof module !== 'undefined' && module.exports) {
   // dieselbe Umgebung vorfindet wie der Browser.
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
   module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
-    _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc };
+    _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
+    procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn };
 }

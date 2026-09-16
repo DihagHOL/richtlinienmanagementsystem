@@ -5,7 +5,7 @@
  * ========================================
  * BPMN kennt über hundert Symbole. Wer alle zulässt, bekommt Modelle, die
  * niemand außer ihrem Verfasser liest – und im Audit erklärt werden müssen
- * statt zu erklären. Dieses Schema lässt **neun** zu und legt fest, wie sie
+ * statt zu erklären. Dieses Schema lässt **zehn** zu und legt fest, wie sie
  * benannt werden.
  *
  * Drei Entscheidungen tragen alles Weitere:
@@ -57,7 +57,23 @@ const PROZESS_BAUSTEINE = [
   { key: 'bahn',    bpmn: 'lane',                    symbol: '▭',  titel: 'Bahn (Rolle)',
     zweck: 'Wer verantwortlich ist. Rolle oder Stelle – nie eine Person.',
     benennung: 'Rollenbezeichnung', beispiel: 'Einkauf' },
+  { key: 'unter',   bpmn: 'callActivity',            symbol: '⊞',  titel: 'Unterprozess (eingebundenes Modell)',
+    zweck: 'Ein eigener Prozess, der an dieser Stelle im Ganzen läuft – einmal modelliert, hier nur eingebunden.',
+    benennung: 'Name des eingebundenen Prozesses', beispiel: 'Auftragserfassung' },
 ];
+
+/* Die Kennung eines Modells ist das `id` seines <bpmn:process>. Sie muss im
+   ganzen Haus einmalig sein, denn eine ⊞ Aufrufaktivität zeigt mit
+   `calledElement` genau darauf. Zeit plus Zufall reicht dafür – und der
+   Anfang „Process_" bleibt, damit fremde Werkzeuge sie als das lesen, was sie
+   ist. „Process_1" allein ist keine Kennung: Die trug bis hierher jedes Modell. */
+const PROZESS_KENNUNG_GENERISCH = /^Process_\d*$/;
+function prozessKennungNeu() {
+  return 'Process_' + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36).padStart(3, '0');
+}
+function prozessKennungGueltig(k) {
+  return /^[A-Za-z_][\w.-]*$/.test(String(k || '')) && !PROZESS_KENNUNG_GENERISCH.test(String(k || ''));
+}
 
 /** BPMN-Typ → Baustein. */
 function prozessBaustein(bpmnTyp) {
@@ -87,6 +103,8 @@ const PROZESS_REGELN = [
     warum: 'Ein Substantiv sagt nicht, was zu tun ist.' },
   { id: 'R9', text: 'Der Prozess nennt mindestens eine Richtlinie.',
     warum: 'Ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe.' },
+  { id: 'R10', text: 'Ein Unterprozess wird eingebunden, nicht abgeschrieben – jede ⊞ zeigt auf genau ein Modell.',
+    warum: 'Was zweimal ausgeschrieben steht, ist bald zweimal verschieden; was eingebunden ist, gibt es einmal.' },
 ];
 
 /* ── 3) Die Schreibweise: Text → Schritte ────────────────────────────────── */
@@ -133,10 +151,12 @@ function prozessZeileLesen(zeile) {
   if (nm) { nein = nm[1].trim(); l = l.slice(0, nm.index).trim(); }
 
   // Aufgabentyp: ausdrücklich in Klammern, sonst über die Bahn, sonst Mensch.
+  // „(Unterprozess)" meint: hier läuft ein eigener Prozess – im Modeler wird
+  // dann das Modell gewählt, das eingebunden wird.
   let typ = '';
-  const tm = l.match(/\s*\((automatisch|automatik|system|manuell|handisch)\)\s*$/i);
+  const tm = l.match(/\s*\((automatisch|automatik|system|manuell|handisch|unterprozess|teilprozess)\)\s*$/i);
   if (tm) {
-    typ = /manuell|handisch/i.test(tm[1]) ? 'manual' : 'service';
+    typ = /manuell|handisch/i.test(tm[1]) ? 'manual' : /unterprozess|teilprozess/i.test(tm[1]) ? 'unter' : 'service';
     l = l.slice(0, tm.index).trim();
   }
   if (!typ) typ = PS_AUTO_BAHNEN.test(bahn) ? 'service' : 'user';
@@ -280,7 +300,8 @@ function prozessXmlBauen(o) {
       continue;
     }
 
-    const typ = s.kind === 'service' ? 'serviceTask' : s.kind === 'manual' ? 'manualTask' : 'userTask';
+    const typ = s.kind === 'service' ? 'serviceTask' : s.kind === 'manual' ? 'manualTask'
+      : s.kind === 'unter' ? 'callActivity' : 'userTask';
     const id = neu(typ, _psKurz(s.label, 'Schritt'), bahn, x, reiheHaupt(bahn) - 35, 150, 70);
     fluss(vorher, id, vorherWarFrage ? 'ja' : '');
     vorher = id; vorherWarFrage = false;
@@ -356,6 +377,9 @@ ${knoten.filter(k => k.bahn === b).map(k => `        <bpmn:flowNodeRef>${k.id}</
   });
 
   const name = opt.name || 'Prozess';
+  // Jedes erzeugte Modell bekommt seine eigene Kennung – sonst hießen alle
+  // „Process_1", und keine Aufrufaktivität könnte eines davon meinen.
+  const kennung = prozessKennungGueltig(opt.kennung) ? opt.kennung : prozessKennungNeu();
   // Der Text mit den Markern [[rms:policies=…]] / [[rms:doc=…]] wird
   // hereingereicht, nicht hier gebaut: Er gehört zu prozesse.js, und ein
   // Verweis dorthin würde zwei Dateien aufeinander zeigen lassen.
@@ -364,9 +388,9 @@ ${knoten.filter(k => k.bahn === b).map(k => `        <bpmn:flowNodeRef>${k.id}</
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:collaboration id="Collab_1">
-    <bpmn:participant id="Pool_1" name="${_psEsc(name)}" processRef="Process_1" />
+    <bpmn:participant id="Pool_1" name="${_psEsc(name)}" processRef="${kennung}" />
   </bpmn:collaboration>
-  <bpmn:process id="Process_1" isExecutable="false">
+  <bpmn:process id="${kennung}" isExecutable="false">
 ${doku}${laneSet}
 ${elemente}
   </bpmn:process>
@@ -377,7 +401,7 @@ ${di.join('\n')}
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 
-  return { name, xml, policyIds: (opt.policyIds || []).map(String), docs: opt.docs || [] };
+  return { name, xml, kennung, policyIds: (opt.policyIds || []).map(String), docs: opt.docs || [] };
 }
 
 /** Kurzweg: Text → Modell. */
@@ -431,6 +455,7 @@ function prozessSchemaPruefen(xml, opt) {
     mensch: knoten.filter(k => k.typ === 'userTask').length,
     automatik: knoten.filter(k => k.typ === 'serviceTask').length,
     handgriff: knoten.filter(k => k.typ === 'manualTask').length,
+    unterprozesse: knoten.filter(k => k.typ === 'callActivity').length,
   };
 
   // R1 – genau ein Auslöser
@@ -506,6 +531,17 @@ function prozessSchemaPruefen(xml, opt) {
   if (o.policyIds && !o.policyIds.length)
     rate('R9', 'Keine Richtlinie verknüpft – ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe.');
 
+  // R10 – Unterprozesse werden eingebunden, nicht abgeschrieben. Eine ⊞ ohne
+  // Modell ist ein Versprechen; ein ausgeschriebener Unterprozess ist eine
+  // Kopie, die beim nächsten Modell schon anders aussieht.
+  [...s.matchAll(/<bpmn:callActivity\b([^>]*?)(?:\/>|>([\s\S]*?)<\/bpmn:callActivity>)/g)].forEach(x => {
+    const nm = PS_ATTR(x[1], 'name') || PS_ATTR(x[1], 'id');
+    const hatModell = /\[\[rms:modell=[^\]]+\]\]/.test(x[2] || '') || !!PS_ATTR(x[1], 'calledElement');
+    if (!hatModell) melde('R10', `⊞ „${nm}" bindet kein Modell ein – welcher Prozess läuft hier?`);
+  });
+  knoten.filter(k => k.typ === 'subProcess').forEach(k =>
+    rate('R10', `„${k.name || k.id}" ist ein ausgeschriebener Unterprozess – als eigenes Modell anlegen und einbinden, dann gibt es ihn genau einmal.`));
+
   return { fehler, hinweise, zahlen };
 }
 
@@ -515,7 +551,8 @@ function prozessSchemaPruefen(xml, opt) {
  * Die Schreibvorlage.
  *
  * Kein Beispiel „irgendein Prozess", sondern einer, den im Haus jede:r kennt –
- * und der alle neun Bausteine mindestens einmal zeigt. Wer ihn überschreibt,
+ * und der alle Bausteine mindestens einmal zeigt, die ein Text zeigen kann
+ * (die Aufteilung ✛ und der Unterprozess ⊞ brauchen ein zweites Modell). Wer ihn überschreibt,
  * hat das Schema angewandt, ohne es gelesen zu haben.
  */
 const PROZESS_VORLAGE_TEXT = `Start: Bedarf gemeldet
@@ -540,7 +577,8 @@ function prozessVorlageXml(name) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PROZESS_BAUSTEINE, PROZESS_REGELN, PROZESS_VORLAGE_TEXT,
+    PROZESS_BAUSTEINE, PROZESS_REGELN, PROZESS_VORLAGE_TEXT, PROZESS_KENNUNG_GENERISCH,
     prozessTextLesen, prozessXmlBauen, prozessXmlAusText, prozessSchemaPruefen, prozessVorlageXml,
+    prozessKennungNeu, prozessKennungGueltig,
   };
 }

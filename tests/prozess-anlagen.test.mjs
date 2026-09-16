@@ -213,7 +213,7 @@ ok(/📎 \$\{docs\}/.test(pjs), 'Die Karte in der Liste zeigt, wie viele Anlagen
 // (siehe tests/prozess-linkcache.test.mjs) – hier zaehlt nur die Folge.
 ok(/const e = procLinksVon\(key\);/.test(pjs) && /if \(e && !e\.alt\)/.test(pjs),
   'Nur ein vollständiger Cache-Eintrag spart den Griff zur Datei – ältere Stände werden nachgelesen');
-ok(/const kaputt = !\/<\(bpmn:\)\?definitions/.test(pjs),
+ok(/k: !\/<\(bpmn:\)\?definitions/.test(pjs.split('function procEintragAusXml')[1] || ''),
   'Beim Lesen fällt gleich auf, ob die Datei überhaupt ein Diagramm enthält');
 ok(/⚠ kein Diagramm – öffnen und speichern/.test(pjs),
   'Und die Karte sagt es – sonst müsste man Modell für Modell öffnen');
