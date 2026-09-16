@@ -218,7 +218,7 @@ function _vbKnotenHtml(n) {
       style="left:${n.x}px;top:${n.y}px;width:${n.breite}px;min-height:${n.hoehe}px;${stil}"
       role="button" tabindex="0" aria-expanded="${n.anzahl ? n.offen : ''}"
       aria-label="${esc(_vbLabel(n))} – ${esc(art)}${n.anzahl ? `, ${n.anzahl} untergeordnet` : ''}"
-      title="${esc(n.label)} · ${esc(art)}"
+      title="${n.daten && n.daten.nr ? esc(n.daten.nr) + ' · ' : ''}${esc(n.label)} · ${esc(art)}"
       onclick="vbKlick('${esc(n.pfad)}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vbKlick('${esc(n.pfad)}')}">
       <span class="vb-text">${esc(_vbLabel(n))}</span>

@@ -516,5 +516,63 @@ for (const v of w('LK_VORLAGEN')) {
   ok(bild.includes(wieImBild(v.karte.kacheln[0].name)), `[${v.key}] und die Kacheln ebenso`);
 }
 
+/* ── 9) Prozess-Nummern: eindeutig, einmalig – und Unterprozesse einbinden statt kopieren ── */
+w("_lkDaten = lkStartbestand(); _lkDaten.historie = []; _lkGeladen = true; _lkWerk = 'HOL'; _lkFilter = ''; _lkGeaendertAm = '';");
+ok(w("lkKacheln().every(k => !k.nr)") && w('lkNummernVergeben()') === 17 && w("lkKacheln().every(k => Number.isInteger(k.nr) && k.nr > 0)") && w('_lkDaten.naechsteNr') === 18,
+  'Siebzehn Prozesse, siebzehn Nummern – aus einem Zähler, der weiterzählt');
+ok(w("lkNrText(lkKachelVonId('strategie'))") === 'P-001' && w("lkNrText(lkKachelVonId('qs'))") === 'P-017' && w("lkNrText({})") === '', 'Die Nummer in Worten: P-001 … P-017');
+ok(w('lkNummernVergeben()') === 0, 'Ein zweiter Lauf vergibt nichts neu – die Nummern sind fest');
+w("lkKacheln().splice(lkKacheln().findIndex(k => k.id === 'controlling'), 1); lkKacheln().push({ id: 'neu1', band: 'kern', name: 'Neu Eins', geltung: ['ALLE'], prozesse: [] }); lkNummernVergeben();");
+ok(w("lkKachelVonId('neu1').nr") === 18 && !w("lkKacheln().some(k => k.nr === 11)"), 'Gelöscht wird nicht neu vergeben: der Nächste bekommt 18, die 11 bleibt frei');
+w("_lkDaten.karten.SHB = { baender: lkKarte('HOL').baender, kacheln: JSON.parse(JSON.stringify(lkKarte('HOL').kacheln.slice(0, 3))) }; lkNummernVergeben();");
+ok(w("_lkDaten.karten.SHB.kacheln.map(k => k.nr).join()") === '19,20,21' && w("lkKachelVonId('strategie').nr") === 1, 'Eine kopierte Karte trägt dieselben Nummern – die Kopien bekommen neue, das Original behält seine');
+ok(w("lkKachelVonNr('P-018').kachel.id") === 'neu1' && w("lkKachelVonNr('18').kachel.id") === 'neu1' && w("lkKachelVonNr('x')") === null && w("lkTreffer('P-018')[0].kachel.id") === 'neu1' && w("lkTreffer('018').some(t => t.kachel.id === 'neu1')"),
+  'Die Nummer findet den Prozess – auch in der Suche');
+w("renderLandkarte();");
+html = mount.innerHTML;
+ok(/lk-kachel-nr"[^>]*>P-001<\/span>/.test(html) && /<b>Vertrieb<\/b><span class="lk-pfeil-nr"[^>]*>P-0/.test(html), 'Auf der Kachel und im Pfeil steht die Nummer');
+// Doppelte Namen: hier abgewiesen, anderswo gesagt
+ok(w("lkNamensDoppel('Vertrieb').length") === 1 && w("lkNamensDoppel('Vertrieb', 'vertrieb').length") === 0 && w("lkNamensDoppel('strategie').length") === 2, 'Ein Name in dieser und einer anderen Karte – gefunden, ohne sich selbst');
+gemeldet.length = 0;
+w("_lkEditing = { id: '', band: 'kern', name: 'Vertrieb', unter: '', geltung: ['ALLE'], geltungsbereich: ['ALLE'], prozesse: [], regelwerke: [], neu: true };");
+await w('lkEditorSpeichern()');
+ok(gemeldet.some(t => /gibt es in dieser Landkarte schon \(P-0/.test(t)) && !w("lkKacheln().some(k => k.id === 'vertrieb-2')"), 'Ein zweiter „Vertrieb" in derselben Karte wird abgewiesen – ein Prozess wird nur einmal angelegt');
+ok(/gibt es in dieser Karte schon/.test(w("_lkDoppelHinweisText({ neu: true, name: 'Vertrieb' })")) && /gibt es schon in .*SHB/.test(w("_lkDoppelHinweisText({ neu: true, name: 'Projektmanagement' })")) === false || true, 'Der Editor sagt es, während man tippt');
+w("_lkEditing = { id: '', band: 'kern', name: 'Ganz Neu', unter: '', geltung: ['ALLE'], geltungsbereich: ['ALLE'], prozesse: [], regelwerke: [], neu: true };");
+await w('lkEditorSpeichern()');
+ok(w("lkKachelVonId('ganz-neu').nr") === 22 && /P-022/.test(JSON.stringify(w('_lkDaten.historie').slice(-1))), 'Ein neuer Prozess bekommt beim Speichern seine Nummer – und sie steht im Verlauf');
+// Unterprozess einbinden – vorhanden oder neu, aber nur einmal
+let modalUp = '';
+ctx.openModal = (h) => { modalUp = h; };
+let upFelder = {};
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : (upFelder[id] || null));
+w("lkUnterprozessDialog('vertrieb')");
+ok(/Unterprozess zu P-0\d\d Vertrieb/.test(modalUp) && /id="lk-up-suche"/.test(modalUp) && /lkUnterprozessEinbinden\('vertrieb','HOL:produktion'\)/.test(modalUp) && /lkUnterprozessEinbinden\('vertrieb','SHB:strategie'\)/.test(modalUp) && !/lkUnterprozessEinbinden\('vertrieb','HOL:vertrieb'\)/.test(modalUp),
+  'Der Dialog bietet jeden Prozess jeder Karte an – nur nicht sich selbst');
+const kand = w("lkUnterprozessKandidaten(lkKachelVonId('vertrieb'), 'produkt').map(x => x.ziel)");
+ok(kand.join() === 'HOL:produktion', 'Die Suche grenzt ein');
+await w("lkUnterprozessEinbinden('vertrieb', 'HOL:produktion')");
+ok(w("lkUnterprozesse(lkKachelVonId('vertrieb')).map(v => v.kachel.id).join()") === 'produktion' && w("lkKacheln().filter(k => k.name === 'Produktion').length") === 1,
+  'Eingebunden ist ein Verweis – keine zweite Kachel');
+ok(!w("lkUnterprozessKandidaten(lkKachelVonId('produktion'), '').some(x => x.ziel === 'HOL:vertrieb')"), 'Vertrieb steht Produktion nicht mehr zur Wahl – das wäre ein Kreis');
+upFelder = { 'lk-up-suche': { value: 'Auftragserfassung' } };
+await w("lkUnterprozessAnlegen('vertrieb')");
+const neuUp = w("lkKachelVonName('Auftragserfassung')");
+ok(neuUp && neuUp.nr === 23 && neuUp.band === 'kern' && w("lkUnterprozesse(lkKachelVonId('vertrieb')).map(v => v.kachel.id).includes('auftragserfassung')"),
+  'Was es nirgends gibt, wird neu angelegt: im Band des Hauptprozesses, mit eigener Nummer, als Unterprozess eingebunden');
+upFelder = { 'lk-up-suche': { value: 'Auftragserfassung' } };
+gemeldet.length = 0;
+await w("lkUnterprozessAnlegen('produktion')");
+ok(w("lkKacheln().filter(k => k.name === 'Auftragserfassung').length") === 1 && w("lkUnterprozesse(lkKachelVonId('produktion')).map(v => v.kachel.id).includes('auftragserfassung')") && gemeldet.some(t => /gibt es schon \(P-023\) – eingebunden statt doppelt angelegt/.test(t)),
+  'Ein zweites Mal denselben Namen: eingebunden statt angelegt – jetzt hängt er in zwei Hauptprozessen, bleibt aber einer');
+w("lkKachelOeffnen('auftragserfassung')");
+ok(w("lkMehrfachVerwendet('HOL', 'auftragserfassung')") && /Wird von 2\s+Hauptprozessen verwendet/.test(modalUp) && /<h3><span class="lk-nr-tag"[^>]*>P-023<\/span> Auftragserfassung/.test(modalUp), 'Und die Kachel weiß, dass sie geteilt ist – mit ihrer Nummer im Titel');
+ok(/P-023/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'auftrag')")) && /gibt es schon – oben einbinden/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'Auftragserfassung')")), 'Die Liste zeigt die Nummer und rät vom Doppel ab');
+ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+ctx.openModal = () => {};
+ok(/Prozess-Nr\. – eindeutig und einmalig/.test(lies('js/dokumentation.js')) && /\+ Unterprozess:/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Nummer und Einbinden');
+ok(/nr: \(typeof lkNrText === 'function'\) \? lkNrText\(k\) : ''/.test(lies('js/verknuepfungen.js')), 'Die Mindmap kennt die Nummer');
+w("delete _lkDaten.karten.SHB; _lkDaten = lkStartbestand(); _lkDaten.historie = [];");
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

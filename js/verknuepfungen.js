@@ -115,7 +115,7 @@ async function vkGraphBauen() {
   for (const eintrag of alleKacheln) {
     const w = eintrag.werk, k = eintrag.kachel;
     const pid = `prozess:${w}:${k.id}`;
-    add(pid, 'prozess', k.name, { unter: k.unter || '', werk: w, kachelId: k.id });
+    add(pid, 'prozess', k.name, { unter: k.unter || '', werk: w, kachelId: k.id, nr: (typeof lkNrText === 'function') ? lkNrText(k) : '' });
 
     const bid = `band:${w}:${k.band}`;
     if (!knoten.has(bid)) {

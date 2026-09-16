@@ -1830,9 +1830,14 @@ async function lkDatenLaden() {
   lkWerkAbsichern();
   const belegt = lkWerkeMitKarte();
   if (belegt.length && !belegt.includes(_lkWerk)) _lkWerk = belegt[0];
+  // Jeder Prozess bekommt seine Nummer, sobald die Daten da sind – fest wird
+  // sie mit dem nächsten Speichern (die Vergabe ist deterministisch, jeder
+  // Browser kommt bis dahin auf dieselben Nummern).
+  _lkNrNeu = lkNummernVergeben();
   _lkGeladen = true;
   return _lkDaten;
 }
+let _lkNrNeu = 0;   // beim Laden neu vergebene Nummern – der erste Schreiber macht sie fest
 
 /** Eintrag in den Versionsverlauf (wer, wann, was). */
 function _lkVerlauf(was) {
@@ -1858,6 +1863,7 @@ async function lkSpeichern(meldung, was, reiter) {
       }
     }
     if (was) _lkVerlauf(was);
+    lkNummernVergeben();   // was neu dazukam (Vorlage, Gliederung, Übernahme), bekommt seine Nummer vor dem Schreiben
     _lkGeaendertAm = await spSaveLandkarte(_lkDaten);
     if (meldung) toast(meldung, 'success');
     _lkNachSpeichern();
@@ -1890,6 +1896,12 @@ async function initLandkarte() {
     await lkDatenLaden();
   }
   renderLandkarte();
+  // Wer schreiben darf, macht frisch vergebene Nummern gleich fest – still,
+  // ohne Meldung. Danach sind sie in der Datei und für alle dieselben.
+  if (_lkNrNeu && lkDarfSchreiben() && typeof spSaveLandkarte === 'function') {
+    const n = _lkNrNeu; _lkNrNeu = 0;
+    lkSpeichern('', `Prozessnummern vergeben (${n})`).catch(() => {});
+  }
 }
 
 function renderLandkarte() {
@@ -2071,7 +2083,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
   return `<div class="lk-kachel${aus ? ' lk-aus' : ''}${typ ? '' : ' lk-kategorie'}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
       <div class="lk-kachel-inhalt">
-        <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${_lkStatusPunkt(k)}</div>
+        <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${lkNrText(k) ? `<span class="lk-kachel-nr" title="Prozess-Nr. – eindeutig, wird nie neu vergeben">${esc(lkNrText(k))}</span>` : ''}${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
         ${_lkUnterbaumHtml(_lkWerk, k, [])}
         <div class="lk-kachel-fuss">
@@ -2091,7 +2103,7 @@ function _lkPfeilHtml(k, i, schreiben) {
   const g = _lkGeltungKurz(k);
   return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, 'kern')}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
-      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
+      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${lkNrText(k) ? `<span class="lk-pfeil-nr" title="Prozess-Nr.">${esc(lkNrText(k))}</span>` : ''}${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
       <span class="lk-pfeil-gliederung">${_lkGliederungZeichen(_lkWerk, k)}</span>
@@ -2495,8 +2507,9 @@ function lkSuchen(q) {
 function lkTreffer(q) {
   const s = String(q || '').trim().toLowerCase();
   if (s.length < 2) return [];
+  const nr = lkKachelVonNr(s);
   return ((typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [])
-    .filter(x => [x.kachel.name, x.kachel.unter].filter(Boolean).join(' ').toLowerCase().includes(s))
+    .filter(x => (nr && x.kachel === nr.kachel) || [x.kachel.name, x.kachel.unter, lkNrText(x.kachel)].filter(Boolean).join(' ').toLowerCase().includes(s))
     .slice(0, 12);
 }
 
@@ -2507,7 +2520,7 @@ function _lkTrefferHtml() {
   return `<div id="lk-treffer" class="lk-treffer">
       ${treffer.length ? treffer.map(t => `<button class="lk-treffer-knopf"
           onclick="lkSpringeZu('${esc(t.werk)}','${esc(t.kachel.id)}')">
-          ${esc(t.kachel.name)} <span>${esc(lkWerkLabel(t.werk))}</span></button>`).join('')
+          ${lkNrText(t.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(t.kachel))}</span> ` : ''}${esc(t.kachel.name)} <span>${esc(lkWerkLabel(t.werk))}</span></button>`).join('')
         : `<span class="field-hint">Kein Prozess mit „${esc(q)}" – in keiner Landkarte.</span>`}
     </div>`;
 }
@@ -2793,7 +2806,7 @@ function _lkUnterbaumHtml(werk, k, pfad) {
               onclick="lkAufklappen('${esc(v.werk)}','${esc(v.kachel.id)}',event)"
               title="${eigene} Unterprozess(e)">${auf ? '▾' : '▸'}</button>` : '<span class="lk-gliederung-leer">↳</span>'}
           <a href="#" onclick="lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
-             title="${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>
+             title="${esc(lkNrText(v.kachel) ? lkNrText(v.kachel) + ' · ' : '')}${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>${lkNrText(v.kachel) ? `<span class="lk-unter-nr">${esc(lkNrText(v.kachel))}</span>` : ''}
           ${v.werk !== werk ? `<span class="ic-tag" title="andere Gesellschaft">${esc(lkWerkLabel(v.werk))}</span>` : ''}
           ${lkMehrfachVerwendet(v.werk, v.kachel.id) ? `<span class="lk-geteilt lk-geteilt-mehr"
               title="Wird von ${eltern} Hauptprozessen verwendet – einmal gepflegt, gilt für alle">⇄ ${eltern}</span>` : ''}
@@ -2845,6 +2858,66 @@ function lkKachelVonName(name) {
 /** Freie Kennung für einen neuen Prozess, aus seinem Namen. */
 function lkFreieKachelId(name) {
   return lkFreierSchluessel(name, new Set(lkKacheln().map(k => String(k.id))), 'prozess', 30);
+}
+
+/* ═══════════════════════════════════════════════════
+   Prozess-Nummern: eindeutig und einmalig
+   ═══════════════════════════════════════════════════
+   Die Kennung einer Kachel (`vertrieb`) ist aus dem Namen gebildet und nur
+   in ihrer Karte eindeutig; „HOL:vertrieb" und „SHB:vertrieb" sind zwei
+   Prozesse. Damit man einen Prozess in einem Regelwerk, einem Ticket, einem
+   Modell oder auf Papier benennen kann, bekommt jede Kachel beim ersten
+   Erscheinen eine Nummer aus einem Zähler, der über ALLE Karten läuft und
+   nie zurückgesetzt wird: „P-042" meint für immer diesen einen Prozess.
+   Gelöschte Nummern werden nicht neu vergeben, Umsortieren und Umbenennen
+   ändern nichts. Ein Unterprozess, der in drei Hauptprozessen hängt, hat
+   trotzdem eine Nummer – er ist ein Prozess, nicht drei. */
+function lkNrGueltig(n) { return Number.isInteger(n) && n > 0; }
+function lkNrText(k) { return (k && lkNrGueltig(k.nr)) ? 'P-' + String(k.nr).padStart(3, '0') : ''; }
+
+/** Alle Kacheln aller Karten – ohne die Trennung nach Gesellschaft; für die Vergabe zählt jede. */
+function _lkAlleKachelnRoh() {
+  const karten = (_lkDaten && _lkDaten.karten) || {};
+  const reihenfolge = LK_WERKE.filter(w => karten[w]).concat(Object.keys(karten).filter(w => !LK_WERKE.includes(w)));
+  const out = [];
+  reihenfolge.forEach(w => (Array.isArray(karten[w].kacheln) ? karten[w].kacheln : []).forEach(k => out.push({ werk: w, kachel: k })));
+  return out;
+}
+
+/**
+ * Nummern vergeben, wo sie fehlen – idempotent. Läuft nach dem Laden und vor
+ * jedem Speichern, damit auch Vorlagen, Gliederungen und übernommene Karten
+ * ihre Nummern bekommen. Trägt eine Kopie dieselbe Nummer wie ihr Original,
+ * bekommt die spätere eine neue: Eine Nummer meint genau einen Prozess.
+ * @returns {number} wie viele Nummern neu vergeben wurden
+ */
+function lkNummernVergeben() {
+  if (!_lkDaten || !_lkDaten.karten) return 0;
+  const alle = _lkAlleKachelnRoh().map(x => x.kachel);
+  let max = lkNrGueltig(_lkDaten.naechsteNr) ? _lkDaten.naechsteNr - 1 : 0;
+  alle.forEach(k => { if (lkNrGueltig(k.nr) && k.nr > max) max = k.nr; });
+  const gesehen = new Set();
+  let neu = 0;
+  alle.forEach(k => {
+    if (lkNrGueltig(k.nr) && !gesehen.has(k.nr)) { gesehen.add(k.nr); return; }
+    k.nr = ++max; gesehen.add(k.nr); neu++;
+  });
+  _lkDaten.naechsteNr = max + 1;
+  return neu;
+}
+
+/** Die Kachel zu einer Nummer („P-042", „42") – über alle sichtbaren Karten. */
+function lkKachelVonNr(text) {
+  const n = parseInt(String(text || '').replace(/^p-?/i, ''), 10);
+  if (!lkNrGueltig(n)) return null;
+  return lkAlleKacheln().find(x => x.kachel.nr === n) || null;
+}
+
+/** Gibt es diesen Namen schon – in dieser oder einer anderen Karte? */
+function lkNamensDoppel(name, ausserId) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return [];
+  return lkAlleKacheln().filter(x => String(x.kachel.name || '').trim().toLowerCase() === n && !(x.werk === _lkWerk && x.kachel.id === ausserId));
 }
 
 function lkGliedernDialog(id) {
@@ -2932,7 +3005,7 @@ function lkKachelOeffnen(id) {
   const gb = (typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(k.geltung) : '';
   openModal(`
     <div class="modal-header">
-      <h3>${esc(k.name)}</h3>
+      <h3>${lkNrText(k) ? `<span class="lk-nr-tag" title="Prozess-Nr. – eindeutig, wird nie neu vergeben">${esc(lkNrText(k))}</span> ` : ''}${esc(k.name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
@@ -3092,6 +3165,7 @@ function _lkVerweiseHtml(werk, k) {
       <button class="btn btn-outline btn-sm" onclick="lkAbhaengigkeiten('${esc(k.id)}')"
         style="margin-top:8px" title="Alles zeigen, was mit diesem Prozess zusammenhängt – über Werke hinweg">🔎 Abhängigkeiten</button>
       ${schreiben ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="lkUnterprozessDialog('${esc(k.id)}')" title="Einen vorhandenen Prozess einbinden – aus jeder Karte – oder einen neuen anlegen">+ Unterprozess</button>
         <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')">Verweise pflegen</button>
         ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog('${esc(k.id)}')"
           title="Die Aufzählung im Untertitel in Unterprozesse zerlegen">↳ Untertitel gliedern</button>` : ''}
@@ -3151,7 +3225,7 @@ function lkVerweiseDialog(id) {
       End-to-End-Sicht, „Nutzt" den Querbezug. Verweise dürfen die Gesellschaft wechseln.</p>
       <div style="max-height:52vh;overflow:auto">
         ${zeilen.map(x => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
-            <span style="flex:1;min-width:150px">${esc(x.kachel.name)}
+            <span style="flex:1;min-width:150px">${lkNrText(x.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(x.kachel))}</span> ` : ''}${esc(x.kachel.name)}
               ${x.werk !== _lkWerk ? `<span class="ic-tag">${esc(lkWerkLabel(x.werk))}</span>` : ''}</span>
             <select class="form-control" style="width:auto;min-width:150px"
                     onchange="lkVerweisWaehlen('${esc(k.id)}','${esc(x.ziel)}',this.value)">
@@ -3167,6 +3241,108 @@ function lkVerweiseDialog(id) {
 }
 
 function lkVerweisWaehlen(kachelId, ziel, art) { lkVerweisSetzen(kachelId, ziel, art); }
+
+/* ═══════════════════════════════════════════════════
+   Unterprozess einbinden – vorhanden oder neu, aber nur einmal
+   ═══════════════════════════════════════════════════
+   Die Frage beim Einbinden ist immer dieselbe: Gibt es den Prozess schon?
+   Dann wird er eingebunden – aus welcher Karte auch immer –, nicht ein zweites
+   Mal angelegt. Erst wenn es ihn nirgends gibt, entsteht eine neue Kachel:
+   im Band des Hauptprozesses, mit dessen Geltungsbereich, mit eigener Nummer. */
+
+/** Was sich einbinden lässt: alle Prozesse aller Karten – außer dem eigenen, den schon eingebundenen und denen, die einen Kreis ergäben. */
+function lkUnterprozessKandidaten(k, filter) {
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  const schon = new Set(lkUnterprozesse(k).map(v => lkZielSchluessel(v.werk, v.kachel.id)));
+  const q = String(filter || '').trim().toLowerCase();
+  return lkAlleKacheln()
+    .map(x => ({ ziel: lkZielSchluessel(x.werk, x.kachel.id), werk: x.werk, kachel: x.kachel }))
+    .filter(x => x.ziel !== selbst && !schon.has(x.ziel) && !lkIstNachfahre(x.ziel, selbst))
+    .filter(x => !q || [x.kachel.name, x.kachel.unter, lkNrText(x.kachel)].filter(Boolean).join(' ').toLowerCase().includes(q))
+    .sort((a, b) => ((a.werk === _lkWerk ? 0 : 1) - (b.werk === _lkWerk ? 0 : 1)) || a.kachel.name.localeCompare(b.kachel.name, 'de'));
+}
+
+function _lkUnterprozessListeHtml(k, filter) {
+  const q = String(filter || '').trim();
+  const kand = lkUnterprozessKandidaten(k, q);
+  const doppel = q ? lkNamensDoppel(q, k.id) : [];
+  const neu = q.length >= 2 && !doppel.length
+    ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--c-border)">
+         <div class="field-hint" style="margin-bottom:6px">„${esc(q)}" gibt es in keiner Landkarte.</div>
+         <button class="btn btn-primary btn-sm" onclick="lkUnterprozessAnlegen('${esc(k.id)}')">+ „${esc(q)}" als neuen Unterprozess anlegen</button>
+         <span class="field-hint">Im Band „${esc(_lkBandTitel(k.band))}", mit dem Geltungsbereich von „${esc(k.name)}", mit eigener Nummer.</span></div>`
+    : (q.length >= 2 && doppel.length ? `<div class="field-hint" style="margin-top:10px">„${esc(q)}" gibt es schon – oben einbinden statt neu anlegen. Ein Prozess wird nur einmal angelegt.</div>` : '');
+  const zeile = (x) => {
+    const eltern = lkHauptprozesseVon(x.werk, x.kachel.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+      <span style="flex:1;min-width:150px">${lkNrText(x.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(x.kachel))}</span> ` : ''}<b>${esc(x.kachel.name)}</b>
+        ${x.werk !== _lkWerk ? `<span class="ic-tag" title="Aus einer anderen Karte – wird eingebunden, nicht kopiert">${esc(lkWerkLabel(x.werk))}</span>` : ''}
+        ${eltern.length ? `<span class="field-hint">· Teil von ${esc(eltern.map(e => e.kachel.name).join(', '))}</span>` : ''}
+        ${x.kachel.unter ? `<div class="field-hint">${esc(x.kachel.unter)}</div>` : ''}</span>
+      <button class="btn btn-outline btn-sm" onclick="lkUnterprozessEinbinden('${esc(k.id)}','${esc(x.ziel)}')">Einbinden</button></div>`;
+  };
+  return `<div id="lk-up-liste">
+    ${kand.length ? kand.slice(0, 40).map(zeile).join('') : `<div class="field-hint">${q ? 'Kein vorhandener Prozess passt.' : 'Keine weiteren Prozesse.'}</div>`}
+    ${kand.length > 40 ? `<div class="field-hint" style="margin-top:6px">${kand.length - 40} weitere – bitte eingrenzen.</div>` : ''}
+    ${neu}</div>`;
+}
+
+function lkUnterprozessDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  openModal(`
+    <div class="modal-header"><h3>Unterprozess zu ${lkNrText(k) ? esc(lkNrText(k)) + ' ' : ''}${esc(k.name)}</h3>
+      <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Suchen, dann <b>einbinden</b> – aus dieser oder jeder anderen Karte. Ein Unterprozess bleibt <b>ein</b> Prozess:
+        eine Nummer, eine Kachel, einmal gepflegt, auch wenn er in mehreren Hauptprozessen hängt. Nur was es nirgends gibt, wird neu angelegt.</p>
+      <input type="text" id="lk-up-suche" class="form-control" placeholder="Name oder Nummer (P-012) …" autocomplete="off"
+        oninput="document.getElementById('lk-up-liste').outerHTML=_lkUnterprozessListeHtml(lkKachelVonId('${esc(k.id)}'),this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();lkUnterprozessAnlegen('${esc(k.id)}')}">
+      <div style="max-height:48vh;overflow:auto;margin-top:8px">${_lkUnterprozessListeHtml(k, '')}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="lkKachelOeffnen('${esc(k.id)}')">Zurück</button>
+    </div>`);
+  const el = document.getElementById('lk-up-suche');
+  if (el && el.focus) el.focus();
+}
+
+/** Einen vorhandenen Prozess als Unterprozess einbinden – ein Verweis, keine Kopie. */
+async function lkUnterprozessEinbinden(id, ziel) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkVerweisSetzen(id, ziel, 'unterprozess')) return;
+  const t = lkKachelVonZiel(ziel);
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  await lkSpeichern('Unterprozess eingebunden ✓', `„${t ? t.kachel.name : ziel}" als Unterprozess von „${k.name}" eingebunden`);
+  lkKachelOeffnen(id);
+}
+
+/** Einen neuen Unterprozess anlegen – nur, wenn es den Namen noch nirgends gibt; sonst wird eingebunden. */
+async function lkUnterprozessAnlegen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const name = String(((document.getElementById('lk-up-suche') || {}).value || '')).trim();
+  if (name.length < 2) { toast('Bitte einen Namen eingeben.', 'error'); return; }
+  const doppel = lkNamensDoppel(name, k.id);
+  if (doppel.length) {
+    const d = doppel.find(x => x.werk === _lkWerk) || doppel[0];
+    const ziel = lkZielSchluessel(d.werk, d.kachel.id);
+    if (ziel === lkZielSchluessel(_lkWerk, k.id)) { toast('Ein Prozess kann nicht sein eigener Unterprozess sein.', 'error'); return; }
+    toast(`„${name}" gibt es schon (${lkNrText(d.kachel) || d.werk}) – eingebunden statt doppelt angelegt.`);
+    await lkUnterprozessEinbinden(id, ziel);
+    return;
+  }
+  const neu = { id: lkFreieKachelId(name), band: k.band, name, unter: '', geltung: Array.isArray(k.geltung) ? k.geltung.slice() : ['ALLE'],
+    prozesse: [], regelwerke: [], verweise: [] };
+  lkKacheln().push(neu);
+  lkNummernVergeben();
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  k.verweise.push({ ziel: lkZielSchluessel(_lkWerk, neu.id), art: 'unterprozess' });
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  await lkSpeichern(`„${name}" angelegt (${lkNrText(neu)}) ✓`, `Unterprozess „${name}" (${lkNrText(neu)}) zu „${k.name}" angelegt`);
+  lkKachelOeffnen(id);
+}
 
 async function lkVerweiseFertig(kachelId) {
   await lkSpeichern('Verweise gespeichert', 'verweise');
@@ -3550,7 +3726,9 @@ function renderLkEditor() {
       <div class="form-grid">
         <div class="form-group full">
           <label>Name <span class="req">*</span></label>
-          <input type="text" value="${esc(k.name)}" oninput="_lkEditing.name=this.value" placeholder="z. B. Beschaffung">
+          <input type="text" value="${esc(k.name)}" oninput="_lkEditing.name=this.value;_lkDoppelHinweis()" placeholder="z. B. Beschaffung">
+          <span class="field-hint" id="lk-doppel-hinweis">${_lkDoppelHinweisText(k)}</span>
+          <span class="field-hint">${k.neu ? 'Die Prozess-Nr. wird beim Speichern vergeben – eindeutig, für immer.' : `Prozess-Nr. <b>${esc(lkNrText(k) || '–')}</b> – eindeutig, wird nie neu vergeben.`}</span>
         </div>
         <div class="form-group full">
           <label>Untertitel</label>
@@ -3603,23 +3781,43 @@ function _lkTypHinweis() {
   if (el && _lkEditing) el.innerHTML = _lkTypHinweisText(_lkEditing);
 }
 
+/** Gibt es den Namen schon? Hier: abgewiesen; anderswo: gesagt – einbinden statt kopieren. */
+function _lkDoppelHinweisText(k) {
+  const name = String(k.name || '').trim();
+  if (name.length < 2) return '';
+  const doppel = lkNamensDoppel(name, k.neu ? '' : k.id);
+  if (!doppel.length) return '';
+  const hier = doppel.filter(x => x.werk === _lkWerk), dort = doppel.filter(x => x.werk !== _lkWerk);
+  const nenn = (x) => `${lkNrText(x.kachel) || x.kachel.name} (${lkWerkLabel(x.werk)})`;
+  if (hier.length) return `<span style="color:#b91c1c">„${esc(name)}" gibt es in dieser Karte schon: ${esc(nenn(hier[0]))}. Ein Prozess wird nur einmal angelegt – zum Einbinden „+ Unterprozess" an der Kachel.</span>`;
+  return `<span style="color:#b45309">„${esc(name)}" gibt es schon in ${esc(dort.map(nenn).join(', '))}. Meint es denselben Ablauf, lieber dort einbinden (Verweis) statt hier ein zweites Mal anlegen.</span>`;
+}
+function _lkDoppelHinweis() {
+  const el = document.getElementById('lk-doppel-hinweis');
+  if (el && _lkEditing) el.innerHTML = _lkDoppelHinweisText(_lkEditing);
+}
+
 async function lkEditorSpeichern() {
   const k = _lkEditing;
   if (!k) return;
   const name = String(k.name || '').trim();
   if (!name) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const hier = lkNamensDoppel(name, k.neu ? '' : k.id).filter(x => x.werk === _lkWerk);
+  if (hier.length) { toast(`„${name}" gibt es in dieser Landkarte schon (${lkNrText(hier[0].kachel) || hier[0].kachel.id}) – ein Prozess wird nur einmal angelegt.`, 'error'); return; }
   const geltung = Array.isArray(k.geltungsbereich) ? k.geltungsbereich : (k.geltung || []);
   if (!geltung.length) { toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return; }
 
   if (k.neu) {
     const id = lkFreieKachelId(name);
-    lkKacheln().push({ id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
+    const neu = { id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
       typ: String(k.typ || ''),
       verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
-      prozesse: [], regelwerke: [] });
+      prozesse: [], regelwerke: [] };
+    lkKacheln().push(neu);
+    lkNummernVergeben();
     closeModal();
     _lkEditing = null;
-    await lkSpeichern(`„${name}" angelegt ✓`, `Prozess „${name}" angelegt`);
+    await lkSpeichern(`„${name}" angelegt (${lkNrText(neu)}) ✓`, `Prozess „${name}" (${lkNrText(neu)}) angelegt`);
     return;
   }
   const ziel = lkKachelVonId(k.id);

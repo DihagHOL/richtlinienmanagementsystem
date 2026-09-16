@@ -706,6 +706,14 @@ body.demo-mode .main { padding-bottom: 64px; }
   display: flex; align-items: flex-start; gap: 6px; justify-content: space-between;
 }
 .lk-kachel-kopf span { min-width: 0; }
+/* Die Prozess-Nr.: klein, fest, immer an derselben Stelle – man zitiert sie, man sucht nach ihr. */
+.lk-kachel-nr, .lk-nr-tag, .lk-unter-nr, .lk-pfeil-nr {
+  font-family: Consolas, 'Courier New', monospace; font-size: .66rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--c-muted); background: rgba(15,23,42,.06); border-radius: 4px; padding: 0 4px; white-space: nowrap; flex: none;
+}
+.lk-pfeil-nr { color: #fff; background: rgba(255,255,255,.22); margin-left: 4px; }
+.lk-unter-nr { font-size: .6rem; }
+.lk-nr-tag { font-size: .72rem; vertical-align: middle; }
 .lk-kachel-unter { font-size: .74rem; color: var(--c-muted); line-height: 1.35; }
 .lk-kachel-fuss { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lk-kachel-person { font-size: .68rem; font-weight: 600; color: var(--c-muted); }
