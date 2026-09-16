@@ -2030,11 +2030,18 @@ async function spGetProcessXml(itemId) {
  *  Bedarf automatisch an). Gleicher Pfad → neue Version derselben Datei.
  *  @param werk Werk-Kürzel; leer lässt die Datei direkt im Prozesse-Ordner.
  *  @returns das DriveItem. */
+/** Der Dateiname (ohne .bpmn), unter dem ein Modell dieses Namens liegt – SharePoint
+ *  verträgt nicht jedes Zeichen. Wer Namen vergleicht, vergleicht diese Form:
+ *  „Ein-/Auslagern" und „Ein_/Auslagern" wären dieselbe Datei. */
+function spProzessDateiname(name) {
+  return String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
+}
+
 async function spSaveProcess(name, xml, werk) {
   const token = await acquireToken(SP.scopes);
   if (!token) throw new Error('Nicht angemeldet');
   await _ismsLib(token);
-  const safe = String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
+  const safe = spProzessDateiname(name);
   const fname = /\.bpmn$/i.test(safe) ? safe : safe + '.bpmn';
   const ordner = await _prozessOrdnerSicherstellen(token, werk);
   const path = _prozessPfad(ordner, fname);

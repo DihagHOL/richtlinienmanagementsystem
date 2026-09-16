@@ -268,7 +268,15 @@ ok(g9.kanten.some(k => k.von === 'modell:m4' && k.nach === 'modell:m1' && k.typ 
   'Ein Kreis in den Daten wird gezeichnet, aber nicht endlos verfolgt');
 ok(w("_vkGegenrichtung('bindet ein')") === 'eingebunden in', 'Gegenrichtung: „eingebunden in"');
 ok(/'bindet ein'/.test(lies('js/mindmapbaum.js')), 'Im Baum hängt das eingebundene Modell unter dem einbindenden');
+// ⊞ ins Leere: m4 bindet ein Modell ein, das es in der Liste nicht gibt.
+w(`_procLinkCache['m4|x'] = { p: [], d: 0, k: false, i: 'Process_m4', u: ['geloescht'] };`);
+const l9 = w('vkLuecken()');
+ok(l9.unterOhneZiel.length === 1 && l9.unterOhneZiel[0].modell.itemId === 'm4' && l9.unterOhneZiel[0].ziel === 'geloescht',
+  'Ein eingebundenes Modell, das es nicht mehr gibt, steht als Lücke – ohne dass jemand jedes Modell öffnen muss');
+ok(/Eingebundene Unterprozesse, die es nicht mehr gibt/.test(w('_vkLueckenHtml()')), 'Und wird unter den Lücken gezeigt');
 w(`_procLinkCache['m1|x'] = ['2']; delete _procLinkCache['m4|x'];`);
+ok(w('vkLuecken()').unterOhneZiel.length === 0 && !/Eingebundene Unterprozesse, die es nicht mehr gibt/.test(w('_vkLueckenHtml()')),
+  'Gibt es keine, steht der Kasten gar nicht da');
 w('_vkGraph = __g;');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);

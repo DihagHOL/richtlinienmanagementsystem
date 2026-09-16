@@ -266,12 +266,19 @@ function _renderProcCards() {
     const key = p.itemId + '|' + p.modified;
     const e = procLinksVon(key);
     // Nur ein vollständiger Eintrag darf den erneuten Griff zur Datei sparen.
-    // Ältere Stände kannten weder Anlagen noch die Frage, ob überhaupt ein
-    // Diagramm drinsteht – die werden einmal nachgelesen, sonst bliebe die
-    // Warnung bei genau den Modellen aus, die gerade im Cache liegen.
+    // Ältere Stände kannten weder Anlagen noch Unterprozesse – die werden einmal
+    // nachgelesen, sonst bliebe die Warnung bei genau den Modellen aus, die
+    // gerade im Cache liegen.
     if (e && !e.alt) _renderCardLink(p.itemId, e);
-    else _enrichProcessCard(p, key);
   });
+  // Was fehlt, wird gelesen – fünf Dateien nebeneinander, nicht alle auf einmal:
+  // Bei vierzig Modellen drosselt SharePoint sonst, und die ersten Karten
+  // sollen nicht auf die letzte warten. Jede Karte zieht nach, sobald ihr
+  // Eintrag da ist.
+  procEintraegeLaden(rows, (p, e) => {
+    if (e) _renderCardLink(p.itemId, e);
+    else { const el = document.getElementById('proc-link-' + p.itemId); if (el) el.textContent = ''; }
+  }).catch(() => {});
 }
 
 /** Prozesse nach Werk gruppieren: erst die Werke in ihrer üblichen Reihenfolge,
@@ -331,21 +338,6 @@ async function prozessAblageAufraeumen() {
   }
   await refreshProzesse();
   toast(`${done} Modell(e) einsortiert${fail ? `, ${fail} fehlgeschlagen` : ''} ✓`, fail ? 'error' : 'success');
-}
-
-async function _enrichProcessCard(p, key) {
-  try {
-    const xml = await spGetProcessXml(p.itemId);
-    // Die Datei wird ohnehin gelesen – dann kann sie auch gleich sagen, ob sie
-    // überhaupt ein Diagramm enthält. Sonst merkt man es erst beim Öffnen,
-    // Modell für Modell.
-    const eintrag = procEintragAusXml(xml);
-    procLinksMerken(key, eintrag);
-    _renderCardLink(p.itemId, procLinkEintrag(eintrag));
-  } catch (e) {
-    const el = document.getElementById('proc-link-' + p.itemId);
-    if (el) el.textContent = '';
-  }
 }
 
 /** Die Zeile unter einer Karte: Richtlinien, Anlagen, Unterprozesse – aus dem Cache-Eintrag. */
@@ -653,35 +645,62 @@ function procBindetTransitiv(start, ziel, gesehen) {
   }
   return false;
 }
+/** Der Name in der Form, in der er als Datei liegt – so vergleicht man Namen. */
+function _procNameNorm(name) {
+  const s = String(name || '').replace(/\.bpmn$/i, '');
+  return ((typeof spProzessDateiname === 'function') ? spProzessDateiname(s) : s).trim().toLowerCase();
+}
 /** Gibt es ein Modell dieses Namens schon – in irgendeinem Werk? */
 function procNamensDoppel(name, ausserId) {
-  const n = String(name || '').trim().toLowerCase();
-  if (!n) return [];
+  if (!String(name || '').trim()) return [];
+  const n = _procNameNorm(name);
   return (_processes || []).filter(p => String(p.itemId) !== String(ausserId || '')
-    && String(p.title || '').trim().toLowerCase() === n);
+    && _procNameNorm(p.title) === n);
 }
 
 /**
- * Die Einträge aller Modelle sicherstellen – für Kreisprüfung und „eingebunden
- * in". Jede Datei wird höchstens einmal je Änderungsstand gelesen; der Cache
- * überlebt die Sitzung. Fünf nebeneinander: bei fünfzig Modellen Sekunden,
- * nicht Minuten.
+ * Den Eintrag eines Modells sicherstellen: aus dem Cache, sonst einmal aus der
+ * Datei. Läuft das Lesen derselben Datei schon (Liste und Editor fragen
+ * womöglich gleichzeitig), wird darauf gewartet statt doppelt angefragt.
+ * @returns {Promise<object|null>} der Eintrag, null wenn die Datei nicht lesbar war
  */
-let _procEintraegeLauf = null;
-async function procEintraegeLaden() {
-  if (_procEintraegeLauf) return _procEintraegeLauf;
-  _procEintraegeLauf = (async () => {
-    const offen = (_processes || []).filter(p => { const e = procEintragVon(p); return !e || e.alt; });
-    for (let i = 0; i < offen.length; i += 5) {
-      await Promise.all(offen.slice(i, i + 5).map(async p => {
-        try { procLinksMerken(p.itemId + '|' + p.modified, procEintragAusXml(await spGetProcessXml(p.itemId))); }
-        catch (e) { /* diese Datei bleibt ungelesen – die Liste sagt es dann */ }
-      }));
-    }
-    return offen.length;
+const _procLesend = new Map();   // itemId → laufendes Lesen
+async function procEintragLaden(p) {
+  const e = procEintragVon(p);
+  if (e && !e.alt) return e;
+  if (_procLesend.has(p.itemId)) return _procLesend.get(p.itemId);
+  const lauf = (async () => {
+    try {
+      // Die Datei wird ohnehin gelesen – dann sagt sie auch gleich, ob sie
+      // überhaupt ein Diagramm enthält. Sonst merkt man es erst beim Öffnen.
+      const eintrag = procEintragAusXml(await spGetProcessXml(p.itemId));
+      procLinksMerken(p.itemId + '|' + p.modified, eintrag);
+      return procLinkEintrag(eintrag);
+    } catch (err) { return e || null; }          // ein alter Eintrag ist besser als keiner
+    finally { _procLesend.delete(p.itemId); }
   })();
-  try { return await _procEintraegeLauf; } finally { _procEintraegeLauf = null; }
+  _procLesend.set(p.itemId, lauf);
+  return lauf;
 }
+
+/**
+ * Die Einträge vieler Modelle sicherstellen – für Karten, Kreisprüfung und
+ * „eingebunden in". Fünf nebeneinander: bei fünfzig Modellen Sekunden, nicht
+ * Minuten – und keine Drosselung durch SharePoint, die alle auf einmal
+ * auslösten. `fertig(p, eintrag)` wird je Modell gerufen, sobald es da ist.
+ * @returns {Promise<number>} wie viele Dateien gelesen werden mussten
+ */
+async function procEintraegeLaden(liste, fertig) {
+  const offen = (liste || _processes || []).filter(p => { const e = procEintragVon(p); return !e || e.alt; });
+  for (let i = 0; i < offen.length; i += 5) {
+    await Promise.all(offen.slice(i, i + 5).map(async p => {
+      const e = await procEintragLaden(p);
+      if (typeof fertig === 'function') fertig(p, e);
+    }));
+  }
+  return offen.length;
+}
+let _procLadeLauf = null;   // das Hintergrund-Lesen des Editors – das Speichern wartet darauf
 
 /** Die Datei-Kennung des eingebundenen Modells eines Elements ('' = keins). */
 function procElementModell(el) {
@@ -693,6 +712,16 @@ function procKannEinbinden(el) {
   return /^bpmn:(Task|UserTask|ServiceTask|ManualTask|ScriptTask|SendTask|ReceiveTask|BusinessRuleTask|CallActivity)$/
     .test(String((el && el.type) || ''));
 }
+/** Die Bahn (Rolle), in der ein Element liegt – '' wenn keine. */
+function _procBahnVon(el) {
+  try {
+    const bo = el && el.businessObject;
+    const bahn = _bpmnModeler.get('elementRegistry').filter(e => e.type === 'bpmn:Lane'
+      && Array.isArray(e.businessObject.flowNodeRef) && e.businessObject.flowNodeRef.includes(bo))[0];
+    return bahn ? String(bahn.businessObject.name || '').trim() : '';
+  } catch (e) { return ''; }
+}
+
 /** Alle Elemente des offenen Modells, die ein Modell einbinden. */
 function procUnterElemente() {
   if (!_bpmnModeler) return [];
@@ -755,8 +784,10 @@ function procUnterMarker() {
       ? ('Unterprozess „' + m.title + '" öffnen' + (m.ordner ? ' (' + _procWerkLabel(m) + ')' : ''))
       : 'Das eingebundene Modell gibt es nicht mehr';
     try {
+      // Oben links: Unten in der Mitte zeichnet bpmn-js selbst das ⊞ der
+      // Aufrufaktivität, oben rechts sitzt der Übergang ↦.
       overlays.add(el.id, PROC_UNTER_TYP, {
-        position: { bottom: -10, left: 10 },
+        position: { top: -10, left: 10 },
         html: `<div onclick="procUnterprozessOeffnen('${esc(itemId)}')" title="${esc(titel)}"
                  style="cursor:pointer;background:${m ? '#1A2644' : '#b45309'};color:#fff;border-radius:11px;
                         padding:1px 7px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);
@@ -805,7 +836,10 @@ function procEinbindbar(filter) {
     .filter(p => String(p.itemId) !== eigen)
     .filter(p => !getrennt || !p.ordner || werke.includes(p.ordner))
     .filter(p => !eigen || !procBindetTransitiv(p.itemId, eigen))
-    .filter(p => !f || String(p.title || '').toLowerCase().includes(f))
+    // Gesucht wird nach Name, Werk („SHB", „Schmiedeberg") oder Prozess-Kennung.
+    .filter(p => !f || String(p.title || '').toLowerCase().includes(f)
+      || String(p.ordner || '').toLowerCase() === f || _procWerkLabel(p).toLowerCase().includes(f)
+      || procKennungVon(p.itemId).toLowerCase().includes(f))
     .sort((a, b) => (rang(a) - rang(b)) || (a.title || '').localeCompare(b.title || '', 'de'));
 }
 
@@ -884,8 +918,8 @@ function _renderElementUnter(canWrite) {
     return;
   }
   if (!canWrite) { host.innerHTML = kopf + `<span class="field-hint">Kein Modell eingebunden.</span>${fuss}`; return; }
-  host.innerHTML = kopf + `<input type="text" id="proc-unter-suche" placeholder="Modell suchen …"
-      oninput="procUnterprozessSuche()" style="width:100%;margin-bottom:6px">
+  host.innerHTML = kopf + `<input type="text" id="proc-unter-suche" placeholder="Modell suchen – Name, Werk, Kennung …"
+      oninput="procUnterprozessSuche()" onkeydown="procUnterprozessSucheTaste(event)" style="width:100%;margin-bottom:6px">
     <div id="proc-unter-liste">${_procUnterListeHtml(el, '')}</div>${fuss}`;
 }
 
@@ -895,6 +929,15 @@ function procUnterprozessSuche() {
   const el = _procAusgewaehlt();
   if (!liste || !el) return;
   liste.innerHTML = _procUnterListeHtml(el, (document.getElementById('proc-unter-suche') || {}).value || '');
+}
+
+/** Eingabetaste im Suchfeld: bleibt genau ein Modell übrig, wird es eingebunden. */
+function procUnterprozessSucheTaste(ev) {
+  if (!ev || ev.key !== 'Enter') return;
+  ev.preventDefault();
+  const kand = procEinbindbar((document.getElementById('proc-unter-suche') || {}).value || '');
+  if (kand.length === 1) procUnterprozessEinbinden(kand[0].itemId);
+  else if (typeof toast === 'function') toast(kand.length ? `${kand.length} Modelle passen – Suche eingrenzen.` : 'Kein Modell passt zur Suche.', 'error');
 }
 
 /** Auswahl im Kasten übernehmen: Element wird ⊞, Marker geschrieben, Zeichen gesetzt. */
@@ -952,8 +995,11 @@ async function procUnterprozessAnlegen() {
   }
   const werk = (document.getElementById('proc-werk') || {}).value || '';
   try {
-    // Ein Grundgerüst nach Hausschema mit eigener Kennung – im Ordner dieses Werks.
-    const erzeugt = _bpmnFromText('', name, []);
+    // Ein Grundgerüst nach Hausschema mit eigener Kennung – im Ordner dieses
+    // Werks, und in der Bahn, in der die Aufgabe hier liegt: Wer hier zuständig
+    // ist, ist es meist auch im Unterprozess.
+    const bahn = _procBahnVon(el);
+    const erzeugt = _bpmnFromText(bahn ? bahn + ': Schritt beschreiben' : '', name, []);
     const item = await spSaveProcess(name, erzeugt.xml, werk);
     if (!item || !item.id) throw new Error('keine Kennung erhalten');
     // Die Liste kennt das neue Modell noch nicht – einmal neu lesen, damit
@@ -1197,11 +1243,11 @@ async function openProcessEditor(itemId, seed) {
   _renderElementUnter(canWrite);
   // Kreisprüfung und „eingebunden in" brauchen die Einträge aller Modelle –
   // im Hintergrund, der Kasten zieht nach, sobald sie da sind.
-  procEintraegeLaden().then(n => {
+  _procLadeLauf = procEintraegeLaden().then(n => {
     if (!n || !_bpmnModeler) return;
     procUnterMarker();
     if (!(document.activeElement && document.activeElement.id === 'proc-unter-suche')) _renderElementUnter(canWrite);
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => { _procLadeLauf = null; });
   // Wer zuletzt im Vollbild gearbeitet hat, fängt dort wieder an.
   prozessSeiteUmschalten(_procGemerkt(PROC_SEITE_SPEICHER, true));
   if (_procGemerkt(PROC_VOLL_SPEICHER, false)) prozessVollbildUmschalten(true);
@@ -1502,6 +1548,9 @@ async function saveProcess() {
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {
     _setProcessDoku(_selectedPolicyIds(), _procDocs);
+    // Die Kennung darf kein anderes Modell tragen – also erst zu Ende lesen,
+    // was die anderen heißen, falls das Hintergrund-Lesen noch läuft.
+    if (_procLadeLauf) { try { await _procLadeLauf; } catch (e) { /* dann mit dem, was da ist */ } }
     const kennung = procKennungSichern();
     procUnterprozesseAbgleichen();
     const { xml } = await _bpmnModeler.saveXML({ format: true });
@@ -1859,5 +1908,5 @@ if (typeof module !== 'undefined' && module.exports) {
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
   module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
-    procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn };
+    procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden };
 }

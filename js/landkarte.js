@@ -3423,7 +3423,8 @@ async function lkProzessAnlegen(id) {
     // _bpmnFromText liefert { name, xml, … } – ohne das „.xml" landete das
     // Objekt im Rumpf der Anfrage und die Datei enthielt „[object Object]".
     const erzeugt = (typeof _bpmnFromText === 'function') ? _bpmnFromText(text, name, []) : null;
-    const xml = (erzeugt && erzeugt.xml) || (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : '');
+    const xml = (erzeugt && erzeugt.xml) || (typeof procLeeresBpmn === 'function' ? procLeeresBpmn()
+      : (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : ''));
     // Das Modell gehört zum Werk dieser Landkarte – es landet in dessen Ordner.
     const item = await spSaveProcess(name, xml, _lkWerk);
     _lkVerweise(k).push({ id: (item && item.id) || '', name });

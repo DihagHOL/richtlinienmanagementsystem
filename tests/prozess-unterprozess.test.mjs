@@ -359,5 +359,85 @@ ok(/Unterprozesse einbinden – ein Modell im Modell/.test(lies('js/dokumentatio
   'Die Dokumentation erklärt Einbinden und Kennung');
 ok(/\(Unterprozess\)/.test(lies('js/dokumentation.js')), 'Und die Schreibweise „(Unterprozess)"');
 
+/* ── 13) Lesen: gedrosselt, ohne Doppelanfragen, Karte für Karte ── */
+let gleichzeitig = 0, hoechst = 0, anfragen = 0;
+ctx.spGetProcessXml = async (id) => {
+  anfragen++; gleichzeitig++; hoechst = Math.max(hoechst, gleichzeitig);
+  await new Promise(r => setTimeout(r, 5));
+  gleichzeitig--;
+  return '<bpmn:definitions><bpmn:process id="Process_' + id + '"/></bpmn:definitions>';
+};
+ctx.__viele = Array.from({ length: 12 }, (_, i) => ({ itemId: 'V' + i, title: 'Modell ' + i, ordner: 'HOL', modified: 'v' }));
+run(`_processes = __viele.slice();`);
+const zwei = await Promise.all([run(`procEintragLaden(__viele[0])`), run(`procEintragLaden(__viele[0])`)]);
+ok(anfragen === 1 && zwei[0].i === 'Process_V0' && zwei[1].i === 'Process_V0',
+  'Zwei gleichzeitige Leser derselben Datei – eine Anfrage, beide bekommen den Eintrag');
+ok(run(`procEintragVon(__viele[0]).i`) === 'Process_V0', 'Und der Eintrag liegt im Cache');
+anfragen = 0; hoechst = 0;
+const fertig = [];
+ctx.__fertig = (p, e) => fertig.push(p.itemId + ':' + (e ? e.i : '-'));
+const n13 = await run(`procEintraegeLaden(__viele, __fertig)`);
+ok(n13 === 11 && anfragen === 11, 'Elf fehlten, elf wurden gelesen – die gecachte nicht noch einmal');
+ok(hoechst <= 5, `Höchstens fünf nebeneinander (${hoechst}) – SharePoint drosselt sonst`);
+ok(fertig.length === 11 && fertig.includes('V7:Process_V7'), 'Je Modell ein Rückruf, sobald es da ist – die Karte zieht nach, ohne auf die letzte zu warten');
+ok(await run(`procEintraegeLaden(__viele)`) === 0 && anfragen === 11, 'Ein zweiter Lauf liest nichts mehr');
+ctx.spGetProcessXml = async (id) => ctx.__xml[id] || '';
+run(`_processes = __liste.slice();`);
+ok(/procEintraegeLaden\(rows, \(p, e\) =>/.test(lies('js/prozesse.js')) && !/function _enrichProcessCard/.test(lies('js/prozesse.js')),
+  'Die Modell-Liste liest über denselben gedrosselten Leser – kein zweiter Weg zur Datei');
+ok(/if \(_procLadeLauf\) \{ try \{ await _procLadeLauf; \}/.test(lies('js/prozesse.js')),
+  'Das Speichern wartet auf das Hintergrund-Lesen – erst wissen, was die anderen heißen, dann die Kennung prüfen');
+ok(/procEintragLaden\(p\)/.test(lies('js/verknuepfungen.js')) && /vorab\.slice\(i, i \+ 5\)/.test(lies('js/verknuepfungen.js')),
+  'Die Mindmap liest über denselben Leser und ebenfalls fünf nebeneinander');
+
+/* ── 14) Suche nach Werk oder Kennung, Eingabetaste bindet ein ── */
+run(`_procEditing = { itemId: 'C', origName: 'Design to Operate.bpmn', origWerk: 'HOL' };`);
+ok(run(`procEinbindbar('shb').map(p => p.itemId).join()`) === 'D', 'Suche „shb" findet das Modell des Werks');
+ok(run(`procEinbindbar('Process_b2').map(p => p.itemId).join()`) === 'B', 'Suche nach der Prozess-Kennung findet das Modell');
+ctx.__t6 = elem('T6', 'Gießen vorbereiten', '');
+ctx.__modeler14 = macheModeler([ctx.__t6], [ctx.__t6], wurzel('Process_c3'));
+run(`_bpmnModeler = __modeler14;`);
+feld('proc-unter-suche').value = 'shb';
+gemeldet.length = 0;
+await run(`procUnterprozessSucheTaste({ key: 'Enter', preventDefault() { globalThis.__pd = true; } })`);
+await new Promise(r => setTimeout(r, 10));
+ok(run(`procElementModell(__t6) || ''`) === '' && ctx.__modeler14.get('elementRegistry').filter(() => true)[0].type === 'bpmn:CallActivity'
+  && run(`procElementModell(_bpmnModeler.get('elementRegistry').filter(() => true)[0])`) === 'D',
+  'Eingabetaste bei genau einem Treffer: eingebunden');
+feld('proc-unter-suche').value = '';
+gemeldet.length = 0;
+ctx.__t7 = elem('T7', 'Noch eins', '');
+ctx.__modeler15 = macheModeler([ctx.__t7], [ctx.__t7], wurzel('Process_c3'));
+run(`_bpmnModeler = __modeler15;`);
+await run(`procUnterprozessSucheTaste({ key: 'Enter', preventDefault() {} })`);
+ok(gemeldet.some(t => /Modelle passen – Suche eingrenzen/.test(t)) && ctx.__t7.type === 'bpmn:UserTask',
+  'Bei mehreren Treffern passiert nichts – außer dem Hinweis');
+ok(/position: \{ top: -10, left: 10 \}/.test(lies('js/prozesse.js').split('function procUnterMarker')[1].slice(0, 900)),
+  'Das ⊞-Zeichen sitzt oben links – unten in der Mitte zeichnet bpmn-js das eigene ⊞ der Aufrufaktivität');
+
+/* ── 15) Ein neuer Unterprozess fängt in der Bahn seiner Aufgabe an ── */
+ctx.__t8 = elem('T8', 'Schmelze freigeben', '');
+ctx.__bahn = { id: 'Lane_9', type: 'bpmn:Lane', businessObject: { $type: 'bpmn:Lane', name: 'Schmelzbetrieb', flowNodeRef: [ctx.__t8.businessObject] } };
+ctx.__modeler16 = macheModeler([ctx.__bahn, ctx.__t8], [ctx.__t8], wurzel('Process_c3'));
+run(`_bpmnModeler = __modeler16;`);
+ok(run(`_procBahnVon(__t8)`) === 'Schmelzbetrieb' && run(`_procBahnVon(__t7)`) === '', 'Die Bahn eines Elements ist bekannt – oder eben nicht');
+feld('proc-werk').value = 'SHB';
+gespeichert.length = 0;
+await run(`procUnterprozessAnlegen()`);
+ok(gespeichert.length === 1 && /<bpmn:lane\b[^>]*name="Schmelzbetrieb"/.test(gespeichert[0].xml),
+  'Das neue Modell beginnt in der Bahn „Schmelzbetrieb" – wer hier zuständig ist, ist es meist auch dort');
+
+/* ── 16) Namen vergleichen in der Form, in der sie als Datei liegen ── */
+ctx.spProzessDateiname = (name) => String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
+run(`_processes.push({ itemId: 'E', name: 'Ein_Auslagern.bpmn', title: 'Ein_Auslagern', ordner: 'HOL', modified: 'm5' });`);
+ok(run(`procNamensDoppel('Ein/Auslagern').map(p => p.itemId).join()`) === 'E',
+  '„Ein/Auslagern" wäre als Datei „Ein_Auslagern" – also derselbe Prozess, kein zweiter');
+ok(run(`procNamensDoppel('Ein_Auslagern.bpmn').map(p => p.itemId).join()`) === 'E', 'Mit oder ohne Endung – derselbe Name');
+delete ctx.spProzessDateiname;
+ok(/function spProzessDateiname\(name\)/.test(lies('js/sharepoint.js')) && /const safe = spProzessDateiname\(name\);/.test(lies('js/sharepoint.js')),
+  'Den Dateinamen bildet eine Stelle in sharepoint.js – Speichern und Vergleich nutzen dieselbe');
+ok(/typeof procLeeresBpmn === 'function' \? procLeeresBpmn\(\)/.test(lies('js/landkarte.js')),
+  'Auch ein aus der Landkarte angelegtes Modell bekommt eine Kennung statt „Process_1"');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

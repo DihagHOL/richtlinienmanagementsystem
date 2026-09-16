@@ -60,6 +60,9 @@ async function _vkModellEintrag(p) {
     : (e ? { p: Array.isArray(e) ? e : (e.p || []), d: 0, k: false, i: '', u: e.u || [], alt: true } : null);
   const gemerkt = (typeof _procLinkCache !== 'undefined') ? lesen(_procLinkCache[key]) : null;
   if (gemerkt && !gemerkt.alt) return gemerkt;
+  // Der Leser aus prozesse.js wartet auf ein laufendes Lesen derselben Datei,
+  // statt sie ein zweites Mal anzufordern – wenn er da ist, geht es über ihn.
+  if (typeof procEintragLaden === 'function') { const e = await procEintragLaden(p); if (e) return e; }
   try {
     const xml = await spGetProcessXml(p.itemId);
     // Die Form des Eintrags bestimmt genau eine Stelle – procEintragAusXml in
@@ -115,7 +118,9 @@ async function vkGraphBauen() {
   alleKacheln.forEach(({ werk, kachel }) =>
     ((typeof lkProzesseVon === 'function') ? lkProzesseVon(kachel, werk) : [])
       .forEach(m => { if (m && !gebraucht.has(m.itemId)) gebraucht.set(m.itemId, m); }));
-  await Promise.all([...gebraucht.values()].map(m => _vkModellLinks(m)));
+  // Fünf nebeneinander – alle auf einmal drosselt SharePoint bei vierzig Modellen.
+  const vorab = [...gebraucht.values()];
+  for (let i = 0; i < vorab.length; i += 5) await Promise.all(vorab.slice(i, i + 5).map(m => _vkModellLinks(m)));
 
   // Jedes Werk mit eigener Landkarte hängt unter dem Konzern.
   [...new Set(alleKacheln.map(x => x.werk))].forEach(w => link('wurzel', werkKnoten(w), 'Landkarte von'));
@@ -734,7 +739,18 @@ function vkLuecken() {
   }
   const ohneBezug = kacheln.filter(k => !ohneAllesId.has(`prozess:${k.werk}:${k.id}`));
   const ohneVerantwortlich = kacheln.filter(k => !String(k.verantwortlich || '').trim());
-  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung, ohneBezug, ohneVerantwortlich,
+  // ⊞ ins Leere: Ein Modell bindet eines ein, das es nicht mehr gibt – gelöscht
+  // oder aus der Bibliothek entfernt. Im Diagramm steht das Zeichen dann orange;
+  // hier steht es gesammelt, damit es jemand sieht, ohne jedes Modell zu öffnen.
+  const kennungen = new Set(modelle.map(m => String(m.itemId)));
+  const eintragVon = (m) => (typeof procLinkEintrag === 'function' && typeof _procLinkCache !== 'undefined')
+    ? procLinkEintrag(_procLinkCache[m.itemId + '|' + m.modified]) : null;
+  const unterOhneZiel = [];
+  modelle.forEach(m => {
+    const e = eintragVon(m);
+    (e ? e.u : []).forEach(ziel => { if (!kennungen.has(String(ziel))) unterOhneZiel.push({ modell: m, ziel }); });
+  });
+  return { ohneModell, modelleOhneRw, rwOhneProzess, ohneGeltung, ohneBezug, ohneVerantwortlich, unterOhneZiel,
     abweichungen: vkAbgleich() };
 }
 
@@ -778,6 +794,10 @@ function _vkLueckenHtml() {
       ${block('Modelle ohne Regelwerk', l.modelleOhneRw,
         'Im Prozess-Editor lässt sich zuordnen, welche Regelwerke der Ablauf umsetzt.',
         (m) => `<div><a href="#" onclick="openProcessEditor('${esc(m.itemId)}');return false">${esc(m.title)}</a></div>`)}
+      ${l.unterOhneZiel.length ? block('Eingebundene Unterprozesse, die es nicht mehr gibt', l.unterOhneZiel,
+        'Das Modell öffnen und die ⊞ neu einbinden oder lösen – bis dahin zeigt sie ins Leere.',
+        (x) => `<div><a href="#" onclick="openProcessEditor('${esc(x.modell.itemId)}');return false">${esc(x.modell.title)}</a>
+          <span class="field-hint"> · ⊞ ${esc(x.ziel)}</span></div>`) : ''}
       ${block('Veröffentlichte Regelwerke ohne Prozess', l.rwOhneProzess,
         'Nicht jedes Regelwerk beschreibt einen Ablauf – aber wo es einen gibt, sollte er verknüpft sein.',
         (p) => `<div><a href="#" onclick="focusPolicyCard('${esc(p.id)}');return false">${esc(p.title)}</a></div>`)}
