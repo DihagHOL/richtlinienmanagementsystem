@@ -69,6 +69,7 @@ const FEATURES = [
   { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
   { name: 'Eigene Vorlagen',         code: () => /function lkVorlageSpeichern/.test(read('js/landkarte.js')),   begriffe: ['Eigene Vorlagen sichern', 'ausgeblendet'] },
   { name: 'Abhängigkeiten-Ansicht',  code: () => /function vkHerkunftWege/.test(read('js/verknuepfungen.js')),  begriffe: ['Abhängigkeiten', 'Herkunft', 'geteilter'] },
+  { name: 'Wissen (Bibliothek)',     code: () => /function initWissen/.test(read('js/wissen.js')),             begriffe: ['Wissen – die Bibliothek', 'Ich habe das angesehen', 'Startbestand', 'Für die Pflege'] },
 ];
 
 for (const f of FEATURES) {

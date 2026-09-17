@@ -26,7 +26,7 @@ const State = {
 const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
-  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest',
+  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', wissen: 'Wissen – Themen, Videos, Awareness',
   cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
   freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
@@ -161,6 +161,14 @@ async function applyDeepLinkOrDefault() {
   const deepId = params.get('richtlinie');
   const ansicht = (params.get('ansicht') || '').toLowerCase();
   if (!deepId) {
+    // Die Bibliothek ist für alle da – ein Link darauf (aus einer Mail, einem
+    // Aushang) öffnet sie und, wenn angegeben, gleich den Beitrag.
+    if (ansicht === 'wissen') {
+      if (typeof canReadTab !== 'function' || canReadTab('wissen')) {
+        _wiDeepLinkSetzen(params.get('beitrag') || '');
+        await switchView('wissen'); return;
+      }
+    }
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
     if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
@@ -276,6 +284,9 @@ async function reloadAcks() {
   State.acks = await spGetAcknowledgements(State.user.upn);
 }
 
+/** Den Beitrag merken, den ein Link öffnen soll – das Modul liest ihn nach dem Laden. */
+function _wiDeepLinkSetzen(id) { window._wiDeepLinkWunsch = String(id || ''); }
+
 async function refreshAll() {
   const btn = document.getElementById('btn-reload');
   if (btn) btn.disabled = true;
@@ -373,6 +384,7 @@ async function switchView(view) {
   if (view === 'wirksamkeit'  && typeof initWirksamkeit === 'function')   initWirksamkeit();
   if (view === 'notfall'      && typeof initNotfall === 'function')       initNotfall();
   if (view === 'vorfaelle'    && typeof initVorfaelle === 'function')     initVorfaelle();
+  if (view === 'wissen'       && typeof initWissen === 'function')        initWissen();
   if (view === 'assets'       && typeof initAssets === 'function')        initAssets();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();

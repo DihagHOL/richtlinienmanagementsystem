@@ -692,6 +692,8 @@ const GOVERNABLE_TABS = [
   { view: 'wirksamkeit', label: 'Wirksamkeit & Verbesserung' , kurz: 'Wirksamkeit' },
   { view: 'notfall',     label: 'Notfall & Krisenstab' , kurz: 'Notfall' },
   { view: 'vorfaelle',   label: 'Vorfälle & Ereignisse' , kurz: 'Vorfälle' },
+  // Die Bibliothek liest jede:r – „S" macht zur pflegenden Person. „L" ändert nichts.
+  { view: 'wissen',      label: 'Wissen (Bibliothek pflegen)', kurz: 'Wissen' },
   { view: 'compliance',  label: 'Audit Report' , kurz: 'Audit' },
 ];
 
@@ -770,6 +772,9 @@ function canReadTab(view) {
   // Die Trennung nach Gesellschaft steht vor allem anderen: Sie nimmt weg, was
   // eine Freigabe gegeben hätte – sonst wäre sie keine Trennung.
   if (_domaeneGesperrt(view)) return false;
+  // Die Bibliothek ist für alle da – freiwilliges Wissen braucht keine Freigabe.
+  // Schreiben (canWriteTab) bleibt bei Admins und ausdrücklich Freigegebenen.
+  if (view === 'wissen') return true;
   if (_defaultTabRead(view)) return true;
   const r = getReiterRechte(view);
   const upn = _currentUpn(), roles = _currentRolesSync();
@@ -814,6 +819,7 @@ function initRoleNav() {
   show('nav-wirksamkeit',   v.wirksamkeit);
   show('nav-notfall',       v.notfall);
   show('nav-vorfaelle',     v.vorfaelle);
+  show('nav-wissen',        canReadTab('wissen'));
   show('nav-vorschlaege',   v.vorschlaege);
   show('nav-freigaben',     v.freigaben);
   show('nav-compliance',    v.compliance);

@@ -43,6 +43,7 @@ function initCockpit() {
       ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
       ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
       ${tile('vorfaelle', '🎫', 'Vorfälle & Ereignisse',    'vorfaelle')}
+      ${tile('wissen',    '🎓', 'Wissen & Awareness',       'wissen')}
       ${tile('compliance','📊', 'Audit Report',            'compliance')}
       ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
     </div>`;
@@ -58,6 +59,7 @@ function initCockpit() {
   _ckLoadWirksamkeit(seq);
   _ckLoadNotfall(seq);
   _ckLoadVorfaelle(seq);
+  _ckLoadWissen(seq);
   _ckLoadCompliance(seq);
   _ckLoadVorschlaege(seq);
 }
@@ -204,6 +206,24 @@ async function _ckLoadVorfaelle(seq) {
       _ckBig(z.unbeurteilt, 'nicht beurteilt (A.5.25)', z.unbeurteilt ? '#b91c1c' : '#15803d') +
       _ckBig(z.fristenUeberfaellig, 'Meldefristen überfällig (NIS2)', z.fristenUeberfaellig ? '#b91c1c' : '#15803d'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('vorfaelle', 'Nicht ladbar.'); }
+}
+
+/* Wissen & Awareness: freiwillig, aber zählbar – wie viele Beiträge stehen
+   bereit, wie viele Personen haben etwas festgehalten, wie viele Tests wurden
+   bestanden. ISO 27001 7.3 fragt nach Bewusstsein; das hier ist der Beleg
+   jenseits der Pflicht-Kenntnisnahmen. */
+async function _ckLoadWissen(seq) {
+  try {
+    if (typeof wiKennzahlen !== 'function' || typeof spLoadWissen !== 'function') { _ckErr('wissen', 'Modul nicht geladen.'); return; }
+    if (!AdminState.allAcks) AdminState.allAcks = await spGetAcknowledgements();
+    const w = await spLoadWissen();
+    if (seq !== _cockpitSeq) return;
+    const z = wiKennzahlen(wiNormalisieren(w.daten), AdminState.allAcks || []);
+    _ckSet('wissen',
+      _ckBig(z.beitraege, `Beiträge in ${z.themen} Themen`, z.beitraege ? 'var(--c-text)' : '#b45309') +
+      _ckBig(z.personen, 'Personen mit Nachweis', z.personen ? '#15803d' : 'var(--c-text)') +
+      _ckBig(z.testBestanden, `Tests bestanden${z.testTeilnahmen ? ` (${z.quote} %)` : ''}`, z.testBestanden ? '#15803d' : 'var(--c-text)'));
+  } catch (e) { if (seq === _cockpitSeq) _ckErr('wissen', 'Nicht ladbar.'); }
 }
 
 async function _ckLoadAusnahmen(seq) {

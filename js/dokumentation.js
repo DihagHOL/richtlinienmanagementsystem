@@ -34,6 +34,7 @@ const _DOKU_TOC = [
   ['rollen',        'Rollen im System'],
   ['lesen',         'Regelwerke lesen & bestätigen'],
   ['wissenstest',   'Wissenstest & Lernvideos'],
+  ['wissen',        'Wissen – die Bibliothek'],
   ['erinnerungen',  'Erinnerungen & Eskalation'],
   ['vorschlag',     'Änderung vorschlagen'],
   ['ki',            'KI-Systeme beantragen'],
@@ -141,6 +142,18 @@ function _dokuSections() {
       <div style="${hint}">📌 <b>Quelle bei fremdem Material:</b> Stammt ein Video nicht aus dem eigenen Haus (YouTube, Vimeo, andere externe Anbieter), steht die Quellenangabe unter dem Video – z. B. <i>Quelle: Bundesamt für Sicherheit in der Informationstechnik (BSI)</i>. Bei externen Videos ist das Feld Pflicht; ohne Quelle lässt sich das Regelwerk nicht speichern. Eigenes Material aus Stream/SharePoint braucht keine.</div>
       <div style="${hint}">🎬 <b>Für die Administration:</b> Im Regelwerk-Editor unter <b>„🎬 Lernvideos"</b> Titel und Adresse eintragen. Am einfachsten in Stream/SharePoint auf <b>Teilen → Einbetten</b> klicken und den Code einfügen – die App holt sich die Adresse heraus und zeigt sofort an, ob abgespielt oder verlinkt wird. Fragen und Bestehensgrenze stehen im selben Editor unter <b>„Wissenstest"</b> (mindestens zwei Antwortoptionen je Frage, genau eine richtige).</div>`,
       'ISO 27001 Klausel 7.2 (Kompetenz), 7.3 (Bewusstsein), A.6.3 (Schulung &amp; Sensibilisierung); NIS2 Art. 21(2g).'),
+
+    sec('wissen', 'Wissen – die Bibliothek', 'all', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Wissen"</b> steht neben den Regelwerken und ist das Gegenstück zur Pflicht: eine <b>Bibliothek</b> mit Themen, kurzen <b>Videos</b>, <b>Artikeln</b>, <b>Links</b> und <b>Wissenstests</b> rund um Sicherheit, Datenschutz und die Regeln im Haus. <b>Freiwillig, jederzeit, ohne Nachweispflicht</b> – niemand wird erinnert, nichts wird fällig. Wer eine Frage hat, schlägt nach; wer fünf Minuten hat, liest.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Stöbern:</b> Oben die <b>Themen</b> (Phishing, Passwörter, Arbeitsplatz, Datenschutz, Vorfall melden, KI …) und die <b>Arten</b> (🎬 Video, 📄 Artikel, 🔗 Link, ❓ Wissenstest) als Filter, dazu die Suche. Jede Karte nennt die Dauer.</li>
+        <li style="${li}"><b>Angesehen:</b> Unter einem Video, Artikel oder Link steht <b>„✓ Ich habe das angesehen"</b>. Ein Klick, freiwillig – er hält fest, dass Sie den Beitrag kennen. Die Karte zeigt es danach mit Datum.</li>
+        <li style="${li}"><b>Wissenstest:</b> Fragen mit genau einer richtigen Antwort, Reihenfolge jedes Mal gemischt, sofortige Auswertung mit der richtigen Lösung – der Test ist zugleich das Lernmittel. Beliebig oft wiederholbar; es zählt das beste Ergebnis. Anders als beim Wissenstest eines Regelwerks ist <b>kein</b> Test hier Voraussetzung für irgendetwas.</li>
+        <li style="${li}"><b>Link auf einen Beitrag:</b> <b>„🔗 Link"</b> kopiert eine dauerhafte Adresse (<code>?ansicht=wissen&amp;beitrag=…</code>) – für Mails, Aushänge, Schulungen.</li>
+        <li style="${li}"><b>Was gespeichert wird:</b> Angesehen, bestanden, Ergebnis und Versuche – in derselben Bestätigungen-Liste wie die Kenntnisnahmen, mit der Kennung <code>wissen:…</code>. Auswertungen je Regelwerk sehen diese Einträge nicht; die Bibliothek hat ihre eigene Auswertung.</li>
+      </ul>
+      <div style="${hint}">✎ <b>Für die Pflege (Administration oder Schreibrecht auf den Reiter):</b> <b>„✎ Pflegen"</b> oben rechts schaltet um. <b>„+ Thema"</b> legt ein Thema an (Symbol, Titel, eine Zeile dazu), <b>„+ Beitrag"</b> einen Beitrag: Art wählen, Titel, eine Zeile dazu, Dauer – bei Videos die Adresse oder der <b>Einbetten-Code</b> aus Stream/SharePoint (die App zeigt sofort, ob abgespielt oder verlinkt wird; fremdes Material braucht eine Quelle), bei Artikeln der Text (Leerzeile = Absatz, „- " = Aufzählung, **fett**, „# " = Zwischenüberschrift), bei Wissenstests die Fragen mit der markierten richtigen Antwort und die Bestehensgrenze. <b>„Gilt für"</b> grenzt auf Werke ein, <b>„Sichtbar"</b> nimmt einen Beitrag aus der Sicht, ohne ihn zu löschen. Die Pfeile ↑↓ ordnen Themen und Beiträge. <b>„📋 Startbestand"</b> legt sechs Themen mit je einem Artikel und einem Wissenstest an – ein Vorschlag zum Anpassen, keine Hausregel. <b>„📊 Auswertung"</b> zählt je Beitrag Personen, Tests, Bestandene und den Durchschnitt (CSV). Werden die Fragen eines Tests geändert, gilt er als neuer Stand – bestanden ist dann wieder offen. Gespeichert wird in <code>wissen.json</code> im Konfigurationsordner; wer auf einem veralteten Stand speichert, wird abgewiesen. Die Rechte vergibt <b>Einstellungen → Reiter-Berechtigungen</b>: Lesen haben alle, „S" macht zur pflegenden Person.</div>`,
+      'ISO 27001 Klausel 7.3 (Bewusstsein), A.6.3 (Sensibilisierung &amp; Schulung); NIS2 Art. 21(2g) (Cyberhygiene &amp; Schulungen), Art. 20(2) (Schulung der Leitung).'),
 
     sec('erinnerungen', 'Erinnerungen & Eskalation', 'all', `
       <p style="margin:0 0 8px;line-height:1.55">Nichts im Ablauf hängt davon ab, dass jemand die App zufällig öffnet: Ein zeitgesteuerter Lauf (werktäglich, ohne offenen Browser) fasst offene Punkte automatisch nach.</p>

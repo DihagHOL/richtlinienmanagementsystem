@@ -186,6 +186,15 @@ async function _clevelGather() {
     }
   } catch (e) { m.vorfaelle = null; m.fehler.push('Vorfälle: ' + e.message); }
 
+  // Wissen & Awareness: die freiwillige Bibliothek – Beiträge, Nachweise, bestandene Tests.
+  try {
+    if (typeof wiKennzahlen !== 'function' || typeof spLoadWissen !== 'function') m.wissen = null;
+    else {
+      const w = await spLoadWissen();
+      m.wissen = wiKennzahlen(wiNormalisieren(w.daten), AdminState.allAcks || []);
+    }
+  } catch (e) { m.wissen = null; m.fehler.push('Wissen: ' + e.message); }
+
   // Reifegrad IT/OT
   try {
     let cfg = (_reifegrad && _reifegrad.ratings) ? _reifegrad : null;
@@ -240,6 +249,14 @@ function _clevelIsoRows(m) {
     const q = m.compliance.quote;
     add('ISO 7.3', 'Bewusstsein & Schulung', q >= 90 ? 'ok' : q >= 60 ? 'warn' : 'gap',
       `Kenntnisnahme-Quote ${q}% (${m.compliance.done}/${m.compliance.soll}) über Pflicht-Richtlinien.`);
+  }
+  // Die freiwillige Seite davon: Wer liest über die Pflicht hinaus? Eine leere
+  // Bibliothek ist ein Hinweis, keine Lücke – Pflicht steht oben.
+  if (m.wissen) {
+    const w = m.wissen;
+    if (!w.beitraege) add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', 'warn', 'Die Bibliothek „Wissen" ist noch leer – Videos, Artikel und Wissenstests bereitstellen.');
+    else add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', w.personen ? 'ok' : 'warn',
+      `${w.beitraege} Beiträge (${w.videos} Videos, ${w.artikel} Artikel, ${w.tests} Tests) in ${w.themen} Themen; ${w.personen} Person(en) mit Nachweis, ${w.testBestanden} Tests bestanden${w.zuletzt ? `, ${w.zuletzt} Nachweise in den letzten ${WI_TAGE} Tagen` : ''}.`);
   }
 
   // Betrieb / Reifegrad (Kap. 8)

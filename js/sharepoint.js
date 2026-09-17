@@ -30,6 +30,7 @@ const SP = {
   ticketSiteHost: 'dihag.sharepoint.com:/sites/ticket',
   ticketList:   'Tickets',
   vorfaelleDatei: 'vorfaelle.json',        // die ISMS-Bewertung je Ticket, im Konfig-Ordner
+  wissenDatei:  'wissen.json',             // die Bibliothek: Themen, Videos, Artikel, Wissenstests
 
   scopes: [
     'https://graph.microsoft.com/Sites.ReadWrite.All',
@@ -3466,6 +3467,50 @@ async function spSaveVorfallBewertung(ticketId, bewertung) {
   else daten.bewertungen[String(ticketId)] = bewertung;
   const item = await _uploadFile(token, _vorfaellePfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
   return { daten, geaendertAm: (item && item.lastModifiedDateTime) || '' };
+}
+
+/* ═══════════════════════════════════════════════════
+   Wissen – die Bibliothek (wissen.json im Konfig-Ordner)
+   Eine Datei für alle: Themen, Beiträge, Fragen. Gepflegt von wenigen,
+   gelesen von allen – deshalb reicht der Änderungsstempel der Datei als
+   Schutz: Wer auf einem alten Stand speichert, wird abgewiesen.
+═══════════════════════════════════════════════════ */
+function _wissenPfad() { return `${SP.configFolder}/${SP.wissenDatei}`; }
+
+/** @returns {Promise<{daten:object, geaendertAm:string}>} – leer, wenn die Datei noch fehlt */
+async function spLoadWissen() {
+  const leer = { daten: { version: 1, themen: [], beitraege: [] }, geaendertAm: '' };
+  const token = await acquireToken(SP.scopes);
+  if (!token) return leer;
+  await spInit();
+  if (!_sp.appDriveId) return leer;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}`;
+  let meta;
+  try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); } catch (e) { return leer; }
+  const resp = await _fetchRetry(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return leer;
+  const d = await resp.json().catch(() => null);
+  return { daten: (d && typeof d === 'object') ? d : leer.daten, geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/**
+ * Speichern – nur auf dem Stand, den man gelesen hat. Ist die Datei seitdem
+ * geändert worden, kommt ein Fehler („zwischenzeitlich geändert"): Zwei, die
+ * gleichzeitig pflegen, überschreiben sich so nicht still.
+ * @returns {Promise<{geaendertAm:string}>}
+ */
+async function spSaveWissen(daten, erwartetAm) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  if (erwartetAm) {
+    let meta = null;
+    try { meta = await _get(`${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}?$select=lastModifiedDateTime`, token); } catch (e) { /* Datei weg – dann neu anlegen */ }
+    if (meta && meta.lastModifiedDateTime && meta.lastModifiedDateTime !== erwartetAm) throw new Error('Die Bibliothek wurde zwischenzeitlich geändert.');
+  }
+  const item = await _uploadFile(token, _wissenPfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
+  return { geaendertAm: (item && item.lastModifiedDateTime) || '' };
 }
 
 /* ═══════════════════════════════════════════════════

@@ -37,7 +37,7 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
-  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'clevelreport'];
+  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'wissenmodell', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -62,6 +62,9 @@ const MODUL_ANSICHTEN = {
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
   notfall:       MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'notfall']),
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
+  // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
+  // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.
+  wissen:        ['wissenmodell', 'wissen'],
   // Das Assetregister: Modell im Verwaltungsblock (Report, Notfall, Risiken
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),
