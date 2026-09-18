@@ -33,7 +33,7 @@ ok(istPng('assets/dihag-logo.png'), 'Das vollständige Logo ebenso');
 const html = lies('index.html');
 ok(/<link rel="icon" type="image\/png" href="assets\/dihag-zeichen\.png"\/>/.test(html), 'Das Favicon ist das Zeichen – nicht mehr das Schild-Emoji');
 ok(/<img class="boot-logo" src="assets\/dihag-zeichen\.png" alt="DIHAG" width="56" height="62">/.test(html), 'Die Anmeldung zeigt das Zeichen');
-ok(/<div class="sidebar-logo">\s*<img src="assets\/dihag-zeichen\.png" alt="DIHAG" width="28" height="31">\s*<span>Regelwerk<\/span>/.test(html), 'Die Seitenleiste auch – neben „Regelwerk"');
+ok(/<div class="sidebar-logo">\s*<img src="assets\/dihag-zeichen\.png" alt="DIHAG" width="28" height="31">\s*<span>RMS<\/span>/.test(html), 'Die Seitenleiste auch – neben „RMS"');
 ok(!/font-family="Exo">R<\/text>/.test(html), 'Das „R"-Kästchen ist weg');
 ok(/\.sidebar-logo img \{ display: block; flex-shrink: 0; \}/.test(lies('css/style.css')), 'Das Bild in der Leiste schrumpft nicht mit');
 
