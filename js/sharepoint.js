@@ -3071,7 +3071,11 @@ async function _loadAssetCols(token, siteId) {
     const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name,displayName,choice,boolean,number,dateTime,text,personOrGroup,lookup,hyperlinkOrPicture`, token);
     _assetColMeta = (cols.value || []).map(c => ({
       name: c.name, displayName: c.displayName || c.name,
-      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.hyperlinkOrPicture ? 'link' : 'text',
+      // Ohne jede Typangabe kommt von Graph, was als klassische Hyperlink-Spalte
+      // angelegt wurde („Link zu den Informationen" im Haus) – und Systemspalten
+      // wie Attachments. Als Text behandelt hieße: ein '' hineinschreiben, und
+      // genau daran ist das Anlegen eines Assets mit 500 gescheitert.
+      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.hyperlinkOrPicture ? 'link' : c.text ? 'text' : 'unbekannt',
       choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
       lookupListId: c.lookup ? (c.lookup.listId || '') : '',
       lookupMulti: !!(c.lookup && c.lookup.allowMultipleValues),
@@ -3270,6 +3274,11 @@ function _assetFields(a) {
       continue;   // andere Nachschlagefelder (Asset-Owner, Standorte) pflegt man in SharePoint – die App kennt deren Ids nicht
     } else if (meta && meta.typ === 'person') {
       continue;   // Personenfelder schreibt die App nicht
+    } else if (meta && meta.typ === 'unbekannt') {
+      // Die Hyperlink-Spalte ohne Typangabe: ein Link geht als {Url, Description};
+      // leer bleibt sie unangetastet. Alles andere Unbekannte lassen wir in Ruhe.
+      if (erwartet === 'Link' && link.url) fields[ziel] = { Url: link.url, Description: link.text || link.url };
+      continue;
     }
     fields[ziel] = wert;
   }

@@ -129,6 +129,19 @@ ok(pdFelder['Informationstr_x00e4_gerLookupId'].join() === '11,12' && pdFelder['
 ok(!('Standorte' in pdFelder) && !('StandorteLookupId' in pdFelder) && !('Asset_x002d_Owner' in pdFelder) && !('Asset_x002d_OwnerLookupId' in pdFelder), 'Nachschlagen in andere Listen schreibt die App nicht');
 ok(pdFelder.LinkzudenInformationen.Url === 'https://x/neu' && pdFelder.LinkzudenInformationen.Description === 'Neu' && pdFelder['Asset_x002d_Typ'] === 'Unterstützend' && pdFelder.weitereInfos === 'Papierform alle außer SHB/WGC' && !('Kategorie' in pdFelder),
   'Hyperlink als {Url, Description}, die Art in Worten, die Beschreibung in „weitere Infos", keine erfundene Spalte');
+// Die Hyperlink-Spalte des Hauses kommt von Graph OHNE Typangabe (klassisches URL-Feld). Als Text
+// behandelt schrieb die App '' hinein – SharePoint antwortete mit 500, kein Asset ließ sich anlegen.
+vm.runInContext(`_assetColMeta = [
+  { name: 'Title', displayName: 'Asset', typ: 'text', choices: [] },
+  { name: 'Link', displayName: 'Link zu den Informationen', typ: 'unbekannt', choices: [] },
+  { name: 'Attachments', displayName: 'Attachments', typ: 'unbekannt', choices: [] },
+  { name: 'Beschreibung', displayName: 'Beschreibung', typ: 'text', choices: [] },
+]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti = new Set();`, sctx);
+const ohneLink = vm.runInContext(`_assetFields(${JSON.stringify({ titel: 'Tiegel', beschreibung: 'b', link: { url: '', text: '' } })})`, sctx);
+ok(!('Link' in ohneLink) && !('Attachments' in ohneLink) && ohneLink.Beschreibung === 'b', 'Spalten ohne Typangabe: leer bleibt der Link unangetastet – kein \'\' mehr, das SharePoint mit 500 quittiert');
+const mitLink = vm.runInContext(`_assetFields(${JSON.stringify({ titel: 'Tiegel', link: { url: 'https://x/y', text: 'Doku' } })})`, sctx);
+ok(mitLink.Link && mitLink.Link.Url === 'https://x/y' && mitLink.Link.Description === 'Doku', '… ein gesetzter Link geht als {Url, Description} hinein');
+ok(/c\.hyperlinkOrPicture \? 'link' : c\.text \? 'text' : 'unbekannt'/.test(lies('js/sharepoint.js')), 'Beim Lesen der Spalten heißt „keine Typangabe" nicht mehr „Text"');
 vm.runInContext('_sp.assetRegListId = null; _assetColMeta = []; _assetCols = null; _assetMulti = new Set();', sctx);
 const felder = vm.runInContext(`_assetFields(${JSON.stringify(gemappt)})`, sctx);
 ok(felder.Title === 'SAP' && felder.Werke === 'HOL,WGC' && felder.Wiederherstellung === 12 && felder.Rpo === null && felder.AbhaengigJson === '["3"]' && felder.Personenbezogen === 'ja' && felder.EOL === '2027-03-01T00:00:00.000Z',
