@@ -22,7 +22,7 @@ const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').jo
 /* ── 1) Das Modell – rein, ohne Browser ── */
 const M = require(path.join(ROOT, 'js/wissenmodell.js'));
 
-ok(M.WI_ARTEN.map(a => a.key).join() === 'video,artikel,link,test', 'Vier Arten: Video, Artikel, Link, Wissenstest');
+ok(M.WI_ARTEN.map(a => a.key).join() === 'kurs,video,artikel,link,test', 'Fünf Arten: Schulung, Video, Artikel, Link, Wissenstest');
 ok(M.wiAckId('b1') === 'wissen:b1' && M.wiIstWissenAck({ richtlinieId: 'wissen:b1' }) && !M.wiIstWissenAck({ richtlinieId: '7' }) && M.wiBeitragIdVon({ richtlinieId: 'wissen:b1' }) === 'b1',
   'Der Nachweis trägt die Kennung „wissen:…" – Auswertungen je Regelwerk sehen ihn nicht');
 ok(M.wiSlug('Phishing & E-Mail') === 'phishing-e-mail' && M.wiSlug('Passwörter') === 'passwoerter', 'Ein Thema bekommt ein lesbares Kürzel');
@@ -78,10 +78,10 @@ ok(aw[1].gesehen === 2 && aw[1].teilnahmen === 3 && aw[1].bestanden === 1 && aw[
 
 const leer = M.wiNormalisieren({});
 const n = M.wiStartbestandErgaenzen(leer, 'Anna', '2026-09-16T12:00:00Z');
-ok(n === 12 && leer.themen.length === 6 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
-  'Der Startbestand: sechs Themen, zwölf Beiträge – und jeder besteht die eigene Prüfung');
+ok(n === 13 && leer.themen.length === 6 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
+  'Der Startbestand: sechs Themen, dreizehn Beiträge (eine Schulung, je Thema ein Artikel und ein Test) – und jeder besteht die eigene Prüfung');
 ok(leer.beitraege.filter(b => b.art === 'test').every(b => b.fragen.length >= 3 && b.fragen.every(q => q.optionen.length === 3)), 'Jeder Test hat mindestens drei Fragen mit je drei Antworten');
-ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 12, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
+ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 13, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
 ok(leer.beitraege.every(b => b.erstelltVon === 'Anna' && b.erstelltAm === '2026-09-16T12:00:00Z'), 'Wer angelegt hat, steht dran');
 ok(!/Videos? (stehen|steht) (drin|bereit)/.test(JSON.stringify(M.WI_STARTBESTAND)) && !M.WI_STARTBESTAND.beitraege.some(b => b.art === 'video'),
   'Keine erfundenen Videos – die dreht das Haus selbst oder wählt sie aus');
@@ -98,6 +98,7 @@ const ctx = {
     createElement: () => ({ className: '', innerHTML: '', scrollIntoView() {}, click() {}, remove() {} }), body: { appendChild() {} },
   },
   window: { scrollTo() {} }, location: { origin: 'https://rms.dihag.de', pathname: '/' },
+  localStorage: { _m: new Map(), getItem(k) { return this._m.has(k) ? this._m.get(k) : null; }, setItem(k, v) { this._m.set(k, String(v)); }, removeItem(k) { this._m.delete(k); } },
   navigator: { clipboard: { writeText: async () => {} } },
   URL: { createObjectURL: () => 'blob:x' }, Blob: function () {},
   esc: (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
@@ -243,7 +244,7 @@ run('closeModal()');
 gespeichert.length = 0;
 await run('wiStartbestand()');
 // „Datenschutz" gibt es schon (gleiche Kennung) – das Thema bleibt, wie es ist; nur fünf Themen kommen dazu.
-ok(run('_wi.daten.beitraege.length') === 6 + 12 && run('_wi.daten.themen.length') === 1 + 5 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
+ok(run('_wi.daten.beitraege.length') === 6 + 13 && run('_wi.daten.themen.length') === 1 + 5 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
 await run('wiAuswertungOeffnen()');
 const aus = felder['modal-body'].innerHTML;
 ok(/Beitrag<\/th>/.test(aus) && /Phishing in 3 Minuten/.test(aus) && /Person/.test(aus), 'Die Auswertung je Beitrag – Personen, nicht Klicks');
@@ -269,6 +270,124 @@ ok(/ISO A\.6\.3/.test(lies('js/clevelreport.js')) && /m\.wissen = wiKennzahlen/.
 ok(/sec\('wissen', 'Wissen – die Bibliothek'/.test(lies('js/dokumentation.js')) && /Für die Pflege/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Lesen und Pflegen');
 ok(/\.wi-karte\b/.test(lies('css/style.css')) && /\.wi-chip\.aktiv/.test(lies('css/style.css')) && /\.wi-artikel/.test(lies('css/style.css')), 'Stil für Karten, Filter und Artikel');
 ok(!/nav-wissen/.test(lies('js/probelauf.js')), 'Im Probelauf bleibt der Reiter sichtbar – ihn sieht ohnehin jede:r');
+
+/* ── 5) Schulungen: das Modell ── */
+const K = M.wiNormalisieren({ beitraege: [M.WI_KURS_PHISHING] }).beitraege[0];
+ok(K.art === 'kurs' && K.module.length === 5 && K.fragen.length === 5 && K.pflicht === true && K.wiederholung === 12 && K.ziele.length === 5 && K.dauer === 20,
+  'Die Schulung „Phishing erkennen": fünf Module, fünf Fragen, Pflicht, jährlich, fünf Lernziele, 20 Minuten');
+ok(M.wiBeitragFehler(K).length === 0, 'Und sie besteht die eigene Prüfung');
+ok(M.wiBeitragFehler({ art: 'kurs', titel: 'x', module: [] }).some(f => /mindestens ein Modul/.test(f)) && M.wiBeitragFehler({ art: 'kurs', titel: 'x', module: [{ titel: '', text: 'a' }] }).some(f => /Modul 1 hat keinen Titel/.test(f)),
+  'Eine Schulung braucht Module mit Titel und Inhalt');
+ok(M.wiBeitragFehler({ art: 'kurs', titel: 'x', module: [{ titel: 'a', text: 'b' }], fragen: [{ frage: 'F', optionen: ['a', ''], richtig: 0 }] }).some(f => /leere Antwort/.test(f)),
+  'Hat sie einen Test, wird der mitgeprüft');
+ok(K.module.map(m => m.titel).join('|') === 'Was ist Phishing?|Arten von Phishing|Eine gefälschte E-Mail lesen|Die 7 wichtigsten Warnsignale|Richtig reagieren', 'Die Module in der Reihenfolge der Vorlage');
+ok(K.fragen[0].optionen[K.fragen[0].richtig] === 'Gezielter Angriff auf eine bestimmte Person oder Abteilung' && K.fragen[4].optionen[K.fragen[4].richtig] === 'E-Mail ignorieren, IT-Security informieren und den Link nicht klicken',
+  'Die richtigen Antworten sind die der Vorlage');
+ok(/Spear-Phishing/.test(K.module[1].text) && /Smishing/.test(K.module[1].text), 'Das Modul „Arten" erklärt, wonach der Test fragt');
+ok(/ticket@dihag\.com/.test(K.module[4].text) && /\[Telefonnummer IT-Security]/.test(K.module[4].text), 'Die Kontaktwege des Hauses stehen im Modul „Richtig reagieren"');
+
+const m3 = M.wiTextHtml(K.module[2].text);
+ok(/<div class="wi-mail"><div class="wi-mail-kopf"><div><span>Von:<\/span> IT-Support &lt;support@diihag\.com&gt;<\/div>/.test(m3), 'Die nachgebaute Mail: Kopfzeilen, entschärft');
+ok(/<div class="wi-mail-warn">⚠ Absender nicht verifiziert/.test(m3) && /<span class="wi-mail-knopf">→ Jetzt Konto bestätigen<\/span>/.test(m3), '… Warnbanner und ein Knopf, der nirgends hinführt');
+ok((m3.match(/<div class="wi-signal">/g) || []).length === 5 && /<b>Falsche Absender-Domain<\/b><span>„diihag\.com&quot; statt „dihag\.com&quot;/.test(m3), 'Fünf Signale als Karten mit Titel');
+const m1 = M.wiTextHtml(K.module[0].text);
+ok(/<ol class="wi-schritte"><li><div><b>Täuschende E-Mail wird versendet\.<\/b>/.test(m1) && (m1.match(/<li>/g) || []).length === 4 && /<div class="wi-box info">/.test(m1), 'Vier nummerierte Schritte und ein Hinweis-Kasten');
+const m5 = M.wiTextHtml(K.module[4].text);
+ok(/<div class="wi-box warn">🚨 Ruhig bleiben/.test(m5) && /<div class="wi-box ok">Gut zu wissen/.test(m5) && /<ol class="wi-schritte">/.test(m5), 'Warn- und Erfolgskasten, Schritte');
+ok(M.wiTextHtml('> a\n> b\n\n>! c') === '<div class="wi-box info">a<br>b</div><div class="wi-box warn">c</div>', 'Kästen: Zeilen derselben Art werden eins, ein anderer Kasten trennt');
+ok(M.wiTextHtml(':::mail\nVon: x\nHinweis: h\n---\nText <b>\n:::\nDanach') === '<div class="wi-mail"><div class="wi-mail-kopf"><div><span>Von:</span> x</div><div class="wi-mail-warn">h</div></div><div class="wi-mail-text">Text &lt;b&gt;</div></div><p>Danach</p>',
+  'Die Mail endet mit :::, danach geht der Text normal weiter');
+ok(M.wiMonateSpaeter('2026-01-31T10:00:00.000Z', 12) === '2027-01-31T10:00:00.000Z' && M.wiMonateSpaeter('', 12) === '' && M.wiMonateSpaeter('2026-01-01T00:00:00.000Z', 0) === '', 'Monate später – oder nichts');
+
+const jetzt = '2026-09-18T12:00:00Z';
+const alt = { richtlinieId: 'wissen:start-phishing-kurs', version: '1', benutzerUpn: 'anna@dihag.com', gelesenAm: '2025-06-01T09:00:00Z', quizBestanden: true, quizScore: 100, quizVersuche: 1, abgeschlossenAm: '2025-06-01T10:00:00Z' };
+const frisch = Object.assign({}, alt, { benutzerUpn: 'ben@dihag.com', abgeschlossenAm: '2026-06-01T10:00:00Z' });
+const begonnen = { richtlinieId: 'wissen:start-phishing-kurs', version: '1', benutzerUpn: 'cid@dihag.com', gelesenAm: '2026-09-10T10:00:00Z' };
+const sAlt = M.wiStand(K, [alt], jetzt), sFrisch = M.wiStand(K, [frisch], jetzt);
+ok(sAlt.erledigt && sAlt.abgelaufen && !sAlt.gueltig && sAlt.faelligAm.startsWith('2026-06-01'), 'Ein Abschluss von vor 15 Monaten ist bei jährlicher Wiederholung abgelaufen – fällig seit Juni');
+ok(sFrisch.erledigt && sFrisch.gueltig && !sFrisch.abgelaufen && sFrisch.faelligAm.startsWith('2027-06-01'), 'Ein Abschluss von vor drei Monaten gilt bis nächsten Juni');
+ok(M.wiKursStatus(K, [alt], jetzt).key === 'faellig' && M.wiKursStatus(K, [frisch], jetzt).key === 'erledigt' && M.wiKursStatus(K, [begonnen], jetzt).key === 'laeuft' && M.wiKursStatus(K, [], jetzt).key === 'offen' && /Pflicht – noch offen/.test(M.wiKursStatus(K, [], jetzt).text),
+  'Vier Zustände: offen, begonnen, abgeschlossen, Auffrischung fällig');
+ok(!M.wiStand(Object.assign({}, K, { fragen: [] }), [{ richtlinieId: 'wissen:start-phishing-kurs', version: '1', abgeschlossenAm: '2026-09-01T10:00:00Z', quizBestanden: false }], jetzt).erledigt === false,
+  'Ohne Test zählt der Abschluss allein');
+const q = M.wiPflichtQuote({ beitraege: [K] }, [alt, frisch, begonnen], [{ upn: 'anna@dihag.com' }, { upn: 'ben@dihag.com' }, { upn: 'cid@dihag.com' }, { upn: 'dora@dihag.com' }], jetzt)[0];
+ok(q.soll === 4 && q.ist === 1 && q.quote === 25 && q.gueltig === 1, 'Die Pflicht-Quote: von vier Personen hat eine einen gültigen Abschluss – Annas ist abgelaufen, Cid hat nur begonnen');
+ok(M.wiPflichtQuote({ beitraege: [K] }, [frisch], [], jetzt)[0].quote === null, 'Ohne Personenliste keine Quote, nur die Zahl');
+const zk = M.wiKennzahlen({ beitraege: [K] }, [alt, frisch], { jetzt });
+ok(zk.kurse === 1 && zk.pflichtKurse === 1 && zk.kursAbschluesse === 1, 'Kennzahlen: Schulungen, Pflichtschulungen, gültige Abschlüsse');
+
+/* ── 6) Schulungen: der Reiter ── */
+run(`_wi.daten.beitraege.push(wiNormalisieren({ beitraege: [WI_KURS_PHISHING] }).beitraege[0]); _wiPflege = false; __schreiben = false; State.acks = [];`);
+ctx.__schreiben = false;
+run('renderWissen()');
+h = mount.innerHTML;
+ok(/class="wi-pflicht"/.test(h) && /Pflichtschulung:<\/b> Phishing erkennen/.test(h) && /wiKursStarten\('start-phishing-kurs'\)/.test(h) && />Starten</.test(h),
+  'Eine offene Pflichtschulung steht oben im Reiter – mit Knopf');
+ok(/🎓 Schulung/.test(h) && /📋 Pflicht/.test(h) && /5 Module · Wissenstest/.test(h) && /○ Pflicht – noch offen/.test(h), 'Die Karte: Schulung, Pflicht, Module, Stand');
+
+run("wiOeffnen('start-phishing-kurs')");
+h = mount.innerHTML;
+ok(/Warum dieser Kurs\?/.test(h) && /<b>91 % aller Cyberangriffe/.test(h), 'Die Übersicht beginnt mit „Warum dieser Kurs?"');
+ok(/Ca\. 20 Minuten · 5 Module · 1 Wissenstest/.test(h) && /Alle Mitarbeitenden – kein Vorwissen erforderlich/.test(h) && /Pflichttraining/.test(h) && /Jährliche Auffrischung/.test(h), 'Dauer, Zielgruppe, Pflicht, Wiederholung als Kacheln');
+ok((h.match(/<ul class="wi-ziele">[\s\S]*?<\/ul>/)[0].match(/<li>/g) || []).length === 5, 'Fünf Lernziele mit Haken');
+ok(/<span class="wi-modul-nr">01<\/span><span>Was ist Phishing\?<\/span>/.test(h) && /Wissenstest · 5 Fragen, bestanden ab 80 %/.test(h), 'Die Module als Liste, der Test am Ende');
+ok(/Schulung starten →/.test(h), 'Und der Knopf');
+
+acksGeschrieben.length = 0;
+await run("wiKursStarten('start-phishing-kurs')");
+ok(acksGeschrieben.length === 1 && acksGeschrieben[0].richtlinieId === 'wissen:start-phishing-kurs' && acksGeschrieben[0].gelesenAm && !acksGeschrieben[0].abgeschlossenAm,
+  'Starten hält „begonnen" fest – einmal, still');
+h = mount.innerHTML;
+ok(/Modul 01 von 05/.test(h) && /<h2[^>]*>Was ist Phishing\?<\/h2>/.test(h) && /<ol class="wi-schritte">/.test(h) && /wiKursWeiter\('start-phishing-kurs', 1\)/.test(h), 'Das erste Modul – mit Schritten und „Weiter"');
+run("wiKursWeiter('start-phishing-kurs', 1)");
+ok(/Modul 02 von 05/.test(mount.innerHTML) && run("_wiFortschritt(wiBeitrag(_wi.daten, 'start-phishing-kurs')).join()") === 'm1', '„Weiter" merkt sich das gelesene Modul und zeigt das nächste');
+run("wiKursWeiter('start-phishing-kurs', 2); wiKursWeiter('start-phishing-kurs', 3);");
+h = mount.innerHTML;
+ok(/Modul 04 von 05/.test(h) && /⚠ <b>Absender-Domain<\/b>/.test(h), 'Modul 4: die Checkliste');
+run("wiKursWeiter('start-phishing-kurs', 4)");
+ok(/Zum Wissenstest →/.test(mount.innerHTML), 'Das letzte Modul führt zum Test');
+run("wiKursWeiter('start-phishing-kurs', 5)");
+h = mount.innerHTML;
+ok(/Wissenstest: Phishing erkennen/.test(h) && /wiTestStarten\('start-phishing-kurs'\)/.test(h) && run("_wiFortschritt(wiBeitrag(_wi.daten, 'start-phishing-kurs')).length") === 5, 'Alle fünf gelesen – jetzt der Test');
+run("wiKursZu('start-phishing-kurs', 0)");
+ok((mount.innerHTML.match(/wi-modul-stand">✓/g) || []).length === 5 && /Fortsetzen →|Noch einmal durchgehen →|Schulung starten →/.test(mount.innerHTML), 'Die Übersicht hakt alle Module ab');
+run("wiKursZu('start-phishing-kurs', 6); wiTestStarten('start-phishing-kurs');");
+ok(run('_quiz.questions.length') === 5 && run('_quiz.policyId') === 'wissen:start-phishing-kurs', 'Der Test der Schulung läuft über dieselbe Engine');
+run('_quiz.answers = Object.fromEntries(_quiz.questions.map((q, i) => [i, q.richtig]));');
+acksGeschrieben.length = 0;
+await run("wiTestAuswerten('start-phishing-kurs')");
+const kAck = acksGeschrieben[acksGeschrieben.length - 1];
+ok(kAck.quizBestanden === true && kAck.quizScore === 100 && kAck.abgeschlossenAm && /Schulung abgeschlossen, gültig bis/.test(felder['wi-test'].innerHTML) && /wiKursZu\('start-phishing-kurs', 0\)/.test(felder['wi-test'].innerHTML),
+  'Bestanden: die Schulung ist abgeschlossen, mit Ablaufdatum, und der Weg zurück zur Übersicht steht da');
+run("wiSchliessen()");
+ok(!/class="wi-pflicht"/.test(mount.innerHTML) && /✓ abgeschlossen, gültig bis \d{2}\.\d{2}\.2027/.test(mount.innerHTML), 'Oben ist die Pflicht weg, die Karte zeigt „gültig bis"');
+// Ein Jahr später: Auffrischung
+run("State.acks[State.acks.length - 1].abgeschlossenAm = '2025-01-01T10:00:00Z'; renderWissen();");
+ok(/class="wi-pflicht faellig"/.test(mount.innerHTML) && /Auffrischung fällig/.test(mount.innerHTML) && />Auffrischen</.test(mount.innerHTML), 'Nach Ablauf steht die Pflicht wieder oben – zur Auffrischung');
+run("wiOeffnen('start-phishing-kurs'); wiKursZu('start-phishing-kurs', 6); wiTestStarten('start-phishing-kurs'); _quiz.answers = Object.fromEntries(_quiz.questions.map((q, i) => [i, q.richtig]));");
+await run("wiTestAuswerten('start-phishing-kurs')");
+ok(acksGeschrieben[acksGeschrieben.length - 1].abgeschlossenAm > '2026-01-01' && acksGeschrieben[acksGeschrieben.length - 1].quizVersuche === 2, 'Die Auffrischung setzt ein neues Abschlussdatum – die Frist beginnt von vorn');
+
+// Pflege: der Editor kennt die Felder der Schulung
+ctx.spSaveWissen = async (daten, erwartet) => { gespeichert.push({ daten: JSON.parse(JSON.stringify(daten)), erwartet }); return { geaendertAm: 'm' + (gespeichert.length + 10) }; };
+ctx.__schreiben = true;
+run("wiSchliessen(); wiBeitragDialog('start-phishing-kurs')");
+ok(/Warum dieser Kurs\? \(Einstieg\)/.test(modal) && /Pflichttraining/.test(modal) && /<option value="12" selected>jährlich<\/option>/.test(modal) && /Modul 05/.test(modal) && /wiModulAdd\(\)/.test(modal) && /Frage 5/.test(modal),
+  'Der Editor: Einstieg, Pflicht, Wiederholung, Module, Fragen');
+run("wiModulAdd(); _wiEdit.module[5].titel = 'Bonus'; _wiEdit.module[5].text = 'Mehr.'; wiModulVerschieben(5, -1);");
+ok(run('_wiEdit.module.map(m => m.titel).join("|")') === 'Was ist Phishing?|Arten von Phishing|Eine gefälschte E-Mail lesen|Die 7 wichtigsten Warnsignale|Bonus|Richtig reagieren', 'Module hinzufügen und verschieben');
+gespeichert.length = 0;
+await run('wiBeitragSpeichern()');
+const kNeu = run("wiBeitrag(_wi.daten, 'start-phishing-kurs')");
+ok(gespeichert.length === 1 && kNeu.module.length === 6 && kNeu.stand === '1', 'Gespeichert – ein neues Modul ändert den Stand nicht, Abschlüsse gelten weiter');
+run("wiBeitragDialog('start-phishing-kurs'); _wiEdit.fragen[0].frage = 'Neu gefragt?';");
+await run('wiBeitragSpeichern()');
+ok(run("wiBeitrag(_wi.daten, 'start-phishing-kurs').stand") === '2', 'Geänderte Fragen: neuer Stand');
+ctx.__schreiben = false;
+
+ok(/m\.pflichtKurse = \(typeof wiPflichtQuote === 'function'\)/.test(lies('js/clevelreport.js')) && /Pflichtschulung „\$\{x\.kurs\.titel\}"/.test(lies('js/clevelreport.js')), 'Der Audit Report führt jede Pflichtschulung mit Quote');
+ok(/📋 Pflichtschulungen/.test(lies('js/wissen.js')) && /wiPflichtQuote\(_wi\.daten, _wiAlleAcks, members \|\| \[\]\)/.test(lies('js/wissen.js')), 'Die Auswertung im Reiter auch');
+ok(/🎓 Schulung:<\/b>/.test(lies('js/dokumentation.js')) && /Phishing erkennen/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Schulungen');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

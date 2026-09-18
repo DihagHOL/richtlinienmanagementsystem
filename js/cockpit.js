@@ -220,7 +220,7 @@ async function _ckLoadWissen(seq) {
     if (seq !== _cockpitSeq) return;
     const z = wiKennzahlen(wiNormalisieren(w.daten), AdminState.allAcks || []);
     _ckSet('wissen',
-      _ckBig(z.beitraege, `Beiträge in ${z.themen} Themen`, z.beitraege ? 'var(--c-text)' : '#b45309') +
+      _ckBig(z.beitraege, `Beiträge in ${z.themen} Themen${z.kurse ? ` · ${z.kurse} Schulung${z.kurse > 1 ? 'en' : ''}` : ''}`, z.beitraege ? 'var(--c-text)' : '#b45309') +
       _ckBig(z.personen, 'Personen mit Nachweis', z.personen ? '#15803d' : 'var(--c-text)') +
       _ckBig(z.testBestanden, `Tests bestanden${z.testTeilnahmen ? ` (${z.quote} %)` : ''}`, z.testBestanden ? '#15803d' : 'var(--c-text)'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('wissen', 'Nicht ladbar.'); }

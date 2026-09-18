@@ -19,6 +19,7 @@
  */
 
 const WI_ARTEN = [
+  { key: 'kurs',    symbol: '🎓', label: 'Schulung',    hinweis: 'Mehrere Module nacheinander, zum Schluss der Wissenstest. Kann Pflicht sein und sich nach Monaten wiederholen.' },
   { key: 'video',   symbol: '🎬', label: 'Video',       hinweis: 'Stream/SharePoint, YouTube oder Vimeo – wird in der Seite abgespielt, alles andere öffnet in einem neuen Tab.' },
   { key: 'artikel', symbol: '📄', label: 'Artikel',     hinweis: 'Kurzer Text zum Lesen. Absätze durch Leerzeile, Aufzählung mit „- ", **fett** mit Sternchen.' },
   { key: 'link',    symbol: '🔗', label: 'Link',        hinweis: 'Ein Verweis nach draußen – BSI, Datenschutzbehörde, Intranet.' },
@@ -30,7 +31,7 @@ const WI_BESTEHEN = 80;                // Bestehensgrenze, wenn nichts anderes g
 // Die Werke – nur als Rückfall, wenn der Verwaltungsblock (STANDORTE) nicht geladen ist.
 const WI_WERKE = ['HOL', 'SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA'];
 
-function wiArt(key) { return WI_ARTEN.find(a => a.key === key) || WI_ARTEN[1]; }
+function wiArt(key) { return WI_ARTEN.find(a => a.key === key) || WI_ARTEN.find(a => a.key === 'artikel'); }
 function wiAckId(id) { return WI_PREFIX + String(id || ''); }
 function wiIstWissenAck(a) { return !!a && String(a.richtlinieId || '').indexOf(WI_PREFIX) === 0; }
 function wiBeitragIdVon(a) { return wiIstWissenAck(a) ? String(a.richtlinieId).slice(WI_PREFIX.length) : ''; }
@@ -48,28 +49,81 @@ function _wiEsc(s) {
 }
 
 /**
- * Ein Artikel als HTML – aus einer Schreibweise, die niemand lernen muss:
- * Leerzeile trennt Absätze, „- " beginnt einen Aufzählungspunkt, **fett**
- * hebt hervor, eine Zeile mit „# " davor ist eine Zwischenüberschrift.
+ * Ein Artikel oder Schulungsmodul als HTML – aus einer Schreibweise, die
+ * niemand lernen muss und die ein Textfeld verträgt:
+ *
+ *   Leerzeile           trennt Absätze
+ *   # Überschrift       Zwischenüberschrift
+ *   - Punkt             Aufzählung
+ *   1. Schritt          nummerierte Schritte (große Ziffern)
+ *   **fett**            Hervorhebung
+ *   > Text              Hinweis-Kasten     >! Text  Warn-Kasten     >✓ Text  „Gut zu wissen"
+ *   !! Titel: Text      ein Warnsignal als Karte (rot, mit Titel)
+ *   :::mail … :::       eine nachgebaute E-Mail: Von:/An:/Betreff:/Hinweis:, dann „---", dann der Text;
+ *                       [→ Beschriftung] wird darin zu einem Knopf, der nirgends hinführt
+ *
  * Zeile für Zeile gelesen, damit eine Überschrift direkt über ihrer Liste
  * stehen darf – so schreibt man das nun einmal. Alles wird vorher
  * entschärft: Text bleibt Text.
  */
 function wiTextHtml(text) {
   const out = [];
-  let absatz = [], liste = [];
-  const inline = (s) => _wiEsc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  let absatz = [], liste = [], nummern = [], kasten = null, signale = [], mail = null;
+  const inline = (s) => _wiEsc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\[→\s*([^\]]+)\]/g, '<span class="wi-mail-knopf">→ $1</span>');
   const absatzZu = () => { if (absatz.length) { out.push('<p>' + absatz.map(inline).join('<br>') + '</p>'); absatz = []; } };
   const listeZu = () => { if (liste.length) { out.push('<ul>' + liste.map(z => '<li>' + inline(z) + '</li>').join('') + '</ul>'); liste = []; } };
+  const nummernZu = () => { if (nummern.length) { out.push('<ol class="wi-schritte">' + nummern.map(z => '<li><div>' + inline(z) + '</div></li>').join('') + '</ol>'); nummern = []; } };
+  const kastenZu = () => { if (kasten) { out.push(`<div class="wi-box ${kasten.art}">` + kasten.zeilen.map(inline).join('<br>') + '</div>'); kasten = null; } };
+  const signaleZu = () => { if (signale.length) { out.push('<div class="wi-signale">' + signale.map(s => `<div class="wi-signal"><b>${inline(s.titel)}</b>${s.text ? '<span>' + inline(s.text) + '</span>' : ''}</div>`).join('') + '</div>'); signale = []; } };
+  const alleZu = () => { absatzZu(); listeZu(); nummernZu(); kastenZu(); signaleZu(); };
+  const mailZu = () => {
+    if (!mail) return;
+    const kopf = mail.kopf.map(k => k.name === 'Hinweis'
+      ? `<div class="wi-mail-warn">${inline(k.wert)}</div>`
+      : `<div><span>${inline(k.name)}:</span> ${inline(k.wert)}</div>`).join('');
+    out.push(`<div class="wi-mail"><div class="wi-mail-kopf">${kopf}</div><div class="wi-mail-text">${mail.text.map(inline).join('<br>')}</div></div>`);
+    mail = null;
+  };
   String(text || '').replace(/\r/g, '').split('\n').forEach(z => {
     const t = z.trim();
-    if (!t) { absatzZu(); listeZu(); return; }
-    if (/^#+\s+/.test(t)) { absatzZu(); listeZu(); out.push('<h4>' + inline(t.replace(/^#+\s+/, '')) + '</h4>'); return; }
-    if (/^[-*•]\s+/.test(t)) { absatzZu(); liste.push(t.replace(/^[-*•]\s+/, '')); return; }
-    listeZu(); absatz.push(t);
+    if (mail) {
+      if (t === ':::') { mailZu(); return; }
+      if (t === '---') { mail.rumpf = true; return; }
+      const m = !mail.rumpf && t.match(/^(Von|An|Betreff|Hinweis):\s*(.*)$/);
+      if (m) mail.kopf.push({ name: m[1], wert: m[2] });
+      else if (t || mail.rumpf) mail.text.push(t);
+      return;
+    }
+    if (t === ':::mail') { alleZu(); mail = { kopf: [], text: [], rumpf: false }; return; }
+    if (!t) { alleZu(); return; }
+    if (/^#+\s+/.test(t)) { alleZu(); out.push('<h4>' + inline(t.replace(/^#+\s+/, '')) + '</h4>'); return; }
+    if (/^>/.test(t)) {
+      const art = /^>!/.test(t) ? 'warn' : /^>✓/.test(t) ? 'ok' : 'info';
+      const zeile = t.replace(/^>[!✓]?\s?/, '');
+      if (!kasten || kasten.art !== art) { alleZu(); kasten = { art, zeilen: [] }; }
+      kasten.zeilen.push(zeile); return;
+    }
+    if (/^!!\s+/.test(t)) {
+      absatzZu(); listeZu(); nummernZu(); kastenZu();
+      const m = t.replace(/^!!\s+/, '').match(/^([^:]{2,80}):\s*(.*)$/);
+      signale.push(m ? { titel: m[1], text: m[2] } : { titel: t.replace(/^!!\s+/, ''), text: '' }); return;
+    }
+    if (/^\d+[.)]\s+/.test(t)) { absatzZu(); listeZu(); kastenZu(); signaleZu(); nummern.push(t.replace(/^\d+[.)]\s+/, '')); return; }
+    if (/^[-*•]\s+/.test(t)) { absatzZu(); nummernZu(); kastenZu(); signaleZu(); liste.push(t.replace(/^[-*•]\s+/, '')); return; }
+    listeZu(); nummernZu(); kastenZu(); signaleZu(); absatz.push(t);
   });
-  absatzZu(); listeZu();
+  mailZu(); alleZu();
   return out.join('');
+}
+
+/** Monate auf ein ISO-Datum – für die Wiederholung einer Schulung. */
+function wiMonateSpaeter(iso, monate) {
+  if (!iso || !(monate > 0)) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  d.setMonth(d.getMonth() + Number(monate));
+  return d.toISOString();
 }
 
 /** Die Datei auf eine verlässliche Form bringen – fehlende Felder gefüllt, Fremdes weg. */
@@ -88,6 +142,13 @@ function wiNormalisieren(roh) {
     fragen: (Array.isArray(b.fragen) ? b.fragen : []).map(q => ({
       frage: String(q.frage || ''), optionen: (Array.isArray(q.optionen) ? q.optionen : []).map(String), richtig: Number(q.richtig) || 0,
     })),
+    // Schulung: Einstieg, Lernziele, Zielgruppe, Pflicht, Wiederholung (Monate), Module
+    intro: String(b.intro || ''), zielgruppe: String(b.zielgruppe || ''),
+    ziele: (Array.isArray(b.ziele) ? b.ziele : String(b.ziele || '').split('\n')).map(z => String(z).trim()).filter(Boolean),
+    pflicht: b.pflicht === true, wiederholung: Math.max(0, Number(b.wiederholung) || 0),
+    module: (Array.isArray(b.module) ? b.module : []).map((m, i) => ({
+      id: String(m.id || ('m' + (i + 1))), titel: String(m.titel || '').trim(), text: String(m.text || ''),
+    })),
     erstelltAm: String(b.erstelltAm || ''), erstelltVon: String(b.erstelltVon || ''),
     geaendertAm: String(b.geaendertAm || ''), geaendertVon: String(b.geaendertVon || ''),
   })).filter(b => b.id);
@@ -105,7 +166,15 @@ function wiBeitragFehler(b) {
   if ((art === 'video' || art === 'link') && !/^https?:\/\//i.test(String(b.url || '').trim()) && !/<iframe/i.test(String(b.url || '')))
     f.push(art === 'video' ? 'Eine Video-Adresse oder der Einbetten-Code fehlt.' : 'Eine Adresse (https://…) fehlt.');
   if (art === 'artikel' && !String(b.text || '').trim()) f.push('Der Text des Artikels fehlt.');
-  if (art === 'test') {
+  if (art === 'kurs') {
+    const module = Array.isArray(b.module) ? b.module : [];
+    if (!module.length) f.push('Eine Schulung braucht mindestens ein Modul.');
+    module.forEach((m, i) => {
+      if (!String(m.titel || '').trim()) f.push(`Modul ${i + 1} hat keinen Titel.`);
+      if (!String(m.text || '').trim()) f.push(`Modul ${i + 1} hat keinen Inhalt.`);
+    });
+  }
+  if (art === 'test' || (art === 'kurs' && Array.isArray(b.fragen) && b.fragen.length)) {
     const fragen = Array.isArray(b.fragen) ? b.fragen : [];
     if (!fragen.length) f.push('Ein Wissenstest braucht mindestens eine Frage.');
     fragen.forEach((q, i) => {
@@ -126,14 +195,63 @@ function wiSichtbar(b, opt) {
   return pruefe ? !!pruefe(b.geltung) : true;
 }
 
-/** Der Stand einer Person zu einem Beitrag – aus ihren Nachweisen. */
-function wiStand(b, acks) {
-  const leer = { ack: null, gesehen: false, bestanden: false, score: 0, versuche: 0, am: '' };
+/**
+ * Der Stand einer Person zu einem Beitrag – aus ihren Nachweisen.
+ * Bei einer Schulung zählt der Abschluss (alle Module, Test bestanden); mit
+ * Wiederholung läuft er ab: `faelligAm` ist der Tag, ab dem die Auffrischung
+ * ansteht, `gueltig` sagt, ob der Abschluss heute noch trägt.
+ */
+function wiStand(b, acks, jetzt) {
+  const leer = { ack: null, gesehen: false, bestanden: false, score: 0, versuche: 0, am: '', erledigt: false, faelligAm: '', gueltig: false, abgelaufen: false };
   if (!b) return leer;
   const a = (acks || []).find(x => String(x.richtlinieId) === wiAckId(b.id) && String(x.version || '1') === String(b.stand || '1'));
   if (!a) return leer;
-  return { ack: a, gesehen: !!a.gelesenAm, bestanden: !!a.quizBestanden, score: Number(a.quizScore) || 0,
-    versuche: Number(a.quizVersuche) || 0, am: a.abgeschlossenAm || a.gelesenAm || '' };
+  const s = { ack: a, gesehen: !!a.gelesenAm, bestanden: !!a.quizBestanden, score: Number(a.quizScore) || 0,
+    versuche: Number(a.quizVersuche) || 0, am: a.abgeschlossenAm || a.gelesenAm || '', erledigt: false, faelligAm: '', gueltig: false, abgelaufen: false };
+  if (b.art === 'kurs') {
+    const mitTest = Array.isArray(b.fragen) && b.fragen.length > 0;
+    s.erledigt = !!a.abgeschlossenAm && (!mitTest || !!a.quizBestanden);
+    s.faelligAm = s.erledigt ? wiMonateSpaeter(a.abgeschlossenAm, b.wiederholung) : '';
+    const heute = jetzt ? new Date(jetzt).toISOString() : new Date().toISOString();
+    s.abgelaufen = !!s.faelligAm && s.faelligAm <= heute;
+    s.gueltig = s.erledigt && !s.abgelaufen;
+  } else {
+    s.erledigt = b.art === 'test' ? s.bestanden : s.gesehen;
+    s.gueltig = s.erledigt;
+  }
+  return s;
+}
+
+/** Ein ISO-Datum als Tag: 18.09.2027 – ohne Uhrzeit, ohne Zeitzone. */
+function wiTag(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+
+/** Wo eine Schulung für diese Person steht – als Wort und als Farbe. */
+function wiKursStatus(b, acks, jetzt) {
+  const s = wiStand(b, acks, jetzt);
+  if (s.gueltig) return { key: 'erledigt', text: 'abgeschlossen' + (s.faelligAm ? ', gültig bis ' + wiTag(s.faelligAm) : ''), stand: s };
+  if (s.abgelaufen) return { key: 'faellig', text: 'Auffrischung fällig', stand: s };
+  if (s.gesehen) return { key: 'laeuft', text: 'begonnen', stand: s };
+  return { key: 'offen', text: b.pflicht ? 'Pflicht – noch offen' : 'noch nicht begonnen', stand: s };
+}
+
+/**
+ * Pflichtschulungen: wie viele der Mitarbeitenden haben einen gültigen
+ * Abschluss? `members` sind die Personen des Hauses (UPN); ohne sie gibt es
+ * nur die Zahl der gültigen Abschlüsse, keine Quote.
+ */
+function wiPflichtQuote(daten, acks, members, jetzt) {
+  const kurse = ((daten && daten.beitraege) || []).filter(b => b.art === 'kurs' && b.pflicht && b.aktiv !== false);
+  const upns = (members || []).map(m => String((m && m.upn) || m || '').toLowerCase()).filter(Boolean);
+  return kurse.map(k => {
+    const rel = (acks || []).filter(a => String(a.richtlinieId) === wiAckId(k.id) && String(a.version || '1') === String(k.stand || '1'));
+    const gueltig = new Set(rel.filter(a => wiStand(k, [a], jetzt).gueltig).map(a => String(a.benutzerUpn || '').toLowerCase()));
+    const ist = upns.length ? upns.filter(u => gueltig.has(u)).length : gueltig.size;
+    const soll = upns.length;
+    return { kurs: k, soll, ist, gueltig: gueltig.size, quote: soll ? Math.round(ist / soll * 100) : null };
+  });
 }
 
 /**
@@ -154,10 +272,13 @@ function wiKennzahlen(daten, acks, opt) {
   const testIds = new Set(tests.map(t => t.id));
   const testAcks = rel.filter(a => testIds.has(wiBeitragIdVon(a)) && Number(a.quizVersuche) > 0);
   const bestanden = testAcks.filter(a => a.quizBestanden);
+  const kurse = beitraege.filter(b => b.art === 'kurs');
+  const kursAbschluesse = kurse.reduce((n, k) => n + rel.filter(a => wiBeitragIdVon(a) === k.id && wiStand(k, [a], jetzt).gueltig).length, 0);
   return {
     beitraege: beitraege.length, themen: ((daten && daten.themen) || []).length,
     videos: beitraege.filter(b => b.art === 'video').length, artikel: beitraege.filter(b => b.art === 'artikel').length,
     links: beitraege.filter(b => b.art === 'link').length, tests: tests.length,
+    kurse: kurse.length, pflichtKurse: kurse.filter(k => k.pflicht).length, kursAbschluesse,
     personen: personen.size, nachweise: rel.length, zuletzt: zuletzt.length,
     testTeilnahmen: testAcks.length, testBestanden: bestanden.length,
     quote: testAcks.length ? Math.round(bestanden.length / testAcks.length * 100) : 0,
@@ -172,7 +293,9 @@ function wiAuswertung(daten, acks) {
     const teil = rel.filter(a => Number(a.quizVersuche) > 0);
     const best = teil.filter(a => a.quizBestanden).length;
     const schnitt = teil.length ? Math.round(teil.reduce((s, a) => s + (Number(a.quizScore) || 0), 0) / teil.length) : 0;
-    return { beitrag: b, gesehen, teilnahmen: teil.length, bestanden: best, schnitt };
+    const gueltig = b.art === 'kurs' ? new Set(rel.filter(a => wiStand(b, [a]).gueltig).map(a => String(a.benutzerUpn || '').toLowerCase())).size : 0;
+    const abgelaufen = b.art === 'kurs' ? new Set(rel.filter(a => wiStand(b, [a]).abgelaufen).map(a => String(a.benutzerUpn || '').toLowerCase())).size : 0;
+    return { beitrag: b, gesehen, teilnahmen: teil.length, bestanden: best, schnitt, gueltig, abgelaufen };
   });
 }
 
@@ -343,6 +466,124 @@ Im Zweifel: Namen und Zahlen entfernen, allgemein fragen, oder den Anwendungsfal
   ],
 };
 
+/* Die Schulung „Phishing erkennen" – fünf Module und ein Wissenstest, nach
+   der Vorlage des Hauses. Kontaktwege (Ticket-Adresse, Notfallnummer) stehen
+   im Text; wer sie ändert, ändert sie im Modul „Richtig reagieren". */
+const WI_KURS_PHISHING = {
+  id: 'start-phishing-kurs', art: 'kurs', thema: 'phishing', titel: 'Phishing erkennen – so erkennen Sie gefälschte E-Mails',
+  kurz: '91 % aller Cyberangriffe beginnen mit einer E-Mail. Dieses Training zeigt, wie Sie sie erkennen – und was Sie dann tun.',
+  intro: `**91 % aller Cyberangriffe beginnen mit einer E-Mail.** Phishing ist die häufigste und gefährlichste Angriffsmethode – und gleichzeitig eine der wenigen, die Sie persönlich verhindern können. Dieses Training zeigt Ihnen, wie.`,
+  dauer: 20, zielgruppe: 'Alle Mitarbeitenden – kein Vorwissen erforderlich', pflicht: true, wiederholung: 12, bestehen: 80,
+  ziele: [
+    'Phishing-E-Mails an typischen Merkmalen erkennen',
+    'Verschiedene Arten von Phishing-Angriffen unterscheiden',
+    'Warnsignale in E-Mails, Links und Anhängen identifizieren',
+    'Im Ernstfall richtig und schnell reagieren',
+    'Verdächtige E-Mails korrekt melden',
+  ],
+  module: [
+    { id: 'm1', titel: 'Was ist Phishing?', text: `# Was bedeutet „Phishing"?
+Der Begriff leitet sich vom englischen „fishing" (Angeln) ab – mit einem „Ph" für „Password". Wie ein Angler wirft der Angreifer einen Köder aus und wartet, bis jemand anbeißt.
+
+Beim Phishing versuchen Kriminelle, über gefälschte E-Mails, Nachrichten oder Webseiten an vertrauliche Daten zu gelangen: Passwörter, Zugangsdaten, Bankdaten oder persönliche Informationen.
+
+# Wie funktioniert es? Der typische Ablauf
+1. **Täuschende E-Mail wird versendet.** Der Angreifer versendet eine E-Mail, die aussieht wie eine Nachricht von einem bekannten Absender – Bank, IT-Abteilung, Microsoft oder einem Kollegen.
+2. **Opfer klickt auf Link oder Anhang.** Die E-Mail enthält einen Link zu einer gefälschten Webseite oder einen infizierten Anhang. Ein einziger Klick reicht aus.
+3. **Daten werden gestohlen.** Auf der gefälschten Seite gibt das Opfer seine Zugangsdaten ein – oder durch den Anhang wird Schadsoftware installiert.
+4. **Angreifer nutzt die Daten.** Mit den gestohlenen Zugangsdaten greift der Angreifer auf Firmen-E-Mails, SharePoint, Bankkonten oder interne Systeme zu.
+
+> Phishing ist kein Technik-Problem, das die IT allein löst. Der Filter fängt vieles – aber die Mail, die durchkommt, landet bei Ihnen. Deshalb dieses Training.` },
+    { id: 'm2', titel: 'Arten von Phishing', text: `Nicht alle Angriffe sehen gleich aus – die wichtigsten Varianten:
+
+# Massen-Phishing
+Dieselbe Mail an Tausende: „Ihr Paket konnte nicht zugestellt werden", „Ihr Konto wurde gesperrt". Unpersönlich, oft mit Fehlern – aber in der Masse trifft sie immer jemanden.
+
+# Spear-Phishing
+Der **gezielte Angriff auf eine bestimmte Person oder Abteilung.** Der Angreifer kennt Ihren Namen, Ihre Rolle, Ihre Projekte – aus LinkedIn, der Website, früheren Datenlecks. Die Mail passt perfekt in Ihren Arbeitstag. Das ist die gefährlichste Form, weil sie nicht wie Phishing aussieht.
+
+# CEO-Betrug (Whaling / Business E-Mail Compromise)
+Eine Mail „vom Geschäftsführer" oder von der Finanzleitung: dringende Überweisung, Gutscheinkarten, geänderte Bankverbindung eines Lieferanten. Setzt auf Autorität und Zeitdruck – und darauf, dass niemand nachfragt.
+
+# Smishing und Vishing
+**Smishing** ist Phishing per SMS oder Messenger („Ihr Paket wartet – Link"), **Vishing** per Telefon: Ein angeblicher IT-Mitarbeiter, ein angeblicher Bankberater, der „nur kurz" Ihre Zugangsdaten braucht.
+
+# Quishing
+Ein QR-Code auf einem Aushang, in einer Mail, auf einem Parkautomaten – führt auf eine gefälschte Seite. Das Handy zeigt die Zieladresse kaum an.
+
+# Nachgebaute Anmeldeseiten
+Der Link führt auf eine täuschend echte Microsoft-, SharePoint- oder Bank-Anmeldung. Wer dort eingibt, gibt dem Angreifer den Schlüssel – oft samt zweitem Faktor, weil die Seite ihn gleich mit abfragt.
+
+>✓ Allen Varianten ist eines gemeinsam: Sie brauchen Ihre Mitwirkung – einen Klick, eine Eingabe, einen Anruf zurück. Ohne sie passiert nichts.` },
+    { id: 'm3', titel: 'Eine gefälschte E-Mail lesen', text: `# Beispiel-Analyse
+Diese E-Mail ist gefälscht – können Sie die Signale sehen?
+
+:::mail
+Von: IT-Support <support@diihag.com>
+An: m.mustermann@dihag.com
+Betreff: ⚠️ Ihr Konto wird gesperrt!
+Hinweis: ⚠ Absender nicht verifiziert – externe E-Mail
+---
+Sehr geehrte/r Herr/Frau Mustermann,
+wir haben ungewöhnliche Aktivitäten festgestellt. Bestätigen Sie Ihre Identität innerhalb von 24 Stunden, sonst wird Ihr Zugang dauerhaft gesperrt.
+Klicken Sie hier:
+[→ Jetzt Konto bestätigen]
+:::
+
+# Die Signale
+!! Falsche Absender-Domain: „diihag.com" statt „dihag.com" – ein einzelnes „i" zu viel, leicht zu übersehen.
+!! Künstlicher Zeitdruck: „24 Stunden" und die Drohung mit Sperrung sollen Sie zu schnellem, unkritischem Handeln verleiten.
+!! Unpersönliche Anrede: „Sehr geehrte/r Herr/Frau" – echte Unternehmenssysteme kennen Ihren Namen.
+!! Link ohne sichtbares Ziel: Echte Links zeigen beim Hover immer die Zieladresse – prüfen Sie diese vor jedem Klick.
+!! Ungewöhnliche Aufforderung: Die IT fordert niemals per E-Mail zur Passwort-Eingabe oder Konto-Bestätigung auf.
+
+> Jedes dieser Signale allein wäre verdächtig. Drei davon zusammen sind ein sicheres Zeichen.` },
+    { id: 'm4', titel: 'Die 7 wichtigsten Warnsignale', text: `# Checkliste
+Wenn eines dieser Signale zutrifft, halten Sie inne – bei zwei ist es fast sicher Phishing.
+
+- ⚠ **Absender-Domain** weicht vom bekannten Unternehmen ab
+- ⚠ **Dringende Aufforderung** mit Frist oder Drohung
+- ⚠ **Unpersönliche oder seltsame Anrede**
+- ⚠ **Aufforderung, Passwort oder Daten einzugeben**
+- ⚠ **Link führt zu einer fremden oder seltsamen Adresse** – mit der Maus darüberfahren, ohne zu klicken
+- ⚠ **Unerwarteter Anhang**, vor allem .zip, .exe, .docm, .html
+- ⚠ **Rechtschreibfehler oder seltsame Formulierungen**
+
+# Und was kein Signal ist
+Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absendername – all das lässt sich fälschen. Verlassen Sie sich nicht darauf, dass eine Mail „gut aussieht".
+
+>✓ Im Zweifel gilt: lieber einmal zu viel nachfragen als einmal zu wenig. Niemand wird für eine Rückfrage getadelt.` },
+    { id: 'm5', titel: 'Richtig reagieren', text: `# Wenn Sie eine verdächtige E-Mail erhalten
+1. **Nicht klicken – nicht antworten.** Öffnen Sie keine Links und keine Anhänge. Antworten Sie nicht auf die E-Mail, auch wenn Sie nach dem Grund fragen wollen.
+2. **Absender unabhängig prüfen.** Kennen Sie den Absender? Rufen Sie ihn über die bekannte, offizielle Nummer an – nicht über eine in der E-Mail genannte Nummer.
+3. **IT-Security informieren.** Leiten Sie die E-Mail weiter an **ticket@dihag.com** – oder melden Sie sie über den Knopf „Phishing melden" in Outlook.
+4. **E-Mail löschen.** Nach der Meldung die E-Mail aus dem Posteingang und aus dem Papierkorb löschen.
+
+# Wenn Sie bereits geklickt haben
+>! 🚨 Ruhig bleiben – und sofort handeln:
+>! • Gerät sofort vom Netzwerk trennen (WLAN aus, LAN-Kabel ziehen)
+>! • IT-Security sofort anrufen: **[Telefonnummer IT-Security]**
+>! • Passwörter von einem anderen Gerät aus ändern
+>! • Nichts weiter auf dem betroffenen Gerät tun
+>! • Ehrlich kommunizieren – es trifft jeden, keine Scham nötig
+
+>✓ Gut zu wissen: Wer einen Vorfall sofort meldet, hilft dem Unternehmen, schnell zu reagieren. Wer schweigt, ermöglicht dem Angreifer, unbemerkt weiterzumachen.` },
+  ],
+  fragen: [
+    { frage: 'Was versteht man unter „Spear-Phishing"?',
+      optionen: ['Phishing-Angriffe per SMS', 'Massen-Phishing an Millionen Empfänger', 'Gezielter Angriff auf eine bestimmte Person oder Abteilung'], richtig: 2 },
+    { frage: 'Welche Aussage über die IT-Abteilung ist korrekt?',
+      optionen: ['Die IT fragt gelegentlich per E-Mail nach Passwörtern zur Überprüfung', 'Die IT fordert Passwörter nur bei dringenden Sicherheitsvorfällen an', 'Die IT fragt niemals – unter keinen Umständen – nach Ihrem Passwort'], richtig: 2 },
+    { frage: 'Sie haben versehentlich auf einen Link in einer verdächtigen E-Mail geklickt. Was tun Sie als Erstes?',
+      optionen: ['Gerät neu starten und hoffen, dass nichts passiert ist', 'Gerät vom Netzwerk trennen und sofort IT-Security anrufen', 'Den Vorfall nicht melden, um keine Probleme zu bekommen'], richtig: 1 },
+    { frage: 'Sie erhalten eine E-Mail von „support@miicrosoft.com" mit der Bitte, Ihr Passwort zu bestätigen. Was ist das erste Warnsignal?',
+      optionen: ['Die E-Mail ist auf Englisch', 'Die Absender-Domain „miicrosoft.com" ist falsch geschrieben', 'Die E-Mail enthält kein Logo'], richtig: 1 },
+    { frage: 'Eine dringende E-Mail fordert Sie auf, „innerhalb von 2 Stunden" Ihr Passwort zu ändern, sonst wird Ihr Konto gesperrt. Wie reagieren Sie?',
+      optionen: ['E-Mail ignorieren, IT-Security informieren und den Link nicht klicken', 'Passwort sofort über den Link in der E-Mail ändern', 'Per Antwort-E-Mail beim Absender nachfragen'], richtig: 0 },
+  ],
+};
+WI_STARTBESTAND.beitraege.unshift(WI_KURS_PHISHING);
+
 /** Den Startbestand ergänzen – nur, was (nach Kennung) noch fehlt. @returns Zahl der neuen Beiträge */
 function wiStartbestandErgaenzen(daten, wer, jetzt) {
   let n = 0;
@@ -356,7 +597,7 @@ function wiStartbestandErgaenzen(daten, wer, jetzt) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WI_ARTEN, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND,
-    wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiNormalisieren, wiThema, wiBeitrag,
-    wiBeitragFehler, wiSichtbar, wiStand, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen };
+  module.exports = { WI_ARTEN, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING,
+    wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
+    wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiTag };
 }

@@ -639,6 +639,58 @@ body.demo-mode .main { padding-bottom: 64px; }
 .wi-artikel ul { margin: 0 0 12px 20px; padding: 0; }
 .wi-artikel li { margin: 0 0 6px; }
 .wi-artikel h4 { margin: 16px 0 6px; font-size: .9rem; color: var(--c-navy, #1A2644); text-transform: uppercase; letter-spacing: .04em; }
+.wi-art-kurs { background: #1A2644; color: #fff; }
+.wi-stand.faellig { color: #b45309; font-weight: 600; }
+/* Pflichtschulungen oben im Reiter */
+.wi-pflicht { display: flex; align-items: center; gap: 12px; background: #fff7ed; border: 1px solid #fdba74; border-left: 4px solid #F08300; border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; }
+.wi-pflicht.faellig { background: #fef2f2; border-color: #fca5a5; border-left-color: #b91c1c; }
+.wi-pflicht-symbol { font-size: 1.4rem; }
+/* Die Schulung */
+.wi-kurs { max-width: 860px; }
+.wi-kurs-hero { margin-bottom: 14px; }
+.wi-kurs-warum { font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--c-muted); margin: 10px 0 4px; }
+.wi-kurs-intro p { margin: 0 0 6px; font-size: 1rem; line-height: 1.6; }
+.wi-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.wi-meta-kachel { display: flex; gap: 10px; align-items: flex-start; background: #fff; border: 1px solid var(--c-border); border-radius: 10px; padding: 10px 12px; font-size: .85rem; line-height: 1.4; }
+.wi-meta-symbol { font-size: 1.3rem; line-height: 1; }
+.wi-meta-titel { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); margin-bottom: 2px; }
+.wi-kurs-block { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; padding: 14px 18px; margin: 0 0 12px; }
+.wi-kurs-block h3 { margin: 0 0 8px; font-size: .95rem; color: var(--c-navy, #1A2644); }
+.wi-ziele { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 16px; }
+.wi-ziele li { padding-left: 24px; position: relative; line-height: 1.45; font-size: .92rem; }
+.wi-ziele li::before { content: '✓'; position: absolute; left: 0; color: #15803d; font-weight: 800; }
+.wi-module { list-style: none; margin: 0; padding: 0; }
+.wi-module li { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: .92rem; }
+.wi-module li:hover, .wi-module li:focus-visible { background: #f3f6fb; outline: none; }
+.wi-module li.da { color: var(--c-muted); }
+.wi-modul-nr { font-family: Consolas, 'Courier New', monospace; font-weight: 800; color: var(--c-azure, #17509E); min-width: 28px; }
+.wi-module li.da .wi-modul-nr { color: #15803d; }
+.wi-modul-stand { margin-left: auto; color: #15803d; font-weight: 800; }
+.wi-modul-kopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wi-modul-zaehler { font-size: .76rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--c-azure, #17509E); }
+.wi-fortschritt { display: inline-flex; gap: 4px; }
+.wi-fortschritt span { width: 26px; height: 6px; border-radius: 3px; background: #e5e7eb; }
+.wi-fortschritt span.da { background: #16a34a; }
+.wi-fortschritt span.test { width: 14px; border-radius: 50%; height: 10px; margin-top: -2px; }
+/* Bausteine im Text: Schritte, Kästen, Signale, die nachgebaute Mail */
+.wi-schritte { list-style: none; counter-reset: schritt; margin: 0 0 12px; padding: 0; }
+.wi-schritte li { counter-increment: schritt; display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--c-border-2, #eef0f3); }
+.wi-schritte li:first-child { border-top: 0; }
+.wi-schritte li::before { content: counter(schritt, decimal-leading-zero); font-family: Consolas, 'Courier New', monospace; font-size: 1.4rem; font-weight: 800; color: var(--c-azure, #17509E); line-height: 1; min-width: 38px; }
+.wi-schritte li > div { line-height: 1.55; }
+.wi-box { border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; line-height: 1.55; border: 1px solid; font-size: .92rem; }
+.wi-box.info { background: #eff3ff; border-color: #c7d5f5; color: #1A2644; }
+.wi-box.warn { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+.wi-box.ok { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.wi-signale { display: grid; gap: 8px; margin: 0 0 12px; }
+.wi-signal { border: 1px solid #fca5a5; border-left: 4px solid #b91c1c; border-radius: 8px; padding: 8px 12px; background: #fff; font-size: .9rem; line-height: 1.5; }
+.wi-signal b { color: #b91c1c; display: block; }
+.wi-mail { border: 1px solid var(--c-border); border-radius: 10px; background: #fff; margin: 0 0 12px; font-size: .9rem; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.wi-mail-kopf { padding: 10px 14px; border-bottom: 1px solid var(--c-border); background: #f8fafc; line-height: 1.6; }
+.wi-mail-kopf span { color: var(--c-muted); display: inline-block; min-width: 62px; }
+.wi-mail-warn { margin-top: 6px; padding: 4px 8px; background: #fef3c7; color: #92400e; border-radius: 6px; font-size: .82rem; display: inline-block; }
+.wi-mail-text { padding: 14px; line-height: 1.6; }
+.wi-mail-knopf { display: inline-block; margin-top: 4px; padding: 6px 12px; background: #17509E; color: #fff; border-radius: 6px; font-weight: 600; cursor: not-allowed; }
 .wi-zeile { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .wi-zeile .form-group { min-width: 120px; }
 @media (max-width: 640px) { .wi-karten { grid-template-columns: 1fr; } .wi-artikel { padding: 14px 16px; } }

@@ -191,7 +191,9 @@ async function _clevelGather() {
     if (typeof wiKennzahlen !== 'function' || typeof spLoadWissen !== 'function') m.wissen = null;
     else {
       const w = await spLoadWissen();
-      m.wissen = wiKennzahlen(wiNormalisieren(w.daten), AdminState.allAcks || []);
+      const daten = wiNormalisieren(w.daten);
+      m.wissen = wiKennzahlen(daten, AdminState.allAcks || []);
+      m.pflichtKurse = (typeof wiPflichtQuote === 'function') ? wiPflichtQuote(daten, AdminState.allAcks || [], AdminState.members || []) : [];
     }
   } catch (e) { m.wissen = null; m.fehler.push('Wissen: ' + e.message); }
 
@@ -256,7 +258,13 @@ function _clevelIsoRows(m) {
     const w = m.wissen;
     if (!w.beitraege) add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', 'warn', 'Die Bibliothek „Wissen" ist noch leer – Videos, Artikel und Wissenstests bereitstellen.');
     else add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', w.personen ? 'ok' : 'warn',
-      `${w.beitraege} Beiträge (${w.videos} Videos, ${w.artikel} Artikel, ${w.tests} Tests) in ${w.themen} Themen; ${w.personen} Person(en) mit Nachweis, ${w.testBestanden} Tests bestanden${w.zuletzt ? `, ${w.zuletzt} Nachweise in den letzten ${WI_TAGE} Tagen` : ''}.`);
+      `${w.beitraege} Beiträge (${w.kurse} Schulungen, ${w.videos} Videos, ${w.artikel} Artikel, ${w.tests} Tests) in ${w.themen} Themen; ${w.personen} Person(en) mit Nachweis, ${w.testBestanden} Tests bestanden${w.zuletzt ? `, ${w.zuletzt} Nachweise in den letzten ${WI_TAGE} Tagen` : ''}.`);
+    // Pflichtschulungen: hier zählt die Quote – wie bei den Pflicht-Regelwerken.
+    (m.pflichtKurse || []).forEach(x => {
+      const q = x.quote;
+      add('ISO 7.2 / A.6.3', `Pflichtschulung „${x.kurs.titel}"`, q === null ? 'warn' : q >= 90 ? 'ok' : q >= 60 ? 'warn' : 'gap',
+        q === null ? `${x.gueltig} gültige Abschlüsse – ohne Personenliste keine Quote.` : `${x.ist} von ${x.soll} Mitarbeitenden mit gültigem Abschluss (${q} %)${x.kurs.wiederholung ? `, Wiederholung alle ${x.kurs.wiederholung} Monate` : ''}.`);
+    });
   }
 
   // Betrieb / Reifegrad (Kap. 8)
