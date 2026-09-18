@@ -32,6 +32,7 @@ import { createRequire } from 'module';
 import { readFileSync } from 'fs';
 const _require = createRequire(import.meta.url);
 const NF = _require('../js/notfallmodell.js');
+const WI = _require('../js/wissenmodell.js');   // die Bibliothek „Wissen": Pflichtschulungen, Fristen, Stand je Person
 /** Die Werke der App (STANDORTE in js/admin.js) – der Krisenstab gilt je Werk, ob mit Landkarte oder ohne. */
 function standorteDerApp() {
   try {
@@ -437,6 +438,7 @@ async function ladeBestaetigungen(siteId) {
     for (const it of (page.value || [])) {
       const f = it.fields || {};
       map.set(`${f.RichtlinieId}|${f.RichtlinienVersion}|${lc(f.BenutzerUPN)}`, {
+        richtlinieId: f.RichtlinieId || '', version: f.RichtlinienVersion || '', benutzerUpn: f.BenutzerUPN || '',
         gelesenAm: f.GelesenAm || '',
         quizBestanden: f.QuizBestanden === true,
         abgeschlossenAm: f.AbgeschlossenAm || '',
@@ -499,6 +501,43 @@ function kenntnisMailHtml(name, posten) {
     <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=meine`, '#17509e', 'Meine Regelwerke öffnen →')}</p>
     <p style="color:#6b7280;font-size:12px">Automatische Erinnerung vom DIHAG Regelwerk-Management-System.
        Ist etwas bereits erledigt, kreuzt sich diese Mail nur mit Ihrer Bestätigung – dann bitte ignorieren.</p>
+  </div>`;
+}
+
+/** Gilt die Schulung für diese Person? Nach Geltungsbereich und der Gesellschaft ihrer Domäne. */
+function schulungGiltFuer(kurs, user, cfg) {
+  const g = Array.isArray(kurs.geltung) ? kurs.geltung : [];
+  if (!g.length || g.includes('ALLE')) return true;
+  const dom = lc(user.upn).split('@')[1] || '';
+  const ges = (cfg.gesellschaften && cfg.gesellschaften[dom]) || null;
+  const werke = ges && Array.isArray(ges.werke) ? ges.werke.map(String) : [];
+  if (!werke.length) return true;                    // ohne Zuordnung: lieber einmal zu viel
+  return g.some((w) => werke.includes(String(w)));
+}
+
+/** Direktlink auf eine Schulung in der Bibliothek. */
+function schulungLink(id) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}ansicht=wissen&beitrag=${encodeURIComponent(id)}`;
+}
+
+function schulungMailHtml(name, posten) {
+  const zeile = (x) => {
+    const was = x.art === 'offen' ? 'noch nicht abgeschlossen'
+      : x.art === 'bald' ? `Auffrischung fällig ${x.tage <= 1 ? 'morgen' : 'in ' + x.tage + ' Tagen'} (bis ${WI.wiTag(x.bis)})`
+      : `Auffrischung seit ${x.tage} Tag(en) überfällig`;
+    return `<li style="margin-bottom:6px"><a href="${esc(schulungLink(x.id))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(x.titel)}</a>
+      <span style="color:${x.art === 'abgelaufen' ? '#b45309' : '#6b7280'}"> – ${esc(was)}${x.dauer ? `, ca. ${x.dauer} Minuten` : ''}</span></li>`;
+  };
+  const eins = posten.length === 1;
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+    <p>Guten Tag ${esc(name)},</p>
+    <p>${eins ? 'eine Pflichtschulung wartet' : `${posten.length} Pflichtschulungen warten`} auf Sie:</p>
+    <ul style="padding-left:18px">${posten.map(zeile).join('')}</ul>
+    <p>Die Module lassen sich in Etappen durchgehen – der Stand bleibt gespeichert. Zum Schluss ein kurzer Wissenstest, danach steht die Bescheinigung bereit.</p>
+    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=wissen`, '#17509e', 'Zur Bibliothek „Wissen" →')}</p>
+    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung vom DIHAG Regelwerk-Management-System.
+       Ist die Schulung bereits abgeschlossen, kreuzt sich diese Mail nur mit Ihrem Abschluss – dann bitte ignorieren.</p>
   </div>`;
 }
 
@@ -700,6 +739,65 @@ function kenntnisEskalationHtml(posten) {
       }
     }
   } catch (e) { console.log('Kenntnisnahme-Erinnerungen übersprungen:', e.message); }
+
+  // ── Pflichtschulungen (Reiter „Wissen"): offen, Auffrischung steht bevor, abgelaufen ──
+  // Eine Mail je Person über alle ihre Schulungen. Freiwillige Beiträge werden
+  // nie angemahnt – das ist der Unterschied zwischen Bibliothek und Pflicht.
+  try {
+    if (cfg.schulungErinnerungAktiv === false) {
+      console.log('Schulungs-Erinnerungen: in den App-Einstellungen abgeschaltet.');
+    } else {
+      const wj = await loadKonfigJson(siteId, 'wissen.json');
+      const wissen = WI.wiNormalisieren(wj || {});
+      const pflicht = wissen.beitraege.filter((b) => b.art === 'kurs' && b.pflicht && b.aktiv !== false);
+      if (!pflicht.length) {
+        console.log('Schulungs-Erinnerungen: keine Pflichtschulung in wissen.json.');
+      } else {
+        const sErste = posInt(cfg.schulungErsteNachTagen, 7);
+        const sAlle = posInt(cfg.schulungDannAlleTage, 14);
+        const sVorlauf = posInt(cfg.schulungVorlaufTage, 14);
+        const acks = await ladeBestaetigungen(siteId);
+        let users = [];
+        try { users = await ladeMitarbeitende(); }
+        catch (e) { console.log(`Schulungen: Mitarbeitende nicht lesbar (${e.message}) – Teil übersprungen.`); }
+        if (acks && users.length) {
+          const jeUser = new Map();   // upn → { upn, name, posten: [] }
+          const heute = new Date().toISOString();
+          for (const k of pflicht) {
+            let offen = 0, bald = 0, abgelaufen = 0;
+            for (const u of users) {
+              if (!schulungGiltFuer(k, u, cfg)) continue;
+              const ack = acks.get(`${WI.wiAckId(k.id)}|${k.stand || '1'}|${lc(u.upn)}`) || null;
+              const st = WI.wiStand(k, ack ? [ack] : [], heute);
+              let art = '', tage = 0;
+              if (st.gueltig) {
+                const bis = Math.ceil((Date.parse(st.faelligAm) - Date.now()) / 86400000);
+                if (st.faelligAm && bis <= sVorlauf && (bis === sVorlauf || bis === 3 || bis === 1)) { art = 'bald'; tage = bis; bald++; }
+              } else if (st.abgelaufen) {
+                tage = daysSince(st.faelligAm); abgelaufen++;
+                if (isDue(tage + 1, 1, sAlle)) art = 'abgelaufen';
+              } else {
+                tage = daysSince(k.erstelltAm || heute); offen++;
+                if (isDue(tage, sErste, sAlle)) art = 'offen';
+              }
+              if (!art) continue;
+              if (!jeUser.has(lc(u.upn))) jeUser.set(lc(u.upn), { upn: u.upn, name: u.name, posten: [] });
+              jeUser.get(lc(u.upn)).posten.push({ id: k.id, titel: k.titel, dauer: k.dauer, art, tage, bis: st.faelligAm });
+            }
+            console.log(`• Pflichtschulung „${k.titel}" – offen: ${offen}, Auffrischung bald: ${bald}, abgelaufen: ${abgelaufen}`);
+          }
+          for (const u of jeUser.values()) {
+            const eins = u.posten.length === 1;
+            const betreff = eins
+              ? (u.posten[0].art === 'offen' ? `Pflichtschulung: ${u.posten[0].titel}` : `Auffrischung ${u.posten[0].art === 'bald' ? 'steht an' : 'fällig'}: ${u.posten[0].titel}`)
+              : `${u.posten.length} Pflichtschulungen warten auf Sie`;
+            if (await sendMail([u.upn], betreff, schulungMailHtml(u.name, u.posten), [])) sent++;
+          }
+          console.log(`Schulungen: ${jeUser.size} Person(en) erinnert.`);
+        }
+      }
+    }
+  } catch (e) { console.log('Schulungs-Erinnerungen übersprungen:', e.message); }
 
   // ── Review-Fälligkeiten (Wiedervorlage) als Sammel-Mail an die Admins (ISO 27001 A.5.1) ──
   try {

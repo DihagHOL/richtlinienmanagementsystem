@@ -25,6 +25,10 @@ const WI_ARTEN = [
   { key: 'link',    symbol: '🔗', label: 'Link',        hinweis: 'Ein Verweis nach draußen – BSI, Datenschutzbehörde, Intranet.' },
   { key: 'test',    symbol: '❓', label: 'Wissenstest', hinweis: 'Fragen mit genau einer richtigen Antwort. Freiwillig, beliebig oft, die Reihenfolge wird gemischt.' },
 ];
+/* Bereiche, nach denen die Themen in der Leiste gruppiert sind – damit die
+   Bibliothek nicht wie eine IT-Sammlung aussieht, sobald ein Thema aus
+   Compliance oder Arbeitssicherheit dazukommt. Freitext; das sind Vorschläge. */
+const WI_BEREICHE = ['Informationssicherheit', 'Datenschutz', 'Compliance & Verhalten', 'Arbeitssicherheit', 'Qualität & Umwelt', 'Unternehmen'];
 const WI_PREFIX = 'wissen:';           // Kennung in der Bestätigungen-Liste
 const WI_TAGE = 30;                    // Fenster für „zuletzt" in den Kennzahlen
 const WI_BESTEHEN = 80;                // Bestehensgrenze, wenn nichts anderes gesetzt ist
@@ -131,6 +135,7 @@ function wiNormalisieren(roh) {
   const d = (roh && typeof roh === 'object') ? roh : {};
   const themen = (Array.isArray(d.themen) ? d.themen : []).map(t => ({
     id: String(t.id || wiSlug(t.titel)), titel: String(t.titel || '').trim(), symbol: String(t.symbol || '📚'), kurz: String(t.kurz || ''),
+    bereich: String(t.bereich || '').trim(),
   })).filter(t => t.id && t.titel);
   const beitraege = (Array.isArray(d.beitraege) ? d.beitraege : []).map(b => ({
     id: String(b.id || wiNeueId()), art: wiArt(b.art).key, thema: String(b.thema || ''),
@@ -228,6 +233,25 @@ function wiTag(iso) {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
 }
 
+/**
+ * Der Modul-Fortschritt einer Schulung steht im Nachweis selbst (Spalte
+ * „Fortschritt" der Bestätigungen-Liste): {"s":"<Stand>","m":["m1","m2"]}.
+ * In SharePoint, nicht im Browser – auf einem anderen Gerät geht es dort
+ * weiter, wo man aufgehört hat. Ein anderer Stand zählt nicht.
+ */
+function wiFortschrittVon(b, ack) {
+  if (!b || !ack || !ack.fortschritt) return [];
+  try {
+    const f = JSON.parse(String(ack.fortschritt));
+    if (!f || String(f.s || '1') !== String(b.stand || '1') || !Array.isArray(f.m)) return [];
+    const ids = new Set((b.module || []).map(m => m.id));
+    return f.m.map(String).filter(id => ids.has(id));
+  } catch (e) { return []; }
+}
+function wiFortschrittText(b, module) {
+  return JSON.stringify({ s: String((b && b.stand) || '1'), m: [...new Set((module || []).map(String))] });
+}
+
 /** Wo eine Schulung für diese Person steht – als Wort und als Farbe. */
 function wiKursStatus(b, acks, jetzt) {
   const s = wiStand(b, acks, jetzt);
@@ -306,14 +330,67 @@ function wiAuswertung(daten, acks) {
    nicht drin – die dreht das Haus selbst oder wählt sie aus. */
 const WI_STARTBESTAND = {
   themen: [
-    { id: 'phishing',     titel: 'Phishing & E-Mail',        symbol: '🎣', kurz: 'Die häufigste Tür für Angreifer – und die, die jede:r selbst zuhält.' },
-    { id: 'passwoerter',  titel: 'Passwörter & Zugänge',     symbol: '🔑', kurz: 'Ein Dienst, ein Passwort, ein zweiter Faktor.' },
-    { id: 'arbeitsplatz', titel: 'Arbeitsplatz & unterwegs', symbol: '💼', kurz: 'Bildschirm, Schreibtisch, Homeoffice, Bahn.' },
-    { id: 'datenschutz',  titel: 'Datenschutz im Alltag',    symbol: '🛡️', kurz: 'Was personenbezogen ist – und was daraus folgt.' },
-    { id: 'melden',       titel: 'Vorfall melden',           symbol: '🚨', kurz: 'Lieber einmal zu viel als einmal zu spät.' },
-    { id: 'ki',           titel: 'KI im Arbeitsalltag',      symbol: '🤖', kurz: 'Was in einen KI-Chat darf – und was nicht.' },
+    { id: 'phishing',     titel: 'Phishing & E-Mail',        symbol: '🎣', kurz: 'Die häufigste Tür für Angreifer – und die, die jede:r selbst zuhält.', bereich: 'Informationssicherheit' },
+    { id: 'passwoerter',  titel: 'Passwörter & Zugänge',     symbol: '🔑', kurz: 'Ein Dienst, ein Passwort, ein zweiter Faktor.', bereich: 'Informationssicherheit' },
+    { id: 'arbeitsplatz', titel: 'Arbeitsplatz & unterwegs', symbol: '💼', kurz: 'Bildschirm, Schreibtisch, Homeoffice, Bahn.', bereich: 'Informationssicherheit' },
+    { id: 'melden',       titel: 'Vorfall melden',           symbol: '🚨', kurz: 'Lieber einmal zu viel als einmal zu spät.', bereich: 'Informationssicherheit' },
+    { id: 'ki',           titel: 'KI im Arbeitsalltag',      symbol: '🤖', kurz: 'Was in einen KI-Chat darf – und was nicht.', bereich: 'Informationssicherheit' },
+    { id: 'datenschutz',  titel: 'Datenschutz im Alltag',    symbol: '🛡️', kurz: 'Was personenbezogen ist – und was daraus folgt.', bereich: 'Datenschutz' },
+    { id: 'verhalten',    titel: 'Verhaltenskodex & Compliance', symbol: '⚖️', kurz: 'Geschenke, Einladungen, Interessenkonflikte – und wo man Bedenken loswird.', bereich: 'Compliance & Verhalten' },
+    { id: 'arbeitssicherheit', titel: 'Sicher arbeiten',    symbol: '🦺', kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen.', bereich: 'Arbeitssicherheit' },
   ],
   beitraege: [
+    { id: 'start-verhalten-artikel', art: 'artikel', thema: 'verhalten', titel: 'Geschenke, Einladungen, Interessenkonflikte – die drei Alltagsfragen', dauer: 3,
+      kurz: 'Die meisten Compliance-Fragen sind keine Rechtsfragen, sondern Anstandsfragen mit einer Grenze.',
+      text: `Compliance klingt nach Juristerei. Im Alltag sind es drei Fragen, die immer wieder auftauchen – und für alle drei gibt es eine einfache Prüfung: **Würde ich es meiner Vorgesetzten, einem Kunden und der Zeitung genauso erzählen?**
+
+# Geschenke und Einladungen
+- **Annehmen** darf man, was üblich und geringwertig ist: der Kalender, die Flasche Wein, das Mittagessen im Rahmen eines Termins.
+- **Melden oder ablehnen** muss man, was darüber hinausgeht oder zeitlich in eine Entscheidung fällt – eine Einladung zum Fußballspiel in der Woche der Auftragsvergabe hat ein Geschmäckle, auch wenn nichts dahintersteckt.
+- **Geben** gilt genauso: Wer Amtsträgern oder Einkäufern etwas schenkt, bewegt sich schnell im Strafrecht. Im Zweifel vorher fragen.
+
+# Interessenkonflikte
+Ein Interessenkonflikt ist kein Vorwurf, sondern eine Situation: Die Schwester arbeitet beim Lieferanten, der Freund bewirbt sich, man hält Anteile an einem Wettbewerber. **Der Fehler ist nicht die Situation – der Fehler ist, sie zu verschweigen.** Offenlegen, und die Entscheidung trifft jemand anderes.
+
+# Wettbewerb
+Preise, Kunden, Gebiete, Konditionen – darüber spricht man mit Wettbewerbern nicht. Auch nicht „unter uns" auf der Messe, auch nicht im Verband. Kommt es dazu, das Gespräch beenden und den Vorfall melden.
+
+# Bedenken loswerden
+Wer etwas beobachtet, das nicht in Ordnung ist, hat Wege: Vorgesetzte, Compliance, oder – wenn das nicht geht – das **Hinweisgebersystem**, auch anonym. Wer hinweist, ist geschützt; Nachteile für einen Hinweis sind selbst ein Verstoß.
+
+>✓ Die Regel für den Zweifel: erst fragen, dann handeln. Eine Rückfrage kostet zehn Minuten. Ein Verstoß kostet die Stelle – manchmal mehr.` },
+    { id: 'start-verhalten-test', art: 'test', thema: 'verhalten', titel: 'Wissenstest: Verhaltenskodex', dauer: 2, bestehen: 80,
+      kurz: 'Vier Fragen.',
+      fragen: [
+        { frage: 'Ein Lieferant lädt Sie in der Woche der Auftragsvergabe zum Bundesligaspiel mit Hotel ein. Was ist richtig?', optionen: ['Annehmen – das ist Kundenpflege.', 'Ablehnen oder vorher offenlegen und entscheiden lassen – der Zeitpunkt ist das Problem.', 'Annehmen, aber niemandem erzählen.'], richtig: 1 },
+        { frage: 'Ihr Bruder bewirbt sich in Ihrer Abteilung, Sie sitzen im Auswahlgespräch. Was tun Sie?', optionen: ['Nichts sagen, aber besonders streng sein.', 'Den Interessenkonflikt offenlegen und die Auswahl anderen überlassen.', 'Das Gespräch führen – Familie ist Privatsache.'], richtig: 1 },
+        { frage: 'Auf der Messe erzählt ein Wettbewerber, er erhöhe im Januar die Preise um 5 %, und fragt nach Ihren Plänen. Was tun Sie?', optionen: ['Höflich eine grobe Zahl nennen.', 'Das Gespräch beenden und den Vorfall melden.', 'Zuhören, aber nichts sagen – zuhören ist erlaubt.'], richtig: 1 },
+        { frage: 'Sie beobachten, dass Prüfprotokolle nachträglich geändert werden. Was ist der richtige Weg?', optionen: ['Abwarten, ob es jemand anderem auffällt.', 'Vorgesetzte oder Compliance ansprechen – oder das Hinweisgebersystem nutzen, auch anonym.', 'Die Kollegen direkt beschuldigen.'], richtig: 1 },
+      ] },
+    { id: 'start-arbeitssicherheit-artikel', art: 'artikel', thema: 'arbeitssicherheit', titel: 'Sicher arbeiten – vier Gewohnheiten, die Unfälle verhindern', dauer: 3,
+      kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen – und warum Melden kein Petzen ist.',
+      text: `Die meisten Unfälle passieren nicht bei den gefährlichen Arbeiten, sondern bei den gewohnten: der schnelle Handgriff ohne Handschuh, der Weg über die Palette statt außen herum, die Maschine, die „nur kurz" ohne Schutz läuft.
+
+# Vier Gewohnheiten
+1. **Schutzausrüstung tragen – immer, nicht meistens.** Helm, Brille, Handschuhe, Sicherheitsschuhe, Gehörschutz: Was die Unterweisung für den Bereich vorsieht, gilt für die zwei Minuten genauso wie für die Schicht.
+2. **Wege sind Wege.** Markierte Verkehrswege einhalten, nicht über Material klettern, Fluchtwege und Feuerlöscher frei halten. Stapler haben Vorfahrt – und tote Winkel.
+3. **Beinaheunfälle melden.** Der Stein, der neben Ihnen einschlug, das Kabel, über das Sie fast gestolpert wären: Was heute fast passiert ist, passiert morgen jemand anderem. Die Meldung ist kein Petzen, sondern die einzige Chance, es vorher zu ändern.
+4. **Nein sagen dürfen.** Wer eine Arbeit für gefährlich hält, darf sie unterbrechen und Rücksprache halten. Niemand muss eine Anweisung ausführen, die ihn in Gefahr bringt.
+
+# Im Notfall
+- **Erste Hilfe:** Wer die Ersthelfer im Bereich sind, steht am Aushang – merken, bevor es nötig ist.
+- **Melden:** Notruf absetzen, Vorgesetzte informieren, den Unfall im Verbandbuch eintragen – auch die kleine Schnittwunde. Ohne Eintrag gibt es später keinen Versicherungsschutz.
+- **Ruhe bewahren:** erst sichern (Maschine aus, Bereich absperren), dann helfen.
+
+>✓ Sicherheit ist keine Regel gegen die Arbeit, sondern die Bedingung, dass alle abends heimkommen. Wer sie ernst nimmt, wird nicht belächelt – wer sie überspringt, wird angesprochen.` },
+    { id: 'start-arbeitssicherheit-test', art: 'test', thema: 'arbeitssicherheit', titel: 'Wissenstest: Sicher arbeiten', dauer: 2, bestehen: 80,
+      kurz: 'Vier Fragen.',
+      fragen: [
+        { frage: 'Ein Kabel liegt quer über dem Weg, Sie stolpern fast, nichts passiert. Was tun Sie?', optionen: ['Nichts – es ist ja nichts passiert.', 'Kabel sichern und den Beinaheunfall melden.', 'Kollegen warnen, das reicht.'], richtig: 1 },
+        { frage: 'Sie sollen „nur kurz" ohne Schutzbrille an der Maschine nachjustieren. Was gilt?', optionen: ['Kurz geht ohne.', 'Schutzausrüstung gilt auch für zwei Minuten.', 'Nur, wenn die Vorgesetzte es sagt.'], richtig: 1 },
+        { frage: 'Sie halten eine angewiesene Arbeit für gefährlich. Dürfen Sie sie unterbrechen?', optionen: ['Nein, Anweisung ist Anweisung.', 'Ja – unterbrechen und Rücksprache halten.', 'Nur mit Betriebsrat.'], richtig: 1 },
+        { frage: 'Eine kleine Schnittwunde, ein Pflaster – muss das ins Verbandbuch?', optionen: ['Nein, nur größere Verletzungen.', 'Ja – ohne Eintrag fehlt später der Versicherungsschutz.', 'Nur, wenn es blutet.'], richtig: 1 },
+      ] },
     { id: 'start-phishing-artikel', art: 'artikel', thema: 'phishing', titel: 'Phishing erkennen in 60 Sekunden', dauer: 2,
       kurz: 'Fünf Merkmale, die fast jede betrügerische Mail verraten.',
       text: `Phishing-Mails sehen heute echt aus: richtiges Logo, korrektes Deutsch, oft sogar ein bekannter Absendername. Verraten tun sie sich trotzdem – meist an mehr als einem dieser Punkte.
@@ -584,10 +661,76 @@ Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absende
 };
 WI_STARTBESTAND.beitraege.unshift(WI_KURS_PHISHING);
 
+/**
+ * Die Teilnahmebescheinigung – eine eigene Seite zum Drucken oder als PDF.
+ * Sie belegt, was der Nachweis in der Bestätigungen-Liste festhält: wer,
+ * welche Schulung, wann, mit welchem Ergebnis, wie lange gültig. Die
+ * Nummer ist die Kennung des Nachweises – so lässt sich jede Bescheinigung
+ * in der Liste wiederfinden.
+ */
+function wiZertifikatHtml(o) {
+  const b = o.kurs || {}, s = o.stand || {}, name = o.name || o.upn || '', E = _wiEsc;
+  const datum = wiTag(s.am || s.ack && s.ack.abgeschlossenAm || '');
+  const bis = s.faelligAm ? wiTag(s.faelligAm) : '';
+  const ackId = String((s.ack && s.ack.id) || '0');
+  const nummer = 'RMS-W-' + (/^\d+$/.test(ackId) ? ackId.padStart(6, '0') : ackId);
+  const module = (b.module || []).map(m => `<li>${E(m.titel)}</li>`).join('');
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Teilnahmebescheinigung – ${E(b.titel)}</title>
+<style>
+  @page { size: A4 landscape; margin: 14mm; }
+  body { margin: 0; font-family: Exo, 'Segoe UI', Arial, sans-serif; color: #1A2644; background: #f3f4f6; }
+  .blatt { max-width: 1000px; margin: 24px auto; background: #fff; padding: 46px 56px; border: 10px solid #17509E; outline: 2px solid #F08300; outline-offset: -20px; position: relative; }
+  .kopf { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
+  .marke { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 20px; letter-spacing: .04em; }
+  .marke i { display: inline-flex; width: 38px; height: 38px; border-radius: 9px; background: #17509E; color: #fff; align-items: center; justify-content: center; font-style: normal; font-size: 20px; }
+  .nr { font-family: Consolas, monospace; color: #6b7280; font-size: 13px; text-align: right; line-height: 1.5; }
+  h1 { font-size: 15px; letter-spacing: .3em; text-transform: uppercase; color: #F08300; margin: 0 0 12px; }
+  .wer { font-size: 34px; font-weight: 800; margin: 6px 0 10px; }
+  .was { font-size: 18px; line-height: 1.5; margin: 0 0 22px; }
+  .was b { color: #17509E; }
+  .fakten { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 0 0 22px; }
+  .fakt { border-top: 3px solid #99B7CD; padding-top: 8px; }
+  .fakt small { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; }
+  .fakt span { font-size: 17px; font-weight: 700; }
+  .module { display: flex; gap: 28px; align-items: flex-start; font-size: 13px; color: #424241; }
+  .module ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 28px; line-height: 1.6; }
+  .fuss { margin-top: 26px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; color: #6b7280; }
+  .siegel { width: 92px; height: 92px; border-radius: 50%; border: 3px solid #F08300; color: #F08300; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 800; font-size: 11px; letter-spacing: .06em; transform: rotate(-8deg); }
+  .knopf { position: fixed; top: 14px; right: 14px; background: #17509E; color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font: 600 14px Exo, 'Segoe UI', Arial, sans-serif; cursor: pointer; }
+  @media print { body { background: #fff; } .blatt { margin: 0; border-width: 8px; box-shadow: none; } .knopf { display: none; } }
+</style></head><body>
+<button class="knopf" onclick="window.print()">🖨 Drucken / als PDF speichern</button>
+<div class="blatt">
+  <div class="kopf">
+    <div class="marke"><i>R</i> DIHAG · Regelwerk-Management</div>
+    <div class="nr">Bescheinigung ${E(nummer)}<br>${E(datum)}</div>
+  </div>
+  <h1>Teilnahmebescheinigung</h1>
+  <div class="wer">${E(name)}</div>
+  <div class="was">hat die Schulung <b>„${E(b.titel)}"</b> erfolgreich abgeschlossen${s.score ? ` – Wissenstest bestanden mit <b>${E(s.score)} %</b>` : ''}.</div>
+  <div class="fakten">
+    <div class="fakt"><small>Abgeschlossen am</small><span>${E(datum || '–')}</span></div>
+    <div class="fakt"><small>Gültig bis</small><span>${E(bis || 'unbefristet')}</span></div>
+    <div class="fakt"><small>Umfang</small><span>${(b.module || []).length} Module${(b.fragen || []).length ? ' · Wissenstest' : ''}${b.dauer ? ` · ca. ${E(b.dauer)} Min.` : ''}</span></div>
+    <div class="fakt"><small>Art</small><span>${b.pflicht ? 'Pflichtschulung' : 'Freiwillige Schulung'}${b.wiederholung ? ` · alle ${E(b.wiederholung)} Monate` : ''}</span></div>
+  </div>
+  <div class="module"><div><b>Inhalte</b><ol>${module}</ol></div></div>
+  <div class="fuss">
+    <div>${E(o.upn || '')}<br>Der Nachweis liegt im Regelwerk-Management-System (Bestätigungen, Kennung ${E(WI_PREFIX + (b.id || ''))}${s.ack && s.ack.id ? `, Eintrag ${E(s.ack.id)}` : ''}).${o.jetzt ? `<br>Ausgestellt am ${E(wiTag(o.jetzt))}.` : ''}</div>
+    <div class="siegel">BESTANDEN<br>✓</div>
+  </div>
+</div>
+</body></html>`;
+}
+
 /** Den Startbestand ergänzen – nur, was (nach Kennung) noch fehlt. @returns Zahl der neuen Beiträge */
 function wiStartbestandErgaenzen(daten, wer, jetzt) {
   let n = 0;
-  WI_STARTBESTAND.themen.forEach(t => { if (!wiThema(daten, t.id)) daten.themen.push(Object.assign({}, t)); });
+  WI_STARTBESTAND.themen.forEach(t => {
+    const da = wiThema(daten, t.id);
+    if (!da) daten.themen.push(Object.assign({}, t));
+    else if (!da.bereich && t.bereich) da.bereich = t.bereich;   // ein Thema von früher bekommt seinen Bereich, sonst bleibt es, wie es ist
+  });
   WI_STARTBESTAND.beitraege.forEach(b => {
     if (wiBeitrag(daten, b.id)) return;
     const neu = wiNormalisieren({ beitraege: [Object.assign({ erstelltAm: jetzt || new Date().toISOString(), erstelltVon: wer || '' }, b)] }).beitraege[0];
@@ -597,7 +740,8 @@ function wiStartbestandErgaenzen(daten, wer, jetzt) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WI_ARTEN, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING,
+  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING,
     wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
-    wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiTag };
+    wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiTag,
+    wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };
 }

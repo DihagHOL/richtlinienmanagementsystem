@@ -601,7 +601,11 @@ body.demo-mode .main { padding-bottom: 64px; }
    Karten wie ein Regal: Thema als Reihe, Beiträge als Kacheln. Erledigtes
    bekommt einen grünen Rand, nicht Erledigtes bleibt still – nichts hier
    drängt. */
-.wi-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.wi-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; align-items: center; }
+.wi-chips.gruppiert { gap: 6px 18px; }
+.wi-chips-gruppe { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wi-chips-bereich { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--c-muted); margin-right: 2px; }
+.wi-chip-x { color: var(--c-muted); padding: 4px 9px; }
 .wi-chip { border: 1px solid var(--c-border); background: #fff; border-radius: 999px; padding: 4px 11px; font-size: .8rem; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--c-text); }
 .wi-chip:hover { border-color: var(--c-azure, #17509E); }
 .wi-chip.aktiv { background: var(--c-navy, #1A2644); border-color: var(--c-navy, #1A2644); color: #fff; }

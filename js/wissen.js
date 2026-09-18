@@ -23,19 +23,27 @@ let _wiEdit = null;           // Beitrag oder Thema im Dialog
 let _wiAlleAcks = null;       // Nachweise aller Personen (Auswertung)
 let _wiDeepLink = '';         // ?beitrag=… – wird nach dem Laden geöffnet
 let _wiKurs = { id: '', schritt: 0 };   // offene Schulung: 0 = Übersicht, 1…n = Modul, n+1 = Wissenstest/Abschluss
-const WI_FORTSCHRITT = 'rms_wissen_kurs_';   // localStorage: gelesene Module je Schulung (Bequemlichkeit, kein Nachweis)
 
-/** Welche Module dieser Schulung hier schon gelesen wurden – nur in diesem Browser. */
-function _wiFortschritt(b) {
-  try {
-    const roh = JSON.parse(localStorage.getItem(WI_FORTSCHRITT + b.id) || 'null');
-    return (roh && roh.stand === String(b.stand || '1') && Array.isArray(roh.gelesen)) ? roh.gelesen.map(String) : [];
-  } catch (e) { return []; }
-}
-function _wiFortschrittMerken(b, modulId) {
+/** Welche Module dieser Schulung schon gelesen wurden – aus dem Nachweis in SharePoint. */
+function _wiFortschritt(b) { return wiFortschrittVon(b, _wiStand(b).ack); }
+
+/**
+ * Ein gelesenes Modul festhalten – im Nachweis (Spalte „Fortschritt"), damit
+ * es auf jedem Gerät weitergeht. Läuft im Hintergrund; die Seite wartet nicht.
+ */
+async function _wiFortschrittMerken(b, modulId) {
   const gelesen = _wiFortschritt(b);
-  if (!gelesen.includes(modulId)) gelesen.push(modulId);
-  try { localStorage.setItem(WI_FORTSCHRITT + b.id, JSON.stringify({ stand: String(b.stand || '1'), gelesen })); } catch (e) { /* dann eben ohne */ }
+  if (gelesen.includes(modulId) || typeof spSaveAcknowledgement !== 'function') return;
+  const s = _wiStand(b), now = _wiJetzt();
+  try {
+    await spSaveAcknowledgement({ id: s.ack ? s.ack.id : undefined, richtlinieId: wiAckId(b.id), version: b.stand || '1',
+      benutzerUpn: State.user.upn, benutzerName: State.user.name, gelesenAm: (s.ack && s.ack.gelesenAm) || now,
+      quizBestanden: !!(s.ack && s.ack.quizBestanden), quizScore: (s.ack && s.ack.quizScore) || 0, quizVersuche: (s.ack && s.ack.quizVersuche) || 0,
+      abgeschlossenAm: (s.ack && s.ack.abgeschlossenAm) || '', fortschritt: wiFortschrittText(b, gelesen.concat([modulId])) });
+    if (typeof reloadAcks === 'function') await reloadAcks();
+    // Die Fortschrittsleiste zieht nach, wenn die Seite noch dieselbe ist.
+    if (_wiOffen === b.id) { const el = document.querySelector('.wi-fortschritt'); if (el && typeof _wiFortschrittHtml === 'function') el.outerHTML = _wiFortschrittHtml(b); }
+  } catch (e) { console.warn('[wissen] Fortschritt nicht gespeichert:', e.message); }
 }
 
 function wiDarfPflegen() { return typeof canWriteTab === 'function' && canWriteTab('wissen'); }
@@ -71,6 +79,9 @@ async function initWissen(still) {
     mount.innerHTML = `<div class="col-warning" style="display:block"><b>Bibliothek nicht ladbar:</b> ${esc(e.message)}</div>`;
     return;
   }
+  // Die Spalte „Fortschritt" der Bestätigungen legt der erste Admin an, der
+  // hierher kommt – bis dahin ginge der Modul-Fortschritt still verloren.
+  if (typeof spEnsureAckColumns === 'function') spEnsureAckColumns().catch(() => {});
   const wunsch = _wiDeepLink || (typeof window !== 'undefined' && window._wiDeepLinkWunsch) || '';
   if (wunsch) { _wiOffen = wiBeitrag(_wi.daten, wunsch) ? wunsch : ''; _wiDeepLink = ''; if (typeof window !== 'undefined') window._wiDeepLinkWunsch = ''; }
   renderWissen();
@@ -127,21 +138,32 @@ function renderWissen() {
     <div id="wi-liste">${_wiListeHtml()}</div>`;
 }
 
-/** Die Filterleisten: Themen und Arten – nur, was es auch gibt. */
+/**
+ * Die Filterleisten: Themen nach Bereich gruppiert, dazu die Arten. Kein
+ * „Alle"-Knopf – ein Klick auf den aktiven Chip nimmt den Filter zurück, und
+ * solange einer gesetzt ist, steht ein ✕ daneben. Die Bereichs-Beschriftung
+ * zeigt, dass hier nicht nur IT steht.
+ */
 function _wiChipsHtml(sichtbar) {
-  const chip = (aktiv, onclick, text, titel) => `<button type="button" class="wi-chip${aktiv ? ' aktiv' : ''}" onclick="${onclick}" title="${esc(titel || '')}">${text}</button>`;
+  const chip = (aktiv, onclick, text, titel) => `<button type="button" class="wi-chip${aktiv ? ' aktiv' : ''}" onclick="${onclick}" title="${esc(titel || '')}"${aktiv ? ' aria-pressed="true"' : ''}>${text}</button>`;
   const themenMit = new Set(sichtbar.map(b => b.thema));
   const themen = _wi.daten.themen.filter(t => themenMit.has(t.id) || _wiPflege);
   const arten = WI_ARTEN.filter(a => sichtbar.some(b => b.art === a.key));
   if (!themen.length && !arten.length) return '';
-  return `<div class="wi-chips">
-      ${chip(!_wiFilter.thema, "wiFilter('thema','')", 'Alle Themen')}
-      ${themen.map(t => chip(_wiFilter.thema === t.id, `wiFilter('thema','${esc(t.id)}')`, `${esc(t.symbol)} ${esc(t.titel)}`, t.kurz)).join('')}
-      ${themenMit.has('') || sichtbar.some(b => !wiThema(_wi.daten, b.thema)) ? chip(_wiFilter.thema === '-', "wiFilter('thema','-')", '📚 Weitere') : ''}
-    </div>
+  const bereiche = [...new Set(themen.map(t => t.bereich || ''))].sort((a, b) => (a === '') - (b === ''));   // ohne Bereich zuletzt
+  const mehrereBereiche = bereiche.filter(Boolean).length > 1 || (bereiche.includes('') && bereiche.length > 1);
+  const themaChip = (t) => chip(_wiFilter.thema === t.id, `wiFilter('thema','${_wiFilter.thema === t.id ? '' : esc(t.id)}')`, `${esc(t.symbol)} ${esc(t.titel)}`, t.kurz);
+  const weitere = (themenMit.has('') || sichtbar.some(b => !wiThema(_wi.daten, b.thema)))
+    ? chip(_wiFilter.thema === '-', `wiFilter('thema','${_wiFilter.thema === '-' ? '' : '-'}')`, '📚 Weitere') : '';
+  const aktiv = !!(_wiFilter.thema || _wiFilter.art);
+  const zurueck = aktiv ? `<button type="button" class="wi-chip wi-chip-x" onclick="wiFilter('thema','');wiFilter('art','')" title="Filter zurücksetzen">✕</button>` : '';
+  const themenHtml = mehrereBereiche
+    ? bereiche.map(br => `<div class="wi-chips-gruppe"><span class="wi-chips-bereich">${esc(br || 'Weitere Bereiche')}</span>${themen.filter(t => (t.bereich || '') === br).map(themaChip).join('')}</div>`).join('') + (weitere ? `<div class="wi-chips-gruppe">${weitere}</div>` : '')
+    : themen.map(themaChip).join('') + weitere;
+  return `<div class="wi-chips${mehrereBereiche ? ' gruppiert' : ''}">${themenHtml}${mehrereBereiche ? '' : zurueck}</div>
     <div class="wi-chips">
-      ${chip(!_wiFilter.art, "wiFilter('art','')", 'Alles')}
-      ${arten.map(a => chip(_wiFilter.art === a.key, `wiFilter('art','${a.key}')`, `${a.symbol} ${esc(a.label)}`, a.hinweis)).join('')}
+      ${arten.map(a => chip(_wiFilter.art === a.key, `wiFilter('art','${_wiFilter.art === a.key ? '' : a.key}')`, `${a.symbol} ${esc(a.label)}`, a.hinweis)).join('')}
+      ${mehrereBereiche ? zurueck : ''}
     </div>`;
 }
 
@@ -387,7 +409,7 @@ async function wiTestAuswerten(id) {
       ? (kurs ? `bestanden ✓ Schulung abgeschlossen${neu && neu.faelligAm ? `, gültig bis ${_wiDatum(neu.faelligAm)}` : ''}` : 'bestanden ✓')
       : 'noch nicht bestanden – die richtigen Antworten stehen oben'}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      ${passed && kurs ? `<button class="btn btn-success" onclick="wiKursZu('${esc(b.id)}', 0)">Zur Übersicht</button>` : ''}
+      ${passed && kurs ? `<button class="btn btn-success" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button><button class="btn btn-outline" onclick="wiKursZu('${esc(b.id)}', 0)">Zur Übersicht</button>` : ''}
       <button class="btn ${passed ? (kurs ? 'btn-ghost' : 'btn-success') : 'btn-primary'}" onclick="wiTestStarten('${esc(b.id)}')">${passed ? 'Noch einmal' : 'Erneut versuchen'}</button>
       <button class="btn btn-ghost" onclick="wiSchliessen()">Zurück zur Bibliothek</button>
     </div>`;
@@ -410,12 +432,11 @@ function _wiKursHtml(b) {
       <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren('${esc(b.id)}')" title="Dauerhafter Link auf diese Schulung">🔗 Link</button>
       ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog('${esc(b.id)}')">✎ Bearbeiten</button>` : ''}
     </div>`;
-  const fortschritt = `<div class="wi-fortschritt" title="${gelesen.length} von ${n} Modulen gelesen">${b.module.map(m =>
-    `<span class="${gelesen.includes(m.id) ? 'da' : ''}"></span>`).join('')}${mitTest ? `<span class="test ${st.stand.bestanden && st.key === 'erledigt' ? 'da' : ''}"></span>` : ''}</div>`;
+  const fortschritt = _wiFortschrittHtml(b);
 
   if (schritt === 0) {
     const t = _wiThemaVon(b);
-    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? ` – gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</div>`
+    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? ` – gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button></div>`
       : st.key === 'faellig' ? `<div class="wi-box warn">🔄 Ihr Abschluss vom ${_wiDatum(st.stand.am)} ist abgelaufen – bitte auffrischen.</div>`
       : st.key === 'laeuft' ? `<div class="wi-box info">▶ Begonnen – ${gelesen.length} von ${n} Modulen gelesen.</div>` : '';
     const knopf = st.key === 'laeuft' && gelesen.length < n ? 'Fortsetzen' : st.key === 'erledigt' ? 'Noch einmal durchgehen' : st.key === 'faellig' ? 'Auffrischen' : 'Schulung starten';
@@ -474,8 +495,26 @@ function _wiKursHtml(b) {
         ${gelesen.length < n ? `<div class="wi-box info">Sie haben ${gelesen.length} von ${n} Modulen gelesen – der Test geht trotzdem. Die Module stehen jederzeit in der Übersicht.</div>` : ''}
         <button class="btn btn-primary" onclick="wiTestStarten('${esc(b.id)}')">Test starten</button>
       </div>` : `<div class="wi-box ok">Sie haben alle ${n} Module gelesen.</div>
-        <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span>` : `<button class="btn btn-success" onclick="wiKursAbschliessen('${esc(b.id)}')">✓ Schulung abschließen</button>`}</div>`}
+        <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button>` : `<button class="btn btn-success" onclick="wiKursAbschliessen('${esc(b.id)}')">✓ Schulung abschließen</button>`}</div>`}
     </div>`;
+}
+
+function _wiFortschrittHtml(b) {
+  const gelesen = _wiFortschritt(b), st = wiKursStatus(b, _wiMeineAcks());
+  return `<div class="wi-fortschritt" title="${gelesen.length} von ${b.module.length} Modulen gelesen">${b.module.map(m =>
+    `<span class="${gelesen.includes(m.id) ? 'da' : ''}"></span>`).join('')}${b.fragen.length ? `<span class="test ${st.key === 'erledigt' ? 'da' : ''}"></span>` : ''}</div>`;
+}
+
+/** Die Teilnahmebescheinigung – eine eigene Seite zum Drucken oder als PDF. */
+function wiZertifikat(id) {
+  const b = wiBeitrag(_wi.daten, id);
+  if (!b) return;
+  const s = _wiStand(b);
+  if (!s.erledigt) { toast('Die Bescheinigung gibt es nach dem Abschluss.', 'error'); return; }
+  const html = wiZertifikatHtml({ kurs: b, stand: s, name: State.user.name, upn: State.user.upn, jetzt: _wiJetzt() });
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blockiert – bitte für diese Seite erlauben.', 'error'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 function wiKursZu(id, schritt) {
@@ -510,9 +549,9 @@ function wiKursWeiter(id, schritt) {
   const b = wiBeitrag(_wi.daten, id);
   if (!b) return;
   const m = b.module[schritt - 1];
-  if (m) _wiFortschrittMerken(b, m.id);
   if (schritt >= b.module.length && !b.fragen.length) { wiKursAbschliessen(id); return; }
   wiKursZu(id, schritt + 1);
+  if (m) _wiFortschrittMerken(b, m.id).catch(() => {});   // nach dem Umblättern – die Seite wartet nicht auf SharePoint
 }
 
 /** Ohne Wissenstest: alle Module gelesen = abgeschlossen. */
@@ -553,7 +592,7 @@ async function wiSpeichern(meldung) {
 function wiThemaDialog(id) {
   if (!wiDarfPflegen()) return;
   const t = id ? wiThema(_wi.daten, id) : null;
-  _wiEdit = t ? Object.assign({}, t) : { id: '', titel: '', symbol: '📚', kurz: '' };
+  _wiEdit = t ? Object.assign({}, t) : { id: '', titel: '', symbol: '📚', kurz: '', bereich: '' };
   openModal(`
     <div class="modal-header"><h3>${t ? 'Thema bearbeiten' : 'Neues Thema'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
@@ -565,6 +604,10 @@ function wiThemaDialog(id) {
       </div>
       <div class="form-group full"><label>Eine Zeile dazu</label>
         <input type="text" id="wi-t-kurz" value="${esc(_wiEdit.kurz)}" placeholder="Worum es in diesem Thema geht – ein Satz"></div>
+      <div class="form-group full"><label>Bereich</label>
+        <input type="text" id="wi-t-bereich" list="wi-bereiche" value="${esc(_wiEdit.bereich || '')}" placeholder="z. B. Informationssicherheit, Compliance & Verhalten, Arbeitssicherheit">
+        <datalist id="wi-bereiche">${WI_BEREICHE.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+        <span class="field-hint">Die Themenleiste gruppiert nach Bereich – so sieht man, dass hier nicht nur IT steht.</span></div>
       ${t ? `<div class="field-hint">${_wi.daten.beitraege.filter(b => b.thema === t.id).length} Beiträge in diesem Thema. Beim Löschen bleiben sie erhalten und stehen unter „Weitere".</div>` : ''}
     </div>
     <div class="modal-footer">
@@ -580,12 +623,13 @@ async function wiThemaSpeichern() {
   if (!titel.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
   const symbol = ((document.getElementById('wi-t-symbol') || {}).value || '📚').trim() || '📚';
   const kurz = ((document.getElementById('wi-t-kurz') || {}).value || '').trim();
+  const bereich = ((document.getElementById('wi-t-bereich') || {}).value || '').trim();
   if (_wiEdit.id) {
-    Object.assign(wiThema(_wi.daten, _wiEdit.id), { titel: titel.trim(), symbol, kurz });
+    Object.assign(wiThema(_wi.daten, _wiEdit.id), { titel: titel.trim(), symbol, kurz, bereich });
   } else {
     let id = wiSlug(titel);
     while (wiThema(_wi.daten, id)) id += '-2';
-    _wi.daten.themen.push({ id, titel: titel.trim(), symbol, kurz });
+    _wi.daten.themen.push({ id, titel: titel.trim(), symbol, kurz, bereich });
   }
   if (await wiSpeichern('Thema gespeichert ✓')) { closeModal(); renderWissen(); }
 }

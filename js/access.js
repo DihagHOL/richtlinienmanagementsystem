@@ -65,6 +65,12 @@ const ACCESS_CONFIG_DEFAULT = {
   kenntnisDannAlleTage:     7,
   kenntnisEskalationAbTagen: 21,
   kenntnisEskalationMail:   '',   // leer = Eskalations-Mail des Workflows  // Erinnerungen senden ja/nein
+  // Pflichtschulungen (Reiter „Wissen"): offen → erste Mail nach X Tagen, dann alle Y;
+  // Auffrischung → Z Tage vor Ablauf und ab Ablauf alle Y Tage.
+  schulungErinnerungAktiv:  true,
+  schulungErsteNachTagen:   7,
+  schulungDannAlleTage:     14,
+  schulungVorlaufTage:      14,
   mailSender:               '',    // Absender-Postfach (sonst GitHub-Secret MAIL_SENDER)
   erinnerungErsteNachTagen: 7,     // erste Erinnerung nach X Tagen
   erinnerungDannAlleTage:   3,     // danach alle Y Tage
@@ -130,6 +136,10 @@ async function loadRuntimeAccessConfig() {
         kenntnisDannAlleTage:      _posInt(cfg.kenntnisDannAlleTage, 7),
         kenntnisEskalationAbTagen: _posInt(cfg.kenntnisEskalationAbTagen, 21),
         kenntnisEskalationMail:    typeof cfg.kenntnisEskalationMail === 'string' ? cfg.kenntnisEskalationMail : '',
+        schulungErinnerungAktiv:   cfg.schulungErinnerungAktiv !== false,
+        schulungErsteNachTagen:    _posInt(cfg.schulungErsteNachTagen, 7),
+        schulungDannAlleTage:      _posInt(cfg.schulungDannAlleTage, 14),
+        schulungVorlaufTage:       _posInt(cfg.schulungVorlaufTage, 14),
         erinnerungErsteNachTagen: _posInt(cfg.erinnerungErsteNachTagen, 7),
         erinnerungDannAlleTage:   _posInt(cfg.erinnerungDannAlleTage, 3),
         eskalationAbTagen:        _posInt(cfg.eskalationAbTagen, 14),
@@ -175,6 +185,10 @@ function getAccessConfig() {
     kenntnisDannAlleTage:      _posInt(c.kenntnisDannAlleTage, 7),
     kenntnisEskalationAbTagen: _posInt(c.kenntnisEskalationAbTagen, 21),
     kenntnisEskalationMail:    c.kenntnisEskalationMail || '',
+    schulungErinnerungAktiv:   c.schulungErinnerungAktiv !== false,
+    schulungErsteNachTagen:    _posInt(c.schulungErsteNachTagen, 7),
+    schulungDannAlleTage:      _posInt(c.schulungDannAlleTage, 14),
+    schulungVorlaufTage:       _posInt(c.schulungVorlaufTage, 14),
     erinnerungErsteNachTagen: _posInt(c.erinnerungErsteNachTagen, 7),
     erinnerungDannAlleTage:   _posInt(c.erinnerungDannAlleTage, 3),
     eskalationAbTagen:        _posInt(c.eskalationAbTagen, 14),

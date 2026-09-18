@@ -224,6 +224,9 @@ const ACK_COLUMNS = [
   { name: 'QuizScore',          typ: 'Zahl' },
   { name: 'QuizVersuche',       typ: 'Zahl' },
   { name: 'AbgeschlossenAm',    typ: 'Datum und Uhrzeit' },
+  // Der Modul-Fortschritt einer Schulung (Reiter „Wissen") – in SharePoint,
+  // nicht im Browser: {"s":"<Stand>","m":["m1","m2"]}
+  { name: 'Fortschritt',        typ: 'Mehrere Zeilen Text' },
 ];
 
 /** Welche erwarteten Spalten fehlen in der Liste „Bestaetigungen"? */
@@ -895,7 +898,35 @@ function _mapAck(item) {
     quizScore:        Number(f.QuizScore || 0),
     quizVersuche:     Number(f.QuizVersuche || 0),
     abgeschlossenAm:  f.AbgeschlossenAm || '',
+    fortschritt:      f.Fortschritt || '',
   };
+}
+
+/**
+ * Fehlende Spalten der Liste „Bestaetigungen" anlegen – einmal je Sitzung,
+ * nur durch Admins. Neue Felder (zuletzt „Fortschritt" für Schulungen) würden
+ * sonst still verschluckt: spSaveAcknowledgement schreibt nur, was es gibt.
+ * @returns {Promise<number>} Zahl der angelegten Spalten
+ */
+let _ackSpaltenGeprueft = false;
+async function spEnsureAckColumns() {
+  if (_ackSpaltenGeprueft) return 0;
+  _ackSpaltenGeprueft = true;
+  if (typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return 0;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return 0;
+  await _spSpalten();
+  const fehlend = spMissingAckColumns();
+  let n = 0;
+  for (const c of fehlend) {
+    try {
+      const def = c.typ === 'Ja/Nein' ? { boolean: {} } : _riskColGraphDef(c.typ);
+      await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`, token, { name: c.name, ...def });
+      _sp.ackFields.add(c.name); n++;
+    } catch (e) { console.warn('[sp] Spalte „' + c.name + '" der Bestätigungen nicht anlegbar:', e.message); }
+  }
+  if (n) { console.info(`[sp] ${n} Spalte(n) der Bestätigungen-Liste angelegt.`); try { document.dispatchEvent(new CustomEvent('rms-spalten-geladen')); } catch (e) {} }
+  return n;
 }
 
 /**
@@ -918,6 +949,7 @@ async function spSaveAcknowledgement(a) {
     QuizVersuche:       Number(a.quizVersuche || 0),
     AbgeschlossenAm:    a.abgeschlossenAm || '',
   };
+  if (typeof a.fortschritt === 'string') all.Fortschritt = a.fortschritt;   // nur, wenn der Aufrufer ihn führt
   // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
   if (!all.AbgeschlossenAm) delete all.AbgeschlossenAm;
   if (!all.GelesenAm)       delete all.GelesenAm;

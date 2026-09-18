@@ -273,6 +273,24 @@ function _rollenBereichHtml() {
               lesen darf (Graph-Anwendungsrecht <code>User.Read.All</code>) – sonst überspringt der Lauf diesen Teil
               und schreibt es ins Protokoll.
             </div>
+            <div style="font-weight:700;font-size:.9rem;margin:16px 0 6px">Pflichtschulungen (Reiter „Wissen")</div>
+            <div class="field-hint" style="margin-bottom:10px">
+              Erinnert an <b>Pflichtschulungen</b>, die noch offen sind, und kündigt die <b>Auffrischung</b> an, bevor
+              ein Abschluss abläuft. Eine Mail je Person über alle ihre Schulungen; freiwillige Beiträge werden nie angemahnt.
+            </div>
+            <div class="form-grid">
+              <div class="form-group"><label>Schulungs-Erinnerungen</label>
+                <select onchange="_cfgEdit.schulungErinnerungAktiv=(this.value==='ja')">
+                  <option value="ja" ${_cfgEdit.schulungErinnerungAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
+                  <option value="nein" ${_cfgEdit.schulungErinnerungAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+                </select></div>
+              <div class="form-group"><label>Offen: erste Erinnerung nach (Tagen)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.schulungErsteNachTagen || 7)}" onchange="_cfgEdit.schulungErsteNachTagen=parseInt(this.value,10)||7"></div>
+              <div class="form-group"><label>Danach alle (Tagen)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.schulungDannAlleTage || 14)}" onchange="_cfgEdit.schulungDannAlleTage=parseInt(this.value,10)||14"></div>
+              <div class="form-group"><label>Auffrischung ankündigen (Tage vor Ablauf)</label>
+                <input type="number" min="1" value="${esc(_cfgEdit.schulungVorlaufTage || 14)}" onchange="_cfgEdit.schulungVorlaufTage=parseInt(this.value,10)||14"></div>
+            </div>
           </div>
         </div>
       </div>
