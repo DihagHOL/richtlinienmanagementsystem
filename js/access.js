@@ -675,7 +675,18 @@ function trennungHinweisHtml() {
    Rollennamen in den Listen (Altbestand). „Schreiben" schließt „Lesen" ein. Admins
    haben immer Zugriff; „Einstellungen" bleibt bewusst admin-only
    (Berechtigungsvergabe = kein Privilege-Escalation). Gepflegt in access-config.json. */
+/* Von sich aus sieht jede:r nur „Wissen". Alles andere – auch „Meine
+   Regelwerke", die Anleitung, die Dokumentation und die Links zu den anderen
+   Apps – wird in den Einstellungen freigegeben: je Person, Gruppe oder mit
+   einem Eintrag für eine ganze Gesellschaft. Admins sehen immer alles. */
+const REITER_OHNE_STANDARD = ['meine', 'anleitung', 'dokumentation', 'ki', 'zapp'];
+
 const GOVERNABLE_TABS = [
+  { view: 'meine',       label: 'Meine Regelwerke', kurz: 'Regelwerke' },
+  // Die Bibliothek liest jede:r – „S" macht zur pflegenden Person. „L" ändert nichts.
+  { view: 'wissen',      label: 'Wissen (Bibliothek pflegen)', kurz: 'Wissen' },
+  { view: 'anleitung',   label: 'Anleitung', kurz: 'Anleitung' },
+  { view: 'dokumentation', label: 'Dokumentation', kurz: 'Doku' },
   { view: 'cockpit',     label: 'Cockpit' , kurz: 'Cockpit' },
   { view: 'verwaltung',  label: 'Regelwerk Dashboard', kurz: 'Dashboard' },
   { view: 'ismsdocs',    label: 'IMS-Dokumente', kurz: 'IMS-Dok.' },
@@ -692,10 +703,22 @@ const GOVERNABLE_TABS = [
   { view: 'wirksamkeit', label: 'Wirksamkeit & Verbesserung' , kurz: 'Wirksamkeit' },
   { view: 'notfall',     label: 'Notfall & Krisenstab' , kurz: 'Notfall' },
   { view: 'vorfaelle',   label: 'Vorfälle & Ereignisse' , kurz: 'Vorfälle' },
-  // Die Bibliothek liest jede:r – „S" macht zur pflegenden Person. „L" ändert nichts.
-  { view: 'wissen',      label: 'Wissen (Bibliothek pflegen)', kurz: 'Wissen' },
   { view: 'compliance',  label: 'Audit Report' , kurz: 'Audit' },
+  // Zwei Links auf andere Apps – keine Ansichten, aber Einträge in der Leiste.
+  { view: 'ki',          label: 'KI-Dashboard (Link)', kurz: 'KI' },
+  { view: 'zapp',        label: 'ZAPP – Zuwendungen (Link)', kurz: 'ZAPP' },
 ];
+
+/**
+ * Die Ansicht, mit der jemand anfängt: „Meine Regelwerke", wenn freigegeben –
+ * sonst „Wissen", das jede:r hat – sonst der erste freigegebene Reiter.
+ */
+function startAnsicht() {
+  if (canReadTab('meine')) return 'meine';
+  if (canReadTab('wissen')) return 'wissen';
+  const t = GOVERNABLE_TABS.find(x => !REITER_OHNE_STANDARD.includes(x.view) && x.view !== 'wissen' && canReadTab(x.view));
+  return t ? t.view : 'wissen';
+}
 
 function _reiterRechte() { return _cfg().reiterRechte || {}; }
 
@@ -803,6 +826,15 @@ function initRoleNav() {
   ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
    'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance', 'ausnahmen',
    'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].forEach(t => { v[t] = canReadTab(t); });
+
+  // Die früher offenen Reiter – jetzt nur mit Freigabe. „Wissen" bleibt.
+  show('nav-meine',         canReadTab('meine'));
+  show('nav-anleitung',     canReadTab('anleitung'));
+  show('nav-dokumentation', canReadTab('dokumentation'));
+  show('nav-ki',            canReadTab('ki'));
+  show('nav-grp-ki',        canReadTab('ki'));
+  show('nav-zapp',          canReadTab('zapp'));
+  show('nav-grp-apps',      canReadTab('zapp'));
 
   // Einzelne Reiter
   show('nav-cockpit',       v.cockpit);

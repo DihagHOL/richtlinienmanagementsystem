@@ -174,9 +174,9 @@ async function applyDeepLinkOrDefault() {
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht); return;
     }
-    // Startansicht ist für alle „Meine Regelwerke" – auch Admins sehen zuerst
-    // das, was jede:r sieht. Das Cockpit ist einen Klick entfernt.
-    await switchView('meine'); return;
+    // Startansicht: „Meine Regelwerke", wenn freigegeben – sonst „Wissen", das
+    // jede:r hat. Auch Admins fangen so an; das Cockpit ist einen Klick entfernt.
+    await switchView((typeof startAnsicht === 'function') ? startAnsicht() : 'meine'); return;
   }
 
   // Aus der Konzept-Entscheidung: direkt in den Entwurf – wahlweise gleich
@@ -223,6 +223,13 @@ async function applyDeepLinkOrDefault() {
     if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
   } else {
+    // Ohne Freigabe für „Meine Regelwerke" führt der Link ins Leere – das
+    // soll die Person erfahren, nicht raten.
+    if (typeof canReadTab === 'function' && !canReadTab('meine')) {
+      await switchView(startAnsicht());
+      toast('Der Reiter „Meine Regelwerke" ist für Sie nicht freigegeben – bitte an die Administration wenden.', 'error');
+      return;
+    }
     await switchView('meine');
     if (policyZuId(deepId)) openDetail(deepId);
     else toast('Das verlinkte Regelwerk ist für Sie aktuell nicht sichtbar.');
@@ -330,6 +337,16 @@ function showSync(on, text) {
 ═══════════════════════════════════════════════════ */
 
 async function switchView(view) {
+  // Was früher jede:r sah, ist jetzt freizugeben (Einstellungen → Reiter-
+  // Berechtigungen); von sich aus ist nur „Wissen" da. Über die Leiste kommt
+  // niemand in einen gesperrten Reiter – über einen Link oder einen Rückfall
+  // im Code schon. Dann lieber die eigene Startansicht als eine leere Seite.
+  // Detail und Wissenstest gehören zu „Meine Regelwerke".
+  const rechtFuer = { detail: 'meine', quiz: 'meine' }[view] || view;
+  if (typeof REITER_OHNE_STANDARD !== 'undefined' && REITER_OHNE_STANDARD.includes(rechtFuer)
+      && typeof canReadTab === 'function' && !canReadTab(rechtFuer)) {
+    view = startAnsicht();
+  }
   // Zuerst die Module dieser Ansicht. Die Inline-Handler in ihrem Abschnitt
   // suchen ihre Funktionen im globalen Scope; die Reihenfolge ist deshalb keine
   // Feinheit, sondern die Bedingung, unter der der Reiter überhaupt bedienbar

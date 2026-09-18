@@ -167,7 +167,8 @@ ok(/canWriteTab\('verwaltung'\)/.test(appjs3), 'Ohne Schreibrecht passiert nicht
 
 /* ── Startansicht ── */
 const appjs2 = fs.readFileSync(ROOT + '/js/app.js', 'utf8');
-ok(/await switchView\('meine'\); return;/.test(appjs2), 'Start ist immer „Meine Regelwerke"');
+ok(/await switchView\(\(typeof startAnsicht === 'function'\) \? startAnsicht\(\) : 'meine'\); return;/.test(appjs2),
+  'Start ist „Meine Regelwerke" – sofern freigegeben, sonst „Wissen" (startAnsicht)');
 ok(!/canReadTab\('cockpit'\) \? 'cockpit'/.test(appjs2), 'Kein Sondereinstieg mehr ins Cockpit');
 
 /* ── Rundgang ist entfernt ── */

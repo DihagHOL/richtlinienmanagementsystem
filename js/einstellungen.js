@@ -365,12 +365,13 @@ function _reiterBereichHtml() {
   if (typeof GOVERNABLE_TABS === 'undefined') return '';
   return `
     <div class="col-warning" style="display:block">
-      <b>Zusätzlicher</b> Zugriff auf einzelne Reiter – für einzelne Personen, <b>für
-      Gruppen</b> (Sicherheits-, Verteiler- und Microsoft-365-Gruppen) und <b>für ganze
-      Gesellschaften</b> (E-Mail-Domäne). Additiv zu den
-      Standardrechten: <b>Admins</b> haben immer Zugriff,
-      <b>Schreiben</b> schließt <b>Lesen</b> ein (nur Lesen = Reiter sichtbar, aber nicht
-      bearbeitbar). „Einstellungen" bleibt bewusst Admins vorbehalten.
+      <b>Von sich aus sieht jede:r nur „Wissen".</b> Jeder andere Reiter – auch
+      <b>„Meine Regelwerke"</b>, Anleitung, Dokumentation und die Links zu KI-Dashboard und ZAPP –
+      wird hier freigegeben: für einzelne Personen, <b>für Gruppen</b> (Sicherheits-, Verteiler-
+      und Microsoft-365-Gruppen) und <b>für ganze Gesellschaften</b> (E-Mail-Domäne, 🏭 – ein
+      Eintrag reicht). <b>Admins</b> haben immer Zugriff, <b>Schreiben</b> schließt <b>Lesen</b> ein
+      (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar); bei „Wissen" bedeutet „S" pflegen.
+      „Einstellungen" bleibt bewusst Admins vorbehalten.
     </div>
     <div class="card" style="margin-bottom:14px">
       <div class="card-header"><h2>Wer darf welchen Reiter?</h2></div>
