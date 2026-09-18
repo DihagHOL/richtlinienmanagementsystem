@@ -67,7 +67,7 @@ ok(gemappt.wiederherstellung === 12 && gemappt.rpo === '' && gemappt.abhaengigVo
 ok(/sehr hoch/.test(gemappt.sub) && /HOL, WGC/.test(gemappt.sub), 'Die Kurzzeile für Risiken und Notfall');
 // Was die Liste heute schon hat – Typ, Owner (Person), ein Schutzbedarf, RTO, Standort mit Kürzel
 const alt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 5, fields: { Title: 'Leitstand', Typ: 'OT', Standort: 'Wittenberge (WGC)', Owner: { LookupValue: 'Ben', Email: 'ben@x' }, Schutzbedarf: 'Hoch', RTO: 8, Klassifizierung: 'Intern' } })})`, sctx);
-ok(alt.kategorie === 'OT' && alt.werke.join() === 'WGC' && alt.standort === '' && alt.verantwortlich === 'ben@x', 'Typ, Standort → Werk (und nicht zugleich Aufstellort), Person-Feld → E-Mail');
+ok(alt.kategorie === 'ot' && alt.werke.join() === 'WGC' && alt.standort === '' && alt.verantwortlich === 'ben@x', 'Typ → Kategorie-Schlüssel, Standort → Werk (und nicht zugleich Aufstellort), Person-Feld → E-Mail');
 ok(alt.vertraulichkeit === 'hoch' && alt.integritaet === 'hoch' && alt.verfuegbarkeit === 'hoch' && alt.wiederherstellung === 8 && alt.klassifizierung === 'intern', 'Ein Schutzbedarf für alle drei, RTO als Wiederherstellzeit');
 // Die Liste des Hauses, nachgestellt: Anzeigenamen mit Umlaut, kodierte interne Namen, Standort = Werke
 // (Mehrfachauswahl), Skala „1 – 3", Owner als Personenfeld, Wiederherstellzeit als field_9.
@@ -83,7 +83,7 @@ vm.runInContext(`_assetColMeta = [
   { name: 'field_9', displayName: 'Wiederherstellzeit', typ: 'number', choices: [] },
 ]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti.add('Standort');`, sctx);
 const haus = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 7, fields: { Title: 'SAP', Typ: 'Anwendung', Standort: ['HOL', 'WGC'], Owner: { Email: 'anna@x' }, Vertraulichkeit: '2 - hoch', 'Integrit_x00e4_t': '3 - sehr hoch', 'Verf_x00fc_gbarkeit': '3 - sehr hoch', Status: 'in Betrieb', field_9: 12 } })})`, sctx);
-ok(haus.kategorie === 'Anwendung' && haus.werke.join() === 'HOL,WGC' && haus.standort === '' && haus.verantwortlich === 'anna@x', 'Typ, Standort (Mehrfachauswahl) als Werke – und nicht zugleich als Aufstellort –, Person als E-Mail');
+ok(haus.kategorie === 'anwendung' && haus.werke.join() === 'HOL,WGC' && haus.standort === '' && haus.verantwortlich === 'anna@x', 'Typ, Standort (Mehrfachauswahl) als Werke – und nicht zugleich als Aufstellort –, Person als E-Mail');
 ok(haus.vertraulichkeit === '2 - hoch' && haus.integritaet === '3 - sehr hoch' && haus.verfuegbarkeit === '3 - sehr hoch' && haus.wiederherstellung === 12, 'Integrität über den Anzeigenamen (intern kodiert), die Skala bleibt wie sie ist, Wiederherstellzeit aus field_9');
 const zurueck = vm.runInContext(`_assetFields(${JSON.stringify(Object.assign({}, haus, { verfuegbarkeit: 'sehr hoch', status: 'außer Betrieb', werke: ['HOL', 'ZAI'], kategorie: 'anwendung', wiederherstellung: 8 }))})`, sctx);
 ok(zurueck['Verf_x00fc_gbarkeit'] === '3 - sehr hoch' && zurueck.Status === 'ausgemustert' && JSON.stringify(zurueck.Standort) === '["HOL","ZAI"]' && zurueck.Typ === 'Anwendung' && zurueck.field_9 === 8,
@@ -129,6 +129,39 @@ ok(pdFelder['Informationstr_x00e4_gerLookupId'].join() === '11,12' && pdFelder['
 ok(!('Standorte' in pdFelder) && !('StandorteLookupId' in pdFelder) && !('Asset_x002d_Owner' in pdFelder) && !('Asset_x002d_OwnerLookupId' in pdFelder), 'Nachschlagen in andere Listen schreibt die App nicht');
 ok(pdFelder.LinkzudenInformationen.Url === 'https://x/neu' && pdFelder.LinkzudenInformationen.Description === 'Neu' && pdFelder['Asset_x002d_Typ'] === 'Unterstützend' && pdFelder.weitereInfos === 'Papierform alle außer SHB/WGC' && !('Kategorie' in pdFelder),
   'Hyperlink als {Url, Description}, die Art in Worten, die Beschreibung in „weitere Infos", keine erfundene Spalte');
+// Die Liste, wie sie heute wirklich ist: die eigenen Spalten der App (Werke, Verantwortlich, Beschreibung,
+// AbhaengigJson, Kategorie) stehen NEBEN denen des Hauses (Standorte, Asset-Owner, weitere Infos,
+// Informationsträger, Asset-Gruppe). 278 von 280 Einträgen sind nur in den Hausspalten gepflegt – die
+// eigene, leere Spalte darf sie nicht verdecken.
+vm.runInContext(`_sp.assetRegListId = '{AAAA-1}'; _assetColMeta = [
+  { name: 'Title', displayName: 'Asset', typ: 'text', choices: [] },
+  { name: 'Asset_x002d_Typ', displayName: 'Asset-Typ', typ: 'choice', choices: ['Primär', 'Sekundär'] },
+  { name: 'Asset_x002d_Gruppe', displayName: 'Asset-Gruppe', typ: 'lookup', choices: [], lookupListId: 'gggg-4', lookupMulti: true },
+  { name: 'Standorte', displayName: 'Standorte', typ: 'lookup', choices: [], lookupListId: 'bbbb-2', lookupMulti: true },
+  { name: 'Asset_x002d_Owner', displayName: 'Asset-Owner', typ: 'lookup', choices: [], lookupListId: 'cccc-3', lookupMulti: true },
+  { name: 'Informationstr_x00e4_ger', displayName: 'Informationsträger', typ: 'lookup', choices: [], lookupListId: 'aaaa-1', lookupMulti: true },
+  { name: 'weitereInfos', displayName: 'weitere Infos', typ: 'text', choices: [] },
+  { name: 'Kategorie', displayName: 'Kategorie', typ: 'text', choices: [] },
+  { name: 'Beschreibung', displayName: 'Beschreibung', typ: 'text', choices: [] },
+  { name: 'Werke', displayName: 'Werke', typ: 'text', choices: [] },
+  { name: 'Standort', displayName: 'Standort', typ: 'text', choices: [] },
+  { name: 'Verantwortlich', displayName: 'Verantwortlich', typ: 'text', choices: [] },
+  { name: 'AbhaengigJson', displayName: 'AbhaengigJson', typ: 'text', choices: [] },
+]; _assetCols = new Set(_assetColMeta.map(c => c.name)); _assetMulti = new Set();`, sctx);
+const sel2 = vm.runInContext('amSelectVon(_assetColMeta, _assetFeld)', sctx);
+ok(/,Werke,/.test(sel2 + ',') && /Standorte,StandorteLookupId/.test(sel2) && /Asset_x002d_Owner,Asset_x002d_OwnerLookupId/.test(sel2) && /weitereInfos/.test(sel2) && /Informationstr_x00e4_ger,Informationstr_x00e4_gerLookupId/.test(sel2) && /Asset_x002d_Gruppe/.test(sel2),
+  'Die Feldauswahl holt die eigenen UND die Hausspalten – sonst kämen die Werte gar nicht erst an');
+const nurHaus = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 14, fields: { Title: 'Server', 'Asset_x002d_Typ': 'Sekundär', 'Asset_x002d_Gruppe': [{ LookupId: 7, LookupValue: 'Server' }], Standorte: [{ LookupId: 3, LookupValue: 'Stahl- und Hartgusswerk Bösdorf' }, { LookupId: 5, LookupValue: 'Walzengießerei Coswig GmbH' }], 'Asset_x002d_Owner': [{ LookupId: 1, LookupValue: 'IT' }], Vertraulichkeit: 'Streng vertraulich',
+  'Informationstr_x00e4_ger': [{ LookupId: 25, LookupValue: 'Rechenzentrum' }], 'Informationstr_x00e4_gerLookupId': [25], weitereInfos: 'VMware-Cluster, 2 Hosts' } })})`, sctx);
+ok(nurHaus.werke.join() === 'SHB,WGC' && nurHaus.verantwortlich === 'IT' && nurHaus.beschreibung === 'VMware-Cluster, 2 Hosts' && nurHaus.abhaengigVon.join() === '25' && nurHaus.kategorie === 'server' && nurHaus.art === 'unterstützend',
+  'Nur im Haus gepflegt: Standorte → Werke (Namen der Gesellschaften → Kürzel), Asset-Owner → Verantwortlich, weitere Infos → Beschreibung, Informationsträger → hängt ab von, Asset-Gruppe → Kategorie');
+ok(vm.runInContext(`amWerkeVon(${JSON.stringify([{ LookupValue: 'DIHAG Holding GmbH' }, { LookupValue: 'Stahl- und Hartgusswerk Bösdorf' }, { LookupValue: 'Schmiedeberger Gießerei GmbH' }, { LookupValue: 'DIHAG Solutions Battenberg GmbH' }, { LookupValue: 'DIHAG Zaigler GmbH' }, { LookupValue: 'Lintorfer Eisengeießerei GmbH' }, { LookupValue: 'Meuselwitz Guss Eisengießerei GmbH' }, { LookupValue: 'Eisenwerk Arnstadt GmbH' }, { LookupValue: 'Alle DIHAG-Standorte' }])}, ['HOL', 'SHB', 'WGC', 'SCH', 'EIS', 'DSO', 'ZAI', 'LEG', 'MEG', 'EWA']).werke.join()`, sctx) === 'HOL,SHB,SCH,DSO,ZAI,LEG,MEG,EWA,ALLE',
+  'Alle zwölf Namen der Standorte-Liste des Hauses treffen ihr Kürzel – auch der Tippfehler „Eisengeießerei"');
+const beides = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 406, fields: { Title: 'WhatsApp', 'Asset_x002d_Typ': 'Sekundär', Kategorie: 'cloud', Werke: 'ALLE', Verantwortlich: 'pruefer@dihag.com', Beschreibung: 'App-Text', AbhaengigJson: '["405"]', Standorte: [{ LookupId: 3, LookupValue: 'DIHAG Gienanth Eisenberg GmbH' }], 'Asset_x002d_Owner': [{ LookupId: 1, LookupValue: 'IT' }], weitereInfos: 'alt' } })})`, sctx);
+ok(beides.werke.join() === 'ALLE' && beides.verantwortlich === 'pruefer@dihag.com' && beides.beschreibung === 'App-Text' && beides.abhaengigVon.join() === '405' && beides.kategorie === 'cloud',
+  'Ist die eigene Spalte gefüllt, gilt sie – der Alias springt nur für Leeres ein');
+ok(vm.runInContext("amGruppeKey('Physische Sicherheit')", sctx) === 'gebaeude' && vm.runInContext("amGruppeKey('Telekommunikation / Übertragung')", sctx) === 'netz' && vm.runInContext("amGruppeKey('Hardware / Software')", sctx) === 'Hardware / Software',
+  'Die Asset-Gruppe wird zur Kategorie, wo es eindeutig ist – „Hardware / Software" bleibt als Text stehen');
 // Die Hyperlink-Spalte des Hauses kommt von Graph OHNE Typangabe (klassisches URL-Feld). Als Text
 // behandelt schrieb die App '' hinein – SharePoint antwortete mit 500, kein Asset ließ sich anlegen.
 vm.runInContext(`_assetColMeta = [

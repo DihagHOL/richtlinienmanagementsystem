@@ -114,9 +114,11 @@ ok(ohneMeta.abhaengigVon.length === 0 && ohneMeta.traeger.join() === 'Sharepoint
 const liste = amTraegerAufloesen([ohneMeta, amAusFeldern({ id: 11, Title: 'Sharepoint', 'Asset_x002d_Typ': 'Sekundär' }, {})]);
 ok(liste[0].abhaengigVon.join() === '11' && liste[0].traeger.length === 0 && liste[1].art === 'unterstützend', '… und wird über den Titel zum Asset: Personaldaten hängt an Sharepoint');
 ok(amTraegerAufloesen([{ id: '1', titel: 'A', traeger: ['Gibt es nicht'], abhaengigVon: [] }])[0].traeger.join() === 'Gibt es nicht', 'Was kein Asset ist, bleibt als Name stehen');
-ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung' } }, { feld: (e) => (e === 'Kategorie' ? 'Typ' : e === 'Art' ? null : null) }).kategorie === 'Anwendung', 'Mit Spaltenmeta zählt, was die Meta sagt');
-ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung', Kategorie: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === 'Server' && amAusFeldern({ id: 4, fields: { Title: 'Y', Kategorie: '' , Typ: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === '',
-  'Ist die Spalte bekannt, zählt nur sie – ein leeres Feld greift nicht auf einen Alias zurück, der etwas anderes meinen könnte');
+ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung' } }, { feld: (e) => (e === 'Kategorie' ? 'Typ' : e === 'Art' ? null : null) }).kategorie === 'anwendung', 'Mit Spaltenmeta zählt, was die Meta sagt – das Wort des Hauses wird zum Schlüssel der App');
+ok(amAusFeldern({ id: 3, fields: { Title: 'X', Typ: 'Anwendung', Kategorie: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === 'server'
+  && amAusFeldern({ id: 4, fields: { Title: 'Y', Kategorie: '', Typ: 'Server' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === 'server'
+  && amAusFeldern({ id: 5, fields: { Title: 'Z', Kategorie: '', Typ: 'Primär' } }, { feld: (e) => (e === 'Kategorie' ? 'Kategorie' : null) }).kategorie === '',
+  'Ist die eigene Spalte gefüllt, zählt sie; ist sie leer, springt der Alias des Hauses ein – steht dort die Art, wird daraus keine Kategorie');
 // Vererbung Asset → Asset und die Art in den Lücken
 const pers = { id: '2', titel: 'Personaldaten', art: 'primär', werke: ['ALLE'], verantwortlich: 'Personal', vertraulichkeit: 'vertraulich', integritaet: 'hoch', verfuegbarkeit: 'sehr hoch', abhaengigVon: ['11'] };
 const shp = { id: '11', titel: 'Sharepoint', art: 'unterstützend', werke: ['ALLE'], verantwortlich: 'IT', vertraulichkeit: 'intern', integritaet: 'normal', verfuegbarkeit: 'sehr hoch', wiederherstellung: 4, rpo: 1 };

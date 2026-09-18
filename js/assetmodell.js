@@ -250,7 +250,7 @@ function amZusatzfelder(cfg) {
  */
 const AM_ALIASE = {
   Art:              ['Asset-Typ', 'AssetTyp', 'AssetType', 'Assetart', 'Typ', 'Type'],
-  Kategorie:        ['Category', 'Klasse', 'Assetklasse', 'Typ', 'Type'],
+  Kategorie:        ['Category', 'Klasse', 'Assetklasse', 'Typ', 'Type', 'Asset-Gruppe', 'AssetGruppe', 'Gruppe'],
   Beschreibung:     ['Description', 'Bemerkung', 'Kommentar', 'Notizen', 'weitere Infos', 'Weitere Informationen', 'Hinweise', 'Anmerkungen', 'Notes'],
   Werke:            ['Standort', 'Standorte', 'Werk', 'Location', 'Site', 'Gesellschaft'],
   Standort:         ['Raum', 'Gebaeude', 'Gebäude', 'Aufstellort'],
@@ -278,6 +278,43 @@ const AM_ALIASE = {
   ZusatzJson:       [],
   HistorieJson:     [],
 };
+
+/**
+ * Die Gesellschaften, wie das Haus sie in „Standorte" führt – als Namen, nicht
+ * als Kürzel. „DIHAG Gienanth Eisenberg GmbH" ist EIS; das Kürzel steht nirgends
+ * im Namen, also braucht es diese Tafel. Reihenfolge: das Spezifische zuerst.
+ */
+const AM_WERK_NAMEN = [
+  ['SHB', /b(?:ö|oe)sdorf|hartguss/i],
+  ['WGC', /coswig|walzengie/i],
+  ['SCH', /schmiedeberg/i],
+  ['EIS', /gienanth|eisenberg/i],
+  ['DSO', /solutions|battenberg/i],
+  ['ZAI', /zaigler/i],
+  ['LEG', /lintorf/i],
+  ['MEG', /meuselwitz/i],
+  ['EWA', /arnstadt/i],
+  ['HOL', /holding/i],
+];
+
+/** Die Asset-Gruppe des Hauses in die Kategorie der App – nur, wo es eindeutig ist. */
+const AM_GRUPPE_KEYS = [
+  ['information', /^information/i],
+  ['server', /^server/i],
+  ['netz', /switch|firewall|telekommunikation|fernzugriff|netzwerk/i],
+  ['cloud', /cloud/i],
+  ['gebaeude', /physische sicherheit|geb(?:ä|ae)ude|infrastruktur/i],
+  ['anwendung', /^anwendung|^software/i],
+  ['endgeraet', /endger(?:ä|ae)t|client|arbeitsplatz/i],
+  ['ot', /^ot\b|steuerung|maschine/i],
+  ['personal', /^personal|schl(?:ü|ue)sselrolle/i],
+];
+function amGruppeKey(text) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const hit = AM_GRUPPE_KEYS.find(([, re]) => re.test(t));
+  return hit ? hit[0] : t;   // was nicht passt, bleibt als Text sichtbar
+}
 
 /**
  * Spaltennamen vergleichbar machen: Anzeigename „Integrität", interner Name
@@ -334,11 +371,16 @@ function amSelectVon(spalten, feld, aliase) {
   const arr = (Array.isArray(spalten) ? spalten : []).filter(Boolean);
   const out = new Set(['id', 'Title']);
   const nachschlag = (c) => !!(c && (c.typ === 'lookup' || c.typ === 'person' || c.lookup || c.personOrGroup));
+  const nimm = (n) => { if (!n) return; out.add(n); if (nachschlag(arr.find(c => c.name === n))) out.add(n + 'LookupId'); };
   for (const e of Object.keys(AL)) {
-    const n = feld(e);
-    if (!n) continue;
-    out.add(n);
-    if (nachschlag(arr.find(c => c.name === n))) out.add(n + 'LookupId');
+    nimm(feld(e));
+    // Die Spalten des Hauses zu demselben Feld („Standorte", „Asset-Owner",
+    // „weitere Infos") gehören mit dazu – sie tragen die Werte, solange die
+    // eigene Spalte leer ist.
+    for (const al of AL[e]) {
+      const n = amSpaltenNorm(al);
+      arr.filter(c => amSpaltenNorm(c.name) === n || amSpaltenNorm(c.displayName) === n).forEach(c => nimm(c.name));
+    }
   }
   const sb = arr.find(c => amSpaltenNorm(c.name) === 'schutzbedarf' || amSpaltenNorm(c.displayName) === 'schutzbedarf');
   if (sb) out.add(sb.name);
@@ -355,16 +397,21 @@ function amFeldText(v) {
 
 /**
  * Der Schlüssel im Datensatz zu einem erwarteten Feld. Ist die Spalte bekannt
- * (`name` aus den Spaltenmeta), zählt nur sie – auch wenn sie leer ist, denn ein
- * Alias könnte etwas anderes meinen. Ohne Meta (Cron, Test) werden die Namen
- * direkt probiert: genau, umlautkodiert, normalisiert.
+ * (`name` aus den Spaltenmeta) und gefüllt, zählt sie. Ist sie leer, kommt der
+ * Alias des Hauses zum Zug: In der Liste „Assets" stehen die eigenen Spalten
+ * (Werke, Verantwortlich, Beschreibung, Abhängigkeiten) neben denen des Hauses
+ * („Standorte", „Asset-Owner", „weitere Infos", „Informationsträger") – und
+ * 278 von 280 Einträgen sind nur dort gepflegt. Sonst hieße es für alle
+ * „kein Verantwortlicher, kein Werk", obwohl beides seit 2025 drinsteht.
+ * Ohne Meta (Cron, Test) werden die Namen direkt probiert: genau,
+ * umlautkodiert, normalisiert.
  */
 function amFeldKey(f, erwartet, name, aliase) {
   const AL = (aliase && typeof aliase === 'object') ? aliase : AM_ALIASE;
   const da = (k) => { const v = f[k]; return v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length); };
-  if (name) return da(name) ? name : null;
+  if (name && da(name)) return name;
   if (name === null) return null;
-  const kand = [erwartet].concat(AL[erwartet] || []);
+  const kand = (name ? [] : [erwartet]).concat(AL[erwartet] || []);
   for (const k of kand) if (da(k)) return k;
   const keys = Object.keys(f);
   for (const k of kand) {
@@ -398,7 +445,8 @@ function amWerkeVon(roh, standorte) {
     const u = t.toUpperCase();
     if (/^(ALLE|ALL)\b|KONZERN|GESAMT|^ZENTRAL$|^GRUPPE$/.test(u)) { if (!werke.includes('ALLE')) werke.push('ALLE'); continue; }
     const hit = kuerzel.find(w => u === w.toUpperCase() || new RegExp('(^|[^A-Z])' + w.toUpperCase() + '([^A-Z]|$)').test(u))
-      || (/^HOLDING$/.test(u) && kuerzel.includes('HOL') ? 'HOL' : null);
+      || (/^HOLDING$/.test(u) && kuerzel.includes('HOL') ? 'HOL' : null)
+      || ((AM_WERK_NAMEN.find(([code, re]) => re.test(t) && (!kuerzel.length || kuerzel.includes(code))) || [])[0] || null);
     if (hit && !werke.includes(hit)) werke.push(hit);
   }
   return { werke, text: teile.join(', ') };
@@ -472,7 +520,7 @@ function amAusFeldern(it, opt) {
     quelleId: '',
     titel: _amText(f.Title || f.LinkTitle),
     art: amArtVon(artRoh) || amArtVon(katRoh),                // steht die Art in „Typ", ist das keine Kategorie
-    kategorie: amArtVon(katRoh) ? '' : katRoh,
+    kategorie: amArtVon(katRoh) ? '' : amGruppeKey(katRoh),
     beschreibung: text('Beschreibung'),
     werke: w.werke,
     werkText: w.text,
