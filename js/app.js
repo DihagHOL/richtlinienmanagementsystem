@@ -212,13 +212,27 @@ async function applyDeepLinkOrDefault() {
     const mbDarf = (aktion === 'mb_konform' || aktion === 'mb_nicht_konform') && !!token
       && typeof darfMitbestimmung === 'function'
       && darfMitbestimmung(policyZuId(deepId) || {});
-    if (!canReview && !mbDarf) { await switchView('meine'); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
-    await switchView(canReview ? 'freigaben' : 'meine');
+    if (!canReview && !mbDarf) { await switchView(startAnsicht()); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
+    // Der Reiter „Freigaben" folgt nicht mehr der Rolle: Wer prüfen darf, aber
+    // den Reiter nicht freigegeben hat, erfährt es hier. Die Mitbestimmung
+    // braucht den Reiter nicht – ihr Fenster steht über jeder Ansicht.
+    const reiterOffen = typeof canReadTab !== 'function' || canReadTab('freigaben');
+    if (canReview && !reiterOffen && !mbDarf) {
+      await switchView(startAnsicht());
+      toast('Der Reiter „Freigaben" ist für Sie nicht freigegeben – bitte an die Administration wenden.', 'error');
+      return;
+    }
+    await switchView(canReview && reiterOffen ? 'freigaben' : startAnsicht());
     // Mit Token: Ein-Klick aus der Mail – anmelden, prüfen, ausführen, Ergebnis zeigen.
     // Der Adressat kommt aus demselben Parametersatz: Nach einem Login-Redirect steht
     // die Ursprungs-URL nur noch hier, nicht mehr zwingend in location.search.
-    if (aktion && token && typeof einKlickAktion === 'function') {
-      await einKlickAktion(deepId, aktion, token, params.get('u') || ''); return;
+    // Das Fenster lebt in freigaben.js – die Startansicht lädt das nicht mit,
+    // also ausdrücklich holen: Sonst käme der Betriebsrat nie bis zur Entscheidung.
+    if (aktion && token) {
+      if (typeof einKlickAktion !== 'function' && typeof modulFuerAnsicht === 'function') {
+        try { await modulFuerAnsicht('freigaben'); } catch (e) { /* dann ohne Ein-Klick */ }
+      }
+      if (typeof einKlickAktion === 'function') { await einKlickAktion(deepId, aktion, token, params.get('u') || ''); return; }
     }
     if (typeof focusPolicyCard === 'function') focusPolicyCard(deepId);
     if (aktion && typeof handleMailAction === 'function') handleMailAction(deepId, aktion);
@@ -341,9 +355,11 @@ async function switchView(view) {
   // Berechtigungen); von sich aus ist nur „Wissen" da. Über die Leiste kommt
   // niemand in einen gesperrten Reiter – über einen Link oder einen Rückfall
   // im Code schon. Dann lieber die eigene Startansicht als eine leere Seite.
-  // Detail und Wissenstest gehören zu „Meine Regelwerke".
+  // Detail und Wissenstest gehören zu „Meine Regelwerke". Die Schranke gilt
+  // für jeden Reiter der Matrix – auch für Freigaben und Vorschläge, die
+  // früher der Rolle folgten.
   const rechtFuer = { detail: 'meine', quiz: 'meine' }[view] || view;
-  if (typeof REITER_OHNE_STANDARD !== 'undefined' && REITER_OHNE_STANDARD.includes(rechtFuer)
+  if (typeof GOVERNABLE_TABS !== 'undefined' && GOVERNABLE_TABS.some(t => t.view === rechtFuer)
       && typeof canReadTab === 'function' && !canReadTab(rechtFuer)) {
     view = startAnsicht();
   }

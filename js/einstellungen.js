@@ -366,8 +366,9 @@ function _reiterBereichHtml() {
   return `
     <div class="col-warning" style="display:block">
       <b>Von sich aus sieht jede:r nur „Wissen".</b> Jeder andere Reiter – auch
-      <b>„Meine Regelwerke"</b>, Anleitung, Dokumentation und die Links zu KI-Dashboard und ZAPP –
-      wird hier freigegeben: für einzelne Personen, <b>für Gruppen</b> (Sicherheits-, Verteiler-
+      <b>„Meine Regelwerke"</b>, Anleitung, Dokumentation, <b>Freigaben</b> und <b>Vorschläge</b>
+      (die Rolle als Genehmiger, Prüfer, Geschäftsleitung oder Vorschlags-Empfänger zeigt den Reiter
+      nicht mehr von allein) sowie die Links zu KI-Dashboard und ZAPP – wird hier freigegeben: für einzelne Personen, <b>für Gruppen</b> (Sicherheits-, Verteiler-
       und Microsoft-365-Gruppen) und <b>für ganze Gesellschaften</b> (E-Mail-Domäne, 🏭 – ein
       Eintrag reicht). <b>Admins</b> haben immer Zugriff, <b>Schreiben</b> schließt <b>Lesen</b> ein
       (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar); bei „Wissen" bedeutet „S" pflegen.

@@ -679,7 +679,7 @@ function trennungHinweisHtml() {
    Regelwerke", die Anleitung, die Dokumentation und die Links zu den anderen
    Apps – wird in den Einstellungen freigegeben: je Person, Gruppe oder mit
    einem Eintrag für eine ganze Gesellschaft. Admins sehen immer alles. */
-const REITER_OHNE_STANDARD = ['meine', 'anleitung', 'dokumentation', 'ki', 'zapp'];
+const REITER_OHNE_STANDARD = ['meine', 'anleitung', 'dokumentation', 'ki', 'zapp', 'freigaben', 'vorschlaege'];
 
 const GOVERNABLE_TABS = [
   { view: 'meine',       label: 'Meine Regelwerke', kurz: 'Regelwerke' },
@@ -783,11 +783,14 @@ function _currentRolesSync() {
 }
 
 /** Standard-Lesbarkeit eines Reiters ohne Sonderberechtigung (bisheriges Verhalten). */
+/**
+ * Von sich aus sieht nur ein Admin einen Reiter. Auch „Freigaben" und
+ * „Vorschläge" folgen nicht mehr der Rolle (Genehmiger, Prüfer,
+ * Geschäftsleitung, Vorschlags-Empfänger): Wer dort arbeiten soll, bekommt
+ * den Reiter in den Einstellungen – die Rolle allein zeigt ihn nicht.
+ */
 function _defaultTabRead(view) {
-  if (isCurrentUserAdmin()) return true;
-  if (view === 'vorschlaege') return isCurrentUserProposalManager();
-  if (view === 'freigaben')   return isCurrentUserGenehmiger() || isCurrentUserPruefer() || isCurrentUserGeschaeftsleitung();
-  return false;   // verwaltung, ismsdocs, governance, abdeckung, faelligkeit, compliance → sonst admin-only
+  return isCurrentUserAdmin();
 }
 
 /** Darf der Reiter gesehen/geöffnet werden? (Standard ODER additive Freigabe). */

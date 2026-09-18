@@ -115,8 +115,10 @@ ok(/const mbDarf = \(aktion === 'mb_konform' \|\| aktion === 'mb_nicht_konform'\
   'Der Deeplink lässt die Mitbestimmung durch');
 ok(/if \(!canReview && !mbDarf\)/.test(app),
   'Ohne sie bliebe der Betriebsrat an der Freigabe-Schranke hängen – er ist weder Prüfer noch GL');
-ok(/switchView\(canReview \? 'freigaben' : 'meine'\)/.test(app),
-  'Hinter dem Fenster steht für ihn eine Ansicht, die er sehen darf');
+ok(/switchView\(canReview && reiterOffen \? 'freigaben' : startAnsicht\(\)\)/.test(app),
+  'Hinter dem Fenster steht für ihn eine Ansicht, die er sehen darf – seine Startansicht');
+ok(/typeof einKlickAktion !== 'function' && typeof modulFuerAnsicht === 'function'[\s\S]{0,80}modulFuerAnsicht\('freigaben'\)/.test(app),
+  'Und das Fenster wird geholt, auch wenn seine Ansicht es nicht mitlädt');
 ok(/const darfMb = \(p\) =>/.test(fg) && /mitbestimmungCardHtml\(p, darfMb\(p\)\)/.test(fg),
   'Im Portal gilt dieselbe Berechtigung, je Vorgang');
 

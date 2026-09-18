@@ -114,13 +114,16 @@ ok(/isCurrentUserAdmin\(\)\) return false;/.test(acc.split('_domaeneGesperrt')[1
   'Die Ausnahme steht an genau einer Stelle');
 
 /* ── 5) Die Sperre wirkt vor allem anderen ──
-   Ein Prüfer sieht „Freigaben" von Haus aus (_defaultTabRead). Auch das muss
-   die Trennung schlagen, sonst wäre sie löchrig. */
+   Eine Prüferin mit Freigabe für ihre Person – aber aus einer Gesellschaft,
+   für die der Reiter gesperrt ist. Die Trennung schlägt die Freigabe, sonst
+   wäre sie löchrig. (Die Rolle allein zeigt den Reiter ohnehin nicht mehr.) */
 wert(`setRuntimeConfig({
   admins: [], pruefer: ['max@gienanth.de'],
-  reiterRechte: { freigaben: { domaenen: ['dihag.com'] } } })`);
+  reiterRechte: { freigaben: { lesen: ['max@gienanth.de'], domaenen: ['dihag.com'] } } })`);
 ok(wert(`isCurrentUserPruefer()`) === true, 'Die Person ist Konformitätsprüferin');
 ok(wert(`canReadTab('freigaben')`) === false, 'Und sieht den Reiter trotzdem nicht – die Trennung geht vor');
+wert(`setRuntimeConfig({ admins: [], pruefer: ['max@gienanth.de'], reiterRechte: {} })`);
+ok(wert(`canReadTab('freigaben')`) === false, 'Als Prüferin allein sieht sie „Freigaben" nicht – der Reiter wird freigegeben, nicht von der Rolle abgeleitet');
 
 /* ── 6) Speicherung und Oberfläche ── */
 ok(/gesellschaften: \{\}/.test(acc), 'Die Gesellschaften stehen in der Voreinstellung');

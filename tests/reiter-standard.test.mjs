@@ -67,13 +67,24 @@ ok(w("canWriteTab('wissen')") === true && w("startAnsicht()") === 'meine', '… 
 const tabs = w('GOVERNABLE_TABS');
 ok(tabs.slice(0, 4).map(t => t.view).join() === 'meine,wissen,anleitung,dokumentation', 'Die früher offenen Reiter stehen vorn in der Matrix – in der Reihenfolge der Leiste');
 ok(tabs.slice(-2).map(t => t.view).join() === 'ki,zapp' && tabs.every(t => t.kurz), 'Die beiden App-Links hinten, mit Kürzel');
-ok(w('REITER_OHNE_STANDARD').join() === 'meine,anleitung,dokumentation,ki,zapp', 'Und die Liste dessen, was freizugeben ist');
+ok(w('REITER_OHNE_STANDARD').join() === 'meine,anleitung,dokumentation,ki,zapp,freigaben,vorschlaege', 'Und die Liste dessen, was früher offen war und jetzt freizugeben ist');
+
+/* ── 5b) Freigaben und Vorschläge folgen nicht mehr der Rolle ── */
+w("setRuntimeConfig({ admins: [], genehmiger: ['max@dihag.com'], pruefer: ['max@dihag.com'], geschaeftsleitung: ['max@dihag.com'], ismsVerantwortlich: ['max@dihag.com'], vorschlagEmpfaenger: ['max@dihag.com'], reiterRechte: {} })");
+ok(w("isCurrentUserGenehmiger()") === true && w("isCurrentUserProposalManager()") === true, 'Die Person hat jede Rolle, die früher den Reiter zeigte');
+ok(w("canReadTab('freigaben')") === false && w("canReadTab('vorschlaege')") === false, '… und sieht Freigaben und Vorschläge trotzdem nicht');
+w('initRoleNav()');
+ok(sichtbar['nav-freigaben'] === 'none' && sichtbar['nav-vorschlaege'] === 'none' && sichtbar['nav-grp-richtlinien'] === 'none', 'Auch in der Leiste nicht – samt Gruppenkopf');
+w("setRuntimeConfig({ admins: [], genehmiger: ['max@dihag.com'], reiterRechte: { freigaben: { lesen: ['max@dihag.com'] } } })");
+ok(w("canReadTab('freigaben')") === true, 'Mit Freigabe in der Matrix ist der Reiter da – die Rolle entscheidet, was sie dort darf');
 
 /* ── 6) Die Schranke in switchView und der Regelwerk-Link ── */
 const app = lies('js/app.js');
 ok(/const rechtFuer = \{ detail: 'meine', quiz: 'meine' \}\[view\] \|\| view;/.test(app), 'Detail und Wissenstest gehören zu „Meine Regelwerke"');
-ok(/REITER_OHNE_STANDARD\.includes\(rechtFuer\)[\s\S]{0,120}!canReadTab\(rechtFuer\)\) \{\s*view = startAnsicht\(\);/.test(app),
-  'Ein gesperrter Reiter wird still auf die Startansicht umgelenkt – über die Leiste kommt ohnehin niemand hin');
+ok(/GOVERNABLE_TABS\.some\(t => t\.view === rechtFuer\)[\s\S]{0,120}!canReadTab\(rechtFuer\)\) \{\s*view = startAnsicht\(\);/.test(app),
+  'Jeder gesperrte Reiter der Matrix wird still auf die Startansicht umgelenkt – über die Leiste kommt ohnehin niemand hin');
+ok(/const reiterOffen = typeof canReadTab !== 'function' \|\| canReadTab\('freigaben'\);/.test(app) && /Der Reiter „Freigaben" ist für Sie nicht freigegeben/.test(app),
+  'Ein Freigabe-Link aus der Mail ohne freigegebenen Reiter sagt, woran es liegt');
 ok(/switchView\(\(typeof startAnsicht === 'function'\) \? startAnsicht\(\) : 'meine'\); return;/.test(app), 'Der Start nimmt die Startansicht');
 ok(/!canReadTab\('meine'\)\) \{\s*await switchView\(startAnsicht\(\)\);\s*toast\('Der Reiter „Meine Regelwerke" ist für Sie nicht freigegeben/.test(app),
   'Ein Regelwerk-Link ohne Freigabe sagt, woran es liegt');

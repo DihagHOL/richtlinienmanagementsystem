@@ -141,7 +141,7 @@ ok(/neuerAktionToken\('pruefung'\)/.test(lies('js/admin.js')), 'Neue Prüfrunde 
 ok(/function aktionTokenGueltig/.test(fg) && /t\.wert === token && t\.art === art/.test(fg),
   'Geprüft wird Wert und Art');
 ok(/const tok = \(p\.aktionToken && p\.aktionToken\.wert\)/.test(fg), 'Der Link trägt das Token');
-ok(/aktion && token && typeof einKlickAktion === 'function'/.test(app),
+ok(/if \(aktion && token\) \{[\s\S]{0,400}if \(typeof einKlickAktion === 'function'\) \{ await einKlickAktion\(deepId, aktion, token/.test(app),
   'Mit Token führt der Klick direkt zur Entscheidung');
 ok(/if \(aktion && typeof handleMailAction === 'function'\) handleMailAction/.test(app),
   'Ohne Token bleibt es beim gewohnten Weg mit Rückfrage');
