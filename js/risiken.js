@@ -590,6 +590,7 @@ function risikenExportReport() {
       .noprint{margin:14px 0} @media print{.noprint{display:none} body{margin:12px}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${druckKopf()}
     <h1>Risikobericht (Risiko-Register)</h1>
     <div class="muted">DIHAG · ISO/IEC 27001:2022 Klausel 6.1.2/6.1.3, 8.2/8.3 · NIS2 (EU) 2022/2555 Art. 21(2a) · Stand ${esc(stamp)} · Schwellen: Score ≥15 hoch, ≥8 mittel</div>
     <div class="kpi">

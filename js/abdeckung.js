@@ -284,6 +284,7 @@ function abdeckungExportReport() {
       @media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${druckKopf()}
     <h1>IMS-Abdeckung &amp; Konformitätsstatus</h1>
     <div class="muted">DIHAG · Richtlinienmanagement · Stand ${esc(stamp)} · ${pols.length} Richtlinien${_abdeckungPublishedOnly ? ' (nur veröffentlichte)' : ''}</div>
     <div class="kpi">

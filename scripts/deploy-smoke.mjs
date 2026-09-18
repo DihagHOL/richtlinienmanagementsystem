@@ -39,11 +39,15 @@ function assetUrls(html, pageUrl) {
   for (const m of html.matchAll(/<script\s+[^>]*src="([^"]+)"/g))
     if (!/^https?:/.test(m[1])) out.push(new URL(m[1], pageUrl).href);
   for (const t of html.matchAll(/<link\b[^>]*>/g))
-    if (/rel="stylesheet"/.test(t[0])) {
+    if (/rel="(stylesheet|icon)"/.test(t[0])) {
       const h = (t[0].match(/href="([^"]+)"/) || [])[1];
-      if (h && !/^https?:/.test(h)) out.push(new URL(h, pageUrl).href);
+      if (h && !/^(https?|data):/.test(h)) out.push(new URL(h, pageUrl).href);
     }
-  return out;
+  // Bilder aus assets/ (Logo, Zeichen) – ein 404 dort zeigt sich sonst erst
+  // als leeres Kästchen in der Anmeldung oder auf der Bescheinigung.
+  for (const m of html.matchAll(/<img\s+[^>]*src="([^"]+)"/g))
+    if (!/^(https?|data):/.test(m[1])) out.push(new URL(m[1], pageUrl).href);
+  return [...new Set(out)];
 }
 
 async function checkPage(label, pageUrl, mustContain) {

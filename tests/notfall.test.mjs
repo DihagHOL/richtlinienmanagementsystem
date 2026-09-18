@@ -157,6 +157,7 @@ const ctx = {
   setTimeout: (fn) => fn(),
   esc: (s) => String(s ?? ''), fmtDate: (s) => String(s ?? '').slice(0, 10), emptyState: (t) => `<empty>${t}</empty>`,
   toast: (t, art) => gemeldet.push([t, art]),
+  druckKopf: () => '<div class="druck-kopf"></div>',
   openModal: (h) => { modal = h; }, closeModal: () => { modal = null; },
   canWriteTab: () => true, canReadTab: () => true, trennungGreift: () => false, meineWerke: () => ['*'],
   STANDORTE: ['HOL', 'WGC'],

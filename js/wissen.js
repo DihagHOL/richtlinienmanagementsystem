@@ -150,7 +150,7 @@ function _wiChipsHtml(sichtbar) {
   const themen = _wi.daten.themen.filter(t => themenMit.has(t.id) || _wiPflege);
   const arten = WI_ARTEN.filter(a => sichtbar.some(b => b.art === a.key));
   if (!themen.length && !arten.length) return '';
-  const bereiche = [...new Set(themen.map(t => t.bereich || ''))].sort((a, b) => (a === '') - (b === ''));   // ohne Bereich zuletzt
+  const bereiche = [...new Set(themen.map(t => t.bereich || ''))].sort((a, b) => Number(a === '') - Number(b === ''));   // ohne Bereich zuletzt
   const mehrereBereiche = bereiche.filter(Boolean).length > 1 || (bereiche.includes('') && bereiche.length > 1);
   const themaChip = (t) => chip(_wiFilter.thema === t.id, `wiFilter('thema','${_wiFilter.thema === t.id ? '' : esc(t.id)}')`, `${esc(t.symbol)} ${esc(t.titel)}`, t.kurz);
   const weitere = (themenMit.has('') || sichtbar.some(b => !wiThema(_wi.daten, b.thema)))
@@ -511,7 +511,7 @@ function wiZertifikat(id) {
   if (!b) return;
   const s = _wiStand(b);
   if (!s.erledigt) { toast('Die Bescheinigung gibt es nach dem Abschluss.', 'error'); return; }
-  const html = wiZertifikatHtml({ kurs: b, stand: s, name: State.user.name, upn: State.user.upn, jetzt: _wiJetzt() });
+  const html = wiZertifikatHtml({ kurs: b, stand: s, name: State.user.name, upn: State.user.upn, jetzt: _wiJetzt(), logo: rmsAssetUrl('dihag-logo.png') });
   const w = window.open('', '_blank');
   if (!w) { toast('Pop-up blockiert – bitte für diese Seite erlauben.', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();

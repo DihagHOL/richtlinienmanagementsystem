@@ -666,7 +666,8 @@ WI_STARTBESTAND.beitraege.unshift(WI_KURS_PHISHING);
  * Sie belegt, was der Nachweis in der Bestätigungen-Liste festhält: wer,
  * welche Schulung, wann, mit welchem Ergebnis, wie lange gültig. Die
  * Nummer ist die Kennung des Nachweises – so lässt sich jede Bescheinigung
- * in der Liste wiederfinden.
+ * in der Liste wiederfinden. `o.logo` ist die absolute Adresse des
+ * DIHAG-Logos; ohne sie steht der Name des Systems in Schrift.
  */
 function wiZertifikatHtml(o) {
   const b = o.kurs || {}, s = o.stand || {}, name = o.name || o.upn || '', E = _wiEsc;
@@ -682,7 +683,7 @@ function wiZertifikatHtml(o) {
   .blatt { max-width: 1000px; margin: 24px auto; background: #fff; padding: 46px 56px; border: 10px solid #17509E; outline: 2px solid #F08300; outline-offset: -20px; position: relative; }
   .kopf { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; }
   .marke { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 20px; letter-spacing: .04em; }
-  .marke i { display: inline-flex; width: 38px; height: 38px; border-radius: 9px; background: #17509E; color: #fff; align-items: center; justify-content: center; font-style: normal; font-size: 20px; }
+  .marke img { display: block; height: 60px; width: auto; }
   .nr { font-family: Consolas, monospace; color: #6b7280; font-size: 13px; text-align: right; line-height: 1.5; }
   h1 { font-size: 15px; letter-spacing: .3em; text-transform: uppercase; color: #F08300; margin: 0 0 12px; }
   .wer { font-size: 34px; font-weight: 800; margin: 6px 0 10px; }
@@ -702,7 +703,7 @@ function wiZertifikatHtml(o) {
 <button class="knopf" onclick="window.print()">🖨 Drucken / als PDF speichern</button>
 <div class="blatt">
   <div class="kopf">
-    <div class="marke"><i>R</i> DIHAG · Regelwerk-Management</div>
+    <div class="marke">${o.logo ? `<img src="${E(o.logo)}" alt="DIHAG Integrated Foundry Group">` : 'DIHAG · Regelwerk-Management'}</div>
     <div class="nr">Bescheinigung ${E(nummer)}<br>${E(datum)}</div>
   </div>
   <h1>Teilnahmebescheinigung</h1>

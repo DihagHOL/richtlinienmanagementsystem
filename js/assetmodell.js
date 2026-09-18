@@ -770,6 +770,7 @@ function amInventarHtml(o) {
       th{background:#1a2644;color:#fff;font-size:10px} .sh{color:#b91c1c;font-weight:700} .h{color:#b45309;font-weight:700}
       .noprint{margin:14px 0} @media print{.noprint{display:none} body{margin:12px} thead{display:table-header-group} tr,h2{break-inside:avoid} h2{break-after:avoid}}</style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${o.kopf || ''}
     <h1>Assetinventar${o.werkLabel ? ' – ' + _amEsc(o.werkLabel) : ''}</h1>
     <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.9 (Inventar), A.5.12 (Klassifizierung) · BSI 200-2 Schutzbedarf · Stand ${_amEsc(stand)} · ${liste.length} Assets</div>
     ${[...gruppen.entries()].map(([k, arr]) => `<h2>${_amEsc(kat(k))} (${arr.length})</h2>

@@ -891,6 +891,7 @@ function dokuPrint() {
       .noprint{margin-bottom:14px}@media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${druckKopf()}
     <h1>Benutzerhandbuch – DIHAG Regelwerk-Management</h1>
     <p style="color:#6b7280;margin:0 0 16px">Stand 2026 · vollständige Bedienungsanleitung</p>
     ${sections}

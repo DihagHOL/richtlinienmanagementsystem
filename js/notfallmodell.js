@@ -748,6 +748,7 @@ function nfHandbuchHtml(o) {
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${_nfEsc(titel)} ${_nfEsc(o.werkLabel || werk)}</title><style>${_NF_DRUCK_CSS}</style></head><body>
     ${_NF_DRUCKKNOPF}
+    ${o.kopf || ''}
     <div class="deck">
       <div class="muted">DIHAG · ${_nfEsc(o.werkLabel || werk)}</div>
       <h1>${_nfEsc(titel)}</h1>
@@ -777,6 +778,7 @@ function nfAlarmkarteHtml(o) {
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Alarmkarte ${_nfEsc(o.werkLabel || o.werk)}</title><style>${_NF_DRUCK_CSS}
     body{font-size:13px} h1{font-size:24px;color:#b91c1c}</style></head><body>
     ${_NF_DRUCKKNOPF}
+    ${o.kopf || ''}
     <h1>🚨 Alarmkarte ${_nfEsc(o.werkLabel || o.werk)}</h1>
     <div class="muted">Stand ${_nfEsc(stand)} · Aushängen: Pforte, Leitstand, Serverraum, Krisenstab-Raum</div>
     ${_nfStabAbschnitte(o.stab, { personName: name })}

@@ -111,6 +111,7 @@ const ctx = {
   canWriteTab: (v) => ctx.__schreiben, geltungSichtbar: (g) => !Array.isArray(g) || g.includes('ALLE') || g.includes('HOL'),
   State: { user: { upn: 'anna@dihag.com', name: 'Anna Muster' }, acks: [], loaded: true },
   spLoadWissen: async () => ({ daten: JSON.parse(JSON.stringify(ctx.__datei)), geaendertAm: 'm1' }),
+  rmsAssetUrl: (d) => 'https://rms.dihag.de/assets/' + d,
   spSaveWissen: async (daten, erwartet) => { gespeichert.push({ daten: JSON.parse(JSON.stringify(daten)), erwartet }); ctx.__datei = JSON.parse(JSON.stringify(daten)); return { geaendertAm: 'm' + (gespeichert.length + 1) }; },
   spSaveAcknowledgement: async (a) => { acksGeschrieben.push(a); const i = ctx.State.acks.findIndex(x => x.richtlinieId === a.richtlinieId && x.version === a.version); const neu = Object.assign({ id: 'a' + acksGeschrieben.length }, a); if (i >= 0) ctx.State.acks[i] = neu; else ctx.State.acks.push(neu); },
   reloadAcks: async () => {},

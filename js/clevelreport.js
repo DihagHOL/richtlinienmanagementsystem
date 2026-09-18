@@ -559,6 +559,7 @@ function printClevelReport() {
     <title>ISMS-Management-Bericht (C-Level) – DIHAG</title>
     <style>@media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}} body{margin:24px}</style></head><body>
     <div class="noprint" style="margin-bottom:14px"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${druckKopf()}
     ${_clevelReportHtml(_clevelData)}
     </body></html>`;
   const w = window.open('', '_blank');

@@ -291,6 +291,7 @@ function pmDrucken() {
       @media print{.noprint{display:none}thead{display:table-header-group}tr,h1{break-inside:avoid;page-break-inside:avoid}}
     </style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${druckKopf()}
     <h1>Prozess-${_pmTab === 'zustaendig' ? 'Zuständigkeiten' : 'Abdeckung'}</h1>
     <div class="muted">DIHAG · Regelwerk-Management · Stand ${esc(stamp)} · ${zeilen.length} Prozesse ·
       ${werke.length} Werk${werke.length === 1 ? '' : 'e'}${_pmTab === 'abdeckung' ? ' · V = Verantwortliche(r), M = BPMN-Modell, R = Regelwerk' : ''}</div>

@@ -301,7 +301,7 @@ function vfMassnahmeAnlegen() {
 function vfAkteDrucken() {
   if (!_vfEditing) return;
   const { ticket, bewertung } = _vfEditing;
-  const html = vfBerichtHtml({ ticket, bewertung, massnahmen: _vfMassnahmen || [], jetzt: _vfJetzt() });
+  const html = vfBerichtHtml({ ticket, bewertung, massnahmen: _vfMassnahmen || [], jetzt: _vfJetzt(), kopf: druckKopf() });
   const w = window.open('', '_blank');
   if (!w) { toast('Pop-up blockiert – bitte für diese Seite erlauben.', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();

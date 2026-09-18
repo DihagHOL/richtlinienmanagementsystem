@@ -850,7 +850,7 @@ function _nfDruckDaten(nurKachel) {
   const karte = lkKarte();
   return { werk: _lkWerk, werkLabel: lkWerkLabel(_lkWerk), karte, stab: karte.krisenstab || null,
     assetRto: _nfAssetRtoMap(), uebungen: _nfUebungen || [], personName: _nfName,
-    stand: new Date().toLocaleString('de-DE'), nurKachel: nurKachel || '' };
+    stand: new Date().toLocaleString('de-DE'), nurKachel: nurKachel || '', kopf: druckKopf() };
 }
 
 function nfHandbuchDrucken() { _nfFenster(nfHandbuchHtml(_nfDruckDaten())); }

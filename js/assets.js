@@ -552,7 +552,7 @@ function assetsExportCsv() {
 function assetsInventarDrucken() {
   const sichtbar = _amWerke();
   const liste = (_am || []).filter(a => amSichtbar(a, sichtbar)).filter(a => !_amFilter.werk || amVon(a).werke.includes(_amFilter.werk) || amVon(a).werke.includes('ALLE'));
-  const html = amInventarHtml({ liste, kategorien: _amKats(), personName: _amName, werkLabel: _amFilter.werk || '' });
+  const html = amInventarHtml({ liste, kategorien: _amKats(), personName: _amName, werkLabel: _amFilter.werk || '', kopf: druckKopf() });
   const w = window.open('', '_blank');
   if (!w) { toast('Pop-up-Blocker? Bitte Pop-ups erlauben.', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();

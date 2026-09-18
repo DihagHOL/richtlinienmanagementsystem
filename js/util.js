@@ -87,8 +87,33 @@ function fileIcon(name) {
 }
 
 /* Node-Export nur für Tests. */
+/**
+ * Die absolute Adresse einer Datei aus `assets/` – für Druckfenster und
+ * Bescheinigungen. Die entstehen per `window.open('')` + `document.write`,
+ * also ohne eigene Adresse; ein relativer Pfad hinge dort in der Luft.
+ * Außerhalb des Browsers (Tests, Cron) gilt die Live-Adresse.
+ */
+function rmsAssetUrl(datei) {
+  const basis = (typeof document !== 'undefined' && document.baseURI) || 'https://rms.dihag.de/';
+  return new URL('assets/' + datei, basis).href;
+}
+
+/**
+ * Der Kopf jeder Druckfassung: links das vollständige DIHAG-Logo, rechts
+ * eine Zeile, woher das Blatt stammt. Bewusst mit Inline-Stil, damit ihn jede
+ * Druckseite einbinden kann, ohne ihr eigenes CSS anzufassen – davon gibt es
+ * ein knappes Dutzend, jede mit eigenem Stilblock.
+ */
+function druckKopf(zeile) {
+  const rechts = zeile === undefined ? 'Regelwerk-Management' : String(zeile || '');
+  return `<div class="druck-kopf" style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 16px;padding:0 0 10px;border-bottom:2px solid #17509E">`
+    + `<img src="${rmsAssetUrl('dihag-logo.png')}" alt="DIHAG Integrated Foundry Group" style="height:42px;width:auto">`
+    + (rechts ? `<span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">${rechts}</span>` : '')
+    + `</div>`;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { fileExt, officeScheme, fmtFileSize, fileIcon };
+  module.exports = { fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
 }
 
 /* ═══════════════════════════════════════════════════

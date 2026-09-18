@@ -370,6 +370,7 @@ function vfBerichtHtml(o) {
       .rot{color:#b91c1c;font-weight:700} .gruen{color:#15803d;font-weight:700} .gelb{color:#b45309;font-weight:700} p{margin:4px 0;white-space:pre-wrap}
       .noprint{margin:14px 0} @media print{.noprint{display:none} body{margin:12px} h2{break-after:avoid} tr{break-inside:avoid}}</style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
+    ${o.kopf || ''}
     <h1>Vorfallakte #${_vfEsc(t.id)} – ${_vfEsc(t.titel)}</h1>
     <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.24–A.5.28 · NIS2 Art. 23 · Stand ${_vfEsc(stand)}</div>
     <h2>Das Ticket</h2>
