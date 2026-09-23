@@ -311,7 +311,7 @@ const begonnen = { richtlinieId: 'wissen:start-phishing-kurs', version: '1', ben
 const sAlt = M.wiStand(K, [alt], jetzt), sFrisch = M.wiStand(K, [frisch], jetzt);
 ok(sAlt.erledigt && sAlt.abgelaufen && !sAlt.gueltig && sAlt.faelligAm.startsWith('2026-06-01'), 'Ein Abschluss von vor 15 Monaten ist bei jährlicher Wiederholung abgelaufen – fällig seit Juni');
 ok(sFrisch.erledigt && sFrisch.gueltig && !sFrisch.abgelaufen && sFrisch.faelligAm.startsWith('2027-06-01'), 'Ein Abschluss von vor drei Monaten gilt bis nächsten Juni');
-ok(M.wiKursStatus(K, [alt], jetzt).key === 'faellig' && M.wiKursStatus(K, [frisch], jetzt).key === 'erledigt' && M.wiKursStatus(K, [begonnen], jetzt).key === 'laeuft' && M.wiKursStatus(K, [], jetzt).key === 'offen' && /Pflicht – noch offen/.test(M.wiKursStatus(K, [], jetzt).text),
+ok(M.wiKursStatus(K, [alt], jetzt).key === 'faellig' && M.wiKursStatus(K, [frisch], jetzt).key === 'erledigt' && M.wiKursStatus(K, [begonnen], jetzt).key === 'laeuft' && M.wiKursStatus(K, [], jetzt).key === 'offen' && /Pflicht, noch offen/.test(M.wiKursStatus(K, [], jetzt).text),
   'Vier Zustände: offen, begonnen, abgeschlossen, Auffrischung fällig');
 ok(!M.wiStand(Object.assign({}, K, { fragen: [] }), [{ richtlinieId: 'wissen:start-phishing-kurs', version: '1', abgeschlossenAm: '2026-09-01T10:00:00Z', quizBestanden: false }], jetzt).erledigt === false,
   'Ohne Test zählt der Abschluss allein');
@@ -328,12 +328,12 @@ run('renderWissen()');
 h = mount.innerHTML;
 ok(/class="wi-pflicht"/.test(h) && /Pflichtschulung:<\/b> Phishing erkennen/.test(h) && /wiKursStarten\('start-phishing-kurs'\)/.test(h) && />Starten</.test(h),
   'Eine offene Pflichtschulung steht oben im Reiter – mit Knopf');
-ok(/🎓 Schulung/.test(h) && /📋 Pflicht/.test(h) && /5 Module · Wissenstest/.test(h) && /○ Pflicht – noch offen/.test(h), 'Die Karte: Schulung, Pflicht, Module, Stand');
+ok(/🎓 Schulung/.test(h) && /📋 Pflicht/.test(h) && /5 Module · Wissenstest/.test(h) && /○ Pflicht, noch offen/.test(h), 'Die Karte: Schulung, Pflicht, Module, Stand');
 
 run("wiOeffnen('start-phishing-kurs')");
 h = mount.innerHTML;
 ok(/Warum dieser Kurs\?/.test(h) && /<b>91 % aller Cyberangriffe/.test(h), 'Die Übersicht beginnt mit „Warum dieser Kurs?"');
-ok(/Ca\. 20 Minuten · 5 Module · 1 Wissenstest/.test(h) && /Alle Mitarbeitenden – kein Vorwissen erforderlich/.test(h) && /Pflichttraining/.test(h) && /Jährliche Auffrischung/.test(h), 'Dauer, Zielgruppe, Pflicht, Wiederholung als Kacheln');
+ok(/Ca\. 20 Minuten · 5 Module · 1 Wissenstest/.test(h) && /Alle Mitarbeitenden: kein Vorwissen erforderlich/.test(h) && /Pflichttraining/.test(h) && /Jährliche Auffrischung/.test(h), 'Dauer, Zielgruppe, Pflicht, Wiederholung als Kacheln');
 ok((h.match(/<ul class="wi-ziele">[\s\S]*?<\/ul>/)[0].match(/<li>/g) || []).length === 5, 'Fünf Lernziele mit Haken');
 ok(/<span class="wi-modul-nr">01<\/span><span>Was ist Phishing\?<\/span>/.test(h) && /Wissenstest · 5 Fragen, bestanden ab 80 %/.test(h), 'Die Module als Liste, der Test am Ende');
 ok(/Schulung starten →/.test(h), 'Und der Knopf');
@@ -373,7 +373,7 @@ ok(/wiZertifikat\('start-phishing-kurs'\)/.test(felder['wi-test'].innerHTML), 'U
 let fenster = '';
 ctx.window.open = () => ({ document: { open() {}, write(h2) { fenster += h2; }, close() {} } });
 run("wiZertifikat('start-phishing-kurs')");
-ok(/<title>Teilnahmebescheinigung – Phishing erkennen/.test(fenster) && /Anna Muster/.test(fenster) && /Wissenstest bestanden mit <b>100 %<\/b>/.test(fenster) && /Gültig bis/.test(fenster) && /RMS-W-/.test(fenster) && /Pflichtschulung · alle 12 Monate/.test(fenster),
+ok(/<title>Teilnahmebescheinigung: Phishing erkennen/.test(fenster) && /Anna Muster/.test(fenster) && /Wissenstest bestanden mit <b>100 %<\/b>/.test(fenster) && /Gültig bis/.test(fenster) && /RMS-W-/.test(fenster) && /Pflichtschulung · alle 12 Monate/.test(fenster),
   'Die Bescheinigung: Name, Schulung, Ergebnis, Gültigkeit, Nummer – eine Seite zum Drucken oder als PDF');
 ok((fenster.match(/<li>/g) || []).length === 5 && /window\.print\(\)/.test(fenster) && /@page \{ size: A4 landscape/.test(fenster), 'Mit den Modulen, einem Druckknopf und Querformat');
 run("wiKursZu('start-phishing-kurs', 0)");

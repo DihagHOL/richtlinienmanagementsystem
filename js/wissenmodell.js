@@ -258,7 +258,7 @@ function wiKursStatus(b, acks, jetzt) {
   if (s.gueltig) return { key: 'erledigt', text: 'abgeschlossen' + (s.faelligAm ? ', gültig bis ' + wiTag(s.faelligAm) : ''), stand: s };
   if (s.abgelaufen) return { key: 'faellig', text: 'Auffrischung fällig', stand: s };
   if (s.gesehen) return { key: 'laeuft', text: 'begonnen', stand: s };
-  return { key: 'offen', text: b.pflicht ? 'Pflicht – noch offen' : 'noch nicht begonnen', stand: s };
+  return { key: 'offen', text: b.pflicht ? 'Pflicht, noch offen' : 'noch nicht begonnen', stand: s };
 }
 
 /**
@@ -330,134 +330,134 @@ function wiAuswertung(daten, acks) {
    nicht drin – die dreht das Haus selbst oder wählt sie aus. */
 const WI_STARTBESTAND = {
   themen: [
-    { id: 'phishing',     titel: 'Phishing & E-Mail',        symbol: '🎣', kurz: 'Die häufigste Tür für Angreifer – und die, die jede:r selbst zuhält.', bereich: 'Informationssicherheit' },
+    { id: 'phishing',     titel: 'Phishing & E-Mail',        symbol: '🎣', kurz: 'Die häufigste Tür für Angreifer, und die, die jede:r selbst zuhält.', bereich: 'Informationssicherheit' },
     { id: 'passwoerter',  titel: 'Passwörter & Zugänge',     symbol: '🔑', kurz: 'Ein Dienst, ein Passwort, ein zweiter Faktor.', bereich: 'Informationssicherheit' },
     { id: 'arbeitsplatz', titel: 'Arbeitsplatz & unterwegs', symbol: '💼', kurz: 'Bildschirm, Schreibtisch, Homeoffice, Bahn.', bereich: 'Informationssicherheit' },
     { id: 'melden',       titel: 'Vorfall melden',           symbol: '🚨', kurz: 'Lieber einmal zu viel als einmal zu spät.', bereich: 'Informationssicherheit' },
-    { id: 'ki',           titel: 'KI im Arbeitsalltag',      symbol: '🤖', kurz: 'Was in einen KI-Chat darf – und was nicht.', bereich: 'Informationssicherheit' },
-    { id: 'datenschutz',  titel: 'Datenschutz im Alltag',    symbol: '🛡️', kurz: 'Was personenbezogen ist – und was daraus folgt.', bereich: 'Datenschutz' },
-    { id: 'verhalten',    titel: 'Verhaltenskodex & Compliance', symbol: '⚖️', kurz: 'Geschenke, Einladungen, Interessenkonflikte – und wo man Bedenken loswird.', bereich: 'Compliance & Verhalten' },
+    { id: 'ki',           titel: 'KI im Arbeitsalltag',      symbol: '🤖', kurz: 'Was in einen KI-Chat darf: und was nicht.', bereich: 'Informationssicherheit' },
+    { id: 'datenschutz',  titel: 'Datenschutz im Alltag',    symbol: '🛡️', kurz: 'Was personenbezogen ist: und was daraus folgt.', bereich: 'Datenschutz' },
+    { id: 'verhalten',    titel: 'Verhaltenskodex & Compliance', symbol: '⚖️', kurz: 'Geschenke, Einladungen, Interessenkonflikte, und wo man Bedenken loswird.', bereich: 'Compliance & Verhalten' },
     { id: 'arbeitssicherheit', titel: 'Sicher arbeiten',    symbol: '🦺', kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen.', bereich: 'Arbeitssicherheit' },
   ],
   beitraege: [
-    { id: 'start-verhalten-artikel', art: 'artikel', thema: 'verhalten', titel: 'Geschenke, Einladungen, Interessenkonflikte – die drei Alltagsfragen', dauer: 3,
+    { id: 'start-verhalten-artikel', art: 'artikel', thema: 'verhalten', titel: 'Geschenke, Einladungen, Interessenkonflikte: die drei Alltagsfragen', dauer: 3,
       kurz: 'Die meisten Compliance-Fragen sind keine Rechtsfragen, sondern Anstandsfragen mit einer Grenze.',
-      text: `Compliance klingt nach Juristerei. Im Alltag sind es drei Fragen, die immer wieder auftauchen – und für alle drei gibt es eine einfache Prüfung: **Würde ich es meiner Vorgesetzten, einem Kunden und der Zeitung genauso erzählen?**
+      text: `Compliance klingt nach Juristerei. Im Alltag sind es drei Fragen, die immer wieder auftauchen, und für alle drei gibt es eine einfache Prüfung: **Würde ich es meiner Vorgesetzten, einem Kunden und der Zeitung genauso erzählen?**
 
 # Geschenke und Einladungen
 - **Annehmen** darf man, was üblich und geringwertig ist: der Kalender, die Flasche Wein, das Mittagessen im Rahmen eines Termins.
-- **Melden oder ablehnen** muss man, was darüber hinausgeht oder zeitlich in eine Entscheidung fällt – eine Einladung zum Fußballspiel in der Woche der Auftragsvergabe hat ein Geschmäckle, auch wenn nichts dahintersteckt.
+- **Melden oder ablehnen** muss man, was darüber hinausgeht oder zeitlich in eine Entscheidung fällt. Eine Einladung zum Fußballspiel in der Woche der Auftragsvergabe hat ein Geschmäckle, auch wenn nichts dahintersteckt.
 - **Geben** gilt genauso: Wer Amtsträgern oder Einkäufern etwas schenkt, bewegt sich schnell im Strafrecht. Im Zweifel vorher fragen.
 
 # Interessenkonflikte
-Ein Interessenkonflikt ist kein Vorwurf, sondern eine Situation: Die Schwester arbeitet beim Lieferanten, der Freund bewirbt sich, man hält Anteile an einem Wettbewerber. **Der Fehler ist nicht die Situation – der Fehler ist, sie zu verschweigen.** Offenlegen, und die Entscheidung trifft jemand anderes.
+Ein Interessenkonflikt ist kein Vorwurf, sondern eine Situation: Die Schwester arbeitet beim Lieferanten, der Freund bewirbt sich, man hält Anteile an einem Wettbewerber. **Der Fehler ist nicht die Situation. Der Fehler ist, sie zu verschweigen.** Offenlegen, und die Entscheidung trifft jemand anderes.
 
 # Wettbewerb
-Preise, Kunden, Gebiete, Konditionen – darüber spricht man mit Wettbewerbern nicht. Auch nicht „unter uns" auf der Messe, auch nicht im Verband. Kommt es dazu, das Gespräch beenden und den Vorfall melden.
+Preise, Kunden, Gebiete, Konditionen. Darüber spricht man mit Wettbewerbern nicht. Auch nicht „unter uns" auf der Messe, auch nicht im Verband. Kommt es dazu, das Gespräch beenden und den Vorfall melden.
 
 # Bedenken loswerden
-Wer etwas beobachtet, das nicht in Ordnung ist, hat Wege: Vorgesetzte, Compliance, oder – wenn das nicht geht – das **Hinweisgebersystem**, auch anonym. Wer hinweist, ist geschützt; Nachteile für einen Hinweis sind selbst ein Verstoß.
+Wer etwas beobachtet, das nicht in Ordnung ist, hat Wege: Vorgesetzte, Compliance, oder (wenn das nicht geht) das **Hinweisgebersystem**, auch anonym. Wer hinweist, ist geschützt; Nachteile für einen Hinweis sind selbst ein Verstoß.
 
->✓ Die Regel für den Zweifel: erst fragen, dann handeln. Eine Rückfrage kostet zehn Minuten. Ein Verstoß kostet die Stelle – manchmal mehr.` },
+>✓ Die Regel für den Zweifel: erst fragen, dann handeln. Eine Rückfrage kostet zehn Minuten. Ein Verstoß kostet die Stelle. Manchmal mehr.` },
     { id: 'start-verhalten-test', art: 'test', thema: 'verhalten', titel: 'Wissenstest: Verhaltenskodex', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
-        { frage: 'Ein Lieferant lädt Sie in der Woche der Auftragsvergabe zum Bundesligaspiel mit Hotel ein. Was ist richtig?', optionen: ['Annehmen – das ist Kundenpflege.', 'Ablehnen oder vorher offenlegen und entscheiden lassen – der Zeitpunkt ist das Problem.', 'Annehmen, aber niemandem erzählen.'], richtig: 1 },
-        { frage: 'Ihr Bruder bewirbt sich in Ihrer Abteilung, Sie sitzen im Auswahlgespräch. Was tun Sie?', optionen: ['Nichts sagen, aber besonders streng sein.', 'Den Interessenkonflikt offenlegen und die Auswahl anderen überlassen.', 'Das Gespräch führen – Familie ist Privatsache.'], richtig: 1 },
-        { frage: 'Auf der Messe erzählt ein Wettbewerber, er erhöhe im Januar die Preise um 5 %, und fragt nach Ihren Plänen. Was tun Sie?', optionen: ['Höflich eine grobe Zahl nennen.', 'Das Gespräch beenden und den Vorfall melden.', 'Zuhören, aber nichts sagen – zuhören ist erlaubt.'], richtig: 1 },
-        { frage: 'Sie beobachten, dass Prüfprotokolle nachträglich geändert werden. Was ist der richtige Weg?', optionen: ['Abwarten, ob es jemand anderem auffällt.', 'Vorgesetzte oder Compliance ansprechen – oder das Hinweisgebersystem nutzen, auch anonym.', 'Die Kollegen direkt beschuldigen.'], richtig: 1 },
+        { frage: 'Ein Lieferant lädt Sie in der Woche der Auftragsvergabe zum Bundesligaspiel mit Hotel ein. Was ist richtig?', optionen: ['Annehmen: das ist Kundenpflege.', 'Ablehnen oder vorher offenlegen und entscheiden lassen. Der Zeitpunkt ist das Problem.', 'Annehmen, aber niemandem erzählen.'], richtig: 1 },
+        { frage: 'Ihr Bruder bewirbt sich in Ihrer Abteilung, Sie sitzen im Auswahlgespräch. Was tun Sie?', optionen: ['Nichts sagen, aber besonders streng sein.', 'Den Interessenkonflikt offenlegen und die Auswahl anderen überlassen.', 'Das Gespräch führen: Familie ist Privatsache.'], richtig: 1 },
+        { frage: 'Auf der Messe erzählt ein Wettbewerber, er erhöhe im Januar die Preise um 5 %, und fragt nach Ihren Plänen. Was tun Sie?', optionen: ['Höflich eine grobe Zahl nennen.', 'Das Gespräch beenden und den Vorfall melden.', 'Zuhören, aber nichts sagen: zuhören ist erlaubt.'], richtig: 1 },
+        { frage: 'Sie beobachten, dass Prüfprotokolle nachträglich geändert werden. Was ist der richtige Weg?', optionen: ['Abwarten, ob es jemand anderem auffällt.', 'Vorgesetzte oder Compliance ansprechen, oder das Hinweisgebersystem nutzen, auch anonym.', 'Die Kollegen direkt beschuldigen.'], richtig: 1 },
       ] },
-    { id: 'start-arbeitssicherheit-artikel', art: 'artikel', thema: 'arbeitssicherheit', titel: 'Sicher arbeiten – vier Gewohnheiten, die Unfälle verhindern', dauer: 3,
-      kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen – und warum Melden kein Petzen ist.',
+    { id: 'start-arbeitssicherheit-artikel', art: 'artikel', thema: 'arbeitssicherheit', titel: 'Sicher arbeiten: vier Gewohnheiten, die Unfälle verhindern', dauer: 3,
+      kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen, und warum Melden kein Petzen ist.',
       text: `Die meisten Unfälle passieren nicht bei den gefährlichen Arbeiten, sondern bei den gewohnten: der schnelle Handgriff ohne Handschuh, der Weg über die Palette statt außen herum, die Maschine, die „nur kurz" ohne Schutz läuft.
 
 # Vier Gewohnheiten
-1. **Schutzausrüstung tragen – immer, nicht meistens.** Helm, Brille, Handschuhe, Sicherheitsschuhe, Gehörschutz: Was die Unterweisung für den Bereich vorsieht, gilt für die zwei Minuten genauso wie für die Schicht.
-2. **Wege sind Wege.** Markierte Verkehrswege einhalten, nicht über Material klettern, Fluchtwege und Feuerlöscher frei halten. Stapler haben Vorfahrt – und tote Winkel.
+1. **Schutzausrüstung tragen, immer, nicht meistens.** Helm, Brille, Handschuhe, Sicherheitsschuhe, Gehörschutz: Was die Unterweisung für den Bereich vorsieht, gilt für die zwei Minuten genauso wie für die Schicht.
+2. **Wege sind Wege.** Markierte Verkehrswege einhalten, nicht über Material klettern, Fluchtwege und Feuerlöscher frei halten. Stapler haben Vorfahrt, und tote Winkel.
 3. **Beinaheunfälle melden.** Der Stein, der neben Ihnen einschlug, das Kabel, über das Sie fast gestolpert wären: Was heute fast passiert ist, passiert morgen jemand anderem. Die Meldung ist kein Petzen, sondern die einzige Chance, es vorher zu ändern.
 4. **Nein sagen dürfen.** Wer eine Arbeit für gefährlich hält, darf sie unterbrechen und Rücksprache halten. Niemand muss eine Anweisung ausführen, die ihn in Gefahr bringt.
 
 # Im Notfall
-- **Erste Hilfe:** Wer die Ersthelfer im Bereich sind, steht am Aushang – merken, bevor es nötig ist.
-- **Melden:** Notruf absetzen, Vorgesetzte informieren, den Unfall im Verbandbuch eintragen – auch die kleine Schnittwunde. Ohne Eintrag gibt es später keinen Versicherungsschutz.
+- **Erste Hilfe:** Wer die Ersthelfer im Bereich sind, steht am Aushang. Merken, bevor es nötig ist.
+- **Melden:** Notruf absetzen, Vorgesetzte informieren, den Unfall im Verbandbuch eintragen, auch die kleine Schnittwunde. Ohne Eintrag gibt es später keinen Versicherungsschutz.
 - **Ruhe bewahren:** erst sichern (Maschine aus, Bereich absperren), dann helfen.
 
->✓ Sicherheit ist keine Regel gegen die Arbeit, sondern die Bedingung, dass alle abends heimkommen. Wer sie ernst nimmt, wird nicht belächelt – wer sie überspringt, wird angesprochen.` },
+>✓ Sicherheit ist keine Regel gegen die Arbeit, sondern die Bedingung, dass alle abends heimkommen. Wer sie ernst nimmt, wird nicht belächelt. Wer sie überspringt, wird angesprochen.` },
     { id: 'start-arbeitssicherheit-test', art: 'test', thema: 'arbeitssicherheit', titel: 'Wissenstest: Sicher arbeiten', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
-        { frage: 'Ein Kabel liegt quer über dem Weg, Sie stolpern fast, nichts passiert. Was tun Sie?', optionen: ['Nichts – es ist ja nichts passiert.', 'Kabel sichern und den Beinaheunfall melden.', 'Kollegen warnen, das reicht.'], richtig: 1 },
+        { frage: 'Ein Kabel liegt quer über dem Weg, Sie stolpern fast, nichts passiert. Was tun Sie?', optionen: ['Nichts: es ist ja nichts passiert.', 'Kabel sichern und den Beinaheunfall melden.', 'Kollegen warnen, das reicht.'], richtig: 1 },
         { frage: 'Sie sollen „nur kurz" ohne Schutzbrille an der Maschine nachjustieren. Was gilt?', optionen: ['Kurz geht ohne.', 'Schutzausrüstung gilt auch für zwei Minuten.', 'Nur, wenn die Vorgesetzte es sagt.'], richtig: 1 },
-        { frage: 'Sie halten eine angewiesene Arbeit für gefährlich. Dürfen Sie sie unterbrechen?', optionen: ['Nein, Anweisung ist Anweisung.', 'Ja – unterbrechen und Rücksprache halten.', 'Nur mit Betriebsrat.'], richtig: 1 },
-        { frage: 'Eine kleine Schnittwunde, ein Pflaster – muss das ins Verbandbuch?', optionen: ['Nein, nur größere Verletzungen.', 'Ja – ohne Eintrag fehlt später der Versicherungsschutz.', 'Nur, wenn es blutet.'], richtig: 1 },
+        { frage: 'Sie halten eine angewiesene Arbeit für gefährlich. Dürfen Sie sie unterbrechen?', optionen: ['Nein, Anweisung ist Anweisung.', 'Ja: unterbrechen und Rücksprache halten.', 'Nur mit Betriebsrat.'], richtig: 1 },
+        { frage: 'Eine kleine Schnittwunde, ein Pflaster. Muss das ins Verbandbuch?', optionen: ['Nein, nur größere Verletzungen.', 'Ja: ohne Eintrag fehlt später der Versicherungsschutz.', 'Nur, wenn es blutet.'], richtig: 1 },
       ] },
     { id: 'start-phishing-artikel', art: 'artikel', thema: 'phishing', titel: 'Phishing erkennen in 60 Sekunden', dauer: 2,
       kurz: 'Fünf Merkmale, die fast jede betrügerische Mail verraten.',
-      text: `Phishing-Mails sehen heute echt aus: richtiges Logo, korrektes Deutsch, oft sogar ein bekannter Absendername. Verraten tun sie sich trotzdem – meist an mehr als einem dieser Punkte.
+      text: `Phishing-Mails sehen heute echt aus: richtiges Logo, korrektes Deutsch, oft sogar ein bekannter Absendername. Verraten tun sie sich trotzdem, meist an mehr als einem dieser Punkte.
 
 # Fünf Merkmale
 - **Druck.** „Sofort", „letzte Mahnung", „Konto wird gesperrt". Wer Sie zur Eile treibt, will, dass Sie nicht nachdenken.
-- **Der Absender hinter dem Namen.** Der Anzeigename ist frei wählbar. Entscheidend ist die Adresse dahinter – und ob sie wirklich zur genannten Firma passt.
+- **Der Absender hinter dem Namen.** Der Anzeigename ist frei wählbar. Entscheidend ist die Adresse dahinter, und ob sie wirklich zur genannten Firma passt.
 - **Der Link hinter dem Text.** Mit der Maus über den Link fahren, ohne zu klicken: Die Zieladresse erscheint unten im Fenster. Passt sie nicht zum Text, ist es Phishing.
-- **Anhänge, die niemand angekündigt hat.** Rechnungen, Bewerbungen, „Dokument freigegeben" – von Absendern, mit denen Sie gerade nichts zu tun haben.
+- **Anhänge, die niemand angekündigt hat.** Rechnungen, Bewerbungen, „Dokument freigegeben", von Absendern, mit denen Sie gerade nichts zu tun haben.
 - **Die ungewöhnliche Bitte.** Zugangsdaten eingeben, Gutscheine kaufen, eine Überweisung „schnell" freigeben. Kein seriöser Prozess läuft so.
 
 # Was tun
-Nicht klicken, nicht antworten, nicht weiterleiten. Die Mail über die Melden-Funktion an die IT geben oder ein Ticket anlegen – auch wenn Sie nicht sicher sind. Eine Fehlmeldung kostet eine Minute; ein Klick kann Tage kosten.
+Nicht klicken, nicht antworten, nicht weiterleiten. Die Mail über die Melden-Funktion an die IT geben oder ein Ticket anlegen, auch wenn Sie nicht sicher sind. Eine Fehlmeldung kostet eine Minute; ein Klick kann Tage kosten.
 
-Und wenn schon geklickt wurde: sofort melden. Wer schnell Bescheid sagt, macht nichts falsch – wer schweigt, gibt dem Angreifer Zeit.` },
+Und wenn schon geklickt wurde: sofort melden. Wer schnell Bescheid sagt, macht nichts falsch. Wer schweigt, gibt dem Angreifer Zeit.` },
     { id: 'start-phishing-test', art: 'test', thema: 'phishing', titel: 'Wissenstest: Phishing', dauer: 3, bestehen: 80,
-      kurz: 'Fünf Fragen – die Reihenfolge ist jedes Mal anders.',
+      kurz: 'Fünf Fragen: die Reihenfolge ist jedes Mal anders.',
       fragen: [
         { frage: 'Eine Mail vom „Geschäftsführer" bittet Sie, dringend Gutscheinkarten zu kaufen und die Codes zu schicken. Was tun Sie?',
-          optionen: ['Kaufen – der Chef hat es eilig.', 'Auf einem anderen Weg (Telefon, persönlich) nachfragen und die Mail melden.', 'Antworten und um Bestätigung per Mail bitten.'], richtig: 1 },
+          optionen: ['Kaufen: der Chef hat es eilig.', 'Auf einem anderen Weg (Telefon, persönlich) nachfragen und die Mail melden.', 'Antworten und um Bestätigung per Mail bitten.'], richtig: 1 },
         { frage: 'Woran erkennen Sie, wohin ein Link wirklich führt?',
           optionen: ['Am blauen, unterstrichenen Text.', 'An der Zieladresse, die erscheint, wenn man mit der Maus über den Link fährt.', 'Am Logo in der Mail.'], richtig: 1 },
         { frage: 'Was ist das sicherste Zeichen für Phishing?',
           optionen: ['Rechtschreibfehler.', 'Ein fremdes Logo.', 'Zeitdruck plus die Bitte um Zugangsdaten, Geld oder einen Klick.'], richtig: 2 },
-        { frage: 'Sie haben auf einen Link geklickt und Ihr Passwort eingegeben – dann kommen Zweifel. Was jetzt?',
+        { frage: 'Sie haben auf einen Link geklickt und Ihr Passwort eingegeben, dann kommen Zweifel. Was jetzt?',
           optionen: ['Abwarten, ob etwas passiert.', 'Sofort melden und das Passwort ändern.', 'Die Mail löschen, dann ist es erledigt.'], richtig: 1 },
         { frage: 'Der Anzeigename einer Mail lautet „DIHAG IT-Support". Was bedeutet das?',
-          optionen: ['Die Mail kommt sicher von der IT.', 'Nichts – der Anzeigename ist frei wählbar, die Adresse dahinter zählt.', 'Die Mail wurde geprüft.'], richtig: 1 },
+          optionen: ['Die Mail kommt sicher von der IT.', 'Nichts: der Anzeigename ist frei wählbar, die Adresse dahinter zählt.', 'Die Mail wurde geprüft.'], richtig: 1 },
       ] },
-    { id: 'start-passwoerter-artikel', art: 'artikel', thema: 'passwoerter', titel: 'Ein Dienst, ein Passwort – und ein zweiter Faktor', dauer: 2,
+    { id: 'start-passwoerter-artikel', art: 'artikel', thema: 'passwoerter', titel: 'Ein Dienst, ein Passwort und ein zweiter Faktor', dauer: 2,
       kurz: 'Warum Länge wichtiger ist als Sonderzeichen und wieso ein Passwort nie zweimal verwendet wird.',
-      text: `Passwörter werden nicht erraten, sie werden gestohlen – aus Datenlecks bei irgendeinem Online-Dienst. Wer dort dasselbe Passwort benutzt wie im Unternehmen, hat dem Angreifer die Tür aufgeschlossen.
+      text: `Passwörter werden nicht erraten, sie werden gestohlen, aus Datenlecks bei irgendeinem Online-Dienst. Wer dort dasselbe Passwort benutzt wie im Unternehmen, hat dem Angreifer die Tür aufgeschlossen.
 
 # Drei Regeln
-- **Jeder Dienst ein eigenes Passwort.** Ein Passwortmanager merkt sie sich – Sie merken sich nur eines.
+- **Jeder Dienst ein eigenes Passwort.** Ein Passwortmanager merkt sie sich. Sie merken sich nur eines.
 - **Lang schlägt kompliziert.** Vier zusammenhanglose Wörter („KaffeeGießereiMondSchraube") sind sicherer als „P@ssw0rt!" und leichter zu merken.
 - **Zweiter Faktor überall, wo es ihn gibt.** Die App auf dem Telefon macht ein gestohlenes Passwort wertlos.
 
 # Was nie
-- Passwörter per Mail, Chat oder Zettel weitergeben – auch nicht an die IT. Die IT fragt nicht danach.
+- Passwörter per Mail, Chat oder Zettel weitergeben, auch nicht an die IT. Die IT fragt nicht danach.
 - Eine MFA-Anfrage bestätigen, die Sie nicht selbst ausgelöst haben. Genau das ist der Angriff („MFA-Müdigkeit"): So lange Anfragen schicken, bis jemand auf „Ja" tippt.
 
-Wenn Sie den Verdacht haben, ein Passwort sei bekannt geworden: ändern und melden – in dieser Reihenfolge, und beides heute.` },
+Wenn Sie den Verdacht haben, ein Passwort sei bekannt geworden: ändern und melden, in dieser Reihenfolge, und beides heute.` },
     { id: 'start-passwoerter-test', art: 'test', thema: 'passwoerter', titel: 'Wissenstest: Passwörter & MFA', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
         { frage: 'Welches Passwort ist am sichersten?', optionen: ['P@ss2024!', 'Vier zusammenhanglose Wörter mit über 20 Zeichen', 'Der Name des Haustiers mit Geburtsjahr'], richtig: 1 },
-        { frage: 'Ihr Telefon zeigt eine MFA-Anfrage, obwohl Sie sich gerade nirgends anmelden. Was tun Sie?', optionen: ['Bestätigen – wird schon die IT sein.', 'Ablehnen und melden, das Passwort ändern.', 'Ignorieren, das hört von selbst auf.'], richtig: 1 },
-        { frage: 'Darf dasselbe Passwort für den Firmenzugang und einen Online-Shop verwendet werden?', optionen: ['Ja, wenn es lang genug ist.', 'Nein – ein Datenleck beim Shop öffnet sonst den Firmenzugang.', 'Ja, wenn MFA aktiv ist.'], richtig: 1 },
-        { frage: 'Die „IT" ruft an und braucht Ihr Passwort, um ein Problem zu lösen. Was ist richtig?', optionen: ['Nennen – die IT hat ohnehin Zugriff.', 'Nie nennen: Die IT braucht Ihr Passwort nicht. Auflegen und melden.', 'Nur den ersten Teil nennen.'], richtig: 1 },
+        { frage: 'Ihr Telefon zeigt eine MFA-Anfrage, obwohl Sie sich gerade nirgends anmelden. Was tun Sie?', optionen: ['Bestätigen: wird schon die IT sein.', 'Ablehnen und melden, das Passwort ändern.', 'Ignorieren, das hört von selbst auf.'], richtig: 1 },
+        { frage: 'Darf dasselbe Passwort für den Firmenzugang und einen Online-Shop verwendet werden?', optionen: ['Ja, wenn es lang genug ist.', 'Nein: ein Datenleck beim Shop öffnet sonst den Firmenzugang.', 'Ja, wenn MFA aktiv ist.'], richtig: 1 },
+        { frage: 'Die „IT" ruft an und braucht Ihr Passwort, um ein Problem zu lösen. Was ist richtig?', optionen: ['Nennen: die IT hat ohnehin Zugriff.', 'Nie nennen: Die IT braucht Ihr Passwort nicht. Auflegen und melden.', 'Nur den ersten Teil nennen.'], richtig: 1 },
       ] },
-    { id: 'start-arbeitsplatz-artikel', art: 'artikel', thema: 'arbeitsplatz', titel: 'Bildschirm, Schreibtisch, Bahn – Sicherheit ohne Technik', dauer: 2,
+    { id: 'start-arbeitsplatz-artikel', art: 'artikel', thema: 'arbeitsplatz', titel: 'Bildschirm, Schreibtisch, Bahn: Sicherheit ohne Technik', dauer: 2,
       kurz: 'Die Gewohnheiten, die kein Virenscanner ersetzt.',
       text: `Die meisten Informationen gehen nicht durch Hacker verloren, sondern durch Alltag: ein Ausdruck am Drucker, ein offener Bildschirm, ein Gespräch im Zug.
 
 # Am Arbeitsplatz
-- **Bildschirm sperren**, sobald Sie aufstehen – Windows-Taste + L. Es dauert eine Sekunde.
+- **Bildschirm sperren**, sobald Sie aufstehen. Windows-Taste + L. Es dauert eine Sekunde.
 - **Schreibtisch am Abend leer**: Ausdrucke mit personenbezogenen oder vertraulichen Angaben in den Schrank oder in den Schredder, nicht in den Papierkorb.
-- **Besucher begleiten.** Wer ohne Begleitung durchs Haus geht, gehört angesprochen – freundlich, aber immer.
+- **Besucher begleiten.** Wer ohne Begleitung durchs Haus geht, gehört angesprochen. Freundlich, aber immer.
 
 # Unterwegs und zu Hause
 - **Öffentliches WLAN nur mit VPN.** Ohne VPN liest jeder im selben Netz mit.
-- **Blickschutz im Zug** – oder das Dokument später öffnen. Über die Schulter lesen ist keine Kunst.
+- **Blickschutz im Zug**: oder das Dokument später öffnen. Über die Schulter lesen ist keine Kunst.
 - **Geräte nie im Auto lassen**, auch nicht kurz. Ein Laptop im Kofferraum ist ein Laptop weniger.
-- **Verlust sofort melden**, damit das Gerät gesperrt werden kann – das ist wichtiger als die Frage nach der Schuld.
+- **Verlust sofort melden**, damit das Gerät gesperrt werden kann. Das ist wichtiger als die Frage nach der Schuld.
 
-Und: Dienstliches auf dienstlichen Geräten. Der private Rechner hat keine Verschlüsselung, keine Sperre, keinen Schutz – und die Familie hat Zugriff.` },
+Und: Dienstliches auf dienstlichen Geräten. Der private Rechner hat keine Verschlüsselung, keine Sperre, keinen Schutz, und die Familie hat Zugriff.` },
     { id: 'start-arbeitsplatz-test', art: 'test', thema: 'arbeitsplatz', titel: 'Wissenstest: Arbeitsplatz & unterwegs', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
@@ -466,58 +466,58 @@ Und: Dienstliches auf dienstlichen Geräten. Der private Rechner hat keine Versc
         { frage: 'Ein Ausdruck mit Gehaltsdaten wird nicht mehr gebraucht. Wohin damit?', optionen: ['Papierkorb.', 'Schredder oder verschlossener Datenschutzbehälter.', 'Auf dem Drucker liegen lassen.'], richtig: 1 },
         { frage: 'Das Diensthandy ist weg. Was ist der erste Schritt?', optionen: ['Ein paar Tage suchen.', 'Sofort melden, damit es gesperrt werden kann.', 'Eine neue SIM-Karte bestellen.'], richtig: 1 },
       ] },
-    { id: 'start-datenschutz-artikel', art: 'artikel', thema: 'datenschutz', titel: 'Personenbezogene Daten – was das ist und was daraus folgt', dauer: 3,
+    { id: 'start-datenschutz-artikel', art: 'artikel', thema: 'datenschutz', titel: 'Personenbezogene Daten: was das ist und was daraus folgt', dauer: 3,
       kurz: 'Name, Mail, Kennzeichen, Foto: alles, was auf einen Menschen zeigt.',
       text: `Personenbezogen ist alles, was sich einer Person zuordnen lässt: Name, Adresse, E-Mail, Telefonnummer, Personalnummer, Foto, Kfz-Kennzeichen, IP-Adresse, ein Gehalt, ein Krankheitstag. Nicht nur das, was „geheim" ist.
 
 # Vier Grundsätze, die im Alltag reichen
 - **Zweck.** Daten nur für den Zweck verwenden, für den sie erhoben wurden. Die Telefonliste ist für die Arbeit da, nicht für die Geburtstagsrunde.
-- **So wenig wie nötig.** Nicht alles abfragen, was interessant wäre – nur, was gebraucht wird.
-- **Nur, wer es braucht.** Eine Liste mit Krankheitstagen gehört nicht in die Abteilungsmail. Weitergabe an Dritte – auch an Dienstleister – nur mit Grundlage.
+- **So wenig wie nötig.** Nicht alles abfragen, was interessant wäre, nur, was gebraucht wird.
+- **Nur, wer es braucht.** Eine Liste mit Krankheitstagen gehört nicht in die Abteilungsmail. Weitergabe an Dritte (auch an Dienstleister) nur mit Grundlage.
 - **Nicht länger als nötig.** Was erledigt ist, wird gelöscht oder nach Vorgabe archiviert.
 
 # Besondere Vorsicht
 Gesundheit, Religion, Gewerkschaft, Herkunft: Solche Angaben sind besonders geschützt. Sie gehören nicht in Freitextfelder, nicht in Chats und nicht in Tabellen, die „nur intern" sind.
 
 # Wenn etwas schiefgeht
-Eine Mail an den falschen Verteiler, ein verlorener USB-Stick, ein Ausdruck am falschen Drucker: **innerhalb von 72 Stunden** muss das Unternehmen unter Umständen die Aufsichtsbehörde informieren. Die Frist läuft ab dem Bekanntwerden – deshalb sofort melden, nicht erst am Wochenende darüber nachdenken.` },
+Eine Mail an den falschen Verteiler, ein verlorener USB-Stick, ein Ausdruck am falschen Drucker: **innerhalb von 72 Stunden** muss das Unternehmen unter Umständen die Aufsichtsbehörde informieren. Die Frist läuft ab dem Bekanntwerden. Deshalb sofort melden, nicht erst am Wochenende darüber nachdenken.` },
     { id: 'start-datenschutz-test', art: 'test', thema: 'datenschutz', titel: 'Wissenstest: Datenschutz', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
         { frage: 'Welche Angabe ist personenbezogen?', optionen: ['Das Kfz-Kennzeichen eines Mitarbeiters.', 'Die Anzahl der Mitarbeitenden im Werk.', 'Der Jahresumsatz.'], richtig: 0 },
-        { frage: 'Ein Kollege bittet um die Telefonliste für eine private Einladung. Was gilt?', optionen: ['Kein Problem, die ist ja intern.', 'Nein – die Liste ist für den dienstlichen Zweck da.', 'Nur die Handynummern.'], richtig: 1 },
-        { frage: 'Sie haben eine Gehaltsübersicht an einen falschen Verteiler gesendet. Was jetzt?', optionen: ['Rückruf der Mail und abwarten.', 'Sofort melden – die Frist gegenüber der Aufsicht kann 72 Stunden betragen.', 'Die Empfänger bitten, es zu löschen, damit ist es erledigt.'], richtig: 1 },
+        { frage: 'Ein Kollege bittet um die Telefonliste für eine private Einladung. Was gilt?', optionen: ['Kein Problem, die ist ja intern.', 'Nein: die Liste ist für den dienstlichen Zweck da.', 'Nur die Handynummern.'], richtig: 1 },
+        { frage: 'Sie haben eine Gehaltsübersicht an einen falschen Verteiler gesendet. Was jetzt?', optionen: ['Rückruf der Mail und abwarten.', 'Sofort melden: die Frist gegenüber der Aufsicht kann 72 Stunden betragen.', 'Die Empfänger bitten, es zu löschen, damit ist es erledigt.'], richtig: 1 },
         { frage: 'Welche Angabe ist besonders geschützt?', optionen: ['Die Abteilung.', 'Ein Krankheitsgrund.', 'Die Personalnummer.'], richtig: 1 },
       ] },
     { id: 'start-melden-artikel', art: 'artikel', thema: 'melden', titel: 'Lieber einmal zu viel: Was, wann, wem melden', dauer: 2,
-      kurz: 'Ein Sicherheitsvorfall ist kein Fehler, den man versteckt – er ist eine Information, die andere schützt.',
-      text: `Die teuersten Vorfälle sind die, von denen die IT zu spät erfährt. Niemand wird für eine Meldung getadelt – auch nicht, wenn sich der Verdacht als harmlos herausstellt.
+      kurz: 'Ein Sicherheitsvorfall ist kein Fehler, den man versteckt. Er ist eine Information, die andere schützt.',
+      text: `Die teuersten Vorfälle sind die, von denen die IT zu spät erfährt. Niemand wird für eine Meldung getadelt, auch nicht, wenn sich der Verdacht als harmlos herausstellt.
 
 # Was gemeldet wird
 - Eine verdächtige Mail, auch wenn Sie nicht geklickt haben.
-- Ein Klick, eine Eingabe, ein geöffneter Anhang – und danach ein ungutes Gefühl.
+- Ein Klick, eine Eingabe, ein geöffneter Anhang, und danach ein ungutes Gefühl.
 - Ein verlorenes oder gestohlenes Gerät, ein USB-Stick unbekannter Herkunft.
 - Ein Rechner, der sich plötzlich anders verhält: langsam, Fenster, die aufgehen, Dateien, die sich nicht öffnen lassen.
 - Daten am falschen Ort: eine Mail an den falschen Empfänger, ein Ausdruck am falschen Drucker.
 - Fremde Personen ohne Begleitung in Bereichen, in die sie nicht gehören.
 
 # Wann
-Sofort. Nicht nach dem Meeting, nicht nach Feierabend. Bei einem Verschlüsselungsverdacht: Netzwerkkabel ziehen oder WLAN aus, Gerät **nicht** ausschalten – und anrufen.
+Sofort. Nicht nach dem Meeting, nicht nach Feierabend. Bei einem Verschlüsselungsverdacht: Netzwerkkabel ziehen oder WLAN aus, Gerät **nicht** ausschalten, und anrufen.
 
 # Wem
-Über das Ticketsystem oder telefonisch an die IT; wenn es schnell gehen muss, zusätzlich an die Vorgesetzten. Bei personenbezogenen Daten erfährt es zusätzlich der Datenschutz. Die Kontaktwege stehen in den Regelwerken und – für den Ernstfall – im Notfallplan.
+Über das Ticketsystem oder telefonisch an die IT; wenn es schnell gehen muss, zusätzlich an die Vorgesetzten. Bei personenbezogenen Daten erfährt es zusätzlich der Datenschutz. Die Kontaktwege stehen in den Regelwerken und (für den Ernstfall) im Notfallplan.
 
 Was Sie nicht tun: den Vorfall selbst „reparieren", Beweise löschen oder abwarten, ob es von allein weggeht.` },
     { id: 'start-melden-test', art: 'test', thema: 'melden', titel: 'Wissenstest: Vorfall melden', dauer: 2, bestehen: 80,
       kurz: 'Drei Fragen.',
       fragen: [
         { frage: 'Ihr Rechner zeigt eine Meldung, dass Ihre Dateien verschlüsselt wurden. Was ist richtig?', optionen: ['Rechner ausschalten und neu starten.', 'Vom Netz trennen, eingeschaltet lassen, sofort die IT anrufen.', 'Erst einmal den Anweisungen auf dem Bildschirm folgen.'], richtig: 1 },
-        { frage: 'Sie haben eine verdächtige Mail erhalten, aber nichts angeklickt. Melden?', optionen: ['Nein, es ist ja nichts passiert.', 'Ja – die Meldung schützt die Kolleginnen und Kollegen, die dieselbe Mail bekommen.', 'Nur, wenn sie noch einmal kommt.'], richtig: 1 },
-        { frage: 'Wann wird ein Vorfall gemeldet?', optionen: ['Nach Feierabend, wenn Ruhe ist.', 'Sofort – jede Stunde zählt.', 'Nachdem man selbst versucht hat, ihn zu beheben.'], richtig: 1 },
+        { frage: 'Sie haben eine verdächtige Mail erhalten, aber nichts angeklickt. Melden?', optionen: ['Nein, es ist ja nichts passiert.', 'Ja: die Meldung schützt die Kolleginnen und Kollegen, die dieselbe Mail bekommen.', 'Nur, wenn sie noch einmal kommt.'], richtig: 1 },
+        { frage: 'Wann wird ein Vorfall gemeldet?', optionen: ['Nach Feierabend, wenn Ruhe ist.', 'Sofort: jede Stunde zählt.', 'Nachdem man selbst versucht hat, ihn zu beheben.'], richtig: 1 },
       ] },
-    { id: 'start-ki-artikel', art: 'artikel', thema: 'ki', titel: 'Was in einen KI-Chat darf – und was nicht', dauer: 3,
+    { id: 'start-ki-artikel', art: 'artikel', thema: 'ki', titel: 'Was in einen KI-Chat darf und was nicht', dauer: 3,
       kurz: 'KI-Assistenten sind Werkzeuge. Was Sie hineingeben, verlässt das Haus.',
-      text: `Ein KI-Chat ist ein Dienst eines fremden Anbieters. Was Sie eingeben, wird dort verarbeitet – je nach Dienst auch gespeichert und zum Training verwendet. Der Maßstab ist deshalb einfach: **Was Sie nicht auf eine Postkarte schreiben würden, gehört nicht in einen öffentlichen KI-Chat.**
+      text: `Ein KI-Chat ist ein Dienst eines fremden Anbieters. Was Sie eingeben, wird dort verarbeitet, je nach Dienst auch gespeichert und zum Training verwendet. Der Maßstab ist deshalb einfach: **Was Sie nicht auf eine Postkarte schreiben würden, gehört nicht in einen öffentlichen KI-Chat.**
 
 # Nicht hinein
 - Personenbezogene Daten: Namen von Mitarbeitenden, Kunden, Bewerbern; Mails mit Absendern; Gehälter; Beurteilungen.
@@ -526,19 +526,19 @@ Was Sie nicht tun: den Vorfall selbst „reparieren", Beweise löschen oder abwa
 
 # Darf hinein
 - Allgemeine Fragen, Formulierungshilfen für Texte ohne vertrauliche Inhalte, öffentliche Informationen, Übersetzungen unkritischer Texte.
-- Alles, was das Haus über einen **freigegebenen** Dienst mit Vertrag und ohne Training erlaubt – welche das sind, sagt das KI-Regelwerk.
+- Alles, was das Haus über einen **freigegebenen** Dienst mit Vertrag und ohne Training erlaubt. Welche das sind, sagt das KI-Regelwerk.
 
 # Und das Ergebnis
-KI erfindet. Zahlen, Paragrafen, Quellen und Zitate immer prüfen, bevor sie in ein Dokument wandern. Verantwortlich bleibt, wer das Ergebnis verwendet – nicht das Werkzeug.
+KI erfindet. Zahlen, Paragrafen, Quellen und Zitate immer prüfen, bevor sie in ein Dokument wandern. Verantwortlich bleibt, wer das Ergebnis verwendet. Nicht das Werkzeug.
 
 Im Zweifel: Namen und Zahlen entfernen, allgemein fragen, oder den Anwendungsfall über den KI-Antrag freigeben lassen.` },
     { id: 'start-ki-test', art: 'test', thema: 'ki', titel: 'Wissenstest: KI im Arbeitsalltag', dauer: 2, bestehen: 80,
       kurz: 'Vier Fragen.',
       fragen: [
-        { frage: 'Sie wollen eine Kundenmail freundlicher formulieren lassen. Was ist richtig?', optionen: ['Die ganze Mail samt Name und Angebotspreis einfügen.', 'Namen, Firmen und Zahlen entfernen – oder einen freigegebenen Dienst nutzen.', 'Nur den Betreff einfügen, den Rest im Kopf behalten.'], richtig: 1 },
-        { frage: 'Ein KI-Chat nennt einen Paragrafen als Beleg. Was tun Sie?', optionen: ['Übernehmen – die KI hat den Text gelesen.', 'Prüfen, ob es den Paragrafen gibt und ob er das sagt.', 'Den Paragrafen weglassen, den Rest übernehmen.'], richtig: 1 },
+        { frage: 'Sie wollen eine Kundenmail freundlicher formulieren lassen. Was ist richtig?', optionen: ['Die ganze Mail samt Name und Angebotspreis einfügen.', 'Namen, Firmen und Zahlen entfernen, oder einen freigegebenen Dienst nutzen.', 'Nur den Betreff einfügen, den Rest im Kopf behalten.'], richtig: 1 },
+        { frage: 'Ein KI-Chat nennt einen Paragrafen als Beleg. Was tun Sie?', optionen: ['Übernehmen: die KI hat den Text gelesen.', 'Prüfen, ob es den Paragrafen gibt und ob er das sagt.', 'Den Paragrafen weglassen, den Rest übernehmen.'], richtig: 1 },
         { frage: 'Welche Eingabe ist in einem öffentlichen KI-Chat in Ordnung?', optionen: ['Die Kalkulation eines Angebots.', 'Eine allgemeine Frage zur Formatierung einer Tabelle.', 'Die Bewerbungsunterlagen eines Kandidaten.'], richtig: 1 },
-        { frage: 'Wer ist verantwortlich, wenn ein KI-Ergebnis falsch in ein Dokument gelangt?', optionen: ['Der Anbieter der KI.', 'Die Person, die das Ergebnis verwendet hat.', 'Niemand – es war die KI.'], richtig: 1 },
+        { frage: 'Wer ist verantwortlich, wenn ein KI-Ergebnis falsch in ein Dokument gelangt?', optionen: ['Der Anbieter der KI.', 'Die Person, die das Ergebnis verwendet hat.', 'Niemand: es war die KI.'], richtig: 1 },
       ] },
   ],
 };
@@ -547,10 +547,10 @@ Im Zweifel: Namen und Zahlen entfernen, allgemein fragen, oder den Anwendungsfal
    der Vorlage des Hauses. Kontaktwege (Ticket-Adresse, Notfallnummer) stehen
    im Text; wer sie ändert, ändert sie im Modul „Richtig reagieren". */
 const WI_KURS_PHISHING = {
-  id: 'start-phishing-kurs', art: 'kurs', thema: 'phishing', titel: 'Phishing erkennen – so erkennen Sie gefälschte E-Mails',
-  kurz: '91 % aller Cyberangriffe beginnen mit einer E-Mail. Dieses Training zeigt, wie Sie sie erkennen – und was Sie dann tun.',
-  intro: `**91 % aller Cyberangriffe beginnen mit einer E-Mail.** Phishing ist die häufigste und gefährlichste Angriffsmethode – und gleichzeitig eine der wenigen, die Sie persönlich verhindern können. Dieses Training zeigt Ihnen, wie.`,
-  dauer: 20, zielgruppe: 'Alle Mitarbeitenden – kein Vorwissen erforderlich', pflicht: true, wiederholung: 12, bestehen: 80,
+  id: 'start-phishing-kurs', art: 'kurs', thema: 'phishing', titel: 'Phishing erkennen: so erkennen Sie gefälschte E-Mails',
+  kurz: '91 % aller Cyberangriffe beginnen mit einer E-Mail. Dieses Training zeigt, wie Sie sie erkennen, und was Sie dann tun.',
+  intro: `**91 % aller Cyberangriffe beginnen mit einer E-Mail.** Phishing ist die häufigste und gefährlichste Angriffsmethode, und gleichzeitig eine der wenigen, die Sie persönlich verhindern können. Dieses Training zeigt Ihnen, wie.`,
+  dauer: 20, zielgruppe: 'Alle Mitarbeitenden: kein Vorwissen erforderlich', pflicht: true, wiederholung: 12, bestehen: 80,
   ziele: [
     'Phishing-E-Mails an typischen Merkmalen erkennen',
     'Verschiedene Arten von Phishing-Angriffen unterscheiden',
@@ -560,46 +560,46 @@ const WI_KURS_PHISHING = {
   ],
   module: [
     { id: 'm1', titel: 'Was ist Phishing?', text: `# Was bedeutet „Phishing"?
-Der Begriff leitet sich vom englischen „fishing" (Angeln) ab – mit einem „Ph" für „Password". Wie ein Angler wirft der Angreifer einen Köder aus und wartet, bis jemand anbeißt.
+Der Begriff leitet sich vom englischen „fishing" (Angeln) ab, mit einem „Ph" für „Password". Wie ein Angler wirft der Angreifer einen Köder aus und wartet, bis jemand anbeißt.
 
 Beim Phishing versuchen Kriminelle, über gefälschte E-Mails, Nachrichten oder Webseiten an vertrauliche Daten zu gelangen: Passwörter, Zugangsdaten, Bankdaten oder persönliche Informationen.
 
 # Wie funktioniert es? Der typische Ablauf
-1. **Täuschende E-Mail wird versendet.** Der Angreifer versendet eine E-Mail, die aussieht wie eine Nachricht von einem bekannten Absender – Bank, IT-Abteilung, Microsoft oder einem Kollegen.
+1. **Täuschende E-Mail wird versendet.** Der Angreifer versendet eine E-Mail, die aussieht wie eine Nachricht von einem bekannten Absender. Bank, IT-Abteilung, Microsoft oder einem Kollegen.
 2. **Opfer klickt auf Link oder Anhang.** Die E-Mail enthält einen Link zu einer gefälschten Webseite oder einen infizierten Anhang. Ein einziger Klick reicht aus.
-3. **Daten werden gestohlen.** Auf der gefälschten Seite gibt das Opfer seine Zugangsdaten ein – oder durch den Anhang wird Schadsoftware installiert.
+3. **Daten werden gestohlen.** Auf der gefälschten Seite gibt das Opfer seine Zugangsdaten ein, oder durch den Anhang wird Schadsoftware installiert.
 4. **Angreifer nutzt die Daten.** Mit den gestohlenen Zugangsdaten greift der Angreifer auf Firmen-E-Mails, SharePoint, Bankkonten oder interne Systeme zu.
 
-> Phishing ist kein Technik-Problem, das die IT allein löst. Der Filter fängt vieles – aber die Mail, die durchkommt, landet bei Ihnen. Deshalb dieses Training.` },
-    { id: 'm2', titel: 'Arten von Phishing', text: `Nicht alle Angriffe sehen gleich aus – die wichtigsten Varianten:
+> Phishing ist kein Technik-Problem, das die IT allein löst. Der Filter fängt vieles, aber die Mail, die durchkommt, landet bei Ihnen. Deshalb dieses Training.` },
+    { id: 'm2', titel: 'Arten von Phishing', text: `Nicht alle Angriffe sehen gleich aus. Die wichtigsten Varianten:
 
 # Massen-Phishing
-Dieselbe Mail an Tausende: „Ihr Paket konnte nicht zugestellt werden", „Ihr Konto wurde gesperrt". Unpersönlich, oft mit Fehlern – aber in der Masse trifft sie immer jemanden.
+Dieselbe Mail an Tausende: „Ihr Paket konnte nicht zugestellt werden", „Ihr Konto wurde gesperrt". Unpersönlich, oft mit Fehlern, aber in der Masse trifft sie immer jemanden.
 
 # Spear-Phishing
-Der **gezielte Angriff auf eine bestimmte Person oder Abteilung.** Der Angreifer kennt Ihren Namen, Ihre Rolle, Ihre Projekte – aus LinkedIn, der Website, früheren Datenlecks. Die Mail passt perfekt in Ihren Arbeitstag. Das ist die gefährlichste Form, weil sie nicht wie Phishing aussieht.
+Der **gezielte Angriff auf eine bestimmte Person oder Abteilung.** Der Angreifer kennt Ihren Namen, Ihre Rolle, Ihre Projekte, aus LinkedIn, der Website, früheren Datenlecks. Die Mail passt perfekt in Ihren Arbeitstag. Das ist die gefährlichste Form, weil sie nicht wie Phishing aussieht.
 
 # CEO-Betrug (Whaling / Business E-Mail Compromise)
-Eine Mail „vom Geschäftsführer" oder von der Finanzleitung: dringende Überweisung, Gutscheinkarten, geänderte Bankverbindung eines Lieferanten. Setzt auf Autorität und Zeitdruck – und darauf, dass niemand nachfragt.
+Eine Mail „vom Geschäftsführer" oder von der Finanzleitung: dringende Überweisung, Gutscheinkarten, geänderte Bankverbindung eines Lieferanten. Setzt auf Autorität und Zeitdruck, und darauf, dass niemand nachfragt.
 
 # Smishing und Vishing
-**Smishing** ist Phishing per SMS oder Messenger („Ihr Paket wartet – Link"), **Vishing** per Telefon: Ein angeblicher IT-Mitarbeiter, ein angeblicher Bankberater, der „nur kurz" Ihre Zugangsdaten braucht.
+**Smishing** ist Phishing per SMS oder Messenger („Ihr Paket wartet; Link"), **Vishing** per Telefon: Ein angeblicher IT-Mitarbeiter, ein angeblicher Bankberater, der „nur kurz" Ihre Zugangsdaten braucht.
 
 # Quishing
-Ein QR-Code auf einem Aushang, in einer Mail, auf einem Parkautomaten – führt auf eine gefälschte Seite. Das Handy zeigt die Zieladresse kaum an.
+Ein QR-Code auf einem Aushang, in einer Mail, auf einem Parkautomaten. Führt auf eine gefälschte Seite. Das Handy zeigt die Zieladresse kaum an.
 
 # Nachgebaute Anmeldeseiten
-Der Link führt auf eine täuschend echte Microsoft-, SharePoint- oder Bank-Anmeldung. Wer dort eingibt, gibt dem Angreifer den Schlüssel – oft samt zweitem Faktor, weil die Seite ihn gleich mit abfragt.
+Der Link führt auf eine täuschend echte Microsoft-, SharePoint- oder Bank-Anmeldung. Wer dort eingibt, gibt dem Angreifer den Schlüssel, oft samt zweitem Faktor, weil die Seite ihn gleich mit abfragt.
 
->✓ Allen Varianten ist eines gemeinsam: Sie brauchen Ihre Mitwirkung – einen Klick, eine Eingabe, einen Anruf zurück. Ohne sie passiert nichts.` },
+>✓ Allen Varianten ist eines gemeinsam: Sie brauchen Ihre Mitwirkung. Einen Klick, eine Eingabe, einen Anruf zurück. Ohne sie passiert nichts.` },
     { id: 'm3', titel: 'Eine gefälschte E-Mail lesen', text: `# Beispiel-Analyse
-Diese E-Mail ist gefälscht – können Sie die Signale sehen?
+Diese E-Mail ist gefälscht: können Sie die Signale sehen?
 
 :::mail
 Von: IT-Support <support@diihag.com>
 An: m.mustermann@dihag.com
 Betreff: ⚠️ Ihr Konto wird gesperrt!
-Hinweis: ⚠ Absender nicht verifiziert – externe E-Mail
+Hinweis: ⚠ Absender nicht verifiziert. Externe E-Mail
 ---
 Sehr geehrte/r Herr/Frau Mustermann,
 wir haben ungewöhnliche Aktivitäten festgestellt. Bestätigen Sie Ihre Identität innerhalb von 24 Stunden, sonst wird Ihr Zugang dauerhaft gesperrt.
@@ -608,41 +608,41 @@ Klicken Sie hier:
 :::
 
 # Die Signale
-!! Falsche Absender-Domain: „diihag.com" statt „dihag.com" – ein einzelnes „i" zu viel, leicht zu übersehen.
+!! Falsche Absender-Domain: „diihag.com" statt „dihag.com". Ein einzelnes „i" zu viel, leicht zu übersehen.
 !! Künstlicher Zeitdruck: „24 Stunden" und die Drohung mit Sperrung sollen Sie zu schnellem, unkritischem Handeln verleiten.
-!! Unpersönliche Anrede: „Sehr geehrte/r Herr/Frau" – echte Unternehmenssysteme kennen Ihren Namen.
-!! Link ohne sichtbares Ziel: Echte Links zeigen beim Hover immer die Zieladresse – prüfen Sie diese vor jedem Klick.
+!! Unpersönliche Anrede: „Sehr geehrte/r Herr/Frau". Echte Unternehmenssysteme kennen Ihren Namen.
+!! Link ohne sichtbares Ziel: Echte Links zeigen beim Hover immer die Zieladresse. Prüfen Sie diese vor jedem Klick.
 !! Ungewöhnliche Aufforderung: Die IT fordert niemals per E-Mail zur Passwort-Eingabe oder Konto-Bestätigung auf.
 
 > Jedes dieser Signale allein wäre verdächtig. Drei davon zusammen sind ein sicheres Zeichen.` },
     { id: 'm4', titel: 'Die 7 wichtigsten Warnsignale', text: `# Checkliste
-Wenn eines dieser Signale zutrifft, halten Sie inne – bei zwei ist es fast sicher Phishing.
+Wenn eines dieser Signale zutrifft, halten Sie inne, bei zwei ist es fast sicher Phishing.
 
 - ⚠ **Absender-Domain** weicht vom bekannten Unternehmen ab
 - ⚠ **Dringende Aufforderung** mit Frist oder Drohung
 - ⚠ **Unpersönliche oder seltsame Anrede**
 - ⚠ **Aufforderung, Passwort oder Daten einzugeben**
-- ⚠ **Link führt zu einer fremden oder seltsamen Adresse** – mit der Maus darüberfahren, ohne zu klicken
+- ⚠ **Link führt zu einer fremden oder seltsamen Adresse**, mit der Maus darüberfahren, ohne zu klicken
 - ⚠ **Unerwarteter Anhang**, vor allem .zip, .exe, .docm, .html
 - ⚠ **Rechtschreibfehler oder seltsame Formulierungen**
 
 # Und was kein Signal ist
-Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absendername – all das lässt sich fälschen. Verlassen Sie sich nicht darauf, dass eine Mail „gut aussieht".
+Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absendername. All das lässt sich fälschen. Verlassen Sie sich nicht darauf, dass eine Mail „gut aussieht".
 
 >✓ Im Zweifel gilt: lieber einmal zu viel nachfragen als einmal zu wenig. Niemand wird für eine Rückfrage getadelt.` },
     { id: 'm5', titel: 'Richtig reagieren', text: `# Wenn Sie eine verdächtige E-Mail erhalten
-1. **Nicht klicken – nicht antworten.** Öffnen Sie keine Links und keine Anhänge. Antworten Sie nicht auf die E-Mail, auch wenn Sie nach dem Grund fragen wollen.
-2. **Absender unabhängig prüfen.** Kennen Sie den Absender? Rufen Sie ihn über die bekannte, offizielle Nummer an – nicht über eine in der E-Mail genannte Nummer.
-3. **IT-Security informieren.** Leiten Sie die E-Mail weiter an **ticket@dihag.com** – oder melden Sie sie über den Knopf „Phishing melden" in Outlook.
+1. **Nicht klicken, nicht antworten.** Öffnen Sie keine Links und keine Anhänge. Antworten Sie nicht auf die E-Mail, auch wenn Sie nach dem Grund fragen wollen.
+2. **Absender unabhängig prüfen.** Kennen Sie den Absender? Rufen Sie ihn über die bekannte, offizielle Nummer an. Nicht über eine in der E-Mail genannte Nummer.
+3. **IT-Security informieren.** Leiten Sie die E-Mail weiter an **ticket@dihag.com**, oder melden Sie sie über den Knopf „Phishing melden" in Outlook.
 4. **E-Mail löschen.** Nach der Meldung die E-Mail aus dem Posteingang und aus dem Papierkorb löschen.
 
 # Wenn Sie bereits geklickt haben
->! 🚨 Ruhig bleiben – und sofort handeln:
+>! 🚨 Ruhig bleiben, und sofort handeln:
 >! • Gerät sofort vom Netzwerk trennen (WLAN aus, LAN-Kabel ziehen)
 >! • IT-Security sofort anrufen: **[Telefonnummer IT-Security]**
 >! • Passwörter von einem anderen Gerät aus ändern
 >! • Nichts weiter auf dem betroffenen Gerät tun
->! • Ehrlich kommunizieren – es trifft jeden, keine Scham nötig
+>! • Ehrlich kommunizieren. Es trifft jeden, keine Scham nötig
 
 >✓ Gut zu wissen: Wer einen Vorfall sofort meldet, hilft dem Unternehmen, schnell zu reagieren. Wer schweigt, ermöglicht dem Angreifer, unbemerkt weiterzumachen.` },
   ],
@@ -650,7 +650,7 @@ Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absende
     { frage: 'Was versteht man unter „Spear-Phishing"?',
       optionen: ['Phishing-Angriffe per SMS', 'Massen-Phishing an Millionen Empfänger', 'Gezielter Angriff auf eine bestimmte Person oder Abteilung'], richtig: 2 },
     { frage: 'Welche Aussage über die IT-Abteilung ist korrekt?',
-      optionen: ['Die IT fragt gelegentlich per E-Mail nach Passwörtern zur Überprüfung', 'Die IT fordert Passwörter nur bei dringenden Sicherheitsvorfällen an', 'Die IT fragt niemals – unter keinen Umständen – nach Ihrem Passwort'], richtig: 2 },
+      optionen: ['Die IT fragt gelegentlich per E-Mail nach Passwörtern zur Überprüfung', 'Die IT fordert Passwörter nur bei dringenden Sicherheitsvorfällen an', 'Die IT fragt niemals (unter keinen Umständen) nach Ihrem Passwort'], richtig: 2 },
     { frage: 'Sie haben versehentlich auf einen Link in einer verdächtigen E-Mail geklickt. Was tun Sie als Erstes?',
       optionen: ['Gerät neu starten und hoffen, dass nichts passiert ist', 'Gerät vom Netzwerk trennen und sofort IT-Security anrufen', 'Den Vorfall nicht melden, um keine Probleme zu bekommen'], richtig: 1 },
     { frage: 'Sie erhalten eine E-Mail von „support@miicrosoft.com" mit der Bitte, Ihr Passwort zu bestätigen. Was ist das erste Warnsignal?',
@@ -676,7 +676,7 @@ function wiZertifikatHtml(o) {
   const ackId = String((s.ack && s.ack.id) || '0');
   const nummer = 'RMS-W-' + (/^\d+$/.test(ackId) ? ackId.padStart(6, '0') : ackId);
   const module = (b.module || []).map(m => `<li>${E(m.titel)}</li>`).join('');
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Teilnahmebescheinigung – ${E(b.titel)}</title>
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Teilnahmebescheinigung: ${E(b.titel)}</title>
 <style>
   @page { size: A4 landscape; margin: 14mm; }
   body { margin: 0; font-family: Exo, 'Segoe UI', Arial, sans-serif; color: #1A2644; background: #f3f4f6; }
@@ -708,7 +708,7 @@ function wiZertifikatHtml(o) {
   </div>
   <h1>Teilnahmebescheinigung</h1>
   <div class="wer">${E(name)}</div>
-  <div class="was">hat die Schulung <b>„${E(b.titel)}"</b> erfolgreich abgeschlossen${s.score ? ` – Wissenstest bestanden mit <b>${E(s.score)} %</b>` : ''}.</div>
+  <div class="was">hat die Schulung <b>„${E(b.titel)}"</b> erfolgreich abgeschlossen${s.score ? `, Wissenstest bestanden mit <b>${E(s.score)} %</b>` : ''}.</div>
   <div class="fakten">
     <div class="fakt"><small>Abgeschlossen am</small><span>${E(datum || '–')}</span></div>
     <div class="fakt"><small>Gültig bis</small><span>${E(bis || 'unbefristet')}</span></div>
