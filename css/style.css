@@ -1137,8 +1137,8 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pa-box { position: relative; height: 62vh; min-height: 440px; border: 1px solid var(--c-border); border-radius: 12px; overflow: hidden;
           background: radial-gradient(circle, #e7ecf3 1px, transparent 1px) 0 0 / 22px 22px, #fbfcfe; }
 .pa-box #bpmn-canvas { position: absolute; inset: 0; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
-.pa-box.pa-voll { position: fixed; inset: 0; z-index: 1200; height: auto; min-height: 0; border-radius: 0; }
-.pa-box:fullscreen { height: 100vh; border-radius: 0; }
+.pa-box.pa-voll { position: fixed; inset: 0; z-index: 1200; height: auto !important; min-height: 0; border-radius: 0; }
+.pa-box:fullscreen { height: 100vh !important; border-radius: 0; }
 .pa-hint { position: absolute; left: 12px; bottom: 10px; font-size: .72rem; color: var(--c-muted); background: rgba(255,255,255,.92);
            padding: 4px 9px; border-radius: 6px; pointer-events: none; }
 .pa-legende { margin: 10px 0 0; border: 1px solid var(--c-border); border-radius: 10px; background: #f8fafc; }

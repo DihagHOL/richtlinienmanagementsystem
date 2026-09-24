@@ -417,6 +417,9 @@ function prozessXmlAusText(text, name, policyIds, docs) {
    verletzt, wäre ein Fehler dieser Prüfung – nicht des Schemas. */
 
 const PS_KNOTEN_RE = /<bpmn:(startEvent|endEvent|userTask|serviceTask|manualTask|task|scriptTask|sendTask|receiveTask|businessRuleTask|exclusiveGateway|parallelGateway|inclusiveGateway|intermediateCatchEvent|intermediateThrowEvent|subProcess|callActivity)\b([^>]*)>/g;
+/* Zwei großgeschriebene Wörter sehen aus wie ein Name, sind aber oft ein
+   System oder eine Stelle: „Power Automate", „Exchange Online", „Technische Leitung". */
+const PS_KEINE_PERSON = /\b(automate|online|teams|server|system|systeme|portal|app|apps|cloud|service|dienst|dienste|team|leitung|abteilung|werk|management|einkauf|vertrieb|buchhaltung|personal|kunde|kunden|lieferant|bank|workflow|flow|konverter|monitoring|sharepoint|outlook|office|azure|purview)\b/i;
 const PS_ATTR = (roh, name) => {
   const m = new RegExp(name + '="([^"]*)"').exec(roh || '');
   return m ? m[1] : '';
@@ -441,14 +444,14 @@ function prozessSchemaPruefen(xml, opt) {
   let m;
   PS_KNOTEN_RE.lastIndex = 0;
   while ((m = PS_KNOTEN_RE.exec(s))) {
-    knoten.push({ typ: m[1], id: PS_ATTR(m[2], 'id'), name: PS_ATTR(m[2], 'name') });
+    knoten.push({ typ: m[1], id: PS_ATTR(m[2], 'id'), name: _psText(PS_ATTR(m[2], 'name')) });
   }
   const fluesse = [...s.matchAll(/<bpmn:sequenceFlow\b([^>]*)>/g)].map(x => ({
     id: PS_ATTR(x[1], 'id'), von: PS_ATTR(x[1], 'sourceRef'),
-    nach: PS_ATTR(x[1], 'targetRef'), name: PS_ATTR(x[1], 'name'),
+    nach: PS_ATTR(x[1], 'targetRef'), name: _psText(PS_ATTR(x[1], 'name')),
   }));
   const bahnen = [...s.matchAll(/<bpmn:lane\b([^>]*)>([\s\S]*?)<\/bpmn:lane>/g)].map(x => ({
-    id: PS_ATTR(x[1], 'id'), name: PS_ATTR(x[1], 'name'),
+    id: PS_ATTR(x[1], 'id'), name: _psText(PS_ATTR(x[1], 'name')),
     knoten: [...x[2].matchAll(/<bpmn:flowNodeRef>([^<]+)<\/bpmn:flowNodeRef>/g)].map(y => y[1]),
   }));
 
@@ -495,7 +498,7 @@ function prozessSchemaPruefen(xml, opt) {
     const nm = String(b.name || '').trim();
     if (!nm) { melde('R5', 'Eine Bahn ist unbenannt.', b.id); return; }
     if (/@/.test(nm)) melde('R5', `Bahn „${nm}" nennt eine E-Mail-Adresse. Bahnen tragen Rollen.`, b.id);
-    else if (/^[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][a-zäöüß]+$/.test(nm))
+    else if (/^[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][a-zäöüß]+$/.test(nm) && !PS_KEINE_PERSON.test(nm))
       rate('R5', `Bahn „${nm}" sieht nach einem Personennamen aus. Gemeint ist die Rolle.`, b.id);
   });
 
@@ -525,7 +528,7 @@ function prozessSchemaPruefen(xml, opt) {
     if (!nm) { melde('R8', 'Eine Aufgabe ist unbenannt.', k.id); return; }
     // Ein Verb im Infinitiv endet auf -en oder -n. Grob, aber es fängt genau
     // den häufigen Fall „Rechnungsprüfung" statt „Rechnung prüfen".
-    if (!/\b\w+e?n\b\s*$/.test(nm))
+    if (!/\b\w+e?n\b\s*$/.test(nm.replace(/\s*\([^)]*\)\s*$/, '')))
       rate('R8', `„${nm}" endet nicht auf einem Verb: „Rechnung prüfen" statt „Rechnungsprüfung".`, k.id);
   });
 
@@ -543,6 +546,14 @@ function prozessSchemaPruefen(xml, opt) {
   });
   knoten.filter(k => k.typ === 'subProcess').forEach(k =>
     rate('R10', `„${k.name || k.id}" ist ein ausgeschriebener Unterprozess. Als eigenes Modell anlegen und einbinden, dann gibt es ihn genau einmal.`, k.id));
+
+  // Der Name der Stelle, damit die Ansicht mehrere Befunde einer Regel als
+  // eine Zeile mit anklickbaren Stellen zeigen kann.
+  const namen = {};
+  knoten.forEach(k => { namen[k.id] = k.name || k.id; });
+  bahnen.forEach(b => { namen[b.id] = b.name || 'Bahn'; });
+  fluesse.forEach(f => { namen[f.id] = f.name || ('Ausgang von „' + (namen[f.von] || f.von) + '"'); });
+  fehler.concat(hinweise).forEach(f => { f.name = f.id ? (namen[f.id] || f.id) : ''; });
 
   return { fehler, hinweise, zahlen };
 }
@@ -589,8 +600,14 @@ function prozessArt(typ, name) {
 
 /** Entitäten aus einem Attribut: Im Modell steht „&amp;", gezeigt wird „&". */
 function _psText(s) {
-  return String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'").replace(/&#10;/g, ' ').replace(/&amp;/g, '&');
+  // bpmn-js schreibt „&" als &#38; und „<" als &#60;. Zuerst die Zeilenumbrüche
+  // (im Namen ein Leerzeichen), dann alle Zahlen, &amp; zuletzt: Sonst würde aus
+  // einem geschriebenen „&amp;#38;" fälschlich ein „&".
+  return String(s || '').replace(/&#10;|&#xA;/gi, ' ')
+    .replace(/&#(\d+);/g, (m, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 /**

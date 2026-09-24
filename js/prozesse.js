@@ -1367,6 +1367,7 @@ async function openProcessAnsicht(itemId) {
   try { await _bpmnModeler.importXML(xml); }
   catch (e) { lead(`<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`); return; }
   _procFaerben();
+  _procBoxHoehe();
   _procBuehneNeu(true);
 
   const ids = _parsePolicyIds(xml);
@@ -1493,14 +1494,31 @@ function _procBefundeHtml(r, opt) {
     return kopf + (o.kompakt ? '' : '<p class="pa-note">Das Modell beantwortet ohne Rückfrage, wer zuständig ist, was automatisch läuft und wie die Sache ausgeht.</p>');
   }
   const regeln = (typeof PROZESS_REGELN !== 'undefined') ? PROZESS_REGELN : [];
+  const chip = (art) => `<span class="pa-chip ${art === 'f' ? 't-err' : 't-warn'}">${art === 'f' ? 'Verstoß' : 'Hinweis'}</span>`;
   const zeile = (art, f) => {
     const regel = regeln.find(x => x.id === f.regel);
     const klick = f.id
       ? ` class="pa-klick" data-befund="${esc(f.id)}" onclick="procStelleZeigen('${esc(f.id)}')" title="Stelle im Diagramm zeigen"` : '';
-    return `<tr${klick}><td><span class="pa-chip ${art === 'f' ? 't-err' : 't-warn'}">${art === 'f' ? 'Verstoß' : 'Hinweis'}</span></td>
+    return `<tr${klick}><td>${chip(art)}</td>
       <td><b>${esc(f.regel)}</b> ${esc(f.text)}${regel && !o.kompakt ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
   };
-  return kopf + `<table class="pa-regeln">${fehler.map(f => zeile('f', f)).join('')}${hinweise.map(f => zeile('h', f)).join('')}</table>`
+  // Ab drei Befunden derselben Regel eine Zeile: die Regel einmal, die Stellen
+  // als Chips. Sieben Mal derselbe Satz liest niemand bis zum Ende.
+  const buendel = (art, gruppe) => {
+    const regel = regeln.find(x => x.id === gruppe[0].regel);
+    return `<tr><td>${chip(art)}</td>
+      <td><b>${esc(gruppe[0].regel)}</b> ${esc(regel ? regel.text : gruppe[0].text)} <b>${gruppe.length} Stellen:</b>
+        <div class="pa-chips" style="margin-top:6px">${gruppe.map(f => f.id
+          ? `<span class="pa-chip pa-rolle" data-befund="${esc(f.id)}" style="cursor:pointer" onclick="procStelleZeigen('${esc(f.id)}')" title="${esc(f.text)}">${esc(f.name || f.id)}</span>`
+          : `<span class="pa-chip pa-rolle" title="${esc(f.text)}">${esc(f.name || '?')}</span>`).join('')}</div>
+        ${regel && !o.kompakt ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
+  };
+  const zeilen = (art, liste) => {
+    const nachRegel = new Map();
+    liste.forEach(f => { if (!nachRegel.has(f.regel)) nachRegel.set(f.regel, []); nachRegel.get(f.regel).push(f); });
+    return [...nachRegel.values()].map(g => g.length >= 3 ? buendel(art, g) : g.map(f => zeile(art, f)).join('')).join('');
+  };
+  return kopf + `<table class="pa-regeln">${zeilen('f', fehler)}${zeilen('h', hinweise)}</table>`
     + (hinweise.length && !o.kompakt ? '<p class="pa-note">Hinweise dürfen begründet übergangen werden, Verstöße nicht.</p>' : '');
 }
 
@@ -1570,7 +1588,8 @@ function _procArtChip(k) {
 /** Der Satz unter dem Titel: die Beschreibung aus dem Modell, sonst ein erzeugter. */
 function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
-  const text = _xmlUnesc(m ? m[1] : '').split('\n').map(z => z.trim())
+  const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
+  const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
     .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente):/.test(z))
     .join(' ').trim();
   if (text) return text;
@@ -1749,6 +1768,22 @@ function _procNotfallHtml(itemId) {
 }
 
 /* ── Aktionen der Ansicht ── */
+
+/**
+ * Die Fläche so hoch wie das Modell: Ein flacher, breiter Ablauf bekommt
+ * keine leere Wiese unter sich, ein hoher mit vielen Bahnen seinen Platz.
+ * Grenzen: 320 px und 70 % des Fensters.
+ */
+function _procBoxHoehe() {
+  const box = document.getElementById('pa-box');
+  if (!box || !_bpmnModeler) return;
+  let inner;
+  try { inner = _bpmnModeler.get('canvas').viewbox().inner; } catch (e) { return; }
+  if (!inner || !inner.width || !inner.height || !box.clientWidth) return;
+  const hoch = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 900;
+  const soll = Math.round(box.clientWidth * inner.height / inner.width) + 70;
+  box.style.height = Math.max(320, Math.min(soll, Math.round(hoch * 0.7))) + 'px';
+}
 
 function procAnsichtAktion(act) {
   if (!_bpmnModeler) return;

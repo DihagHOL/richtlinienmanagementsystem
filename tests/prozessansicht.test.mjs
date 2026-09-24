@@ -94,6 +94,26 @@ ok(texte.every(t => !String(t).includes(STRICH)), 'Befunde, Regeln und Bausteine
 ok(r.fehler.some(f => f.regel === 'R6' && /hat nur einen Ausgang\. Sie braucht mindestens zwei\./.test(f.text)),
   'Kein „Ausgang/Ausgänge" mehr, sondern ein ganzer Satz');
 
+/* ── 3b) Weniger Fehlalarme, lesbare Namen ── */
+const fein = `<bpmn:process id="P"><bpmn:laneSet>
+  <bpmn:lane id="L1" name="Power Automate"><bpmn:flowNodeRef>A</bpmn:flowNodeRef></bpmn:lane>
+  <bpmn:lane id="L2" name="Anna Muster"><bpmn:flowNodeRef>B</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+  <bpmn:startEvent id="S"/><bpmn:userTask id="A" name="Rechnung in ER_&#60;Werk&#62; &#38; Archiv ablegen (manuell)"/>
+  <bpmn:userTask id="B" name="Pruefung"/><bpmn:endEvent id="E" name="Fertig"/>
+  <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="A"/><bpmn:sequenceFlow id="F2" sourceRef="A" targetRef="B"/>
+  <bpmn:sequenceFlow id="F3" sourceRef="B" targetRef="E"/></bpmn:process>`;
+const rf = S.prozessSchemaPruefen(fein, { policyIds: ['1'] });
+ok(!rf.hinweise.some(f => f.regel === 'R5' && f.id === 'L1') && rf.hinweise.some(f => f.regel === 'R5' && f.id === 'L2'),
+  'R5: „Power Automate" ist ein System, „Anna Muster" bleibt ein Hinweis');
+ok(!rf.hinweise.some(f => f.regel === 'R8' && f.id === 'A') && rf.hinweise.some(f => f.regel === 'R8' && f.id === 'B'),
+  'R8: Ein Klammerzusatz am Ende zählt nicht, „Pruefung" bleibt ein Hinweis');
+ok(S.prozessAblauf(fein).schritte[1].name === 'Rechnung in ER_<Werk> & Archiv ablegen (manuell)',
+  'Zahlen-Entitäten, wie bpmn-js sie schreibt (&#38; &#60; &#62;), werden zu Zeichen');
+ok(rf.hinweise.find(f => f.id === 'B').name === 'Pruefung' && rf.hinweise.find(f => f.id === 'L2').name === 'Anna Muster',
+  'Jeder Befund trägt den Namen seiner Stelle');
+const ohneLabel = S.prozessSchemaPruefen(schlecht, { policyIds: [] }).fehler.find(f => f.id === 'F3');
+ok(ohneLabel && ohneLabel.name === 'Ausgang von „ok"', 'Ein unbeschrifteter Fluss heißt nach seiner Quelle');
+
 /* ── 4) Die Teile der Seite, gerendert ── */
 const esc = (x) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const ctx = {
@@ -118,6 +138,13 @@ ok(/<span class="pa-chip t-err">Verstoß<\/span>/.test(befunde) && /<span class=
 ok(/class="pa-warum"/.test(befunde) && /Verstöße nicht/.test(befunde), 'Mit der Begründung der Regel und dem Satz, was übergangen werden darf');
 ok(!befunde.includes(STRICH), 'Ohne Gedankenstrich');
 ok(!/pa-warum/.test(run('_procBefundeHtml(__r, { kompakt: true })')), 'Im Editor kompakt, ohne Begründungen');
+const viele = { fehler: [], hinweise: ['T1', 'T2', 'T3', 'T4'].map(id => ({ regel: 'R8', id, name: 'Aufgabe ' + id, text: 'x' }))
+  .concat([{ regel: 'R5', id: 'L9', name: 'Anna Muster', text: 'y' }]) };
+const gebuendelt = run('_procBefundeHtml(__v, {})', { __v: viele });
+ok((gebuendelt.match(/<tr/g) || []).length === 2 && /<b>4 Stellen:<\/b>/.test(gebuendelt),
+  'Ab drei Befunden einer Regel eine Zeile mit den Stellen, statt viermal derselbe Satz');
+ok(/data-befund="T3"[^>]*onclick="procStelleZeigen\('T3'\)"[^>]*>Aufgabe T3</.test(gebuendelt), 'Jede Stelle im Bündel ist ein Chip, der ins Diagramm springt');
+ok(/<tr class="pa-klick" data-befund="L9"/.test(gebuendelt), 'Einzelne Befunde bleiben eigene Zeilen');
 ok(/✓ Hausschema erfüllt/.test(run('_procBefundeHtml({ fehler: [], hinweise: [] }, {})')), 'Ohne Befund: ein grüner Chip');
 
 const schritte = run('_procSchritteHtml(__a, null)', { __a: a });
