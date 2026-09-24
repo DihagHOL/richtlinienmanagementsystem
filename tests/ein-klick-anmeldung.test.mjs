@@ -29,8 +29,9 @@ const cron = lies('scripts/erinnerungen.mjs');
 ok(/cacheLocation:\s*'localStorage'/.test(auth), 'Der Konto-Cache gilt für den ganzen Browser, nicht für einen Tab');
 ok(!/cacheLocation:\s*'sessionStorage'/.test(auth), 'sessionStorage ist raus – dort war jeder Mail-Klick ein Fremder');
 ok(/Ein Klick aus Outlook öffnet einen NEUEN/.test(auth), 'Mit Begründung im Quelltext');
-ok(/Preis: Die Anmeldung überlebt das Schließen des Browsers/.test(auth),
-  'Und mit dem Preis dafür – an einem geteilten Rechner bleibt das Konto angemeldet');
+ok(/nach dem Schließen\s*\/\/\s*des Browsers nicht mehr/.test(auth),
+  'Seit MSAL 4 verschlüsselt: zwischen Tabs angemeldet, nach dem Schließen des Browsers nicht mehr');
+ok(!/storeAuthStateInCookie/.test(auth.replace(/\/\/.*$/gm, '')), 'storeAuthStateInCookie (nur für IE) ist raus');
 
 /* ── 2) Der Anmelde-Hinweis aus dem Link ── */
 const konten = [];
@@ -45,7 +46,8 @@ const ctx = {
     PublicClientApplication: function (cfg) {
       spur.cfg = cfg;
       return {
-        handleRedirectPromise: async () => null,
+        initialize: async () => { spur.reihenfolge = (spur.reihenfolge || []).concat('initialize'); },
+        handleRedirectPromise: async () => { spur.reihenfolge = (spur.reihenfolge || []).concat('handleRedirect'); return null; },
         getAllAccounts: () => konten,
         getActiveAccount: () => aktiv,
         setActiveAccount: (a) => { spur.aktiv = a; },
@@ -178,6 +180,9 @@ ok(/if \(eskaliert && await sendMail\(\[eskalationMail\]/.test(cron) && /bau\(''
   'Die Eskalation geht weiterhin raus – ohne persönlichen Link, sie entscheidet ja nicht');
 ok(!/const to = eskaliert \? \[\.\.\.pending, eskalationMail\] : pending/.test(cron),
   'Die Sammelmail an alle ist raus');
+
+ok(spur.reihenfolge && spur.reihenfolge[0] === 'initialize' && spur.reihenfolge.indexOf('handleRedirect') > 0,
+  'MSAL 4: initialize() läuft vor allem anderen, auch vor handleRedirectPromise()');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

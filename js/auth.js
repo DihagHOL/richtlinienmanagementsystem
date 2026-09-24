@@ -1,6 +1,7 @@
 /**
  * Microsoft Entra ID (Azure AD) Authentication
- * MSAL.js 2.x (msal-browser 2.38.2, selbst ausgeliefert aus vendor/msal-browser/) — Single-Tenant: nur DIHAG-Konten.
+ * MSAL.js 4.x (msal-browser 4.30.0 LTS, selbst ausgeliefert aus vendor/msal-browser/) — Single-Tenant: nur DIHAG-Konten.
+ * Ab v3 muss initialize() fertig sein, bevor irgendeine andere MSAL-Funktion läuft.
  * Muster übernommen aus e-rechnung/js/auth.js.
  */
 
@@ -88,12 +89,14 @@ async function authInit() {
       // localStorage statt sessionStorage: Ein Klick aus Outlook öffnet einen NEUEN
       // Tab. Mit sessionStorage ist dort kein Konto bekannt – jede Entscheidung liefe
       // erst über die Microsoft-Anmeldeseite, und genau das soll sie nicht.
-      // Preis: Die Anmeldung überlebt das Schließen des Browsers; an einem geteilten
-      // Rechner bleibt das Konto angemeldet – wie bei Outlook und Teams auch.
+      // Seit MSAL 4 liegt der Cache dort verschlüsselt; der Schlüssel steht in einem
+      // Sitzungs-Cookie. Zwischen Tabs gilt die Anmeldung weiter, nach dem Schließen
+      // des Browsers nicht mehr – an einem geteilten Rechner bleibt niemand dauerhaft
+      // angemeldet. (storeAuthStateInCookie war nur für IE nötig und ist entfallen.)
       cacheLocation:          'localStorage',
-      storeAuthStateInCookie: true,
     },
   });
+  await _msal.initialize();
 
   // Rückkehr vom Login verarbeiten
   let response = null;
