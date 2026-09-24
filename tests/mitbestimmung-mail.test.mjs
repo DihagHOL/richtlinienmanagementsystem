@@ -127,7 +127,7 @@ ok(/phase === 'Mitbestimmung'\s*\n?\s*\? _btn\(policyLink\(id, 'mb_konform', tok
   'Die Erinnerung an den Betriebsrat nutzt seine Aktionen, nicht die der Prüfer');
 ok(/'mb_nicht_konform', token\)/.test(cron), 'Beide Knöpfe');
 ok(!/policyLink\(id, 'mb_konform', token, empf\)/.test(cron), 'Ohne Empfänger im Link – wie in der ersten Mail');
-ok(/phase === 'Mitbestimmung' \? 'mitbestimmung' : 'pruefung'/.test(cron), 'Mit dem Token der Mitbestimmungs-Runde');
+ok(/phase === 'Mitbestimmung' \? 'mitbestimmung'[\s\S]{0,60}: 'pruefung'\)/.test(cron), 'Mit dem Token der Mitbestimmungs-Runde');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

@@ -161,7 +161,7 @@ ok(/function freigabeZuruecknehmen/.test(fg) && /Freigabe zurückgenommen/.test(
 ok(/function aktionToken\(f, art\)/.test(cron), 'Der Cron liest das Token aus dem Sammelfeld');
 ok(/policyLink\(id, 'freigeben', token, empf\)/.test(cron),
   'Und hängt es an seine Erinnerungs-Links – samt Adressat');
-ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe'[\s\S]{0,40}'mitbestimmung' : 'pruefung'\)/.test(cron),
+ok(/aktionToken\(f, phase === 'Freigabe' \? 'freigabe'[\s\S]{0,40}'mitbestimmung'[\s\S]{0,60}: 'pruefung'\)/.test(cron),
   'Passend zur Etappe – Prüfung, Mitbestimmung und Freigabe sind eigene Runden');
 
 /* ── 8) Was die Entscheidung aus der Mail absichert ── */

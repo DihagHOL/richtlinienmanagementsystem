@@ -325,7 +325,12 @@ async function saveKonzept(submit) {
     k.konzept.antragstellerUpn = State.user.upn;
     k.konzept.antragstellerName = State.user.name || State.user.upn;
   }
-  if (submit) k.konzept.eingereichtAm = new Date().toISOString();
+  if (submit) {
+    k.konzept.eingereichtAm = new Date().toISOString();
+    // Einmal-Token der Runde – nur ein Link mit diesem Token entscheidet ohne
+    // Rückfrage (handleKonzeptMailAction). Bauen kann den Link sonst jede:r.
+    if (typeof neuerAktionToken === 'function') k.aktionToken = neuerAktionToken('konzept');
+  }
   try {
     const saved = await spSavePolicy(k);
     if (!k.id && saved && saved.id) k.id = saved.id;
@@ -396,6 +401,7 @@ async function konzeptSubmitGF(id) {
   const fehlt = konzeptPflichtfelderFehlen(k);
   if (fehlt) { toast(fehlt + ' – bitte das Konzept öffnen und ergänzen.', 'error'); openKonzeptEditor(id); return; }
   k.konzept.eingereichtAm = new Date().toISOString();
+  if (typeof neuerAktionToken === 'function') k.aktionToken = neuerAktionToken('konzept');
   if (!k.konzept.antragstellerUpn && State.user) {
     k.konzept.antragstellerUpn = State.user.upn;
     k.konzept.antragstellerName = State.user.name || State.user.upn;
@@ -455,6 +461,10 @@ async function konzeptDecide(id, decision, opts) {
     toast('Nur die Geschäftsleitung kann über Konzepte entscheiden.', 'error'); return;
   }
   const k = _kClone(id); if (!k) return;
+  // Mit der Entscheidung ist die Runde vorbei – ein alter Mail-Link führt ab
+  // jetzt nur noch mit Rückfrage aus. (k ist eine Kopie; gespeichert wird sie
+  // nur, wenn die Entscheidung tatsächlich fällt.)
+  k.aktionToken = null;
   // Aus der Mail heraus ist der Klick die Entscheidung – dann keine zweite
   // Nachfrage. Was Pflicht ist (die Begründung einer Ablehnung), wird trotzdem
   // abgefragt: Sie ist keine Rückfrage, sondern eine fehlende Angabe.
@@ -583,19 +593,22 @@ function focusKonzeptCard(id) {
   setTimeout(() => el.classList.remove('fg-highlight'), 4500);
 }
 
-/** Aus dem Mail-Button (?konzept=…&aktion=…): Entscheidung direkt ausführen (mit Rückfrage/Begründung). */
-function handleKonzeptMailAction(id, aktion) {
+/** Aus dem Mail-Button (?konzept=…&aktion=…&t=…): Entscheidung ausführen. */
+function handleKonzeptMailAction(id, aktion, token) {
   const k = konzeptZuId(id);
   if (!k) { toast('Konzept nicht gefunden (evtl. schon entschieden).'); return; }
   const map = { annehmen: 'angenommen', zurueckstellen: 'zurueckgestellt', zuruckstellen: 'zurueckgestellt', ablehnen: 'abgelehnt' };
   const decision = map[String(aktion || '').toLowerCase()];
   focusKonzeptCard(id);
   if (!decision) return;
-  // Der Klick in der Mail IST die Entscheidung – weder Bestätigung noch
-  // Folgefrage. Geprüft wird trotzdem das GF-Recht, und eine Ablehnung verlangt
-  // weiterhin ihre Begründung. Wie es weitergeht, entscheidet man später im
-  // Entwurf; direkt nach einem Mail-Klick will das niemand beantworten.
-  setTimeout(() => { konzeptDecide(id, decision, { ohneRueckfrage: true, ohneWeiche: true }); }, 500);
+  // Mit dem Token der laufenden Runde IST der Klick in der Mail die
+  // Entscheidung – weder Bestätigung noch Folgefrage. Ohne Token gibt es
+  // die Rückfrage: Einen Link ?konzept=…&aktion=annehmen kann jede:r bauen
+  // und der Geschäftsführung schicken; ein Klick darauf darf nicht still
+  // ein Regelwerk anlegen. Geprüft wird in beiden Fällen das GF-Recht, und
+  // eine Ablehnung verlangt weiterhin ihre Begründung.
+  const einKlick = !!token && typeof aktionTokenGueltig === 'function' && aktionTokenGueltig(k, 'konzept', token);
+  setTimeout(() => { konzeptDecide(id, decision, { ohneRueckfrage: einKlick, ohneWeiche: true }); }, 500);
 }
 
 /* ── Mail an die Geschäftsleitung ── */
@@ -634,7 +647,10 @@ function _konzeptMailHtml(k, hasAttachment, hasDoc) {
          <span style="color:#9ca3af;font-size:12px">(immer der aktuelle Stand, mit Versionsverlauf)</span></p>`
       : '');
   const url = `${base}?konzept=${encodeURIComponent(k.id || '')}`;
-  const act = (a) => `${url}&aktion=${a}`;
+  // Das Token macht aus dem Knopf die Entscheidung; ohne fragt die App nach.
+  const t = k.aktionToken;
+  const tok = (t && t.art === 'konzept' && t.wert) ? `&t=${encodeURIComponent(t.wert)}` : '';
+  const act = (a) => `${url}&aktion=${a}${tok}`;
   const actions = k.id
     ? mailBtn(act('annehmen'), MAIL_FARBE.ja, '✓ Annehmen → Regelwerk') + mailBtn(act('zurueckstellen'), MAIL_FARBE.warten, '⏸ Zurückstellen') + mailBtn(act('ablehnen'), MAIL_FARBE.nein, '✗ Ablehnen')
     : '';

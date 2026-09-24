@@ -361,9 +361,10 @@ function aktionToken(f, art) {
 }
 
 /** Konzepte liegen nicht im Freigaben-Reiter, sondern im Regelwerk-Dashboard. */
-function konzeptLink(id, aktion) {
+function konzeptLink(id, aktion, token) {
   const sep = APP_URL.includes('?') ? '&' : '?';
-  return `${APP_URL}${sep}konzept=${encodeURIComponent(id)}${aktion ? '&aktion=' + aktion : ''}`;
+  return `${APP_URL}${sep}konzept=${encodeURIComponent(id)}${aktion ? '&aktion=' + aktion : ''}`
+    + (aktion && token ? `&t=${encodeURIComponent(token)}` : '');
 }
 
 const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
@@ -372,9 +373,9 @@ function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, to
   const konzept = phase === 'Konzeptprüfung';
   const link = konzept ? konzeptLink(id) : policyLink(id);
   const actions = konzept
-    ? _btn(konzeptLink(id, 'annehmen'), '#16a34a', '✓ Annehmen → Regelwerk')
-      + _btn(konzeptLink(id, 'zurueckstellen'), '#64748b', '⏸ Zurückstellen')
-      + _btn(konzeptLink(id, 'ablehnen'), '#dc2626', '✗ Ablehnen')
+    ? _btn(konzeptLink(id, 'annehmen', token), '#16a34a', '✓ Annehmen → Regelwerk')
+      + _btn(konzeptLink(id, 'zurueckstellen', token), '#64748b', '⏸ Zurückstellen')
+      + _btn(konzeptLink(id, 'ablehnen', token), '#dc2626', '✗ Ablehnen')
     : phase === 'Freigabe'
       ? _btn(policyLink(id, 'freigeben', token, empf), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token, empf), '#dc2626', '✗ Zurück (nicht konform)')
       // Der Betriebsrat entscheidet über die Mitbestimmung, nicht über die Konformität –
@@ -660,7 +661,8 @@ function kenntnisEskalationHtml(posten) {
     // sich jeder erst anmelden. Die Eskalation geht zusätzlich raus – ohne persönlichen
     // Link, sie entscheidet ja nicht.
     const tok = aktionToken(f, phase === 'Freigabe' ? 'freigabe'
-      : phase === 'Mitbestimmung' ? 'mitbestimmung' : 'pruefung');
+      : phase === 'Mitbestimmung' ? 'mitbestimmung'
+        : phase === 'Konzeptprüfung' ? 'konzept' : 'pruefung');
     const bau = (empf) => mailHtml(it.id, title, phase, tage, pending, eskaliert,
       att ? att.name : '', tok, geltungsbereich(f), empf);
     const erlaubt = phase === 'Mitbestimmung' ? roleRecipients : [];

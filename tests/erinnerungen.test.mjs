@@ -28,8 +28,9 @@ ok(/if \(!ko\.eingereichtAm \|\| entschieden\) continue;/.test(s),
   'Nur eingereichte und noch offene Konzepte – Entwürfe und Erledigtes nicht');
 ok(/eingereichtAm \|\| ref/.test(s), 'Die Frist zählt ab dem Einreichen, nicht ab der letzten Änderung');
 ok(/function konzeptLink/.test(s), 'Der Link führt ins Dashboard, nicht in die Freigaben');
-ok(/konzeptLink\(id, 'annehmen'\)/.test(s) && /konzeptLink\(id, 'zurueckstellen'\)/.test(s)
-  && /konzeptLink\(id, 'ablehnen'\)/.test(s), 'Alle drei Entscheidungen stehen in der Mail');
+ok(/konzeptLink\(id, 'annehmen', token\)/.test(s) && /konzeptLink\(id, 'zurueckstellen', token\)/.test(s)
+  && /konzeptLink\(id, 'ablehnen', token\)/.test(s), 'Alle drei Entscheidungen stehen in der Mail – mit dem Token der Runde');
+ok(/phase === 'Konzeptprüfung' \? 'konzept'/.test(s), 'Das Token der Konzeptprüfung, nicht das der Regelwerk-Prüfung');
 
 /* ── Mitbestimmung beim Betriebsrat ── */
 ok(/status === 'Mitbestimmung'/.test(s), 'Die Mitbestimmung wird erkannt');

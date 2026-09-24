@@ -75,6 +75,14 @@ ok(w('getLoginHint()') === '', 'Ein Anführungszeichen bräche aus genau diesem 
 setSuche('?u=max.mustermann%2Btest@dihag-guss.de');
 ok(w('getLoginHint()') === 'max.mustermann+test@dihag-guss.de', 'Übliche Adressen bleiben erlaubt');
 
+/* Dieselbe Prüfung für den Adressaten, den die Landung übergeben bekommt.
+   Früher ging er ungeprüft in onclick="authAnmeldenAls('…')" – ein Link mit
+   u=x');…;// lief dort als Code, sobald jemand den Knopf anklickte. */
+ok(w("linkAdresse('Chef@DIHAG.com ')") === 'chef@dihag.com', 'linkAdresse: Adresse, klein und ohne Leerraum');
+ok(w("linkAdresse(\"x');alert(document.domain);//\")") === '', 'linkAdresse: ein Ausbruchsversuch ist keine Adresse');
+ok(w("linkAdresse(\"a'b@x.de\")") === '' && w("linkAdresse('a\"b@x.de')") === '', 'linkAdresse: Anführungszeichen nie');
+ok(w('linkAdresse(null)') === '' && w('linkAdresse(undefined)') === '', 'linkAdresse: nichts bleibt nichts');
+
 /* ── 3) Anmeldung: erst stumm, dann mit Hinweis ── */
 setSuche('?richtlinie=7&aktion=freigeben&t=abc&u=chef@dihag.com');
 await ctx.authInit();
@@ -120,8 +128,10 @@ ok(/for \(const empf of gl\)/.test(ng) && /'freigabe', empf\)/.test(ng), 'Die Ge
 const ek = fg.slice(fg.indexOf('async function einKlickAktion'), fg.indexOf('/** Fehlklick zurücknehmen'));
 ok(/async function einKlickAktion\(id, aktion, token, adressatAusLink\)/.test(fg),
   'Die Landung bekommt den Adressaten übergeben');
-ok(/String\(adressatAusLink \|\| ''\)\.trim\(\)\.toLowerCase\(\)/.test(ek) && /getLoginHint\(\) : ''/.test(ek),
+ok(/linkAdresse\(adressatAusLink\)/.test(ek) && /getLoginHint\(\) : ''/.test(ek),
   'Aus demselben Parametersatz wie der Rest – mit der URL als Rückfall');
+ok(!/String\(adressatAusLink \|\| ''\)/.test(ek),
+  'Und nie ungeprüft: Den Link kann jede:r bauen, der Wert landete in einem Knopf');
 ok(/einKlickAktion\(deepId, aktion, token, params\.get\('u'\) \|\| ''\)/.test(lies('js/app.js')),
   'Denn nach einem Login-Redirect steht die Ursprungs-URL nur noch dort');
 ok(/sessionStorage\.getItem\('rms_deeplink'\)/.test(auth),

@@ -137,7 +137,7 @@ async function applyDeepLinkOrDefault() {
       _adminMode = 'konzepte';
       if (typeof setAdminMode === 'function') setAdminMode('konzepte');
     }
-    if (aktion && typeof handleKonzeptMailAction === 'function') handleKonzeptMailAction(konzeptId, aktion);
+    if (aktion && typeof handleKonzeptMailAction === 'function') handleKonzeptMailAction(konzeptId, aktion, params.get('t') || '');
     else if (typeof focusKonzeptCard === 'function') focusKonzeptCard(konzeptId);
     return;
   }

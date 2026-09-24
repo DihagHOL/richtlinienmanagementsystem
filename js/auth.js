@@ -45,12 +45,20 @@ function getLoginHint() {
     // sie vorher, derselbe Vorrat gilt hier.
     let such = location.search;
     try { such = sessionStorage.getItem('rms_deeplink') || such; } catch (e) { /* gesperrt */ }
-    const u = (new URLSearchParams(such).get('u') || '').trim().toLowerCase();
-    // Bewusst enger als das, was als E-Mail zulässig wäre: Der Wert landet in
-    // einem onclick-Attribut. Anführungszeichen und Winkelklammern haben hier
-    // nichts zu suchen.
-    return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(u) ? u : '';
+    return linkAdresse(new URLSearchParams(such).get('u'));
   } catch (e) { return ''; }
+}
+
+/**
+ * Eine Adresse aus einem Link (?u=…) – nur, wenn sie wie eine Mailadresse
+ * aussieht, sonst ''. Bewusst enger als das, was als E-Mail zulässig wäre:
+ * Der Parameter kommt von außen, jede:r kann einen Link bauen. Er landet in
+ * Texten und Knöpfen; Anführungszeichen, Klammern und Winkelklammern haben
+ * darin nichts zu suchen.
+ */
+function linkAdresse(u) {
+  const s = String(u || '').trim().toLowerCase();
+  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(s) ? s : '';
 }
 
 /** Bewusst mit einem anderen Konto anmelden (der Link ging an jemand anderen). */

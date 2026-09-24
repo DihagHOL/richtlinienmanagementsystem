@@ -159,22 +159,30 @@ function focusPolicyCard(id) {
 }
 
 /**
- * Aus dem Mail-Button (?aktion=…): Der Klick ist die Entscheidung – ohne zweite
- * Nachfrage. Geprüft wird die Rolle; was Pflicht ist (die Begründung bei „nicht
- * konform"), wird weiterhin abgefragt.
+ * Aus einem Mail-Link OHNE gültiges Token (?aktion=…). Mit Token führt
+ * einKlickAktion() ohne Rückfrage aus; hier aber kann der Link von jeder:m
+ * stammen – die Kennungen zählen hoch, ?richtlinie=42&ansicht=freigaben&
+ * aktion=freigeben ist schnell gebaut und verschickt. Deshalb fragt die App
+ * vor jeder Zustimmung nach und nennt das Regelwerk beim Namen. Die
+ * Ablehnungen fragen ohnehin: Sie verlangen eine Begründung.
  */
 function handleMailAction(id, aktion) {
   const p = policyZuId(id);
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
+  const bestaetigt = (frage, knopf) => (typeof uiConfirm === 'function')
+    ? uiConfirm(`„${p.title}" – ${frage}`, { title: 'Entscheidung bestätigen', okLabel: knopf })
+    : Promise.resolve(false);
   setTimeout(async () => {
     if (aktion === 'konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
+      if (!await bestaetigt('als konform bewerten?', 'Konform')) return;
       markKonform(id, true);
     } else if (aktion === 'nicht_konform') {
       if (typeof isCurrentUserPrueferForPolicy === 'function' && !isCurrentUserPrueferForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegten Prüfer dürfen die Konformität bewerten.'); return; }
       markKonform(id, false);   // fragt anschließend nach der Anmerkung
     } else if (aktion === 'freigeben') {
       if (typeof isCurrentUserGeschaeftsleitungForPolicy === 'function' && !isCurrentUserGeschaeftsleitungForPolicy(p)) { toast('Nur die für diese Richtlinie hinterlegte Geschäftsleitung darf freigeben.'); return; }
+      if (!await bestaetigt('jetzt freigeben? Ist die Freigabe vollständig, wird das Regelwerk veröffentlicht.', 'Freigeben')) return;
       markFreigabe(id);
     } else if (aktion === 'zurueck') {
       markKonform(id, false);
@@ -918,7 +926,8 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
   // Der Link nennt seinen Adressaten. Weil der Konto-Cache über Tabs geteilt wird,
   // könnte an einem Rechner sonst die Entscheidung unter einem fremden Namen landen –
   // etwa nach einer weitergeleiteten Mail mit der Bitte, kurz einzuspringen.
-  const adressat = String(adressatAusLink || '').trim().toLowerCase()
+  // Den Link kann jede:r bauen: Was nicht wie eine Adresse aussieht, zählt nicht.
+  const adressat = ((typeof linkAdresse === 'function') ? linkAdresse(adressatAusLink) : '')
     || ((typeof getLoginHint === 'function') ? getLoginHint() : '');
   const ich = String((State.user && State.user.upn) || '').toLowerCase();
   if (adressat && ich && adressat !== ich) {
