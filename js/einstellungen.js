@@ -232,7 +232,8 @@ function _rollenBereichHtml() {
                 <option value="nein" ${_cfgEdit.erinnerungenAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
               </select></div>
             <div class="form-group"><label>Absender-Postfach</label>
-              <input type="email" value="${esc(_cfgEdit.mailSender || '')}" oninput="_cfgEdit.mailSender=this.value" placeholder="pruefer@dihag.com"></div>
+              <input type="email" value="${esc(_cfgEdit.mailSender || '')}" oninput="_cfgEdit.mailSender=this.value" placeholder="pruefer@dihag.com">
+              <div class="field-hint">Nur Rückfall: Im Betrieb sendet der Cron immer als das Postfach aus dem GitHub-Secret <code>MAIL_SENDER</code>. Ein abweichender Eintrag hier wird ignoriert – sonst könnte, wer diese Einstellungen ändert, als beliebiges Postfach senden.</div></div>
             <div class="form-group"><label>Erste Erinnerung nach (Tagen)</label>
               <input type="number" min="1" value="${esc(_cfgEdit.erinnerungErsteNachTagen || 7)}" onchange="_cfgEdit.erinnerungErsteNachTagen=parseInt(this.value,10)||7"></div>
             <div class="form-group"><label>Danach alle (Tagen)</label>

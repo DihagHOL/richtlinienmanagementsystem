@@ -14,8 +14,9 @@
  *
  * Benötigte Umgebungsvariablen (GitHub-Action-Secrets):
  *   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET   – App-Registrierung (App-only), PFLICHT
- *   MAIL_SENDER                                              – Absender-Fallback, falls in den
- *                                                              App-Einstellungen kein „mailSender" gesetzt ist
+ *   MAIL_SENDER                                              – Absender-Postfach. Hat Vorrang vor
+ *                                                              „mailSender" aus den App-Einstellungen
+ *                                                              (siehe absenderWaehlen())
  * Optional (überschreiben Defaults, App-Einstellungen haben aber Vorrang):
  *   SITE_HOST (Default dihag.sharepoint.com:/sites/IT), POLICY_LIST (Richtlinien),
  *   CONFIG_FOLDER (Richtlinienmanagement), APP_URL, ESKALATION_AB_TAGEN, DRY_RUN
@@ -45,7 +46,7 @@ function standorteDerApp() {
 const TENANT = need('AZURE_TENANT_ID');
 const CLIENT_ID = need('AZURE_CLIENT_ID');
 const CLIENT_SECRET = need('AZURE_CLIENT_SECRET');
-const ENV_SENDER = process.env.MAIL_SENDER || '';   // Fallback; bevorzugt wird „mailSender" aus den App-Einstellungen
+const ENV_SENDER = process.env.MAIL_SENDER || '';   // gewinnt immer – siehe absenderWaehlen()
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
@@ -66,6 +67,32 @@ function need(k) {
   const v = process.env[k];
   if (!v) { console.error(`FEHLT: Umgebungsvariable ${k}`); process.exit(1); }
   return v;
+}
+
+/**
+ * Als welches Postfach sendet der Cron?
+ *
+ * Das Secret MAIL_SENDER gewinnt. Früher gewann „mailSender" aus
+ * access-config.json – eine Datei in SharePoint, die jede:r mit Schreibrecht
+ * auf den Konfig-Ordner ändern kann. Mail.Send als App-Recht darf ohne
+ * Application Access Policy als JEDES Postfach im Tenant senden: Ein Eintrag
+ * dort genügte, und die täglichen Mails kämen etwa „von der Geschäftsführung".
+ * Die Einstellung zählt deshalb nur noch, wenn kein Secret gesetzt ist
+ * (lokaler Lauf); weicht sie ab, sagt das Protokoll es.
+ *
+ * @returns {{ sender: string, hinweis: string }}
+ */
+function absenderWaehlen(envSender, cfgSender) {
+  const env = String(envSender || '').trim();
+  const cfg = String(cfgSender || '').trim();
+  if (env) {
+    return {
+      sender: env,
+      hinweis: cfg && cfg.toLowerCase() !== env.toLowerCase()
+        ? `Absender „${cfg}" aus den App-Einstellungen ignoriert – es gilt das Secret MAIL_SENDER (${env}).` : '',
+    };
+  }
+  return { sender: cfg, hinweis: cfg ? 'Kein Secret MAIL_SENDER – Absender aus den App-Einstellungen.' : '' };
 }
 
 /** App-only-Token (Client-Credentials-Flow). */
@@ -567,8 +594,10 @@ function kenntnisEskalationHtml(posten) {
     console.log('Erinnerungen sind in den App-Einstellungen deaktiviert – nichts zu tun.');
     return;
   }
-  SENDER = (cfg.mailSender || ENV_SENDER || '').trim();
-  if (!SENDER) { console.error('FEHLT: Absender. „Absender-Postfach" in den App-Einstellungen setzen oder Secret MAIL_SENDER hinterlegen.'); process.exit(1); }
+  const absender = absenderWaehlen(ENV_SENDER, cfg.mailSender);
+  SENDER = absender.sender;
+  if (absender.hinweis) console.log('⚠ ' + absender.hinweis);
+  if (!SENDER) { console.error('FEHLT: Absender. Secret MAIL_SENDER hinterlegen.'); process.exit(1); }
   ALLOWED_DOMAIN = SENDER.split('@')[1]?.toLowerCase() || '';
   const erste = posInt(process.env.ERINNERUNG_ERSTE, posInt(cfg.erinnerungErsteNachTagen, 7));
   const alle = posInt(process.env.ERINNERUNG_ALLE, posInt(cfg.erinnerungDannAlleTage, 3));

@@ -64,5 +64,25 @@ const abschnitt = s.slice(s.indexOf('let phase =') > 0 ? s.indexOf('let phase ='
 ok(/if \(!isDue\(tage, erste, alle\)\)/.test(abschnitt), 'Die Taktung greift vor dem Versand');
 ok(/eskalationAb > 0 && tage >= eskalationAb/.test(abschnitt), 'Die Eskalation ebenso');
 
+/* ── Absender: das Secret gewinnt ──
+   „mailSender" steht in access-config.json, also in SharePoint. Gewann er,
+   entschied, wer die Datei schreiben kann, als welches Postfach der Cron mit
+   seinem App-Recht Mail.Send sendet – ohne Application Access Policy jedes. */
+const absFn = s.slice(s.indexOf('function absenderWaehlen'), s.indexOf('/** App-only-Token'));
+const absenderWaehlen = new Function(absFn + '; return absenderWaehlen;')();
+let a = absenderWaehlen('rms@dihag.com', 'chef@dihag.com');
+ok(a.sender === 'rms@dihag.com', 'Mit Secret sendet der Cron als das Secret-Postfach – nicht als das aus SharePoint');
+ok(/ignoriert/.test(a.hinweis) && a.hinweis.includes('chef@dihag.com'), 'Und sagt im Protokoll, welcher Eintrag ignoriert wurde');
+a = absenderWaehlen('rms@dihag.com', 'RMS@dihag.com ');
+ok(a.sender === 'rms@dihag.com' && a.hinweis === '', 'Stimmen beide überein, gibt es nichts zu melden');
+a = absenderWaehlen('', 'lokal@dihag.com');
+ok(a.sender === 'lokal@dihag.com' && /Kein Secret/.test(a.hinweis), 'Ohne Secret (lokaler Lauf) gilt die Einstellung – mit Hinweis');
+ok(absenderWaehlen('', '').sender === '', 'Ohne beides: kein Absender');
+ok(/absenderWaehlen\(ENV_SENDER, cfg\.mailSender\)/.test(s) && !/cfg\.mailSender \|\| ENV_SENDER/.test(s),
+  'Der Lauf nutzt genau diese Wahl – die alte Reihenfolge ist raus');
+ok(/ALLOWED_DOMAIN = SENDER\.split\('@'\)\[1\]/.test(s), 'Die erlaubte Empfänger-Domain folgt damit ebenfalls dem Secret');
+ok(/\[ -z "\$MAIL_SENDER" \]/.test(fs.readFileSync(path.join(ROOT, '.github/workflows/erinnerungen.yml'), 'utf8')),
+  'Die Action läuft ohne Secret gar nicht erst los – im Betrieb gilt also immer das Secret');
+
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
