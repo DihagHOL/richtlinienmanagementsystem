@@ -11,7 +11,7 @@ import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire as _requireFuerHelfer } from 'module';
-const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -29,7 +29,7 @@ ok(/'nav-risiken', 'nav-assets'/.test(lies('js/probelauf.js')), 'Im Probelauf au
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;
-kctx.jsArg ??= jsArg; vm.createContext(kctx);
+kctx.jsArg ??= jsArg; kctx.sichereUrl ??= sichereUrl; vm.createContext(kctx);
 vm.runInContext(lies('js/module.js'), kctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = kctx.module.exports;
 ok(MODUL_ADMIN.includes('assetmodell') && !MODUL_ADMIN.includes('assets') && MODUL_ANSICHTEN.assets.includes('assets'), 'Modell im Verwaltungsblock, Ansicht in ihrer Gruppe');
@@ -60,7 +60,7 @@ ok(/modulLaden\('assetmodell'\)/.test(sp) && /\$expand=fields\$\{mitAuswahl \? `
 // _mapAsset / _assetFields: hin und zurück
 const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC', 'SHB', 'ZAI'], module: { exports: {} } };
 sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
-sctx.jsArg ??= jsArg; vm.createContext(sctx);
+sctx.jsArg ??= jsArg; sctx.sichereUrl ??= sichereUrl; vm.createContext(sctx);
 vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
 const gemappt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 12, webUrl: 'u', fields: { Title: 'SAP', Kategorie: 'anwendung', Werke: 'hol, WGC', Verfuegbarkeit: 'sehr hoch', Wiederherstellung: 12, Rpo: null, AbhaengigJson: '["3"]', ZusatzJson: '{"inventarnummer":"4711"}', Personenbezogen: 'ja', EOL: '2027-03-01T00:00:00Z', AStatus: 'aktiv' } })})`, sctx);
@@ -202,7 +202,7 @@ ok(/seg\('assets', '🗂 Assetregister'\)/.test(eins) && /function _assetsBereic
 
 const dctx = { console, esc: (s) => String(s ?? ''), module: { exports: {} } };
 dctx.window = dctx; dctx.globalThis = dctx;
-dctx.jsArg ??= jsArg; vm.createContext(dctx);
+dctx.jsArg ??= jsArg; dctx.sichereUrl ??= sichereUrl; vm.createContext(dctx);
 vm.runInContext(lies('js/notfallmodell.js'), dctx);
 vm.runInContext(lies('js/assetmodell.js'), dctx);
 vm.runInContext(lies('js/dokumentation.js'), dctx);
@@ -248,7 +248,7 @@ const ctx = {
 };
 ctx.__bestand = JSON.parse(JSON.stringify(bestand));
 ctx.globalThis = ctx;
-ctx.jsArg ??= jsArg; vm.createContext(ctx);
+ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
 vm.runInContext(lies('js/notfallmodell.js'), ctx);
 vm.runInContext(lies('js/assetmodell.js'), ctx);
 vm.runInContext(lies('js/assets.js'), ctx);

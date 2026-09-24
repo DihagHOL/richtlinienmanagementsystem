@@ -200,7 +200,7 @@ function openGovernanceDoc(driveItemId) {
         ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="govEditWeb(${jsArg(d.driveItemId)})">🌐 Im Browser bearbeiten</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="govPreview(${jsArg(d.driveItemId)})">👁 Vorschau</button>
         <button class="btn btn-outline btn-sm" onclick="govShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
-        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
+        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
       ${!canWrite ? `<div class="field-hint" style="margin-top:6px">👁 Nur Lesezugriff auf „Governance-Board" – Übernahme als Richtlinie ist gesperrt.</div>` : ''}
     </div>
@@ -269,7 +269,7 @@ async function govPreview(driveItemId) {
     else toast('Keine Vorschau verfügbar.', 'error');
     return;
   }
-  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
+  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
   const seq = ++_govPrevSeq;
   _govPrevLoaded = false;
   openModal(`
@@ -309,7 +309,7 @@ async function govShowVersions(driveItemId, name) {
   if (!d) return;
   const spLink = d.webUrl
     ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
-        <a href="${esc(d.webUrl)}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
+        <a href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
         (über die Graph-API nicht abrufbar).</div>` : '';
   openModal(`<div class="modal-header"><h3>🕘 Versionen – ${esc(name)}</h3>
     <button class="modal-close" onclick="closeModal()">×</button></div>
@@ -323,7 +323,7 @@ async function govShowVersions(driveItemId, name) {
          <tbody>${vers.map(v => `<tr>
            <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
            <td class="num">${fmtFileSize(v.size)}</td>
-           <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">↓</a>` : ''}</td>
+           <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(v.url))}" target="_blank" rel="noopener">↓</a>` : ''}</td>
          </tr>`).join('')}</tbody></table>`
       : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');
   } catch (e) {

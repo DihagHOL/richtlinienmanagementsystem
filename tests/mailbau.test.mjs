@@ -13,6 +13,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echte Helfer für Handler und Links
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -30,7 +32,7 @@ const ctx = {
   location: { search: '' },
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
 vm.runInContext(lies('js/app.js'), ctx);        // esc
 vm.runInContext(lies('js/mailbau.js'), ctx);
 const run = (s) => vm.runInContext(s, ctx);
@@ -114,7 +116,7 @@ const mctx = {
   location: { search: '' },
 };
 mctx.window = mctx; mctx.globalThis = mctx;
-vm.createContext(mctx);
+mctx.jsArg ??= jsArg; mctx.sichereUrl ??= sichereUrl; vm.createContext(mctx);
 for (const f of ['js/util.js', 'js/mailbau.js', 'js/app.js', 'js/freigaben.js']) vm.runInContext(lies(f), mctx);
 Object.assign(mctx, { fmtDate: () => '', geltungsbereichLabel: () => '', zielgruppenLabel: () => '' });
 vm.runInContext(`State.user = { upn: 'a@dihag.com' }; State.policies = []; State.acks = [];`, mctx);

@@ -90,7 +90,7 @@ async function initAssets() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Das Register ist die Liste <b>„Assets"</b> auf der ISMS-Site:
-        <a href="${esc(listUrl)}" target="_blank" rel="noopener">${esc(listUrl)}</a>. Gibt es sie nicht, legt die App sie beim ersten Zugriff an –
+        <a href="${esc(sichereUrl(listUrl))}" target="_blank" rel="noopener">${esc(listUrl)}</a>. Gibt es sie nicht, legt die App sie beim ersten Zugriff an –
         dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:8px"><b>Erwartete Spalten</b> (Name genau so, Typ):</div>
       <div style="margin-top:8px;line-height:1.9">${cols.map(c => `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ')}</div></div>`;
@@ -168,8 +168,8 @@ function renderAssets() {
       const l = _amLuecken(a);
       const traeger = _amTraegerText(a);
       return `<tr onclick="openAssetEditor(${jsArg(a.id)})" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
-        <td><b>${esc(a.titel)}</b>${a.link.url ? ` <a href="${esc(a.link.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.link.text || a.link.url)}" style="text-decoration:none">🔗</a>` : ''}${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${traeger.length ? `<div style="font-size:.68rem;color:var(--c-faint)" title="Liegt auf / hängt ab von">↳ ${esc(traeger.join(' · '))}</div>` : ''}</td>
-        <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
+        <td><b>${esc(a.titel)}</b>${a.link.url ? ` <a href="${esc(sichereUrl(a.link.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.link.text || a.link.url)}" style="text-decoration:none">🔗</a>` : ''}${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${traeger.length ? `<div style="font-size:.68rem;color:var(--c-faint)" title="Liegt auf / hängt ab von">↳ ${esc(traeger.join(' · '))}</div>` : ''}</td>
+        <td style="white-space:nowrap">${k ? `${esc(k.symbol)} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
         <td style="white-space:nowrap">${a.werke.length ? (a.werke.includes('ALLE') ? 'konzernweit' : esc(a.werke.join(', '))) : '<span style="color:#b45309">–</span>'}</td>
         <td style="color:var(--c-muted)">${a.verantwortlich ? esc(_amName(a.verantwortlich)) : '<span style="color:#b91c1c">–</span>'}</td>
         <td>${_amSb(a.vertraulichkeit)}</td><td>${_amSb(a.integritaet)}</td><td>${_amSb(a.verfuegbarkeit)}</td>
@@ -193,7 +193,7 @@ function renderAssets() {
       <b>⚠ In der Liste „Assets" fehlen ${missing.length} von ${(typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).length} erwarteten Spalten</b> – was dort nicht steht, kann die App nicht speichern:
       <div style="margin-top:6px;line-height:1.9">${missing.map(n => { const c = (typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).find(x => x.name === n); return `<code>${esc(n)}</code> <span style="color:var(--c-muted)">(${esc(c ? c.typ : '')})</span>`; }).join(' · ')}</div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <a href="${esc((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Liste in SharePoint öffnen ↗</a>
+        <a href="${esc(sichereUrl((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Liste in SharePoint öffnen ↗</a>
         ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="assetsSpaltenAnlegen()" title="Legt genau diese Spalten mit diesen Typen an – nichts Vorhandenes wird verändert">Fehlende Spalten jetzt anlegen</button>` : ''}
         <span class="field-hint">Vorhandene Spalten mit anderen Namen (Typ, Owner, Schutzbedarf, RTO …) werden zum Lesen weiter erkannt.</span>
       </div></div>` : ''}
@@ -216,7 +216,7 @@ function renderAssets() {
         <option value="">alle Werke</option>${werke.filter(w => !sichtbar || sichtbar.includes(w)).map(w => `<option value="${esc(w)}"${_amFilter.werk === w ? ' selected' : ''}>${esc(w)}</option>`).join('')}
       </select>
       <select class="sort-select" onchange="_amFilter.kategorie=this.value;renderAssets()">
-        <option value="">alle Kategorien</option>${kats.map(k => `<option value="${esc(k.key)}"${_amFilter.kategorie === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}
+        <option value="">alle Kategorien</option>${kats.map(k => `<option value="${esc(k.key)}"${_amFilter.kategorie === k.key ? ' selected' : ''}>${esc(k.symbol)} ${esc(k.label)}</option>`).join('')}
       </select>
       ${z.primaer ? `<select class="sort-select" onchange="_amFilter.art=this.value;renderAssets()" title="ISO 27005: primär = Informationen und Prozesse, unterstützend = Systeme und Medien, auf denen sie liegen">
         <option value="">Art: alle</option>${AM_ART.map(v => `<option value="${esc(v)}"${_amFilter.art === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}
@@ -230,7 +230,7 @@ function renderAssets() {
       <div style="flex:1"></div>
       <button class="btn btn-outline btn-sm" onclick="assetsExportCsv()">⬇ CSV</button>
       <button class="btn btn-outline btn-sm" onclick="assetsInventarDrucken()" title="Das Inventar als PDF – der Nachweis zu A.5.9">🖨 Inventar</button>
-      <a href="${esc((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Dieselbe Liste in SharePoint">↗ SharePoint</a>
+      <a href="${esc(sichereUrl((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Dieselbe Liste in SharePoint">↗ SharePoint</a>
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openAssetEditor(null)">+ Asset</button>` : ''}
     </div>
     ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf dieses Register.</div>'}
@@ -363,7 +363,7 @@ function renderAssetEditor() {
           <select onchange="amSet('art',this.value)"${ro}><option value=""${!a.art ? ' selected' : ''}>–</option>${AM_ART.map(v => `<option value="${esc(v)}"${a.art === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>
           <span class="field-hint">Primär: die Information, der Prozess. Unterstützend: das System, das Medium, auf dem sie liegen.</span></div>
         <div class="form-group"><label>Kategorie${a.art ? '' : ' <span class="req">*</span>'}</label>
-          <select onchange="amSet('kategorie',this.value)"${ro}><option value=""${!a.kategorie ? ' selected' : ''}>– wählen –</option>${kats.map(k => `<option value="${esc(k.key)}"${amKategorieKey(a.kategorie, kats) === k.key ? ' selected' : ''}>${k.symbol} ${esc(k.label)}</option>`).join('')}${a.kategorie && !kats.some(k => k.key === amKategorieKey(a.kategorie, kats)) ? `<option value="${esc(a.kategorie)}" selected>${esc(a.kategorie)} (aus der Liste)</option>` : ''}</select>
+          <select onchange="amSet('kategorie',this.value)"${ro}><option value=""${!a.kategorie ? ' selected' : ''}>– wählen –</option>${kats.map(k => `<option value="${esc(k.key)}"${amKategorieKey(a.kategorie, kats) === k.key ? ' selected' : ''}>${esc(k.symbol)} ${esc(k.label)}</option>`).join('')}${a.kategorie && !kats.some(k => k.key === amKategorieKey(a.kategorie, kats)) ? `<option value="${esc(a.kategorie)}" selected>${esc(a.kategorie)} (aus der Liste)</option>` : ''}</select>
           <span class="field-hint">Nach BSI-Strukturanalyse; die Liste ist in den Einstellungen änderbar.</span></div>
         <div class="form-group"><label>Status</label>
           <select onchange="amSet('status',this.value)"${ro}>${AM_STATUS.map(v => `<option value="${esc(v)}"${a.status === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
@@ -443,7 +443,7 @@ function renderAssetEditor() {
       <div style="font-size:.85rem">
         <div><b>Prozesse:</b> ${pr.length ? pr.map(p => `${esc(p.name)} <span class="field-hint">(${esc(p.werk)}${p.kritikalitaet ? ', ' + esc(p.kritikalitaet) : ''})</span>`).join(' · ') : '<span class="field-hint">keiner – in der Business-Impact-Analyse (Notfall-Reiter) zuordnen</span>'}</div>
         <div style="margin-top:4px"><b>Risiken:</b> ${ri.length ? ri.map(r => esc(r.titel)).join(' · ') : '<span class="field-hint">keine offenen</span>'}</div>
-        ${a.url ? `<div style="margin-top:4px" class="field-hint"><a href="${esc(a.url)}" target="_blank" rel="noopener" style="color:var(--c-primary)">In SharePoint öffnen ↗</a></div>` : ''}
+        ${a.url ? `<div style="margin-top:4px" class="field-hint"><a href="${esc(sichereUrl(a.url))}" target="_blank" rel="noopener" style="color:var(--c-primary)">In SharePoint öffnen ↗</a></div>` : ''}
       </div>
       ${histRows ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)"><div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verlauf</div>${histRows}</div>` : ''}
     </div>

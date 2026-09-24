@@ -38,7 +38,7 @@ function _soaM365Zeile(id) {
   const n = _soaM365 && _soaM365[id];
   if (!n) return '';
   return `<div style="font-size:.72rem;color:#1e40af;margin-top:2px">M365-Nachweis ${esc(fmtDate(n.stand))}: ${esc(n.wert)}
-    <a href="${esc(_soaCockpitLink(id))}" target="_blank" rel="noopener" style="white-space:nowrap">im Cockpit ↗</a></div>`;
+    <a href="${esc(sichereUrl(_soaCockpitLink(id)))}" target="_blank" rel="noopener" style="white-space:nowrap">im Cockpit ↗</a></div>`;
 }
 
 function _soaCtl(id) {
@@ -180,7 +180,7 @@ function renderSoa() {
       <br>Entschieden wird über die <b>${k.total} Annex-A-Controls</b>. Klauseln, NIS2 und die Rechtsnormen
       (${k.immer} Anforderungen) stehen mit „<b>gilt immer</b>" darin – sie lassen sich nicht ausschließen,
       ihr Umsetzungsstatus wird aber mitgeführt.
-      <br>Blaue Zeilen sind <b>M365-Nachweise</b> aus dem <a href="${esc(_soaCockpitLink(''))}" target="_blank" rel="noopener">Compliance-Cockpit</a>:
+      <br>Blaue Zeilen sind <b>M365-Nachweise</b> aus dem <a href="${esc(sichereUrl(_soaCockpitLink('')))}" target="_blank" rel="noopener">Compliance-Cockpit</a>:
       der jüngste gesicherte Live-Wert aus Microsoft 365 zum Control${_soaM365 && Object.keys(_soaM365).length ? ` (${Object.keys(_soaM365).length} Controls belegt)` : ''}.
       ${meta.updatedAt ? `<br><span style="color:var(--c-faint)">Zuletzt gespeichert: ${fmtDateTime(meta.updatedAt)}${meta.updatedBy ? ' von ' + esc(meta.updatedBy) : ''} · Version ${meta.version || 1}</span>` : ''}
     </div>

@@ -456,7 +456,7 @@ async function openIsmsDoc(itemId) {
         <button class="btn btn-outline btn-sm" onclick="ismsNewVersion(${jsArg(d.driveItemId)},${jsArg(d.name)})">⬆ Neue Version hochladen</button>
         <button class="btn btn-outline btn-sm" onclick="ismsShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
         <button class="btn btn-outline btn-sm" onclick="ismsPreview(${jsArg(d.driveItemId)})">👁 Vorschau</button>
-        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
+        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
 
       ${_ismsWorkflowPanel(d)}
@@ -717,7 +717,7 @@ async function ismsPreview(driveItemId) {
     else toast('Keine Vorschau verfügbar.', 'error');
     return;
   }
-  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
+  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
   const seq = ++_ismsPrevSeq;
   _ismsPrevLoaded = false;
   // Direkt in der App anzeigen (eingebettetes Office-Web-Preview). Lädt die Einbettung nicht
@@ -814,7 +814,7 @@ async function ismsShowVersions(driveItemId, name) {
   if (!d) return;
   const spLink = d.webUrl
     ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
-        <a href="${esc(d.webUrl)}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
+        <a href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
         (über die Graph-API nicht abrufbar).</div>` : '';
   openModal(`<div class="modal-header"><h3>🕘 Versionen – ${esc(name)}</h3>
     <button class="modal-close" onclick="closeModal()">×</button></div>
@@ -828,7 +828,7 @@ async function ismsShowVersions(driveItemId, name) {
          <tbody>${vers.map(v => `<tr>
            <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
            <td class="num">${fmtFileSize(v.size)}</td>
-           <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">↓</a>` : ''}</td>
+           <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(v.url))}" target="_blank" rel="noopener">↓</a>` : ''}</td>
          </tr>`).join('')}</tbody></table>`
       : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');
   } catch (e) {
@@ -902,7 +902,7 @@ function openProposalModal(titel, ctx) {
   _proposalCtx = Object.assign({ titel }, ctx || {});
   const links = _proposalLinks(_proposalCtx);
   const linkEls = links.map(l =>
-    `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`);
+    `<a href="${esc(sichereUrl(l.url))}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`);
   // „In Office öffnen" – wie bei der Richtlinie selbst (Desktop-Office via ms-word/excel/…-Schema)
   const officeName = _proposalCtx.doc ? _proposalCtx.doc.name : (_proposalCtx.policy ? _proposalCtx.policy.dokumentName : '');
   if (officeScheme(officeName)) {
@@ -1022,7 +1022,7 @@ async function sendProposal(keepOpen) {
     const ver = ctx.doc && ctx.doc.fields ? ctx.doc.fields._UIVersionString : '';
     const linkHtml = links.length
       ? `<p><b>Dokument:</b><br>${links.map(l =>
-          `<a href="${esc(l.url)}" style="color:#17509e">📄 ${esc(l.label)}</a>`).join('<br>')}
+          `<a href="${esc(sichereUrl(l.url))}" style="color:#17509e">📄 ${esc(l.label)}</a>`).join('<br>')}
           ${ver ? `<br><span style="color:#6b7280;font-size:12px">aktuelle Version: ${esc(ver)}</span>` : ''}</p>`
       : '';
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">

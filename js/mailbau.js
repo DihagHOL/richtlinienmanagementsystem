@@ -34,7 +34,7 @@ function mailRumpf(inhalt) {
  * Das Ziel dagegen schon – dort steckt eine Kennung aus den Daten.
  */
 function mailBtn(href, farbe, label) {
-  return `<a href="${esc(href)}" style="display:inline-block;background:${farbe};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
+  return `<a href="${esc(sichereUrl(href))}" style="display:inline-block;background:${farbe};color:#fff;text-decoration:none;padding:10px 18px;border-radius:7px;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
 }
 
 /** Kleingedrucktes am Ende einer Mail. Enthält Links, wird deshalb nicht maskiert. */

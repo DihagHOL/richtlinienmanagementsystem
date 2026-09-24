@@ -140,10 +140,10 @@ async function initAusnahmen() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Ausnahmeregister nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Ausnahmen" liegt wie die Risiken auf der <b>ISMS-Site</b>
-        <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
+        <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
         ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
-        <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
+        <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Ausnahmen</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
       <div style="margin-top:8px;line-height:1.9">${colList}</div>
       <div style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">

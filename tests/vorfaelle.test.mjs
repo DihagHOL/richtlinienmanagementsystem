@@ -12,7 +12,7 @@ import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire as _requireFuerHelfer } from 'module';
-const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -30,7 +30,7 @@ ok(/'nav-notfall', 'nav-vorfaelle'/.test(lies('js/probelauf.js')), 'Im Probelauf
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;
-kctx.jsArg ??= jsArg; vm.createContext(kctx);
+kctx.jsArg ??= jsArg; kctx.sichereUrl ??= sichereUrl; vm.createContext(kctx);
 vm.runInContext(lies('js/module.js'), kctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = kctx.module.exports;
 ok(MODUL_ADMIN.includes('vorfallmodell') && !MODUL_ADMIN.includes('vorfaelle') && MODUL_ANSICHTEN.vorfaelle.includes('vorfaelle') && MODUL_ANSICHTEN.vorfaelle.includes('wirksamkeit'), 'Modell im Verwaltungsblock, Ansicht in ihrer Gruppe – mit dem Wirksamkeits-Register für die Maßnahme');
@@ -74,7 +74,7 @@ sctx.fetch = async (url, opt) => {
   }
   return { ok: false, status: 404, text: async () => 'nix', json: async () => ({}), headers: { get: () => null } };
 };
-sctx.jsArg ??= jsArg; vm.createContext(sctx);
+sctx.jsArg ??= jsArg; sctx.sichereUrl ??= sichereUrl; vm.createContext(sctx);
 vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/vorfallmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
@@ -108,7 +108,7 @@ ok(/Vorfall-Digest/.test(cron) && /TICKET_SITE_HOST/.test(cron) && /_require\('\
 
 const dctx = { console, esc: (s) => String(s ?? ''), module: { exports: {} } };
 dctx.window = dctx; dctx.globalThis = dctx;
-dctx.jsArg ??= jsArg; vm.createContext(dctx);
+dctx.jsArg ??= jsArg; dctx.sichereUrl ??= sichereUrl; vm.createContext(dctx);
 vm.runInContext(lies('js/notfallmodell.js'), dctx);
 vm.runInContext(lies('js/assetmodell.js'), dctx);
 vm.runInContext(lies('js/vorfallmodell.js'), dctx);
@@ -152,7 +152,7 @@ const ctx = {
   module: { exports: {} },
 };
 ctx.globalThis = ctx;
-ctx.jsArg ??= jsArg; vm.createContext(ctx);
+ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
 vm.runInContext(lies('js/notfallmodell.js'), ctx);
 vm.runInContext(lies('js/assetmodell.js'), ctx);
 vm.runInContext(lies('js/vorfallmodell.js'), ctx);

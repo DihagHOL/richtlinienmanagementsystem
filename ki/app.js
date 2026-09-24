@@ -1892,7 +1892,7 @@ function renderLizenzen() {
       <td>${util}</td>
       <td>${upnCell}</td>
       <td class="${endeCls}">${endeLabel}${diff !== null && diff < 60 && diff >= 0 ? ` <small>(${Math.round(diff)}d)</small>` : ''}</td>
-      <td><span style="font-size:11px">${f[COL.autoRenewal] || '–'}</span></td>
+      <td><span style="font-size:11px">${esc(f[COL.autoRenewal] || '–')}</span></td>
     </tr>`;
   }).join('');
 
@@ -2819,7 +2819,7 @@ function mailTemplate(title, lines, ctaLabel, ctaUrl) {
   const safeOrigin = location.origin + location.pathname;
   const href = (ctaUrl && ctaUrl.startsWith(safeOrigin)) ? ctaUrl : safeOrigin;
   const cta = ctaLabel
-    ? `<p style="margin:24px 0 0"><a href="${esc(href)}"
+    ? `<p style="margin:24px 0 0"><a href="${esc(sichereUrl(href))}"
         style="background:#17509e;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600"
         >${esc(ctaLabel)}</a></p>`
     : '';
@@ -2925,10 +2925,19 @@ function jsArg(v) {
     .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/** Eine Adresse für href – nur http(s), mailto, Office-Protokolle, relativ; sonst '#'.
+ *  Gleiche Funktion wie in js/util.js. */
+function sichereUrl(u) {
+  const s = String(u ?? '').trim();
+  const m = s.replace(/[\u0000-\u0020\u007f]/g, '').match(/^([a-z][a-z0-9+.-]*):/i);
+  if (!m) return s;
+  return /^(https?|mailto|ms-word|ms-excel|ms-powerpoint)$/i.test(m[1]) ? s : '#';
+}
+
 function fmtDate(s) {
   if (!s) return '–';
   const d = new Date(s);
-  if (isNaN(d)) return s;
+  if (isNaN(d)) return esc(s);   // kein Datum: Text aus SharePoint – escapen wie alles andere
   return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
 }
 
@@ -3280,7 +3289,7 @@ async function renderAttachments(itemId) {
     listEl.innerHTML = files.map(att => {
       const fname = att.name || 'Datei';
       return `<div class="att-item">
-        <a class="att-name" href="${esc(att.url || '#')}" target="_blank" rel="noopener">📄 ${esc(fname)}</a>
+        <a class="att-name" href="${esc(sichereUrl(att.url || '#'))}" target="_blank" rel="noopener">📄 ${esc(fname)}</a>
         ${isGremium ? `<button class="att-del" data-item="${itemId}" data-fname="${esc(fname)}" data-source="${esc(att.source)}" onclick="attDelete(this.dataset.item, this.dataset.fname, this.dataset.source)">✕</button>` : ''}
       </div>`;
     }).join('');

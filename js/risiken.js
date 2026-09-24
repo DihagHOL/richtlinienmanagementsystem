@@ -86,10 +86,10 @@ async function initRisiken() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Risiko-Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Risiken" liegt bewusst auf der <b>ISMS-Site</b>
-        <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
+        <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
         ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
-        <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
+        <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Risiken</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
       <div style="margin-top:8px;line-height:1.9">${colList}</div>
       <div style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">
@@ -371,7 +371,7 @@ function renderRiskEditor() {
           : '<div class="field-hint">Keine Richtlinien geladen.</div>'}
         </div>
         <div style="font-weight:600;font-size:.85rem;margin:10px 0 4px">Betroffene Assets / Werte
-          <a href="${esc(typeof spAssetsListUrl === 'function' ? spAssetsListUrl() : '#')}" target="_blank" rel="noopener"
+          <a href="${esc(sichereUrl(typeof spAssetsListUrl === 'function' ? spAssetsListUrl() : '#'))}" target="_blank" rel="noopener"
              style="font-weight:400;font-size:.75rem;margin-left:6px">Assets-Liste ↗</a></div>
         <input type="text" id="rk-asset-filter" placeholder="Assets filtern …" oninput="rkRenderAssets()"
           style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:7px 10px;font-size:.85rem;font-family:inherit;margin-bottom:6px">

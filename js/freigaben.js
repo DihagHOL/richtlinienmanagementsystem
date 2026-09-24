@@ -500,7 +500,7 @@ function _zielgruppeMailHtml(p) {
     ${p.beschreibung ? `<p>${esc(p.beschreibung)}</p>` : ''}
     <p>${p.pflicht !== false ? `Bitte das Regelwerk <b>${wasTun}</b>.` : 'Das Regelwerk steht Ihnen zur Kenntnis bereit.'}
        Das dauert meist wenige Minuten.</p>
-    <p style="margin:18px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
+    <p style="margin:18px 0 6px"><a href="${esc(sichereUrl(url))}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:11px 22px;border-radius:7px;font-weight:600">Regelwerk öffnen →</a></p>
     ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management-System.
       Sie erhalten sie, weil dieses Regelwerk für Ihren Bereich gilt.`)}
   `);
@@ -770,7 +770,7 @@ function _wfDokumentHtml(p, attachmentName) {
   else if (p.dokumentName) zeilen.push(`📎 Hinterlegtes Dokument: <b>${esc(p.dokumentName)}</b> (nicht angehängt – zu groß oder nicht abrufbar).`);
   if (!zeilen.length && !p.dokumentUrl) return '';
   const link = p.dokumentUrl
-    ? `<p style="margin:6px 0 0"><a href="${esc(p.dokumentUrl)}" style="color:#17509e;font-weight:600;text-decoration:none">📄 Dokument in SharePoint öffnen →</a>
+    ? `<p style="margin:6px 0 0"><a href="${esc(sichereUrl(p.dokumentUrl))}" style="color:#17509e;font-weight:600;text-decoration:none">📄 Dokument in SharePoint öffnen →</a>
        <span style="color:#9ca3af;font-size:12px">(immer der aktuelle Stand, mit Versionsverlauf)</span></p>`
     : '';
   return `${zeilen.length ? `<p style="margin:12px 0 0">${zeilen.join('<br>')}</p>` : ''}${link}`;
@@ -1059,13 +1059,13 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
       : '';
   return mailRumpf(`
     <p><b>${esc(headline)}</b></p>
-    <p>Richtlinie: <a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ', ' + esc(p.regelwerkTyp) : ''})</p>
+    <p>Richtlinie: <a href="${esc(sichereUrl(url))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ', ' + esc(p.regelwerkTyp) : ''})</p>
     ${_mailGeltungsbereich(p) ? `<p style="margin:0 0 10px"><b>Geltungsbereich:</b> ${esc(_mailGeltungsbereich(p))}${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? ` · <b>Zielgruppe:</b> ${esc(p.zielgruppen.join(', '))}` : ''}</p>` : ''}
     <p>${esc(text)}</p>
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
-    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(url)}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
-    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(url)}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
+    ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(sichereUrl(url))}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
+    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(sichereUrl(url))}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 

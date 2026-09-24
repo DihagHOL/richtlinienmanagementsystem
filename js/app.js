@@ -614,7 +614,7 @@ async function openDetail(policyId) {
       <div class="doc-frame-wrap">
         <div class="doc-frame-head">
           <span class="t">📄 ${esc(p.dokumentName || 'Regelwerkdokument')}</span>
-          ${p.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener" onclick="unlockReadGate()">In SharePoint öffnen ↗</a>` : ''}
+          ${p.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(p.dokumentUrl))}" target="_blank" rel="noopener" onclick="unlockReadGate()">In SharePoint öffnen ↗</a>` : ''}
         </div>
         <div id="doc-frame-host"><div class="doc-loading">Vorschau wird geladen …</div></div>
       </div>
@@ -652,7 +652,7 @@ function renderLernvideos(p) {
          </div>`
       : `<div class="lernvideo">
            <div class="lernvideo-titel">▶ ${titel}</div>
-           <a class="btn btn-outline btn-sm" href="${esc(e.src)}" target="_blank" rel="noopener">Video ansehen ↗</a>
+           <a class="btn btn-outline btn-sm" href="${esc(sichereUrl(e.src))}" target="_blank" rel="noopener">Video ansehen ↗</a>
            ${quellzeile}
          </div>`;
   }).join('');
@@ -691,7 +691,7 @@ async function loadPreview(p) {
   if (!host) return;
   if (!p.dokumentDriveId || !p.dokumentItemId) {
     host.innerHTML = `<div class="doc-loading">Kein Dokument hinterlegt.${
-      p.dokumentUrl ? ` <a href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener">Dokument öffnen ↗</a>` : ''}</div>`;
+      p.dokumentUrl ? ` <a href="${esc(sichereUrl(p.dokumentUrl))}" target="_blank" rel="noopener">Dokument öffnen ↗</a>` : ''}</div>`;
     return;
   }
   try {
@@ -700,7 +700,7 @@ async function loadPreview(p) {
     host.innerHTML = `<iframe class="doc-frame" src="${esc(url)}" allowfullscreen></iframe>`;
   } catch (e) {
     host.innerHTML = `<div class="doc-loading">Vorschau nicht verfügbar.${
-      p.dokumentUrl ? ` <a href="${esc(p.dokumentUrl)}" target="_blank" rel="noopener">Dokument in SharePoint öffnen ↗</a>` : ''}</div>`;
+      p.dokumentUrl ? ` <a href="${esc(sichereUrl(p.dokumentUrl))}" target="_blank" rel="noopener">Dokument in SharePoint öffnen ↗</a>` : ''}</div>`;
   }
 }
 

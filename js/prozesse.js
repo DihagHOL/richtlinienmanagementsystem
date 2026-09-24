@@ -1615,7 +1615,7 @@ function _procChipsHtml(proc, ids, docs) {
   });
   if (!(ids || []).length) teile.push('<span class="pa-chip t-warn">keine Richtlinie verknüpft</span>');
   (docs || []).forEach(d => teile.push(d.url
-    ? `<a class="pa-chip pa-regelwerk" href="${esc(d.url)}" target="_blank" rel="noopener">📎 ${esc(d.name)}</a>`
+    ? `<a class="pa-chip pa-regelwerk" href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener">📎 ${esc(d.name)}</a>`
     : `<span class="pa-chip pa-regelwerk">📎 ${esc(d.name)}</span>`));
   return teile.join('');
 }
@@ -2044,7 +2044,7 @@ function _renderProcDocs(canWrite) {
     <div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:.82rem">
       <span>📎</span>
       ${d.url
-        ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
+        ? `<a href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
         : `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</span>`}
       ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px"
         title="Verknüpfung entfernen – die Datei selbst bleibt in der Bibliothek"

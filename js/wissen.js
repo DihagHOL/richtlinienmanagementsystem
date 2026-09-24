@@ -277,13 +277,13 @@ function _wiDetailHtml(b) {
     const e = (typeof videoEinbettung === 'function') ? videoEinbettung(b.url) : null;
     inhalt = e && e.art === 'einbetten'
       ? `<div class="lernvideo-rahmen"><iframe src="${esc(e.src)}" title="${esc(b.titel)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
-      : e ? `<a class="btn btn-primary" href="${esc(e.src)}" target="_blank" rel="noopener">▶ Video in neuem Tab öffnen</a>
+      : e ? `<a class="btn btn-primary" href="${esc(sichereUrl(e.src))}" target="_blank" rel="noopener">▶ Video in neuem Tab öffnen</a>
             <div class="field-hint" style="margin-top:6px">Dieses Video lässt sich nicht einbetten – es öffnet beim Anbieter.</div>`
           : '<div class="field-hint">Keine gültige Video-Adresse hinterlegt.</div>';
   } else if (b.art === 'artikel') {
     inhalt = `<div class="wi-artikel">${wiTextHtml(b.text)}</div>`;
   } else if (b.art === 'link') {
-    inhalt = `<a class="btn btn-primary" href="${esc(b.url)}" target="_blank" rel="noopener">🔗 Öffnen: ${esc(b.url.replace(/^https?:\/\//i, '').split('/')[0])}</a>
+    inhalt = `<a class="btn btn-primary" href="${esc(sichereUrl(b.url))}" target="_blank" rel="noopener">🔗 Öffnen: ${esc(b.url.replace(/^https?:\/\//i, '').split('/')[0])}</a>
       <div class="field-hint" style="margin-top:6px;word-break:break-all">${esc(b.url)}</div>`;
   } else {
     inhalt = `<div id="wi-test">

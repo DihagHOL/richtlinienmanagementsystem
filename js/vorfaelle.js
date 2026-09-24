@@ -50,7 +50,7 @@ async function initVorfaelle() {
     _vf = null; _vfLoading = false;
     mount.innerHTML = `<div class="col-warning" style="display:block"><b>Tickets nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:8px">Quelle ist die Liste <b>„${esc(typeof SP !== 'undefined' ? SP.ticketList : 'Tickets')}"</b> auf der Site „ticket":
-      <a href="${esc((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '#')}" target="_blank" rel="noopener">${esc((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '')}</a>. Ihr Konto braucht dort Leserecht.</div></div>`;
+      <a href="${esc(sichereUrl((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '#'))}" target="_blank" rel="noopener">${esc((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '')}</a>. Ihr Konto braucht dort Leserecht.</div></div>`;
     return;
   }
   _vfLoading = false;
@@ -157,7 +157,7 @@ function renderVorfaelle() {
       <select class="sort-select" onchange="_vfFilter.status=this.value;renderVorfaelle()"><option value="offen"${_vfFilter.status === 'offen' ? ' selected' : ''}>Status: offen</option><option value="erledigt"${_vfFilter.status === 'erledigt' ? ' selected' : ''}>erledigt</option><option value=""${_vfFilter.status === '' ? ' selected' : ''}>alle</option></select>
       <select class="sort-select" onchange="_vfFilter.einstufung=this.value;renderVorfaelle()"><option value="">Beurteilung: alle</option><option value="luecke"${_vfFilter.einstufung === 'luecke' ? ' selected' : ''}>mit Lücken</option>${VF_EINSTUFUNG.map(e => `<option value="${esc(e.key)}"${_vfFilter.einstufung === e.key && e.key ? ' selected' : ''}>${esc(e.label)}</option>`).join('')}</select>
       <div style="flex:1"></div>
-      <a href="${esc((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '#')}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Die Liste im Ticketsystem">↗ Ticketsystem</a>
+      <a href="${esc(sichereUrl((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Die Liste im Ticketsystem">↗ Ticketsystem</a>
       <span class="field-hint">${sicher.length} von ${(_vf.tickets || []).length} Tickets der letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate</span>
     </div>
     ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> – Beurteilungen kann hier niemand eintragen.</div>'}
@@ -221,7 +221,7 @@ function renderVorfallEditor() {
       <div><span class="field-hint">Bearbeitung</span><br>${esc(t.zugewiesen || '–')}${!t.offen ? `<br><span class="field-hint">erledigt ${_vfDt(t.abgeschlossen || t.geaendert)}</span>` : ''}</div>
     </div>
     ${t.beschreibung ? `<div style="font-size:.85rem;white-space:pre-wrap;max-height:140px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:var(--c-surface,#fff)">${esc(t.beschreibung)}</div>` : ''}
-    <div style="margin-top:6px"><a href="${esc(t.url)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Im Ticketsystem öffnen ↗</a> <span class="field-hint">Bearbeitet wird dort – Kommentare, Anhänge, Status.</span></div>`;
+    <div style="margin-top:6px"><a href="${esc(sichereUrl(t.url))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Im Ticketsystem öffnen ↗</a> <span class="field-hint">Bearbeitet wird dort – Kommentare, Anhänge, Status.</span></div>`;
 
   const bewertung = t.art !== 'incident' ? '' : `
       <div id="vf-luecken" style="margin:12px 0">${_vfLueckenHtml()}</div>

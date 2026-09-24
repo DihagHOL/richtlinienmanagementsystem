@@ -14,7 +14,7 @@ import vm from 'vm';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { createRequire as _requireFuerHelfer } from 'module';
-const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -128,7 +128,7 @@ const ctx = {
   localStorage: { getItem: () => null, setItem: () => {} },
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-ctx.jsArg ??= jsArg; vm.createContext(ctx);
+ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
 vm.runInContext(lies('js/prozessschema.js'), ctx);
 vm.runInContext(lies('js/prozesse.js'), ctx);
 const run = (code, extra) => vm.runInContext(code, Object.assign(ctx, extra || {}));

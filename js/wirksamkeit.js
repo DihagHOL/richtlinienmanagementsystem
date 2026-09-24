@@ -182,10 +182,10 @@ async function initWirksamkeit() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Wirksamkeit" liegt wie Risiken und Ausnahmen auf der <b>ISMS-Site</b>
-        <a href="${esc(ismsUrl)}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
+        <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
         ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
-        <a href="${esc(contents)}" target="_blank" rel="noopener">Websiteinhalte öffnen ↗</a>
+        <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Wirksamkeit</code>, dann diese Spalten:</div>
       <div style="margin-top:8px;line-height:1.9">${cols.map(c =>
         `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ')}</div>

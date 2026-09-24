@@ -31,6 +31,25 @@ function jsArg(v) {
 }
 
 /**
+ * Eine Adresse für href: nur Schemata, die ein Link hier braucht.
+ *
+ * `esc()` schützt das Attribut, aber nicht vor `javascript:…` – eine solche
+ * Adresse ist ein gültiger Attributwert und läuft beim Klick als Code.
+ * `DokumentUrl` ist in SharePoint ein freies Textfeld, Ticket- und
+ * Asset-Links ebenso. Erlaubt sind http(s), mailto, die Office-Protokolle
+ * (ms-word: …) und relative Adressen; alles andere wird zu '#'.
+ * Steuerzeichen und Leerraum fallen vor dem Vergleich weg – so, wie der
+ * Browser sie beim Lesen des Schemas auch überspringt („java\tscript:").
+ * Nutzung: href="${esc(sichereUrl(url))}".
+ */
+function sichereUrl(u) {
+  const s = String(u ?? '').trim();
+  const m = s.replace(/[\u0000-\u0020\u007f]/g, '').match(/^([a-z][a-z0-9+.-]*):/i);
+  if (!m) return s;
+  return /^(https?|mailto|ms-word|ms-excel|ms-powerpoint)$/i.test(m[1]) ? s : '#';
+}
+
+/**
  * Ein Eintrag des Prozess-Verknüpfungs-Caches, auf eine Form gebracht.
  *
  * Der Cache (`_procLinkCache` in `js/prozesse.js`, gespiegelt in
@@ -133,7 +152,7 @@ function druckKopf(zeile) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { jsArg, fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
+  module.exports = { jsArg, sichereUrl, fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
 }
 
 /* ═══════════════════════════════════════════════════

@@ -180,7 +180,7 @@ function newRegelwerkGate() {
     <div class="modal-header"><h3>Neues Regelwerk</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p style="line-height:1.55;margin:0 0 10px">Komplett <b>neue</b> Regelwerke müssen zuerst als <b>Konzept</b> an die Geschäftsleitung (Beantragung &amp; Prüfung). Erst nach Annahme entsteht daraus ein Regelwerk-Entwurf.</p>
-      <p style="margin:0 0 10px"><a href="${esc(MUSTER_VORLAGE_URL)}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📁 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>
+      <p style="margin:0 0 10px"><a href="${esc(sichereUrl(MUSTER_VORLAGE_URL))}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📁 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>
       <p class="field-hint" style="margin:0">„Direkt anlegen" nur für <b>bestehende</b> Dokumente / Migration verwenden.</p>
     </div>
     <div class="modal-footer">
@@ -632,7 +632,7 @@ async function openDocVersions() {
     <div class="modal-header"><h3>🕘 Versionsverlauf – ${esc(_editing.dokumentName || 'Dokument')}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
     <div class="modal-body" id="ver-body"><div class="doc-loading">Versionen werden geladen …</div></div>
     <div class="modal-footer">
-      ${_editing.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(_editing.dokumentUrl)}" target="_blank" rel="noopener">In SharePoint öffnen</a>` : ''}
+      ${_editing.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(_editing.dokumentUrl))}" target="_blank" rel="noopener">In SharePoint öffnen</a>` : ''}
       <button class="btn btn-ghost" onclick="pickerClose()">Schließen</button>
     </div>`);
   try {
@@ -650,7 +650,7 @@ async function openDocVersions() {
             <td>${fmtDateTime(v.modified)}</td>
             <td>${esc(v.by || '–')}</td>
             <td class="num">${v.size ? Math.max(1, Math.round(v.size / 1024)) + ' KB' : '–'}</td>
-            <td class="num">${v.url ? `<a class="btn btn-ghost btn-sm" href="${esc(v.url)}" target="_blank" rel="noopener">Ansehen</a>` : ''}</td>
+            <td class="num">${v.url ? `<a class="btn btn-ghost btn-sm" href="${esc(sichereUrl(v.url))}" target="_blank" rel="noopener">Ansehen</a>` : ''}</td>
           </tr>`).join('')}</tbody>
       </table>`;
   } catch (e) {
@@ -1633,7 +1633,7 @@ function _mitMailHtml(p, label, attachmentName) {
     <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
     <p>Empfänger: <b>${esc(label)}</b></p>
     <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
-    <p style="font-size:16px"><a href="${esc(url)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
+    <p style="font-size:16px"><a href="${esc(sichereUrl(url))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
     ${geltungsbereichLabel(p.geltungsbereich)
       ? `<p><b>Geltungsbereich:</b> ${esc(geltungsbereichLabel(p.geltungsbereich))}${p.mitbestimmung && Array.isArray(p.mitbestimmung.werke) && p.mitbestimmung.werke.length
           ? ` · <b>betroffene Werke:</b> ${esc(p.mitbestimmung.werke.join(', '))}` : ''}</p>` : ''}
@@ -1941,7 +1941,7 @@ function reminderHtml(p) {
     <p>für die Pflicht-Richtlinie <b>„${esc(p.title)}"</b> (Version ${esc(p.version)}) liegt von Ihnen noch keine ${p.quizErforderlich ? 'abgeschlossene Bearbeitung (Kenntnisnahme + Wissenstest)' : 'Kenntnisnahme'} vor.</p>
     ${geltungsbereichLabel(p.geltungsbereich) ? `<p style="color:#6b7280;font-size:14px">Gilt für: ${esc(geltungsbereichLabel(p.geltungsbereich))}</p>` : ''}
     <p>Bitte holen Sie das zeitnah nach:</p>
-    <p><a href="${url}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
+    <p><a href="${esc(sichereUrl(url))}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Zum Richtlinienmanagement →</a></p>
     ${mailFuss(`Automatische Erinnerung vom DIHAG Regelwerk-Management-System.`)}
   `);
 }

@@ -288,6 +288,19 @@ head('5. Sicherheit – Werte in Inline-Handlern');
   }
   if (!treffer) ok(`keine Handler-Werte in '…'-Strings oder über esc() (${quellen.length} Dateien)`);
 
+  // Links: esc() schützt das Attribut, nicht vor „javascript:…". Jede
+  // eingesetzte Adresse läuft deshalb über sichereUrl().
+  let roheLinks = 0;
+  for (const f of quellen) {
+    const src = rd(f);
+    for (const m of src.matchAll(/href="\$\{(?!esc\(sichereUrl\()([^}]*)\}/g)) {
+      const zeile = src.slice(0, m.index).split('\n').length;
+      fail(`${f}:${zeile}: Link ohne sichereUrl() – href="\${${m[1].slice(0, 60)}}"`);
+      roheLinks++;
+    }
+  }
+  if (!roheLinks) ok('alle eingesetzten Links laufen über sichereUrl()');
+
   // Der Helfer selbst: Ein Hochkomma, Anführungszeichen oder Backslash darf
   // den String nicht verlassen – geprüft am entschlüsselten Attributwert.
   const hctx = { module: { exports: {} } };

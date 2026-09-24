@@ -16,6 +16,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echte Helfer für Handler und Links
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -43,7 +45,7 @@ const kctx = {
   window: { crypto: { getRandomValues: (b) => { for (let i = 0; i < b.length; i++) b[i] = (i * 37 + 11) % 256; return b; } } },
 };
 kctx.globalThis = kctx;
-vm.createContext(kctx);
+kctx.jsArg ??= jsArg; kctx.sichereUrl ??= sichereUrl; vm.createContext(kctx);
 vm.runInContext(lies('js/mailbau.js'), kctx);
 vm.runInContext(lies('js/konzepte.js'), kctx);
 // Token-Erzeugung und -Prüfung leben in freigaben.js – genau diese beiden Funktionen.
@@ -109,7 +111,7 @@ const fctx = {
   markKonform: (id, k) => spur.push('konform:' + id + ':' + k),
 };
 fctx.globalThis = fctx;
-vm.createContext(fctx);
+fctx.jsArg ??= jsArg; fctx.sichereUrl ??= sichereUrl; vm.createContext(fctx);
 vm.runInContext(nurFunktion(fg, '/**\n * Aus einem Mail-Link OHNE gültiges Token', 'function _votesHtml'), fctx);
 const mailKlick = async (aktion) => { spur.length = 0; vm.runInContext(`handleMailAction('42', '${aktion}')`, fctx); await warte(); return spur.slice(); };
 

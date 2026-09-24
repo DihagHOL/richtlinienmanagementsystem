@@ -16,6 +16,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echte Helfer für Handler und Links
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -41,7 +43,7 @@ const fctx = {
   _wfApprovalsHtml: () => '',
 };
 fctx.window = fctx; fctx.globalThis = fctx;
-vm.createContext(fctx);
+fctx.jsArg ??= jsArg; fctx.sichereUrl ??= sichereUrl; vm.createContext(fctx);
 vm.runInContext(lies('js/mailbau.js'), fctx);   // Rumpf und Knopf
 vm.runInContext(lies('js/freigaben.js'), fctx);
 const run = (s) => vm.runInContext(s, fctx);

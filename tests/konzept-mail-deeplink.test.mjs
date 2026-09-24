@@ -2,11 +2,13 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echte Helfer für Handler und Links
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let pass=0, fail=0; const ok=(c,m)=>{ if(c){pass++;console.log('  ✓',m);}else{fail++;console.log('  ✗',m);} };
 const kctx={ console, esc, fmtDate:()=> '', emptyState:()=> '', toast:()=>{}, State:{user:{}}, openModal:()=>{}, isCurrentUserGeschaeftsleitung:()=>false, canWriteTab:()=>true };
-kctx.window=kctx; kctx.globalThis=kctx; vm.createContext(kctx);
+kctx.window=kctx; kctx.globalThis=kctx; kctx.jsArg ??= jsArg; kctx.sichereUrl ??= sichereUrl; vm.createContext(kctx);
 vm.runInContext(fs.readFileSync(ROOT+'/js/mailbau.js','utf8'), kctx);   // Rumpf und Knopf
 vm.runInContext(fs.readFileSync(ROOT+'/js/konzepte.js','utf8'), kctx);
 const run=(s)=>vm.runInContext(s,kctx);

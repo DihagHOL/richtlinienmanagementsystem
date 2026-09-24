@@ -17,6 +17,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg, sichereUrl } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echte Helfer für Handler und Links
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -57,7 +59,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
     _get: async (url) => { abrufe++; return url === 'SEITE2' ? seiten[1] : seiten[0]; },
     String, Object, Array,
   };
-  vm.createContext(ctx);
+  ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
   vm.runInContext(funktion('js/sharepoint.js', 'spGetM365Nachweise'), ctx);
   const m = await vm.runInContext('spGetM365Nachweise()', ctx);
   ok(m['A.8.5'] && m['A.8.5'].wert === 'neu', 'je Control gewinnt der jüngste Nachweis (über Seiten hinweg)');
@@ -74,7 +76,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 {
   const src = lies('js/soa.js');
   const ctx = { esc, fmtDate: (d) => String(d || '').slice(0, 10), encodeURIComponent, Object };
-  vm.createContext(ctx);
+  ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
   const teil = src.slice(src.indexOf('let _soaM365 = null;'), src.indexOf('/** Kleine Zeile unter der Bezeichnung'));
   vm.runInContext(teil.split('let _soaM365').join('var _soaM365').split('const SOA_COCKPIT_URL').join('var SOA_COCKPIT_URL'), ctx);
   vm.runInContext(funktion('js/soa.js', '_soaM365Zeile'), ctx);
@@ -102,7 +104,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
     _risks: [{ id: '12' }], _wirk: [{ id: '7' }], _soaFilter: { q: '', nur: '' },
     URLSearchParams, Date, Promise, setTimeout, String, Array,
   };
-  vm.createContext(ctx);
+  ctx.jsArg ??= jsArg; ctx.sichereUrl ??= sichereUrl; vm.createContext(ctx);
   // _risks/_wirk/_soaFilter sind im RMS globale let-Variablen; hier Eigenschaften des Kontexts.
   vm.runInContext(funktion('js/app.js', '_ansichtZielOeffnen'), ctx);
   const lauf = (ansicht, q) => vm.runInContext(`_ansichtZielOeffnen(${JSON.stringify(ansicht)}, new URLSearchParams(${JSON.stringify(q)}))`, ctx);
