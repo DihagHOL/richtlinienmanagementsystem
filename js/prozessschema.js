@@ -579,7 +579,7 @@ const PROZESS_ARTEN = {
 };
 
 /* Ein Ergebnis, das niemand will, sagt es im Namen. */
-const PS_ABBRUCH_RE = /abgelehnt|zurückgewiesen|zurueckgewiesen|abgebrochen|gescheitert|fehlgeschlagen|verworfen|storniert|eskaliert|nicht\s+(erteilt|genehmigt|freigegeben|bestanden|möglich|zulässig|erfolgt)/i;
+const PS_ABBRUCH_RE = /abgelehnt|zurückgewiesen|zurueckgewiesen|abgebrochen|gescheitert|fehlgeschlagen|\bfehler\b|verworfen|storniert|eskaliert|nicht\s+(erteilt|genehmigt|freigegeben|bestanden|möglich|zulässig|erfolgt)/i;
 
 /** BPMN-Typ und Name → Art (Schlüssel in PROZESS_ARTEN); leer für Unbekanntes. */
 function prozessArt(typ, name) {

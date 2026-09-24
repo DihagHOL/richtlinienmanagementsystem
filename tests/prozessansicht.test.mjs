@@ -31,6 +31,8 @@ ok(S.prozessArt('bpmn:callActivity') === 'unter' && S.prozessArt('exclusiveGatew
 ok(S.prozessArt('endEvent', 'Antrag abgelehnt') === 'abbruch' && S.prozessArt('endEvent', 'Freigabe nicht erteilt') === 'abbruch'
   && S.prozessArt('endEvent', 'Bedarf gedeckt') === 'ende',
   'Ein Ergebnis, das niemand will, wird rot; ein gutes grün');
+ok(S.prozessArt('endEvent', 'Fehler Nachbearbeitung') === 'abbruch' && S.prozessArt('endEvent', 'Fehlerfrei gebucht') === 'ende',
+  '„Fehler" als eigenes Wort macht ein Ende rot, „Fehlerfrei" nicht');
 ok(S.prozessArt('task') === 'ohne' && S.prozessArt('irgendwas') === '', 'Nackte Aufgabe hat eine eigene Art, Unbekanntes keine');
 const A = S.PROZESS_ARTEN;
 ok(Object.values(A).every(a => /^#[0-9A-F]{6}$/i.test(a.fill) && /^#[0-9A-F]{6}$/i.test(a.stroke) && a.titel && a.symbol),
@@ -145,6 +147,8 @@ ok((gebuendelt.match(/<tr/g) || []).length === 2 && /<b>4 Stellen:<\/b>/.test(ge
   'Ab drei Befunden einer Regel eine Zeile mit den Stellen, statt viermal derselbe Satz');
 ok(/data-befund="T3"[^>]*onclick="procStelleZeigen\('T3'\)"[^>]*>Aufgabe T3</.test(gebuendelt), 'Jede Stelle im Bündel ist ein Chip, der ins Diagramm springt');
 ok(/<tr class="pa-klick" data-befund="L9"/.test(gebuendelt), 'Einzelne Befunde bleiben eigene Zeilen');
+const r9 = run('_procBefundeHtml(__r9, {})', { __r9: { fehler: [], hinweise: S.prozessSchemaPruefen(xml, { policyIds: [] }).hinweise.filter(f => f.regel === 'R9') } });
+ok((r9.match(/Gewohnheit, keine Vorgabe/g) || []).length === 1, 'Steht die Begründung schon im Befund, erscheint sie nicht ein zweites Mal');
 ok(/✓ Hausschema erfüllt/.test(run('_procBefundeHtml({ fehler: [], hinweise: [] }, {})')), 'Ohne Befund: ein grüner Chip');
 
 const schritte = run('_procSchritteHtml(__a, null)', { __a: a });

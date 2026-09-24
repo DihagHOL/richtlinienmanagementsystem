@@ -1500,7 +1500,8 @@ function _procBefundeHtml(r, opt) {
     const klick = f.id
       ? ` class="pa-klick" data-befund="${esc(f.id)}" onclick="procStelleZeigen('${esc(f.id)}')" title="Stelle im Diagramm zeigen"` : '';
     return `<tr${klick}><td>${chip(art)}</td>
-      <td><b>${esc(f.regel)}</b> ${esc(f.text)}${regel && !o.kompakt ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
+      <td><b>${esc(f.regel)}</b> ${esc(f.text)}${regel && !o.kompakt && !String(f.text).includes(regel.warum)
+        ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
   };
   // Ab drei Befunden derselben Regel eine Zeile: die Regel einmal, die Stellen
   // als Chips. Sieben Mal derselbe Satz liest niemand bis zum Ende.
