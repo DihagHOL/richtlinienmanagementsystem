@@ -167,7 +167,7 @@ function renderAssets() {
       const ri = _amRisikenVon(a.id, a.quelleId);
       const l = _amLuecken(a);
       const traeger = _amTraegerText(a);
-      return `<tr onclick="openAssetEditor('${esc(a.id)}')" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
+      return `<tr onclick="openAssetEditor(${jsArg(a.id)})" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
         <td><b>${esc(a.titel)}</b>${a.link.url ? ` <a href="${esc(a.link.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.link.text || a.link.url)}" style="text-decoration:none">🔗</a>` : ''}${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${traeger.length ? `<div style="font-size:.68rem;color:var(--c-faint)" title="Liegt auf / hängt ab von">↳ ${esc(traeger.join(' · '))}</div>` : ''}</td>
         <td style="white-space:nowrap">${k ? `${k.symbol} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
         <td style="white-space:nowrap">${a.werke.length ? (a.werke.includes('ALLE') ? 'konzernweit' : esc(a.werke.join(', '))) : '<span style="color:#b45309">–</span>'}</td>
@@ -287,7 +287,7 @@ function _amAbhHtml() {
   const andere = (_am || []).map(amVon).filter(x => x.id && x.id !== a.id && x.status !== 'außer Betrieb')
     .filter(x => !filter || (x.titel + ' ' + x.kategorie).toLowerCase().includes(filter));
   const sel = new Set(a.abhaengigVon);
-  const row = (x) => `<label class="ack-check" style="font-weight:500"><input type="checkbox" ${sel.has(x.id) ? 'checked' : ''} onchange="amAbhToggle('${esc(x.id)}',this.checked)">
+  const row = (x) => `<label class="ack-check" style="font-weight:500"><input type="checkbox" ${sel.has(x.id) ? 'checked' : ''} onchange="amAbhToggle(${jsArg(x.id)},this.checked)">
     <span><b>${esc(x.titel)}</b> <span style="color:var(--c-faint)">${esc(amKurz(x, _amKats()))}</span></span></label>`;
   const gewaehlt = andere.filter(x => sel.has(x.id)), rest = andere.filter(x => !sel.has(x.id));
   return (gewaehlt.map(row).join('') + rest.slice(0, 60).map(row).join('')) || '<div class="field-hint">Keine anderen Assets.</div>';
@@ -312,11 +312,11 @@ function _amZusatzHtml(a, ro) {
     const v = (a.zusatz || {})[f.key];
     const w = v === undefined || v === null ? '' : String(v);
     let inp;
-    if (f.typ === 'zahl') inp = `<input type="number" step="any" value="${esc(w)}" onchange="amZusatzSetzen('${f.key}',this.value)"${ro}>`;
-    else if (f.typ === 'datum') inp = `<input type="date" value="${esc(w.slice(0, 10))}" onchange="amZusatzSetzen('${f.key}',this.value)"${ro}>`;
-    else if (f.typ === 'jaNein') inp = `<select onchange="amZusatzSetzen('${f.key}',this.value)"${ro}><option value=""${!w ? ' selected' : ''}>–</option><option value="ja"${w === 'ja' ? ' selected' : ''}>ja</option><option value="nein"${w === 'nein' ? ' selected' : ''}>nein</option></select>`;
-    else if (f.typ === 'auswahl') inp = `<select onchange="amZusatzSetzen('${f.key}',this.value)"${ro}><option value="">–</option>${f.optionen.map(o => `<option value="${esc(o)}"${w === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-    else inp = `<input type="text" value="${esc(w)}" oninput="amZusatzSetzen('${f.key}',this.value)"${ro}>`;
+    if (f.typ === 'zahl') inp = `<input type="number" step="any" value="${esc(w)}" onchange="amZusatzSetzen(${jsArg(f.key)},this.value)"${ro}>`;
+    else if (f.typ === 'datum') inp = `<input type="date" value="${esc(w.slice(0, 10))}" onchange="amZusatzSetzen(${jsArg(f.key)},this.value)"${ro}>`;
+    else if (f.typ === 'jaNein') inp = `<select onchange="amZusatzSetzen(${jsArg(f.key)},this.value)"${ro}><option value=""${!w ? ' selected' : ''}>–</option><option value="ja"${w === 'ja' ? ' selected' : ''}>ja</option><option value="nein"${w === 'nein' ? ' selected' : ''}>nein</option></select>`;
+    else if (f.typ === 'auswahl') inp = `<select onchange="amZusatzSetzen(${jsArg(f.key)},this.value)"${ro}><option value="">–</option>${f.optionen.map(o => `<option value="${esc(o)}"${w === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    else inp = `<input type="text" value="${esc(w)}" oninput="amZusatzSetzen(${jsArg(f.key)},this.value)"${ro}>`;
     return `<div class="form-group"><label>${esc(f.label)}${f.pflicht ? ' <span class="req">*</span>' : ''}</label>${inp}</div>`;
   }).join('')}</div>`;
 }
@@ -335,8 +335,8 @@ function renderAssetEditor() {
   const zeit = (feld, label, hilfe, pflicht) => {
     const e = (typeof nfDauerEingabe === 'function') ? nfDauerEingabe(a[feld]) : { wert: a[feld], einheit: 'h' };
     return `<div class="form-group"><label>${label}${pflicht ? ' <span class="req">*</span>' : ''}</label>
-      <div style="display:flex;gap:6px"><input type="number" min="0" step="0.5" id="am-${feld}-wert" value="${esc(e.wert)}" style="width:90px" onchange="amZeit('${feld}')"${ro}>
-      <select id="am-${feld}-einheit" onchange="amZeit('${feld}')"${ro}>${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x === 'h' ? 'Stunden' : 'Minuten'}</option>`).join('')}</select></div>
+      <div style="display:flex;gap:6px"><input type="number" min="0" step="0.5" id="am-${feld}-wert" value="${esc(e.wert)}" style="width:90px" onchange="amZeit(${jsArg(feld)})"${ro}>
+      <select id="am-${feld}-einheit" onchange="amZeit(${jsArg(feld)})"${ro}>${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x === 'h' ? 'Stunden' : 'Minuten'}</option>`).join('')}</select></div>
       <span class="field-hint">${hilfe}</span></div>`;
   };
   // Die Auswahl zeigt, was die Spalte der Liste kennt (Choice), sonst die BSI-Skala; ein Wert,
@@ -345,7 +345,7 @@ function renderAssetEditor() {
   const sb = (feld, spalte, label, hilfe) => { const opts = wahlVon(spalte) || AM_SCHUTZBEDARF; const cur = a[feld];
     const drin = opts.some(v => String(v).toLowerCase() === cur);
     return `<div class="form-group"><label>${label}${cur && amRang(cur) >= 0 ? ` <span class="field-hint" style="font-weight:400">→ ${esc(amStufeLabel(amRang(cur)))}</span>` : ''}</label>
-    <select onchange="amSet('${feld}',this.value.toLowerCase())"${ro}><option value=""${!cur ? ' selected' : ''}>– nicht bewertet –</option>${opts.map(v => `<option value="${esc(v)}"${String(v).toLowerCase() === cur ? ' selected' : ''}>${esc(v)}</option>`).join('')}${cur && !drin ? `<option value="${esc(cur)}" selected>${esc(cur)} (aus der Liste)</option>` : ''}</select>
+    <select onchange="amSet(${jsArg(feld)},this.value.toLowerCase())"${ro}><option value=""${!cur ? ' selected' : ''}>– nicht bewertet –</option>${opts.map(v => `<option value="${esc(v)}"${String(v).toLowerCase() === cur ? ' selected' : ''}>${esc(v)}</option>`).join('')}${cur && !drin ? `<option value="${esc(cur)}" selected>${esc(cur)} (aus der Liste)</option>` : ''}</select>
     <span class="field-hint">${hilfe}</span></div>`; };
   const histRows = (a.historie || []).slice().reverse().slice(0, 15).map(h =>
     `<div style="font-size:.75rem;color:var(--c-muted);padding:2px 0">${fmtDateTime(h.datum)} · <b>${esc(h.wer || '')}</b> · ${esc(h.aktion || '')}</div>`).join('');
@@ -376,7 +376,7 @@ function renderAssetEditor() {
         <div class="form-group full"><label>Werke <span class="req">*</span></label>
           <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:6px">
             <label class="ack-check" style="font-weight:600"><input type="checkbox" ${a.werke.includes('ALLE') ? 'checked' : ''} onchange="amWerkToggle('ALLE',this.checked)"${ro || (_amNurLesen('Werke') ? ' disabled' : '')}> konzernweit</label>
-            ${werke.map(w => `<label class="ack-check" style="font-weight:500${a.werke.includes('ALLE') ? ';opacity:.5' : ''}"><input type="checkbox" ${a.werke.includes(w) ? 'checked' : ''} ${a.werke.includes('ALLE') || _amNurLesen('Werke') ? 'disabled' : ''} onchange="amWerkToggle('${esc(w)}',this.checked)"${ro}> ${esc(w)}</label>`).join('')}
+            ${werke.map(w => `<label class="ack-check" style="font-weight:500${a.werke.includes('ALLE') ? ';opacity:.5' : ''}"><input type="checkbox" ${a.werke.includes(w) ? 'checked' : ''} ${a.werke.includes('ALLE') || _amNurLesen('Werke') ? 'disabled' : ''} onchange="amWerkToggle(${jsArg(w)},this.checked)"${ro}> ${esc(w)}</label>`).join('')}
           </div><span class="field-hint">Die Trennung nach Gesellschaft und die Notfall-Sichten hängen daran.</span>${_amRoHinweis('Werke')}</div>
         <div class="form-group"><label>Standort (frei)</label>
           <input type="text" value="${esc(a.standort)}" oninput="amSet('standort',this.value)" placeholder="Gebäude, Raum, Rack, Halle"${ro}></div>
@@ -448,7 +448,7 @@ function renderAssetEditor() {
       ${histRows ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)"><div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verlauf</div>${histRows}</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${a.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteAsset('${esc(a.id)}')" style="color:#b91c1c">Löschen</button>` : ''}
+      ${a.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteAsset(${jsArg(a.id)})" style="color:#b91c1c">Löschen</button>` : ''}
       <div style="flex:1"></div>
       ${canWrite ? `<button class="btn btn-primary" id="am-save-btn" onclick="saveAsset()">Speichern</button>` : ''}
       <button class="btn btn-ghost" onclick="closeModal()">Schließen</button>

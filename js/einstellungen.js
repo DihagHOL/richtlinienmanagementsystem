@@ -46,7 +46,7 @@ function cfgBereich(name) {
 function _cfgBereichLeiste() {
   const seg = (m, label) => {
     const on = _cfgBereich === m;
-    return `<button type="button" onclick="cfgBereich('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label}</button>`;
+    return `<button type="button" onclick="cfgBereich(${jsArg(m)})" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label}</button>`;
   };
   return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
     ${seg('rollen', 'Rollen &amp; Verfahren')}${seg('reiter', '🔑 Reiter-Berechtigungen')}${seg('assets', '🗂 Assetregister')}${seg('vorfaelle', '🎫 Vorfälle')}</div>`;
@@ -195,7 +195,7 @@ function _rollenBereichHtml() {
             ${(typeof MITBESTIMMUNG_WERKE !== 'undefined' ? MITBESTIMMUNG_WERKE : []).map(code => `
               <div class="form-group"><label>${esc(code)}</label>
                 <input type="email" value="${esc((_cfgEdit.brMails || {})[code] || '')}"
-                  oninput="mitSetBrMail('${code}', this.value)"></div>`).join('')}
+                  oninput="mitSetBrMail(${jsArg(code)}, this.value)"></div>`).join('')}
           </div>
           <div class="field-hint" style="margin-top:10px">Leer lassen, wenn (noch) kein Betriebsrat hinterlegt ist. Fehlt eine Adresse für ein betroffenes Werk, erscheint beim Einreichen ein Hinweis.</div>
         </div>
@@ -351,8 +351,8 @@ function roleCard(role, title) {
       <div style="display:flex;gap:8px;margin-top:10px">
         <input type="email" id="cfg-input-${role}" placeholder="name@dihag.com"
           style="flex:1;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.875rem;font-family:inherit"
-          onkeydown="if(event.key==='Enter')cfgAdd('${role}')">
-        <button class="btn btn-outline btn-sm" onclick="cfgAdd('${role}')">+ Hinzufügen</button>
+          onkeydown="if(event.key==='Enter')cfgAdd(${jsArg(role)})">
+        <button class="btn btn-outline btn-sm" onclick="cfgAdd(${jsArg(role)})">+ Hinzufügen</button>
       </div>
     </div>
   </div>`;
@@ -571,7 +571,7 @@ function rrRenderBody() {
       : 'color:var(--c-muted)';
     const titel = `${e.name} · ${t.label}: ${st === 'S' ? 'Schreiben' : st === 'L' ? 'Lesen' : 'kein Zugriff'} (klicken zum Weiterschalten)`;
     return `<td style="padding:3px 4px;text-align:center">
-      <button type="button" onclick="rrCycle('${t.view}','${esc(e.key)}')" title="${esc(titel)}"
+      <button type="button" onclick="rrCycle(${jsArg(t.view)},${jsArg(e.key)})" title="${esc(titel)}"
         style="border:1px solid var(--c-border);border-radius:6px;width:30px;height:26px;cursor:pointer;font:inherit;font-size:.75rem;font-weight:700;${farbe}">${st === '-' ? '–' : st}</button></td>`;
   };
 
@@ -586,8 +586,8 @@ function rrRenderBody() {
             const st = _rrStufe(t.view, e.key);
             return `<tr>
               <td style="padding:3px 8px">${esc(t.label)}</td>
-              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st !== '-' ? 'checked' : ''} onchange="rrToggle('${t.view}','lesen','${esc(e.key)}',this.checked)"></td>
-              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st === 'S' ? 'checked' : ''} onchange="rrToggle('${t.view}','schreiben','${esc(e.key)}',this.checked)"></td>
+              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st !== '-' ? 'checked' : ''} onchange="rrToggle(${jsArg(t.view)},'lesen',${jsArg(e.key)},this.checked)"></td>
+              <td style="padding:3px 8px;text-align:center"><input type="checkbox" ${st === 'S' ? 'checked' : ''} onchange="rrToggle(${jsArg(t.view)},'schreiben',${jsArg(e.key)},this.checked)"></td>
             </tr>`;
           }).join('')}</tbody>
         </table>
@@ -603,7 +603,7 @@ function rrRenderBody() {
     return `<tr>
         <td style="padding:5px 8px;position:sticky;left:0;background:var(--c-bg)">
           <div style="display:flex;align-items:center;gap:6px">
-            <button type="button" onclick="rrToggleOffen('${esc(e.key)}')" aria-expanded="${offen}"
+            <button type="button" onclick="rrToggleOffen(${jsArg(e.key)})" aria-expanded="${offen}"
               title="Einzelne Reiter mit Beschriftung anzeigen"
               style="border:0;background:none;cursor:pointer;font:inherit;color:var(--c-muted);padding:0 2px">${offen ? '▾' : '▸'}</button>
             <span>${e.art === 'gesellschaft' ? '🏭' : e.art === 'gruppe' ? '👥' : '👤'}</span>
@@ -612,7 +612,7 @@ function rrRenderBody() {
           </div></td>
         ${GOVERNABLE_TABS.map(t => zelle(t, e)).join('')}
         <td style="padding:5px 4px;text-align:right">
-          <button class="btn btn-ghost btn-sm" onclick="rrRemove('${esc(e.key)}')" title="Alle Reiter-Rechte dieses Eintrags entfernen">✕</button></td>
+          <button class="btn btn-ghost btn-sm" onclick="rrRemove(${jsArg(e.key)})" title="Alle Reiter-Rechte dieses Eintrags entfernen">✕</button></td>
       </tr>${offen ? detail(e) : ''}`;
   }).join('');
 
@@ -845,7 +845,7 @@ function rrRenderDomaenen() {
   const vorschlaege = _rrGefunden.length
     ? `<div class="field-hint" style="margin-top:10px">Im Verzeichnis gefunden – anklicken zum Übernehmen:
         ${_rrGefunden.slice(0, 12).map(g => `<button type="button" class="btn btn-ghost btn-sm"
-          onclick="rrAddDomaene('${esc(g.domaene)}')">${esc(g.domaene)} <span style="opacity:.6">· ${g.anzahl}</span></button>`).join(' ')}</div>`
+          onclick="rrAddDomaene(${jsArg(g.domaene)})">${esc(g.domaene)} <span style="opacity:.6">· ${g.anzahl}</span></button>`).join(' ')}</div>`
     : '';
 
   const werkzeug = `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
@@ -868,7 +868,7 @@ function rrRenderDomaenen() {
     const gesetzt = gesellschaftDatenEntwurf(d).werke;
     return standorte.map(w => {
       const an = gesetzt.includes(w);
-      return `<button type="button" onclick="rrWerkToggle('${esc(d)}','${esc(w)}',${!an})"
+      return `<button type="button" onclick="rrWerkToggle(${jsArg(d)},${jsArg(w)},${!an})"
         title="${esc(w)} ${an ? 'wieder wegnehmen' : 'dieser Gesellschaft zuordnen'}"
         style="border:1px solid var(--c-border);border-radius:6px;padding:2px 7px;margin:1px;cursor:pointer;
                font:inherit;font-size:.74rem;font-weight:700;${an
@@ -884,11 +884,11 @@ function rrRenderDomaenen() {
         <td style="padding:4px 8px;vertical-align:top"><code>@${esc(d)}</code>${d === eigen
           ? ' <span class="ic-tag" title="So sind Sie gerade angemeldet">Ihre</span>' : ''}</td>
         <td style="padding:4px 8px;vertical-align:top;min-width:150px"><input type="text" value="${esc(gesellschaftDatenEntwurf(d).name)}"
-          placeholder="${esc(d)}" onchange="rrGesellschaftName('${esc(d)}',this.value)"
+          placeholder="${esc(d)}" onchange="rrGesellschaftName(${jsArg(d)},this.value)"
           style="width:100%;${_rrFeldStil}"></td>
         <td style="padding:4px 8px;vertical-align:top">${werkeZellen(d)}</td>
         <td style="padding:4px 4px;text-align:right;vertical-align:top"><button class="btn btn-ghost btn-sm"
-          onclick="rrGesellschaftEntfernen('${esc(d)}')" title="Gesellschaft entfernen – ihre Freigaben und Sperren gehen mit">✕</button></td>
+          onclick="rrGesellschaftEntfernen(${jsArg(d)})" title="Gesellschaft entfernen – ihre Freigaben und Sperren gehen mit">✕</button></td>
       </tr>`).join('')}</tbody></table>`;
 
   const kopf = `<tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
@@ -904,7 +904,7 @@ function rrRenderDomaenen() {
       ${doms.map(d => `<td style="padding:4px;text-align:center">
         <input type="checkbox" ${gesperrt.includes(d) ? 'checked' : ''}
           title="${esc(t.label)} für ${esc((typeof gesellschaftLabel === 'function') ? gesellschaftLabel(d) : d)}"
-          onchange="rrSperreToggle('${t.view}','${esc(d)}',this.checked)"></td>`).join('')}
+          onchange="rrSperreToggle(${jsArg(t.view)},${jsArg(d)},this.checked)"></td>`).join('')}
       <td style="padding:4px 8px" class="field-hint">${gesperrt.length
         ? 'nur ' + esc(gesperrt.map(d => (typeof gesellschaftLabel === 'function') ? gesellschaftLabel(d) : d).join(', '))
         : 'offen für alle'}</td></tr>`;
@@ -989,7 +989,7 @@ async function rrGruppenSuche() {
           ${schon.has(g.id)
             ? '<span class="status-badge sb-done">bereits berechtigt</span>'
             : `<button class="btn btn-outline btn-sm"
-                onclick="rrAddGruppe('${esc(g.id)}','${esc(g.name || g.id)}','${esc(g.art || '')}')">+ Übernehmen</button>`}
+                onclick="rrAddGruppe(${jsArg(g.id)},${jsArg(g.name || g.id)},${jsArg(g.art || '')})">+ Übernehmen</button>`}
         </div>`).join('')
       : '<div class="field-hint">Keine Gruppe gefunden – auch nicht unter dieser Adresse.</div>');
 }
@@ -1054,7 +1054,7 @@ function renderZielgruppenMails() {
         ${hinweis ? `<span class="field-hint" style="display:block;font-weight:400">${esc(hinweis)}</span>` : ''}</span>
       <input type="email" list="cfg-eigene-gruppen" value="${esc(werte[key] || '')}"
         placeholder="verteiler@dihag.com" style="flex:1;min-width:220px;${_rrFeldStil}"
-        oninput="zgMailSet('${esc(key)}', this.value)">
+        oninput="zgMailSet(${jsArg(key)}, this.value)">
     </div>`;
   host.innerHTML = zeile(alle, 'Alle Mitarbeitenden', 'gilt, sobald ein Regelwerk „für alle" ist')
     + (rollen.length
@@ -1104,15 +1104,15 @@ function renderVertretungen() {
         <b style="overflow-wrap:anywhere">${esc(e.vertreter || '–')}</b>
         <span class="status-badge ${laeuft ? 'sb-done' : ''}" style="${laeuft ? '' : 'background:#f1f5f9;color:#475569'}">
           ${laeuft ? 'läuft gerade' : 'nicht aktiv'}</span>
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="vertrRemove('${esc(upn)}')">✕ entfernen</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="vertrRemove(${jsArg(upn)})">✕ entfernen</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <label style="font-size:.8rem;color:var(--c-muted)">von
           <input type="date" value="${esc((e.von || '').slice(0, 10))}" style="${stil}"
-            onchange="vertrSet('${esc(upn)}','von',this.value)"></label>
+            onchange="vertrSet(${jsArg(upn)},'von',this.value)"></label>
         <label style="font-size:.8rem;color:var(--c-muted)">bis
           <input type="date" value="${esc((e.bis || '').slice(0, 10))}" style="${stil}"
-            onchange="vertrSet('${esc(upn)}','bis',this.value)"></label>
+            onchange="vertrSet(${jsArg(upn)},'bis',this.value)"></label>
         <span class="field-hint">leer = unbefristet · heute ist ${esc(heute)}</span>
       </div>
     </div>`;
@@ -1320,12 +1320,12 @@ function _vorfaelleBereichHtml() {
   const muster = (typeof VF_SICHERHEIT_MUSTER !== 'undefined') ? VF_SICHERHEIT_MUSTER : /sicherheit/i;
   const istGewaehlt = (k) => gewaehlt.some(x => x.toLowerCase() === k.toLowerCase());
   const katRows = kats.map(k => `<tr>
-    <td style="text-align:center"><input type="checkbox" ${istGewaehlt(k) ? 'checked' : ''} onchange="cfgVorfallKat(${JSON.stringify(k).replace(/"/g, '&quot;')},this.checked)"></td>
+    <td style="text-align:center"><input type="checkbox" ${istGewaehlt(k) ? 'checked' : ''} onchange="cfgVorfallKat(${jsArg(k)},this.checked)"></td>
     <td>${esc(k)}${!gewaehlt.length && muster.test(k) ? ' <span class="field-hint" title="Ohne Auswahl zählt diese Kategorie über das Muster">(Muster)</span>' : ''}</td>
     <td style="text-align:right;color:var(--c-muted)">${zaehl[k] || 0}</td></tr>`).join('');
   const artRows = arten.map(a => { const auto = (typeof vfArtVon === 'function') ? vfArtVon(a, {}) : ''; const cur = zuordnung[a] || '';
     return `<tr><td>${esc(a)}</td><td style="text-align:right;color:var(--c-muted)">${artZaehl[a] || 0}</td>
-    <td><select onchange="cfgVorfallArt(${JSON.stringify(a).replace(/"/g, '&quot;')},this.value)"><option value="">${auto ? `automatisch: ${esc((VF_ARTEN[auto] || {}).label || auto)}` : 'automatisch: keine Gruppe'}</option>${Object.values(typeof VF_ARTEN !== 'undefined' ? VF_ARTEN : {}).map(x => `<option value="${x.key}"${cur === x.key ? ' selected' : ''}>${x.icon} ${esc(x.label)}</option>`).join('')}</select></td></tr>`; }).join('');
+    <td><select onchange="cfgVorfallArt(${jsArg(a)},this.value)"><option value="">${auto ? `automatisch: ${esc((VF_ARTEN[auto] || {}).label || auto)}` : 'automatisch: keine Gruppe'}</option>${Object.values(typeof VF_ARTEN !== 'undefined' ? VF_ARTEN : {}).map(x => `<option value="${x.key}"${cur === x.key ? ' selected' : ''}>${x.icon} ${esc(x.label)}</option>`).join('')}</select></td></tr>`; }).join('');
   return `
     <div class="item-card" style="margin-bottom:14px">
       <div style="font-weight:700;margin-bottom:4px">Welche Tickets sind Informationssicherheit?</div>

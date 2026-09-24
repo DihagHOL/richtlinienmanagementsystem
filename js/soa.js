@@ -145,7 +145,7 @@ function renderSoa() {
       const dis = canWrite ? '' : ' disabled';
       const anwendbarZelle = waehlbar
         ? `<select class="sort-select" style="font-size:.78rem;padding:3px 6px"${dis}
-            onchange="soaSet('${esc(it.id)}','anwendbar',this.value)">
+            onchange="soaSet(${jsArg(it.id)},'anwendbar',this.value)">
           <option value=""${c.anwendbar == null ? ' selected' : ''}>– offen –</option>
           <option value="ja"${c.anwendbar === true ? ' selected' : ''}>anwendbar</option>
           <option value="nein"${c.anwendbar === false ? ' selected' : ''}>ausgeschlossen</option>
@@ -158,13 +158,13 @@ function renderSoa() {
           <div style="font-size:.72rem;color:var(--c-faint)">${esc(covTxt)}</div>${_soaM365Zeile(it.id)}</td>
         <td style="vertical-align:top">${anwendbarZelle}</td>
         <td style="vertical-align:top"><select class="sort-select" style="font-size:.78rem;padding:3px 6px"${waehlbar && c.anwendbar === false ? ' disabled' : dis}
-            onchange="soaSet('${esc(it.id)}','status',this.value)">
+            onchange="soaSet(${jsArg(it.id)},'status',this.value)">
           <option value=""${!c.status ? ' selected' : ''}>–</option>
           ${SOA_STATUS.map(s => `<option value="${esc(s)}"${c.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
         </select></td>
         <td style="vertical-align:top"><input type="text" value="${esc(c.begruendung || '')}"${dis}
           placeholder="${waehlbar && c.anwendbar === false ? 'Pflicht: warum ausgeschlossen?' : 'optional'}"
-          oninput="soaSet('${esc(it.id)}','begruendung',this.value)"
+          oninput="soaSet(${jsArg(it.id)},'begruendung',this.value)"
           style="width:100%;border:1px solid ${begrWarn ? '#ef4444' : '#d1d5db'};border-radius:6px;padding:4px 8px;font-size:.78rem;font-family:inherit"></td>
       </tr>`;
     }).join('');

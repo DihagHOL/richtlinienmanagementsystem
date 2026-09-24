@@ -219,8 +219,8 @@ function _vbKnotenHtml(n) {
       role="button" tabindex="0" aria-expanded="${n.anzahl ? n.offen : ''}"
       aria-label="${esc(_vbLabel(n))} – ${esc(art)}${n.anzahl ? `, ${n.anzahl} untergeordnet` : ''}"
       title="${n.daten && n.daten.nr ? esc(n.daten.nr) + ' · ' : ''}${esc(n.label)} · ${esc(art)}"
-      onclick="vbKlick('${esc(n.pfad)}')"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vbKlick('${esc(n.pfad)}')}">
+      onclick="vbKlick(${jsArg(n.pfad)})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vbKlick(${jsArg(n.pfad)})}">
       <span class="vb-text">${esc(_vbLabel(n))}</span>
       ${versteckt ? `<span class="vb-zahl" title="${n.anzahl} zugeklappt">${n.anzahl}</span>` : ''}
       ${_vbPlusHtml(n)}
@@ -234,7 +234,7 @@ function _vbPlusHtml(n) {
   const was = { werk: 'Prozess', band: 'Prozess', prozess: 'Modell oder Regelwerk', modell: 'Regelwerk' }[n.art];
   return `<button class="vb-plus" title="${esc(was)} hinzufügen"
       aria-label="${esc(was)} zu ${esc(n.label)} hinzufügen"
-      onclick="event.stopPropagation();vbPlus('${esc(n.pfad)}')">+</button>`;
+      onclick="event.stopPropagation();vbPlus(${jsArg(n.pfad)})">+</button>`;
 }
 
 function vbRenderHtml() {
@@ -333,11 +333,11 @@ function vbPlus(pfad) {
       <div class="modal-body">
         <p class="field-hint" style="margin:0 0 12px">Was soll an diesem Prozess hängen?</p>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-primary" onclick="closeModal();lkProzessAnlegen('${esc(id)}')">
+          <button class="btn btn-primary" onclick="closeModal();lkProzessAnlegen(${jsArg(id)})">
             🔀 Neues BPMN-Modell anlegen</button>
-          <button class="btn btn-outline" onclick="closeModal();lkVerknuepfenDialog('${esc(id)}')">
+          <button class="btn btn-outline" onclick="closeModal();lkVerknuepfenDialog(${jsArg(id)})">
             🔗 Vorhandenes Modell verknüpfen</button>
-          <button class="btn btn-outline" onclick="closeModal();lkRegelwerkeDialog('${esc(id)}')">
+          <button class="btn btn-outline" onclick="closeModal();lkRegelwerkeDialog(${jsArg(id)})">
             📕 Regelwerke zuordnen</button>
         </div>
       </div>`);

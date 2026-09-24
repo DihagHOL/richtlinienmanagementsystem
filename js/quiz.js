@@ -55,7 +55,7 @@ function renderQuizForm(p) {
   const v = document.getElementById('view-quiz');
   v.innerHTML = `
     <div class="quiz-wrap">
-      <button class="btn btn-ghost btn-sm back-btn" onclick="openDetail('${p.id}')">← Zurück zur Richtlinie</button>
+      <button class="btn btn-ghost btn-sm back-btn" onclick="openDetail(${jsArg(p.id)})">← Zurück zur Richtlinie</button>
       <div class="detail-header">
         <h2>Wissenstest: ${esc(p.title)}</h2>
         <div class="quiz-progress">${_quiz.questions.length} Frage(n) &middot; bestanden ab ${p.quizBestehenProzent}% richtig &middot; Reihenfolge bei jedem Versuch zufällig</div>
@@ -64,7 +64,7 @@ function renderQuizForm(p) {
         ${_quiz.questions.map((q, i) => quizQuestionHtml(q, i)).join('')}
       </form>
       <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="btn btn-primary btn-lg" id="quiz-submit" onclick="submitQuiz('${p.id}')">Antworten auswerten</button>
+        <button class="btn btn-primary btn-lg" id="quiz-submit" onclick="submitQuiz(${jsArg(p.id)})">Antworten auswerten</button>
       </div>
     </div>`;
 }
@@ -149,9 +149,9 @@ async function submitQuiz(policyId) {
     <div class="msg">${correct} von ${total} richtig — ${passed ? 'bestanden ✓' : 'leider nicht bestanden'}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       ${passed
-        ? `<button class="btn btn-success" onclick="openDetail('${p.id}')">Weiter</button>`
-        : `<button class="btn btn-primary" onclick="startQuiz('${p.id}')">Erneut versuchen</button>
-           <button class="btn btn-ghost" onclick="openDetail('${p.id}')">Zurück zur Richtlinie</button>`}
+        ? `<button class="btn btn-success" onclick="openDetail(${jsArg(p.id)})">Weiter</button>`
+        : `<button class="btn btn-primary" onclick="startQuiz(${jsArg(p.id)})">Erneut versuchen</button>
+           <button class="btn btn-ghost" onclick="openDetail(${jsArg(p.id)})">Zurück zur Richtlinie</button>`}
     </div>`;
   wrap.appendChild(res);
   res.scrollIntoView({ behavior: 'smooth', block: 'center' });

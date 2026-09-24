@@ -155,9 +155,9 @@ function _ismsTreeNodeHtml(node, depth) {
   const caret = hatKinder ? (offen ? '▾' : '▸') : '·';
   const html = `<div class="gov-tree-node${gewaehlt ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px"
       role="treeitem" tabindex="0" aria-selected="${gewaehlt}"
-      onclick="ismsSelectFolder('${esc(node.path)}')"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ismsSelectFolder('${esc(node.path)}')}">
-    <span class="gov-tree-caret"${hatKinder ? ` onclick="event.stopPropagation();ismsToggleFolder('${esc(node.path)}')"` : ''}>${caret}</span>
+      onclick="ismsSelectFolder(${jsArg(node.path)})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ismsSelectFolder(${jsArg(node.path)})}">
+    <span class="gov-tree-caret"${hatKinder ? ` onclick="event.stopPropagation();ismsToggleFolder(${jsArg(node.path)})"` : ''}>${caret}</span>
     <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
     <span class="gov-tree-count">${node.count}</span>
   </div>`;
@@ -274,7 +274,7 @@ function renderIsmsDocs() {
   // Leerzustand mit Diagnose: genutzte Bibliothek + manueller Wechsel.
   if (!all.length) {
     const drivesHtml = (_ismsDrives || []).map(d =>
-      `<button class="btn btn-outline btn-sm" onclick="selectIsmsLibrary('${esc(d.id)}')">${esc(d.name)}${d.name === lib ? ' ✓' : ''}</button>`
+      `<button class="btn btn-outline btn-sm" onclick="selectIsmsLibrary(${jsArg(d.id)})">${esc(d.name)}${d.name === lib ? ' ✓' : ''}</button>`
     ).join(' ');
     mount.innerHTML = `<div class="col-warning" style="display:block">
       In der erkannten Bibliothek <b>„${esc(lib || '?')}"</b> wurden <b>keine Dateien</b> gefunden.
@@ -316,7 +316,7 @@ function renderIsmsDocs() {
   if (!rows.length) { mount.innerHTML = umrahmen(emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍')); return; }
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
-  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs('${key}')">${label}${arrow(key)}</th>`;
+  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs(${jsArg(key)})">${label}${arrow(key)}</th>`;
   // Auswahl-Spalten je inline-Feld vorab auflösen. Workflow-Felder (Bearbeitungsstand,
   // Freigabe GL, geprüft von) sind NICHT inline editierbar – sie laufen über den Status-Workflow.
   const choiceCols = {};
@@ -331,7 +331,7 @@ function renderIsmsDocs() {
     <tbody>${rows.map(d => {
       const lp = _ismsLinkedPolicy(d);
       const title = d.fields?.Title || d.name;
-      return `<tr onclick="openIsmsDoc('${esc(d.itemId)}')" style="cursor:pointer">
+      return `<tr onclick="openIsmsDoc(${jsArg(d.itemId)})" style="cursor:pointer">
         <td style="font-size:1.1rem;text-align:center">${fileIcon(d.name)}</td>
         <td>
           <b>${esc(title)}</b>
@@ -348,7 +348,7 @@ function renderIsmsDocs() {
               .concat(choices.map(c => `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`));
             return `<td onclick="event.stopPropagation()">
               <select class="sort-select" style="font-size:.8rem;padding:4px 6px;max-width:170px"
-                onchange="ismsSetChoice('${esc(d.itemId)}', '${esc(cc.name)}', this.value, this)">${opts.join('')}</select></td>`;
+                onchange="ismsSetChoice(${jsArg(d.itemId)}, ${jsArg(cc.name)}, this.value, this)">${opts.join('')}</select></td>`;
           }
           return `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`;
         }).join('')}
@@ -451,11 +451,11 @@ async function openIsmsDoc(itemId) {
       </div>
 
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
-        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
-        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="ismsEditWeb('${esc(d.driveItemId)}')">🌐 Im Browser bearbeiten</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion('${esc(d.driveItemId)}','${esc(d.name)}')">⬆ Neue Version hochladen</button>
-        <button class="btn btn-outline btn-sm" onclick="ismsShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
-        <button class="btn btn-outline btn-sm" onclick="ismsPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
+        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice(${jsArg(d.driveItemId)})">✏️ In Office bearbeiten</button>` : ''}
+        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="ismsEditWeb(${jsArg(d.driveItemId)})">🌐 Im Browser bearbeiten</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion(${jsArg(d.driveItemId)},${jsArg(d.name)})">⬆ Neue Version hochladen</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsPreview(${jsArg(d.driveItemId)})">👁 Vorschau</button>
         ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
 
@@ -466,11 +466,11 @@ async function openIsmsDoc(itemId) {
       ${peopleDatalist}
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="proposeIsmsChange('${esc(d.driveItemId)}')">✏️ Änderung vorschlagen</button>
-      <button class="btn btn-ghost" onclick="ismsToRichtlinie('${esc(d.driveItemId)}')">＋ Als Regelwerk übernehmen</button>
+      <button class="btn btn-ghost" onclick="proposeIsmsChange(${jsArg(d.driveItemId)})">✏️ Änderung vorschlagen</button>
+      <button class="btn btn-ghost" onclick="ismsToRichtlinie(${jsArg(d.driveItemId)})">＋ Als Regelwerk übernehmen</button>
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
-      ${editCols.length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta('${esc(d.itemId)}')">Metadaten speichern</button>` : ''}
+      ${editCols.length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta(${jsArg(d.itemId)})">Metadaten speichern</button>` : ''}
     </div>`, true);
 }
 
@@ -766,7 +766,7 @@ function ismsNewVersion(driveItemId, name) {
         <div class="field-hint" style="margin-bottom:8px">${canOffice
           ? 'Öffnet das Dokument in Office. Beim Speichern legt SharePoint automatisch eine neue Version an.'
           : 'Öffnet das Dokument in SharePoint – dort bearbeiten und speichern (automatische Versionierung).'}</div>
-        <button class="btn btn-primary btn-sm" onclick="closeModal();ismsEditOffice('${esc(driveItemId)}')">✏️ Dokument bearbeiten</button>
+        <button class="btn btn-primary btn-sm" onclick="closeModal();ismsEditOffice(${jsArg(driveItemId)})">✏️ Dokument bearbeiten</button>
       </div>
       <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px">
         <div style="font-weight:600;font-size:.88rem;margin-bottom:8px">Variante B · Geänderte Datei hochladen</div>
@@ -786,7 +786,7 @@ function ismsNewVersion(driveItemId, name) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" id="isms-ver-btn" onclick="ismsDoUploadVersion('${esc(driveItemId)}')">Hochladen</button>
+      <button class="btn btn-primary" id="isms-ver-btn" onclick="ismsDoUploadVersion(${jsArg(driveItemId)})">Hochladen</button>
     </div>`);
 }
 

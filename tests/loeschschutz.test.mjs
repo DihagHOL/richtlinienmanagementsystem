@@ -51,7 +51,7 @@ ok(/Löschen nicht möglich/.test(admin) && /trägt bereits einen Nachweis/.test
 ok(/async function doDeletePolicy[\s\S]{0,300}if \(!darfGeloeschtWerden\(p\)\)/.test(admin),
   'Auch der Aufruf selbst prüft – nicht nur der Dialog');
 ok(/🔒 Nur archivierbar/.test(admin), 'Der Editor zeigt statt „Löschen" den Grund');
-ok(/archivierePolicy\('\$\{esc\(id\)\}'\)/.test(admin), 'Und bietet direkt das Archivieren an');
+ok(/archivierePolicy\(\$\{jsArg\(id\)\}\)/.test(admin), 'Und bietet direkt das Archivieren an');
 ok(/verwaiste\n?\s*\*?\s*Einträge|verwaiste Einträge/.test(admin) || /Kenntnisnahmen, Prüf- und Freigabe/.test(admin),
   'Der Kommentar erklärt den Grund für die Regel');
 

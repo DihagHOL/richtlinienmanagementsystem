@@ -364,7 +364,7 @@ function showHealthReport() {
         <b style="flex:1">${esc(p.title)}</b>
         <span style="font-size:.75rem;color:var(--c-muted)">${esc(r.fileName || '')}</span>
         ${r.findings.length ? `<button class="btn btn-outline btn-sm" style="flex:none"
-          onclick="proposeFromHealth('${esc(p.id)}')" title="Befunde als vorausgefüllten Änderungsvorschlag an die ISMS-Verantwortlichen senden">✏️ Als Vorschlag</button>` : ''}
+          onclick="proposeFromHealth(${jsArg(p.id)})" title="Befunde als vorausgefüllten Änderungsvorschlag an die ISMS-Verantwortlichen senden">✏️ Als Vorschlag</button>` : ''}
       </div>
       ${r.findings.length ? `<ul style="margin:6px 0 0 26px;padding:0;font-size:.83rem">
         ${r.findings.map(f => `<li style="color:${(SEV[f.sev] || SEV.info)[1]}">${(SEV[f.sev] || SEV.info)[0]} ${esc(f.text)}</li>`).join('')}

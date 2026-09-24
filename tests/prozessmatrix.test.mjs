@@ -16,6 +16,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -49,7 +51,7 @@ const ctx = {
   },
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/landkarte.js'), ctx);
 vm.runInContext(lies('js/prozessmatrix.js'), ctx);
 const w = (code) => vm.runInContext(code, ctx);
@@ -97,7 +99,7 @@ ok(/c\.klein@dihag\.com/.test(html), 'Wen die Mitarbeiterliste nicht kennt, steh
 ok(/pm-fehlt[^>]*>—</.test(html), '„—" für: Prozess wird geführt, aber niemand ist zuständig');
 ok(/pm-leer[^>]*>·</.test(html), '„·" für: dieses Werk führt den Prozess gar nicht');
 ok(/role="button" tabindex="0"/.test(html), 'Die Zellen sind mit der Tastatur erreichbar');
-ok(/pmOeffnen\('SHB','vertrieb-shb'\)/.test(html), 'Ein Klick führt in die Kachel des richtigen Werks');
+ok(/pmOeffnen\(&quot;SHB&quot;,&quot;vertrieb-shb&quot;\)/.test(html), 'Ein Klick führt in die Kachel des richtigen Werks');
 ok(/class="pm-kpi"/.test(html) && /mit Verantwortlichem/.test(html), 'Oben stehen die Kennzahlen');
 const fuss = html.slice(html.indexOf('<tfoot>'), html.indexOf('</tfoot>'));
 ok(/2\/17/.test(fuss) && /1\/2/.test(fuss),

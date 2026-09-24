@@ -36,13 +36,13 @@ function renderGeltungsbereichSection(arr, prefix) {
     <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--c-border)">
       <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Geltungsbereich (Standorte) <span class="req">*</span></div>
       <label class="ack-check" style="font-weight:600;margin-bottom:6px">
-        <input type="checkbox" ${alle ? 'checked' : ''} onchange="gbSectionSetAlle('${prefix}', this.checked)">
+        <input type="checkbox" ${alle ? 'checked' : ''} onchange="gbSectionSetAlle(${jsArg(prefix)}, this.checked)">
         <span>Alle Standorte (konzernweit)</span>
       </label>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:2px 12px${alle ? ';opacity:.45' : ''}">
         ${STANDORTE.map(code => `<label class="ack-check" style="font-weight:500">
           <input type="checkbox" ${(!alle && list.includes(code)) ? 'checked' : ''} ${alle ? 'disabled' : ''}
-            onchange="gbSectionToggle('${prefix}','${code}', this.checked)">
+            onchange="gbSectionToggle(${jsArg(prefix)},${jsArg(code)}, this.checked)">
           <span>${esc(code)}</span></label>`).join('')}
       </div>
       <span class="field-hint">${alle
@@ -201,7 +201,7 @@ function setAdminMode(mode) {
 function _adminModeBar() {
   const seg = (m, label, count) => {
     const on = _adminMode === m;
-    return `<button type="button" onclick="setAdminMode('${m}')" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label} <span style="opacity:.85;font-weight:500">${count}</span></button>`;
+    return `<button type="button" onclick="setAdminMode(${jsArg(m)})" style="border:0;padding:8px 18px;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;background:${on ? 'var(--c-primary)' : 'transparent'};color:${on ? '#fff' : 'var(--c-text)'}">${label} <span style="opacity:.85;font-weight:500">${count}</span></button>`;
   };
   const nKon = (State.konzepte || []).length;
   return `<div style="display:inline-flex;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;margin-bottom:14px">
@@ -428,7 +428,7 @@ function renderAdminList() {
   }
 
   list.innerHTML = warn + modeBar + rows.map(p => `
-    <div class="item-card" onclick="openPolicyEditor('${p.id}')">
+    <div class="item-card" onclick="openPolicyEditor(${jsArg(p.id)})">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
         <div class="ic-topright">${typeof healthBadge === 'function' ? healthBadge(p) : ''}${workflowBadge(p.status)}</div>
@@ -722,8 +722,8 @@ function policyCardOpenWeb(id) {
 /** Buttons „In Office / Im Browser öffnen" für eine Richtlinie (nur wenn ein Dokument hinterlegt ist). */
 function _policyOpenButtons(p) {
   if (!p || !p.dokumentUrl) return '';
-  return `<button class="btn btn-outline btn-sm" onclick="policyCardOpenOffice('${esc(p.id)}')" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
-    <button class="btn btn-outline btn-sm" onclick="policyCardOpenWeb('${esc(p.id)}')" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>`;
+  return `<button class="btn btn-outline btn-sm" onclick="policyCardOpenOffice(${jsArg(p.id)})" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
+    <button class="btn btn-outline btn-sm" onclick="policyCardOpenWeb(${jsArg(p.id)})" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>`;
 }
 
 function newPolicy() {
@@ -882,12 +882,12 @@ function renderPolicyEditor() {
         ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff – Änderungen können nicht gespeichert werden.</span>
            <button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
         : `${p.id ? (darfGeloeschtWerden(p)
-             ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm('${p.id}')" style="margin-right:auto">Löschen</button>`
+             ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm(${jsArg(p.id)})" style="margin-right:auto">Löschen</button>`
              : `<span class="field-hint" style="margin-right:auto" title="Ein Regelwerk mit Prüfung, Freigabe oder Kenntnisnahme wird archiviert, nicht gelöscht">🔒 Nur archivierbar</span>`) : ''}
            ${p.id && p.status === 'Archiviert'
-             ? `<button class="btn btn-outline btn-sm" onclick="reaktivierePolicy('${p.id}')" title="Zurück in den Entwurfsstatus holen">↩ Reaktivieren</button>`
+             ? `<button class="btn btn-outline btn-sm" onclick="reaktivierePolicy(${jsArg(p.id)})" title="Zurück in den Entwurfsstatus holen">↩ Reaktivieren</button>`
              : (p.id && p.status === 'Veröffentlicht'
-               ? `<button class="btn btn-outline btn-sm" onclick="archivierePolicy('${p.id}')" title="Außer Kraft setzen: nicht mehr in „Meine Regelwerke", bleibt für Audits erhalten">📦 Archivieren</button>`
+               ? `<button class="btn btn-outline btn-sm" onclick="archivierePolicy(${jsArg(p.id)})" title="Außer Kraft setzen: nicht mehr in „Meine Regelwerke", bleibt für Audits erhalten">📦 Archivieren</button>`
                : '')}
            <button class="btn btn-outline" onclick="savePolicy()">Speichern (Entwurf)</button>
            ${(!p.id || p.status === 'Entwurf' || p.status === 'Konformitätsprüfung' || p.status === 'InReview')
@@ -1111,7 +1111,7 @@ function nbListHtml(filter) {
     html += `<div style="font-size:.72rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.03em;margin:8px 2px 4px">${esc(g.group)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
       ${items.map(it => `<label class="ack-check" style="font-weight:500;align-items:flex-start">
-        <input type="checkbox" ${sel.has(it.id) ? 'checked' : ''} onchange="nbToggle('${esc(it.id)}', this.checked)">
+        <input type="checkbox" ${sel.has(it.id) ? 'checked' : ''} onchange="nbToggle(${jsArg(it.id)}, this.checked)">
         <span><b>${esc(it.id)}</b> ${esc(it.label)}</span></label>`).join('')}
       </div>`;
   }
@@ -1185,8 +1185,8 @@ function _edCollapsible(key, title, badge, bodyInner, moveCtrls) {
   const open = !!_edSecOpen[key];
   return `
     <div style="border:1px solid var(--c-border);border-radius:10px;overflow:hidden;margin-top:8px">
-      <div onclick="edToggleSection('${key}')" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}"
-        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();edToggleSection('${key}')}"
+      <div onclick="edToggleSection(${jsArg(key)})" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();edToggleSection(${jsArg(key)})}"
         style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:${open ? 'var(--c-primary-l)' : 'var(--c-bg)'};user-select:none">
         <span style="width:12px;color:var(--c-primary);font-size:.8rem">${open ? '▾' : '▸'}</span>
         <span style="font-weight:700;font-size:.9rem;color:var(--c-text)">${title}</span>
@@ -1332,7 +1332,7 @@ function renderMitbestimmungInner() {
         const sel = werke.includes(code);
         const fehlt = sel && !((brMails[code] || '').trim());
         return `<label class="ack-check" style="font-weight:500">
-          <input type="checkbox" ${sel ? 'checked' : ''} onchange="mitEditorToggleWerk('${code}', this.checked)">
+          <input type="checkbox" ${sel ? 'checked' : ''} onchange="mitEditorToggleWerk(${jsArg(code)}, this.checked)">
           <span>${esc(code)}${fehlt ? ' <span style="color:#b45309">⚠</span>' : ''}</span></label>`;
       }).join('')}
     </div>`;
@@ -1466,7 +1466,7 @@ function deletePolicyConfirm(id) {
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="renderPolicyEditor()">Zurück</button>
         ${p.status === 'Veröffentlicht'
-          ? `<button class="btn btn-primary" onclick="archivierePolicy('${esc(id)}')">📦 Archivieren</button>`
+          ? `<button class="btn btn-primary" onclick="archivierePolicy(${jsArg(id)})">📦 Archivieren</button>`
           : ''}
       </div>`);
     return;
@@ -1477,7 +1477,7 @@ function deletePolicyConfirm(id) {
       Es ist ein Entwurf ohne Prüfung, Freigabe oder Kenntnisnahme – es geht kein Nachweis verloren.</p></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="renderPolicyEditor()">Abbrechen</button>
-      <button class="btn btn-danger" onclick="doDeletePolicy('${id}')">Endgültig löschen</button>
+      <button class="btn btn-danger" onclick="doDeletePolicy(${jsArg(id)})">Endgültig löschen</button>
     </div>`);
 }
 
@@ -1827,7 +1827,7 @@ function renderComplianceOverview() {
       <div class="card-header"><h2>Pro Richtlinie</h2></div>
       <div style="overflow-x:auto"><table class="tbl">
         <thead><tr><th>Richtlinie</th><th>Zielgruppe</th><th class="num">Soll</th><th class="num">Erledigt</th><th class="num">Offen</th><th>Quote</th></tr></thead>
-        <tbody>${perPolicy.map(x => `<tr style="cursor:pointer" onclick="openComplianceFor('${x.p.id}')">
+        <tbody>${perPolicy.map(x => `<tr style="cursor:pointer" onclick="openComplianceFor(${jsArg(x.p.id)})">
           <td>${esc(x.p.title)} <span style="color:var(--c-faint)">v${esc(x.p.version)}</span></td>
           <td style="color:var(--c-muted)">${esc(zielgruppenLabel(x.p))}</td>
           <td class="num">${x.soll}</td><td class="num">${x.done}</td><td class="num">${x.offen}</td>
@@ -2036,7 +2036,7 @@ function renderCfgLists() {
         <span class="ic">👤</span>
         <span class="nm">${esc(u)}</span>
         ${role === 'kiGenehmiger' ? kiRolleSelect(u) : ''}
-        <button class="btn btn-ghost btn-sm" onclick="cfgRemove('${role}',${i})">✕</button>
+        <button class="btn btn-ghost btn-sm" onclick="cfgRemove(${jsArg(role)},${i})">✕</button>
       </div>`).join('') : '<div class="field-hint">Noch niemand zugewiesen.</div>';
   });
 }
@@ -2047,7 +2047,7 @@ function kiRolleSelect(upn) {
   const opts = KI_GREMIUM_ROLLEN.map(r =>
     `<option value="${r}" ${cur === r ? 'selected' : ''}>${r}</option>`).join('');
   return `<select class="sort-select" style="font-size:.78rem;padding:4px 8px"
-    onchange="kiRolleSet('${esc(upn)}', this.value)">
+    onchange="kiRolleSet(${jsArg(upn)}, this.value)">
     <option value="">Position…</option>${opts}
   </select>`;
 }

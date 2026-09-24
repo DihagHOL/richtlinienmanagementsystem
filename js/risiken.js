@@ -158,7 +158,7 @@ function _riskMatrixHtml() {
   return `<div style="background:var(--c-surface,#fff);border:1px solid var(--c-border);border-radius:12px;padding:14px 16px;margin-bottom:14px;overflow-x:auto">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
       <b style="font-size:.85rem">Risikomatrix (offene Risiken, ${basis === 'brutto' ? 'Brutto' : 'Netto/effektiv'})</b>
-      <button class="btn btn-outline btn-sm" onclick="_riskFilter.basis='${basis === 'brutto' ? 'netto' : 'brutto'}';renderRisiken()">↔ ${basis === 'brutto' ? 'Netto' : 'Brutto'} zeigen</button>
+      <button class="btn btn-outline btn-sm" onclick="_riskFilter.basis=${jsArg(basis === 'brutto' ? 'netto' : 'brutto')};renderRisiken()">↔ ${basis === 'brutto' ? 'Netto' : 'Brutto'} zeigen</button>
       ${_riskFilter.cell ? `<button class="btn btn-ghost btn-sm" onclick="_riskFilter.cell=null;renderRisiken()">✕ Zellen-Filter aufheben</button>` : ''}
       <span style="font-size:.7rem;color:var(--c-muted)">Zelle anklicken = Liste filtern · Schwellen: ≥15 hoch · ≥8 mittel</span>
     </div>
@@ -198,7 +198,7 @@ function renderRisiken() {
       const mAll = (r.massnahmen || []).length;
       const mOver = _riskOverdueMassnahmen(r).length;
       const revOver = _riskReviewOverdue(r);
-      return `<tr onclick="openRiskEditor('${esc(r.id)}')" style="cursor:pointer${r.status === 'geschlossen' ? ';opacity:.55' : ''}">
+      return `<tr onclick="openRiskEditor(${jsArg(r.id)})" style="cursor:pointer${r.status === 'geschlossen' ? ';opacity:.55' : ''}">
         <td><b>${esc(r.titel)}</b>${r.schutzziele && r.schutzziele.length ? `<span style="margin-left:6px;font-size:.66rem;color:var(--c-muted)" title="Schutzziele (CIA)">${esc(r.schutzziele.join('·'))}</span>` : ''}
           ${r.controls && r.controls.length ? `<div style="font-size:.68rem;color:var(--c-faint)">🔖 ${esc(r.controls.slice(0, 6).join(', '))}${r.controls.length > 6 ? ' …' : ''}</div>` : ''}
           ${r.assets && r.assets.length ? `<div style="font-size:.68rem;color:var(--c-faint)">🖥 ${esc(r.assets.slice(0, 5).map(a => a.title).join(', '))}${r.assets.length > 5 ? ' …' : ''}</div>` : ''}</td>
@@ -283,7 +283,7 @@ function _rkSel(name, val, opts, onchange, allowEmpty) {
 function _rkScale(which, key) {   // which: 'brutto'|'netto', key: 'e'|'a'
   const labels = key === 'e' ? RISK_E_LABELS : RISK_A_LABELS;
   const val = _riskEditing[which][key] || 0;
-  return `<select onchange="rkSetScale('${which}','${key}',this.value)">
+  return `<select onchange="rkSetScale(${jsArg(which)},${jsArg(key)},this.value)">
     <option value="0"${!val ? ' selected' : ''}>–</option>
     ${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${val === n ? ' selected' : ''}>${n} · ${esc(labels[n])}</option>`).join('')}
   </select>`;
@@ -323,7 +323,7 @@ function renderRiskEditor() {
           <div style="display:flex;gap:14px;padding-top:6px">
             ${RISK_SCHUTZZIELE.map(([k, l]) =>
               `<label class="ack-check" style="font-weight:500" title="${esc(l)}"><input type="checkbox" ${r.schutzziele.includes(k) ? 'checked' : ''}
-                onchange="rkToggleZiel('${k}',this.checked)"> ${k} <span style="color:var(--c-faint);font-weight:400">${esc(l)}</span></label>`).join('')}
+                onchange="rkToggleZiel(${jsArg(k)},this.checked)"> ${k} <span style="color:var(--c-faint);font-weight:400">${esc(l)}</span></label>`).join('')}
           </div></div>
         <div class="form-group"><label>Status</label>
           ${_rkSel('status', r.status, RISK_STATUS, "_riskEditing.status=this.value", false)}</div>
@@ -366,7 +366,7 @@ function renderRiskEditor() {
         <div style="font-weight:600;font-size:.85rem;margin:10px 0 4px">Betroffene / mitigierende Richtlinien</div>
         <div style="max-height:150px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">
           ${pols.length ? pols.map(p => `<label class="ack-check" style="font-weight:500">
-            <input type="checkbox" ${r.richtlinien.includes(p.id) ? 'checked' : ''} onchange="rkTogglePolicy('${esc(p.id)}',this.checked)">
+            <input type="checkbox" ${r.richtlinien.includes(p.id) ? 'checked' : ''} onchange="rkTogglePolicy(${jsArg(p.id)},this.checked)">
             <span>${esc(p.title)} <span style="color:var(--c-faint)">(${esc(p.status)})</span></span></label>`).join('')
           : '<div class="field-hint">Keine Richtlinien geladen.</div>'}
         </div>
@@ -383,7 +383,7 @@ function renderRiskEditor() {
     </div>
     <div class="modal-footer">
       ${canWrite
-        ? `${r.id ? `<button class="btn btn-danger btn-sm" onclick="deleteRiskConfirm('${esc(r.id)}')" style="margin-right:auto">Löschen</button>` : ''}
+        ? `${r.id ? `<button class="btn btn-danger btn-sm" onclick="deleteRiskConfirm(${jsArg(r.id)})" style="margin-right:auto">Löschen</button>` : ''}
            <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
            <button class="btn btn-primary" id="rk-save-btn" onclick="saveRisk()">Speichern</button>`
         : `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff.</span>
@@ -411,7 +411,7 @@ function _rkAssetsHtml() {
   const loadedIds = new Set(loaded.map(a => String(a.id)));
   const filter = String(document.getElementById('rk-asset-filter')?.value || '').toLowerCase().trim();
   const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:flex-start">
-    <input type="checkbox" ${checked ? 'checked' : ''} onchange="rkToggleAsset('${esc(String(a.id))}',this.checked)">
+    <input type="checkbox" ${checked ? 'checked' : ''} onchange="rkToggleAsset(${jsArg(String(a.id))},this.checked)">
     <span><b>${esc(a.title)}</b>${a.sub ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}</span></label>`;
   let html = '';
   if (!loaded.length) {
@@ -453,7 +453,7 @@ function _rkControlsHtml(filter) {
     html += `<div style="font-size:.7rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;margin:6px 2px 3px">${esc(g.group)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 12px">
       ${items.map(it => `<label class="ack-check" style="font-weight:500;align-items:flex-start">
-        <input type="checkbox" ${sel.has(it.id) ? 'checked' : ''} onchange="rkToggleControl('${esc(it.id)}',this.checked)">
+        <input type="checkbox" ${sel.has(it.id) ? 'checked' : ''} onchange="rkToggleControl(${jsArg(it.id)},this.checked)">
         <span><b>${esc(it.id)}</b> ${esc(it.label)}</span></label>`).join('')}
       </div>`;
   }

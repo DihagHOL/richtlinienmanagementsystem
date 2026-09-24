@@ -17,6 +17,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -57,7 +59,7 @@ const ctx = {
   spMissingWirkColumns: () => [],
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/wirksamkeit.js'), ctx);
 const run = (s) => vm.runInContext(s, ctx);
 
@@ -255,7 +257,7 @@ ok(/ohneWirksamkeit\)\s*\n?\s*add\('ISO 10\.2'[\s\S]{0,120}'gap'/.test(cl),
 const dctx = { console, JSON, Date, Array, Object, String, Math, esc: (x) => String(x ?? ''),
   State: { user: {} }, document: { getElementById: () => null } };
 dctx.window = dctx; dctx.globalThis = dctx;
-vm.createContext(dctx);
+dctx.jsArg ??= jsArg; vm.createContext(dctx);
 vm.runInContext(lies('js/dokumentation.js'), dctx);
 const secs = vm.runInContext('_dokuSections()', dctx);
 const teil = secs.slice(secs.indexOf('id="doku-wirksamkeit"'));

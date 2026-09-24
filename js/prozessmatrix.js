@@ -106,7 +106,7 @@ function renderProzessMatrix() {
   if (_pmNurLuecken) zeilen = zeilen.filter(pmZeileLueckig);
 
   const tab = (key, label, titel) => `<button class="btn btn-sm ${_pmTab === key ? 'btn-primary' : 'btn-ghost'}"
-      onclick="pmSetTab('${key}')" title="${titel}">${label}</button>`;
+      onclick="pmSetTab(${jsArg(key)})" title="${titel}">${label}</button>`;
 
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('matrix') : ''}
@@ -181,8 +181,8 @@ function _pmZelle(z, werk) {
   const k = z.werke[werk];
   const st = pmStand(k, werk);
   if (!st) return `<td class="pm-leer" title="${esc(lkWerkLabel(werk))} führt diesen Prozess nicht">·</td>`;
-  const klick = `onclick="pmOeffnen('${esc(werk)}','${esc(k.id)}')" role="button" tabindex="0"
-    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pmOeffnen('${esc(werk)}','${esc(k.id)}')}"`;
+  const klick = `onclick="pmOeffnen(${jsArg(werk)},${jsArg(k.id)})" role="button" tabindex="0"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pmOeffnen(${jsArg(werk)},${jsArg(k.id)})}"`;
 
   if (_pmTab === 'zustaendig') {
     return st.verantwortlich

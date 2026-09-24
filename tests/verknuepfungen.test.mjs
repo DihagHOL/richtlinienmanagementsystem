@@ -121,7 +121,7 @@ ok(/Math\.min\(Math\.max\(cx \+ Math\.cos\(w\) \* rx, b \/ 2 \+ 8\), B - b \/ 2 
 
 w("_vkFokus = 'prozess:HOL:vertrieb'; renderVerknuepfungen();");
 html = mount.innerHTML;
-ok(/vkFokus\('modell:m1'\)/.test(html) && /vkFokus\('modell:m3'\)/.test(html),
+ok(/vkFokus\(&quot;modell:m1&quot;\)/.test(html) && /vkFokus\(&quot;modell:m3&quot;\)/.test(html),
   'Ein Klick auf den Nachbarn rückt ihn in die Mitte – beide Modelle stehen da');
 ok(/2 Modelle – über die Kachel zu öffnen/.test(html),
   'Bei mehreren Abläufen wäre „das Modell" mehrdeutig – dann führt der Weg über die Kachel');
@@ -180,7 +180,7 @@ ok(!l2.abweichungen.some(a => a.kachel.id === 'personal'),
   'Eine Kachel ohne Modell erzeugt keinen Widerspruch – da gibt es nichts abzugleichen');
 w("_vkFokus = ''; renderVerknuepfungen();");
 ok(/An der Kachel, aber nicht im Modell/.test(mount.innerHTML), 'Der Abgleich bekommt einen eigenen Kasten');
-ok(/vkAbgleichUebernehmen\('HOL','vertrieb','m1'\)/.test(mount.innerHTML),
+ok(/vkAbgleichUebernehmen\(&quot;HOL&quot;,&quot;vertrieb&quot;,&quot;m1&quot;\)/.test(mount.innerHTML),
   'Mit einem Knopf je Modell, in das die Zuordnung geschrieben werden kann');
 w("delete lkKachelVonId('vertrieb').regelwerke;");
 

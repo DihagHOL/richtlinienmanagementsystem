@@ -157,7 +157,7 @@ ok(run(`lkVorlagenAus().has('sap')`) === true, 'Und die ausgeblendete bleibt aus
 /* ── 6) Die Oberfläche ── */
 const lk = lies('js/landkarte.js');
 ok(/onclick="lkVorlageSpeichernDialog\(\)"/.test(lk), 'Der Dialog bietet „als Vorlage sichern" an');
-ok(/onclick="lkVorlageEntfernen\('\$\{esc\(v\.key\)\}'\)"/.test(lk), 'Und je Zeile ein ✕');
+ok(/onclick="lkVorlageEntfernen\(\$\{jsArg\(v\.key\)\}\)"/.test(lk), 'Und je Zeile ein ✕');
 ok(/lkVorlagenAlle\(\)\.map/.test(lk), 'Gezeichnet wird aus eigenen und eingebauten zusammen');
 ok(/const vorlage = lkVorlageVonKey\(/.test(lk), 'Einsetzen findet beide Sorten');
 

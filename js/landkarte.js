@@ -2013,7 +2013,7 @@ function _lkZeileHtml(band, nr, schreiben) {
   const titel = schreiben
     ? `<div class="lk-zeile-titel lk-zeile-titel-klick" role="button" tabindex="0"
          title="Bereich „${esc(band.titel)}" bearbeiten"
-         onclick="lkBandDialog('${esc(band.key)}')"
+         onclick="lkBandDialog(${jsArg(band.key)})"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
        ><span>${esc(band.titel)}</span><i>${zahl}</i></div>`
     : `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${zahl}</i></div>`;
@@ -2030,7 +2030,7 @@ function _lkZeileHtml(band, nr, schreiben) {
   return `<div class="lk-zeile" style="--lk-c:${farbe}">
       ${titel}
       <div class="lk-reihe" style="grid-template-columns:repeat(${spalten},minmax(0,1fr))"
-        ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'${esc(band.key)}',-1)">
+        ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,${jsArg(band.key)},-1)">
         ${idx.length ? idx.map(x => _lkKachelHtml(x.k, x.i, band.key, schreiben)).join('') : _lkLeeresBand()}
       </div>
     </div>`;
@@ -2059,7 +2059,7 @@ function _lkZiehAttr(i, schreiben) {
 
 /** Mit Enter und Leertaste bedienbar – die Kacheln sind Schaltflächen, keine Bilder. */
 function _lkTastatur(id) {
-  return ` role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();lkKachelOeffnen('${esc(id)}')}"`;
+  return ` role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();lkKachelOeffnen(${jsArg(id)})}"`;
 }
 
 /** Wie viele Prozesse der offenen Karte der Filter gerade ausgraut? */
@@ -2081,7 +2081,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
   const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
   const typ = lkTyp(lkTypVon(k, band));
   return `<div class="lk-kachel${aus ? ' lk-aus' : ''}${typ ? '' : ' lk-kategorie'}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
+      onclick="lkKachelOeffnen(${jsArg(k.id)})" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
       <div class="lk-kachel-inhalt">
         <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${lkNrText(k) ? `<span class="lk-kachel-nr" title="Prozess-Nr. – eindeutig, wird nie neu vergeben">${esc(lkNrText(k))}</span>` : ''}${_lkStatusPunkt(k)}</div>
         ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
@@ -2102,7 +2102,7 @@ function _lkPfeilHtml(k, i, schreiben) {
   const aus = !lkGiltDort(k, _lkFilter);
   const g = _lkGeltungKurz(k);
   return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, 'kern')}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
-      onclick="lkKachelOeffnen('${esc(k.id)}')" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
+      onclick="lkKachelOeffnen(${jsArg(k.id)})" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
       ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${lkNrText(k) ? `<span class="lk-pfeil-nr" title="Prozess-Nr.">${esc(lkNrText(k))}</span>` : ''}${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
@@ -2335,13 +2335,13 @@ function lkVorlageDialog() {
                 v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}${
                 v.eigen && v.von ? ` · gesichert von ${esc(v.von)}` : ''}</span></span>
             </label>
-            <button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen('${esc(v.key)}')"
+            <button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen(${jsArg(v.key)})"
               title="${v.eigen ? 'Diese eigene Vorlage löschen' : 'Diese eingebaute Vorlage ausblenden'}">✕</button>
           </div>`).join('')}
       </div>
       ${ausgeblendet.length ? `<div class="field-hint" style="margin-bottom:10px">Ausgeblendet:
         ${ausgeblendet.map(v => `<button type="button" class="btn btn-ghost btn-sm"
-          onclick="lkVorlageZeigen('${esc(v.key)}')" title="Wieder in die Auswahl aufnehmen">${esc(v.titel)} ↩</button>`).join(' ')}</div>` : ''}
+          onclick="lkVorlageZeigen(${jsArg(v.key)})" title="Wieder in die Auswahl aufnehmen">${esc(v.titel)} ↩</button>`).join(' ')}</div>` : ''}
       ${vorhanden ? `<div class="form-group full" style="margin-top:6px">
         <label>Was soll mit den vorhandenen ${vorhanden} Prozess(en) geschehen?</label>
         <label class="ack-check" style="font-weight:500;align-items:flex-start">
@@ -2519,7 +2519,7 @@ function _lkTrefferHtml() {
   const treffer = lkTreffer(q);
   return `<div id="lk-treffer" class="lk-treffer">
       ${treffer.length ? treffer.map(t => `<button class="lk-treffer-knopf"
-          onclick="lkSpringeZu('${esc(t.werk)}','${esc(t.kachel.id)}')">
+          onclick="lkSpringeZu(${jsArg(t.werk)},${jsArg(t.kachel.id)})">
           ${lkNrText(t.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(t.kachel))}</span> ` : ''}${esc(t.kachel.name)} <span>${esc(lkWerkLabel(t.werk))}</span></button>`).join('')
         : `<span class="field-hint">Kein Prozess mit „${esc(q)}" – in keiner Landkarte.</span>`}
     </div>`;
@@ -2767,7 +2767,7 @@ function _lkGliederungZeichen(werk, k) {
   const teile = [];
   if (unter) {
     teile.push(`<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
-      onclick="lkAufklappen('${esc(werk)}','${esc(k.id)}',event)"
+      onclick="lkAufklappen(${jsArg(werk)},${jsArg(k.id)},event)"
       title="${unter} Unterprozess(e) ${auf ? 'zuklappen' : 'aufklappen'}">${auf ? '▾' : '▸'} ${unter}</button>`);
   }
   if (eltern) {
@@ -2803,9 +2803,9 @@ function _lkUnterbaumHtml(werk, k, pfad) {
     return `<div class="lk-unterzeile">
         <div class="lk-unterzeile-kopf">
           ${(eigene && !kreis) ? `<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
-              onclick="lkAufklappen('${esc(v.werk)}','${esc(v.kachel.id)}',event)"
+              onclick="lkAufklappen(${jsArg(v.werk)},${jsArg(v.kachel.id)},event)"
               title="${eigene} Unterprozess(e)">${auf ? '▾' : '▸'}</button>` : '<span class="lk-gliederung-leer">↳</span>'}
-          <a href="#" onclick="lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
+          <a href="#" onclick="lkSpringeZu(${jsArg(v.werk)},${jsArg(v.kachel.id)});return false"
              title="${esc(lkNrText(v.kachel) ? lkNrText(v.kachel) + ' · ' : '')}${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>${lkNrText(v.kachel) ? `<span class="lk-unter-nr">${esc(lkNrText(v.kachel))}</span>` : ''}
           ${v.werk !== werk ? `<span class="ic-tag" title="andere Gesellschaft">${esc(lkWerkLabel(v.werk))}</span>` : ''}
           ${lkMehrfachVerwendet(v.werk, v.kachel.id) ? `<span class="lk-geteilt lk-geteilt-mehr"
@@ -2950,7 +2950,7 @@ function lkGliedernDialog(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="lkGliedernUebernehmen('${esc(k.id)}')">Gliedern</button>
+      <button class="btn btn-primary" onclick="lkGliedernUebernehmen(${jsArg(k.id)})">Gliedern</button>
     </div>`);
 }
 
@@ -3031,13 +3031,13 @@ function lkKachelOeffnen(id) {
                 (m.ordner || '') === _lkWerk ? '' :
                 ` <span class="ic-tag" title="Die Datei liegt nicht im Ordner dieses Werks">${
                   esc(m.ordner ? lkWerkLabel(m.ordner) : 'ohne Werk')}</span>`}</span>
-              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessAnsicht('${esc(m.itemId)}')">Öffnen</button>
-              ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen('${esc(k.id)}','${esc(m.itemId)}')">Lösen</button>` : ''}
+              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessAnsicht(${jsArg(m.itemId)})">Öffnen</button>
+              ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen(${jsArg(k.id)},${jsArg(m.itemId)})">Lösen</button>` : ''}
             </div>`).join('')
           : `<div class="field-hint" style="margin-bottom:8px">Für diesen Prozess ist noch kein Modell hinterlegt.</div>`}
         ${schreiben ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-               <button class="btn ${modelle.length ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="lkProzessAnlegen('${esc(k.id)}')">+ Modell anlegen</button>
-               <button class="btn btn-outline btn-sm" onclick="lkVerknuepfenDialog('${esc(k.id)}')">+ Vorhandenes verknüpfen</button>
+               <button class="btn ${modelle.length ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="lkProzessAnlegen(${jsArg(k.id)})">+ Modell anlegen</button>
+               <button class="btn btn-outline btn-sm" onclick="lkVerknuepfenDialog(${jsArg(k.id)})">+ Vorhandenes verknüpfen</button>
              </div>` : ''}
         ${modelle.length > 1 ? `<div class="field-hint" style="margin-top:6px">Ein Prozess besteht oft aus mehreren Abläufen – alle hängen an dieser Kachel.</div>` : ''}
       </div>
@@ -3047,23 +3047,23 @@ function lkKachelOeffnen(id) {
       <div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Regelwerke zu diesem Prozess</div>
         ${eigene.length ? `<div style="margin-bottom:8px">${eigene.map(r => `<div style="padding:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <a href="#" onclick="closeModal();focusPolicyCard('${esc(r.id)}');return false"
+            <a href="#" onclick="closeModal();focusPolicyCard(${jsArg(r.id)});return false"
                style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:140px">${esc(r.title)}</a>
             <span class="field-hint">direkt verknüpft</span>
           </div>`).join('')}</div>` : ''}
-        ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkRegelwerkeDialog('${esc(k.id)}')" style="margin-bottom:10px">Regelwerke zuordnen</button>` : ''}
+        ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkRegelwerkeDialog(${jsArg(k.id)})" style="margin-bottom:10px">Regelwerke zuordnen</button>` : ''}
         <div id="lk-regelwerke" class="field-hint">${modelle.length ? 'Aus den Modellen wird geladen …'
           : (eigene.length ? '' : 'Noch keine Regelwerke – direkt zuordnen oder über ein Modell verknüpfen.')}</div>
       </div>
     </div>
     <div class="modal-footer">
-      ${schreiben ? `<button class="btn btn-ghost" onclick="lkKachelLoeschen('${esc(k.id)}')">Löschen</button>` : ''}
+      ${schreiben ? `<button class="btn btn-ghost" onclick="lkKachelLoeschen(${jsArg(k.id)})">Löschen</button>` : ''}
       <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="lkLinkKopieren('${esc(_lkWerk)}','${esc(k.id)}')"
+      <button class="btn btn-ghost btn-sm" onclick="lkLinkKopieren(${jsArg(_lkWerk)},${jsArg(k.id)})"
         title="Dauerhafter Link auf diesen Prozess – für Mails, Regelwerke, Schulungen">🔗 Link</button>
-      <button class="btn btn-outline" onclick="lkZuVerknuepfungen('${esc(k.id)}')"
+      <button class="btn btn-outline" onclick="lkZuVerknuepfungen(${jsArg(k.id)})"
         title="Diesen Prozess in der Mindmap in die Mitte stellen">🕸 Verknüpfungen</button>
-      ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten('${esc(k.id)}')">Bearbeiten</button>` : ''}
+      ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten(${jsArg(k.id)})">Bearbeiten</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`);
   if (modelle.length) _lkRegelwerkeLaden(modelle, k);
@@ -3094,7 +3094,7 @@ async function _lkRegelwerkeLaden(modelle, kachel) {
     }
     host.className = '';
     host.innerHTML = rows.map(t => `<div style="padding:5px 0">
-        <a href="#" onclick="closeModal();focusPolicyCard('${esc(t.pol.id)}');return false"
+        <a href="#" onclick="closeModal();focusPolicyCard(${jsArg(t.pol.id)});return false"
            style="color:var(--c-primary);font-weight:600;text-decoration:none">${esc(t.pol.title)}</a>
         <span class="field-hint"> · Version ${esc(t.pol.version)}${t.pol.status ? ' · ' + esc(t.pol.status) : ''}
           · über ${esc(t.quellen.join(', '))}</span>
@@ -3120,11 +3120,11 @@ function _lkVerweiseHtml(werk, k) {
 
   const sprung = (w, ziel, name, zeichen, fremd) =>
     `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-       <a href="#" onclick="closeModal();lkSpringeZu('${esc(w)}','${esc(ziel.id)}');return false"
+       <a href="#" onclick="closeModal();lkSpringeZu(${jsArg(w)},${jsArg(ziel.id)});return false"
           style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
           ${zeichen} ${esc(name)}</a>
        ${fremd ? `<span class="ic-tag" title="Dieser Prozess gehört zu einer anderen Gesellschaft">${esc(lkWerkLabel(w))}</span>` : ''}
-       ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVerweisLoesen('${esc(k.id)}','${esc(lkZielSchluessel(w, ziel.id))}')">Lösen</button>` : ''}
+       ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVerweisLoesen(${jsArg(k.id)},${jsArg(lkZielSchluessel(w, ziel.id))})">Lösen</button>` : ''}
      </div>`;
 
   const gruppen = LK_VERWEIS_ARTEN.map(a => {
@@ -3140,7 +3140,7 @@ function _lkVerweiseHtml(werk, k) {
     ? `<div style="margin-top:4px">
          <div class="field-hint" style="font-weight:600">Zeigt hierher</div>
          ${rein.map(v => `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-             <a href="#" onclick="closeModal();lkSpringeZu('${esc(v.werk)}','${esc(v.kachel.id)}');return false"
+             <a href="#" onclick="closeModal();lkSpringeZu(${jsArg(v.werk)},${jsArg(v.kachel.id)});return false"
                 style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
                 ${esc(lkVerweisArt(v.art).umkehr)}: ${esc(v.kachel.name)}</a>
              ${v.werk !== werk ? `<span class="ic-tag">${esc(lkWerkLabel(v.werk))}</span>` : ''}
@@ -3162,12 +3162,12 @@ function _lkVerweiseHtml(werk, k) {
       ${geteilt}
       ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise – Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
       ${zurueck}
-      <button class="btn btn-outline btn-sm" onclick="lkAbhaengigkeiten('${esc(k.id)}')"
+      <button class="btn btn-outline btn-sm" onclick="lkAbhaengigkeiten(${jsArg(k.id)})"
         style="margin-top:8px" title="Alles zeigen, was mit diesem Prozess zusammenhängt – über Werke hinweg">🔎 Abhängigkeiten</button>
       ${schreiben ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <button class="btn btn-primary btn-sm" onclick="lkUnterprozessDialog('${esc(k.id)}')" title="Einen vorhandenen Prozess einbinden – aus jeder Karte – oder einen neuen anlegen">+ Unterprozess</button>
-        <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog('${esc(k.id)}')">Verweise pflegen</button>
-        ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog('${esc(k.id)}')"
+        <button class="btn btn-primary btn-sm" onclick="lkUnterprozessDialog(${jsArg(k.id)})" title="Einen vorhandenen Prozess einbinden – aus jeder Karte – oder einen neuen anlegen">+ Unterprozess</button>
+        <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog(${jsArg(k.id)})">Verweise pflegen</button>
+        ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog(${jsArg(k.id)})"
           title="Die Aufzählung im Untertitel in Unterprozesse zerlegen">↳ Untertitel gliedern</button>` : ''}
       </div>` : ''}
     </div>`;
@@ -3228,7 +3228,7 @@ function lkVerweiseDialog(id) {
             <span style="flex:1;min-width:150px">${lkNrText(x.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(x.kachel))}</span> ` : ''}${esc(x.kachel.name)}
               ${x.werk !== _lkWerk ? `<span class="ic-tag">${esc(lkWerkLabel(x.werk))}</span>` : ''}</span>
             <select class="form-control" style="width:auto;min-width:150px"
-                    onchange="lkVerweisWaehlen('${esc(k.id)}','${esc(x.ziel)}',this.value)">
+                    onchange="lkVerweisWaehlen(${jsArg(k.id)},${jsArg(x.ziel)},this.value)">
               <option value=""${schon[x.ziel] ? '' : ' selected'}>—</option>
               ${LK_VERWEIS_ARTEN.map(a => `<option value="${a.art}"${schon[x.ziel] === a.art ? ' selected' : ''}>${esc(a.zeichen)} ${esc(a.label)}</option>`).join('')}
             </select>
@@ -3236,7 +3236,7 @@ function lkVerweiseDialog(id) {
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" onclick="lkVerweiseFertig('${esc(k.id)}')">Fertig</button>
+      <button class="btn btn-primary" onclick="lkVerweiseFertig(${jsArg(k.id)})">Fertig</button>
     </div>`);
 }
 
@@ -3269,7 +3269,7 @@ function _lkUnterprozessListeHtml(k, filter) {
   const neu = q.length >= 2 && !doppel.length
     ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--c-border)">
          <div class="field-hint" style="margin-bottom:6px">„${esc(q)}" gibt es in keiner Landkarte.</div>
-         <button class="btn btn-primary btn-sm" onclick="lkUnterprozessAnlegen('${esc(k.id)}')">+ „${esc(q)}" als neuen Unterprozess anlegen</button>
+         <button class="btn btn-primary btn-sm" onclick="lkUnterprozessAnlegen(${jsArg(k.id)})">+ „${esc(q)}" als neuen Unterprozess anlegen</button>
          <span class="field-hint">Im Band „${esc(_lkBandTitel(k.band))}", mit dem Geltungsbereich von „${esc(k.name)}", mit eigener Nummer.</span></div>`
     : (q.length >= 2 && doppel.length ? `<div class="field-hint" style="margin-top:10px">„${esc(q)}" gibt es schon – oben einbinden statt neu anlegen. Ein Prozess wird nur einmal angelegt.</div>` : '');
   const zeile = (x) => {
@@ -3279,7 +3279,7 @@ function _lkUnterprozessListeHtml(k, filter) {
         ${x.werk !== _lkWerk ? `<span class="ic-tag" title="Aus einer anderen Karte – wird eingebunden, nicht kopiert">${esc(lkWerkLabel(x.werk))}</span>` : ''}
         ${eltern.length ? `<span class="field-hint">· Teil von ${esc(eltern.map(e => e.kachel.name).join(', '))}</span>` : ''}
         ${x.kachel.unter ? `<div class="field-hint">${esc(x.kachel.unter)}</div>` : ''}</span>
-      <button class="btn btn-outline btn-sm" onclick="lkUnterprozessEinbinden('${esc(k.id)}','${esc(x.ziel)}')">Einbinden</button></div>`;
+      <button class="btn btn-outline btn-sm" onclick="lkUnterprozessEinbinden(${jsArg(k.id)},${jsArg(x.ziel)})">Einbinden</button></div>`;
   };
   return `<div id="lk-up-liste">
     ${kand.length ? kand.slice(0, 40).map(zeile).join('') : `<div class="field-hint">${q ? 'Kein vorhandener Prozess passt.' : 'Keine weiteren Prozesse.'}</div>`}
@@ -3292,17 +3292,17 @@ function lkUnterprozessDialog(id) {
   if (!k || !lkDarfSchreiben()) return;
   openModal(`
     <div class="modal-header"><h3>Unterprozess zu ${lkNrText(k) ? esc(lkNrText(k)) + ' ' : ''}${esc(k.name)}</h3>
-      <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
     <div class="modal-body">
       <p class="field-hint" style="margin:0 0 10px">Suchen, dann <b>einbinden</b> – aus dieser oder jeder anderen Karte. Ein Unterprozess bleibt <b>ein</b> Prozess:
         eine Nummer, eine Kachel, einmal gepflegt, auch wenn er in mehreren Hauptprozessen hängt. Nur was es nirgends gibt, wird neu angelegt.</p>
       <input type="text" id="lk-up-suche" class="form-control" placeholder="Name oder Nummer (P-012) …" autocomplete="off"
-        oninput="document.getElementById('lk-up-liste').outerHTML=_lkUnterprozessListeHtml(lkKachelVonId('${esc(k.id)}'),this.value)"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();lkUnterprozessAnlegen('${esc(k.id)}')}">
+        oninput="document.getElementById('lk-up-liste').outerHTML=_lkUnterprozessListeHtml(lkKachelVonId(${jsArg(k.id)}),this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();lkUnterprozessAnlegen(${jsArg(k.id)})}">
       <div style="max-height:48vh;overflow:auto;margin-top:8px">${_lkUnterprozessListeHtml(k, '')}</div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="lkKachelOeffnen('${esc(k.id)}')">Zurück</button>
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
     </div>`);
   const el = document.getElementById('lk-up-suche');
   if (el && el.focus) el.focus();
@@ -3358,7 +3358,7 @@ function lkRegelwerkeDialog(id) {
     .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
   openModal(`
     <div class="modal-header"><h3>Regelwerke zuordnen</h3>
-      <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
     <div class="modal-body">
       <p class="field-hint" style="margin:0 0 10px">Welche Regelwerke regeln <b>${esc(k.name)}</b>?
         Diese Zuordnung hängt an der Kachel – unabhängig davon, ob es ein Modell gibt. Was über ein
@@ -3371,8 +3371,8 @@ function lkRegelwerkeDialog(id) {
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="lkKachelOeffnen('${esc(k.id)}')">Zurück</button>
-      <button class="btn btn-primary" onclick="lkRegelwerkeSpeichern('${esc(k.id)}')">Speichern</button>
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
+      <button class="btn btn-primary" onclick="lkRegelwerkeSpeichern(${jsArg(k.id)})">Speichern</button>
     </div>`);
 }
 
@@ -3449,7 +3449,7 @@ function lkVerknuepfenDialog(id) {
   if (!alle.length) { toast('Es gibt kein weiteres Modell zum Verknüpfen.', 'error'); return; }
   openModal(`
     <div class="modal-header"><h3>Modell verknüpfen</h3>
-      <button class="modal-close" onclick="lkKachelOeffnen('${esc(k.id)}')">×</button></div>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
     <div class="modal-body">
       <p class="field-hint" style="margin:0 0 10px">Welches vorhandene BPMN-Modell gehört zu „${esc(k.name)}"?</p>
       <div class="form-group full">
@@ -3460,8 +3460,8 @@ function lkVerknuepfenDialog(id) {
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="lkKachelOeffnen('${esc(k.id)}')">Zurück</button>
-      <button class="btn btn-primary" onclick="lkVerknuepfen('${esc(k.id)}')">Verknüpfen</button>
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
+      <button class="btn btn-primary" onclick="lkVerknuepfen(${jsArg(k.id)})">Verknüpfen</button>
     </div>`);
 }
 
@@ -3541,15 +3541,15 @@ function lkBandDialog(key) {
     <div class="modal-body">
       <div class="form-group full"><label>Name <span class="req">*</span></label>
         <input type="text" id="lk-band-titel" value="${esc(b ? b.titel : '')}"
-          placeholder="z. B. Überwachung" onkeydown="if(event.key==='Enter')lkBandSpeichern('${esc(key || '')}')">
+          placeholder="z. B. Überwachung" onkeydown="if(event.key==='Enter')lkBandSpeichern(${jsArg(key || '')})">
         <span class="field-hint">Der Name lässt sich jederzeit ändern; die Zuordnung der Prozesse
           bleibt dabei erhalten.</span></div>
       <div class="form-group full"><label>Farbe</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="color" id="lk-band-farbe" value="${esc(b ? lkBandFarbe(b) : LK_KATEGORIE_FARBE)}" oninput="lkBandFarbeWahl(this.value)" style="width:46px;height:32px;padding:2px;border:1px solid var(--c-border);border-radius:6px;cursor:pointer">
           <input type="hidden" id="lk-band-farbe-eigen" value="${b && lkFarbeGueltig(b.farbe) ? '1' : ''}">
-          <span style="display:inline-flex;gap:4px;flex-wrap:wrap">${LK_FARBWAHL.map(f => `<button type="button" class="lk-farbknopf" style="background:${f}" title="${f}" onclick="lkBandFarbeWahl('${f}')"></button>`).join('')}</span>
-          ${b ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkBandFarbeStandard('${esc(b.key)}')">Standard</button>` : ''}
+          <span style="display:inline-flex;gap:4px;flex-wrap:wrap">${LK_FARBWAHL.map(f => `<button type="button" class="lk-farbknopf" style="background:${f}" title="${f}" onclick="lkBandFarbeWahl(${jsArg(f)})"></button>`).join('')}</span>
+          ${b ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkBandFarbeStandard(${jsArg(b.key)})">Standard</button>` : ''}
         </div>
         <span class="field-hint" id="lk-band-farbe-hinweis">${b ? _lkBandFarbeHinweis(b) : 'Ohne eigene Wahl ergibt sich die Farbe aus dem Namen: Führung, Kern, Unterstützung – oder die feste Farbe der Kategorie (Strategie, Finanzen, Risiko …).'}</span>
         <span class="field-hint">Alle Kacheln des Bereichs tragen diese Farbe – außer Prozessen, die ihren Typ selbst gesetzt haben.</span></div>
@@ -3562,9 +3562,9 @@ function lkBandDialog(key) {
       ${b ? `<div class="form-group full"><label>Reihenfolge</label>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn btn-outline btn-sm" ${i <= 0 ? 'disabled' : ''}
-            onclick="lkBandVerschieben('${esc(b.key)}',-1)">↑ nach oben</button>
+            onclick="lkBandVerschieben(${jsArg(b.key)},-1)">↑ nach oben</button>
           <button class="btn btn-outline btn-sm" ${i >= baender.length - 1 ? 'disabled' : ''}
-            onclick="lkBandVerschieben('${esc(b.key)}',1)">↓ nach unten</button>
+            onclick="lkBandVerschieben(${jsArg(b.key)},1)">↓ nach unten</button>
           <span class="field-hint">Platz ${i + 1} von ${baender.length}</span>
         </div></div>` : ''}
       ${b ? `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
@@ -3579,15 +3579,15 @@ function lkBandDialog(key) {
                    ${andere.map(x => `<option value="${esc(x.key)}">${esc(x.titel)}</option>`).join('')}
                  </select>
                  <button class="btn btn-outline btn-sm" style="color:#b91c1c"
-                   onclick="lkBandLoeschen('${esc(b.key)}')">Verschieben und entfernen</button>
+                   onclick="lkBandLoeschen(${jsArg(b.key)})">Verschieben und entfernen</button>
                </div>`
             : `<button class="btn btn-outline btn-sm" style="color:#b91c1c"
-                 onclick="lkBandLoeschen('${esc(b.key)}')">Bereich entfernen</button>`}
+                 onclick="lkBandLoeschen(${jsArg(b.key)})">Bereich entfernen</button>`}
       </div>` : ''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="lkBandSpeichern('${esc(key || '')}')">Speichern</button>
+      <button class="btn btn-primary" onclick="lkBandSpeichern(${jsArg(key || '')})">Speichern</button>
     </div>`);
   const el = document.getElementById('lk-band-titel');
   if (el && el.focus) el.focus();

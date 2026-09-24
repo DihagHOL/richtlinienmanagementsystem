@@ -229,7 +229,7 @@ function renderAusnahmen() {
     <tbody>${rows.map(a => {
       const wert = excRisikoWert(a);
       const stufe = (typeof riskStufe === 'function') ? riskStufe(wert) : '';
-      return `<tr onclick="openAusnahmeEditor('${esc(a.id)}')" style="cursor:pointer${excIstAktiv(a) || a.status === 'beantragt' ? '' : ';opacity:.55'}">
+      return `<tr onclick="openAusnahmeEditor(${jsArg(a.id)})" style="cursor:pointer${excIstAktiv(a) || a.status === 'beantragt' ? '' : ';opacity:.55'}">
         <td><b>${esc(a.titel)}</b>
           ${a.abschnitt ? `<div style="font-size:.68rem;color:var(--c-faint)">§ ${esc(a.abschnitt)}</div>` : ''}
           <div style="font-size:.68rem;color:var(--c-faint)">beantragt von ${esc(a.antragsteller || '–')}</div></td>
@@ -315,7 +315,7 @@ function _excScale(key) {   // key: 'e' | 'a'
     ? (typeof RISK_E_LABELS !== 'undefined' ? RISK_E_LABELS : ['', '1', '2', '3', '4', '5'])
     : (typeof RISK_A_LABELS !== 'undefined' ? RISK_A_LABELS : ['', '1', '2', '3', '4', '5']);
   const val = _excEditing.risiko[key] || 0;
-  return `<select onchange="excSetScale('${key}',this.value)">
+  return `<select onchange="excSetScale(${jsArg(key)},this.value)">
     <option value="0"${!val ? ' selected' : ''}>–</option>
     ${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${val === n ? ' selected' : ''}>${n} · ${esc(labels[n] || n)}</option>`).join('')}
   </select>`;
@@ -386,7 +386,7 @@ function renderAusnahmeEditor() {
         <div class="form-group full"><label>Geltung (Werke)</label>
           <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:6px">
             ${werke.map(w => `<label class="ack-check" style="font-weight:500"><input type="checkbox" ${(a.werke || []).includes(w) ? 'checked' : ''}
-              onchange="excToggleWerk('${esc(w)}',this.checked)"> ${esc(w)}</label>`).join('')}
+              onchange="excToggleWerk(${jsArg(w)},this.checked)"> ${esc(w)}</label>`).join('')}
           </div>
           <div class="field-hint">Kein Haken = konzernweit.</div></div>
       </div>
@@ -430,7 +430,7 @@ function renderAusnahmeEditor() {
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verlauf</div>${histRows}</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${a.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteAusnahme('${esc(a.id)}')" style="color:#b91c1c">Löschen</button>` : ''}
+      ${a.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteAusnahme(${jsArg(a.id)})" style="color:#b91c1c">Löschen</button>` : ''}
       <div style="flex:1"></div>
       ${canWrite && a.status === 'beantragt' ? `
         <button class="btn btn-outline" onclick="entscheideAusnahme('abgelehnt')">Ablehnen</button>

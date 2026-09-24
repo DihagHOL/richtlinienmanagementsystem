@@ -206,7 +206,7 @@ run(`procUnterprozessSetzen(__elemente[0], 'B')`);
 /* ── 5) Das Zeichen ⊞ am Element ── */
 run(`procUnterMarker()`);
 ok(overlays.length === 1 && overlays[0].id === 'T1' && overlays[0].typ === 'rms-unter', 'Ein Zeichen je einbindendem Element');
-ok(/⊞ Auftragserfassung/.test(overlays[0].html) && /procUnterprozessOeffnen\('B'\)/.test(overlays[0].html), 'Es nennt das Modell beim Namen und öffnet es');
+ok(/⊞ Auftragserfassung/.test(overlays[0].html) && /procUnterprozessOeffnen\(&quot;B&quot;\)/.test(overlays[0].html), 'Es nennt das Modell beim Namen und öffnet es');
 ctx.__tot = elem('T7', 'Alt', '[[rms:modell=GIBTESNICHT]]');
 ctx.__modelerTot = macheModeler([ctx.__tot], [], wurzel('Process_x'));
 run(`_bpmnModeler = __modelerTot; procUnterMarker();`);
@@ -238,7 +238,7 @@ ok(/eingebunden in .*Gießen/.test(box) && /eine Änderung hier wirkt dort/i.tes
 ctx.__modeler3 = macheModeler(ctx.__elemente, [ctx.__t2], ctx.__root);
 run(`_bpmnModeler = __modeler3; _renderElementUnter(true);`);
 box = felder['proc-unter'].innerHTML;
-ok(/id="proc-unter-suche"/.test(box) && /procUnterprozessEinbinden\('B'\)/.test(box) && /procUnterprozessEinbinden\('C'\)/.test(box) && !/procUnterprozessEinbinden\('D'\)/.test(box) && !/procUnterprozessEinbinden\('A'\)/.test(box),
+ok(/id="proc-unter-suche"/.test(box) && /procUnterprozessEinbinden\(&quot;B&quot;\)/.test(box) && /procUnterprozessEinbinden\(&quot;C&quot;\)/.test(box) && !/procUnterprozessEinbinden\(&quot;D&quot;\)/.test(box) && !/procUnterprozessEinbinden\(&quot;A&quot;\)/.test(box),
   'Eine Aufgabe ohne Modell: Suche und Einbinden-Knöpfe für alles, was kein Kreis wäre');
 ok(/als neues Modell anlegen/.test(box) && /„Liefern"/.test(box), '„Liefern" gibt es nirgends – also darf man es anlegen');
 ctx.__t3 = elem('T3', 'Gießen', '');
@@ -250,7 +250,7 @@ ok(!/als neues Modell anlegen/.test(box) && /gibt es schon in .*SHB/.test(box) &
 ctx.__modeler5 = macheModeler(ctx.__elemente, [ctx.__elemente[0]], ctx.__root);
 run(`_bpmnModeler = __modeler5; _renderElementUnter(true);`);
 box = felder['proc-unter'].innerHTML;
-ok(/⊞ <b>Auftragserfassung<\/b>/.test(box) && /procUnterprozessOeffnen\('B'\)/.test(box) && /procUnterprozessLoesen\(\)/.test(box),
+ok(/⊞ <b>Auftragserfassung<\/b>/.test(box) && /procUnterprozessOeffnen\(&quot;B&quot;\)/.test(box) && /procUnterprozessLoesen\(\)/.test(box),
   'Ein Element mit Modell: Öffnen und Lösen');
 ctx.__modeler6 = macheModeler([ctx.__ev], [ctx.__ev], ctx.__root);
 run(`_bpmnModeler = __modeler6; _renderElementUnter(true);`);

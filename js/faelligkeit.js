@@ -60,13 +60,13 @@ function _faelligCard(entry, accent) {
     </div>
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       <span style="flex:1;min-width:0;font-size:.8rem;color:var(--c-muted)">${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ kein Dokument'}</span>
-      <button class="btn btn-outline btn-sm" onclick="openPolicyEditor('${esc(p.id)}')">✏ Bearbeiten</button>
+      <button class="btn btn-outline btn-sm" onclick="openPolicyEditor(${jsArg(p.id)})">✏ Bearbeiten</button>
       ${(typeof canWriteTab !== 'function' || canWriteTab('faelligkeit')) ? `
         <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--c-muted)">heute +
           <input type="number" id="fael-m-${esc(p.id)}" min="1" max="120" value="${p.wiederholungMonate || 12}"
             style="width:58px;border:1px solid #d1d5db;border-radius:6px;padding:4px 6px;font-size:.82rem;font-family:inherit" title="Monate bis zur nächsten Überprüfung"> Mon.</span>
-        <button class="btn btn-success btn-sm" onclick="faelligSetReviewMonths('${esc(p.id)}')" title="Nächste Überprüfung auf heute + eingetragene Monate setzen">🔁 Setzen</button>
-        ${p.naechsteReview ? `<button class="btn btn-ghost btn-sm" onclick="faelligClearReview('${esc(p.id)}')" title="Überprüfungstermin entfernen">✕ Termin entfernen</button>` : ''}` : ''}
+        <button class="btn btn-success btn-sm" onclick="faelligSetReviewMonths(${jsArg(p.id)})" title="Nächste Überprüfung auf heute + eingetragene Monate setzen">🔁 Setzen</button>
+        ${p.naechsteReview ? `<button class="btn btn-ghost btn-sm" onclick="faelligClearReview(${jsArg(p.id)})" title="Überprüfungstermin entfernen">✕ Termin entfernen</button>` : ''}` : ''}
     </div>
   </div>`;
 }

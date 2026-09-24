@@ -353,7 +353,7 @@ function renderGovStruktur() {
     <div class="gs-kennzahlen">
       <div class="gs-kz"><span class="n">${gesamt}</span><span class="l">Regelungen</span></div>
       ${['gueltig', 'arbeit', 'offen'].map(st => `
-        <div class="gs-kz" style="cursor:pointer" onclick="gsStatusFilter('${_gsStatus === st ? '' : st}')"
+        <div class="gs-kz" style="cursor:pointer" onclick="gsStatusFilter(${jsArg(_gsStatus === st ? '' : st)})"
           title="Nach diesem Stand filtern">
           <span class="n" style="color:${GOV_STATUS[st].farbe}">${zahl(st)}</span>
           <span class="l">${GOV_STATUS[st].label}${_gsStatus === st ? ' ✓' : ''}</span></div>`).join('')}
@@ -394,7 +394,7 @@ function gsKachel(e, schreiben) {
         <span class="o">${esc(e.owner || 'noch offen')}</span>
         <span class="s" style="color:${st.farbe}">${esc(st.label)}</span>
       </div>
-      ${treffer ? `<button class="gs-link" onclick="event.stopPropagation();openDetail('${esc(treffer.id)}')"
+      ${treffer ? `<button class="gs-link" onclick="event.stopPropagation();openDetail(${jsArg(treffer.id)})"
         title="Dieses Regelwerk liegt bereits im RMS">→ im RMS</button>` : ''}
     </div>`;
 }

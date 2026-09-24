@@ -13,6 +13,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -49,7 +51,7 @@ const ctx = {
   __meta: '',
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lk, ctx);
 const w = (a) => vm.runInContext(a, ctx);
 w('_lkDaten = lkStartbestand(); _lkDaten.historie = []; _lkGeladen = true;');
@@ -164,7 +166,7 @@ ok((html.match(/class="lk-zeile-titel[" ]/g) || []).length === 3,
 /* Der Balken ist eine Schaltflaeche, sobald man schreiben darf: Ein Bereich soll
    sich dort aendern lassen, wo er steht, nicht in einem fernen Menue. */
 ok((html.match(/lk-zeile-titel-klick/g) || []).length === 3
-  && /onclick="lkBandDialog\('fuehrung'\)"/.test(html),
+  && /onclick="lkBandDialog\(&quot;fuehrung&quot;\)"/.test(html),
   'Mit Schreibrecht ist jeder Bereichsbalken anklickbar');
 ok(!/lk-ergebnis-zeile/.test(html), 'Ohne Ergebnisspalte – die Kernprozesse stehen für sich');
 ok(/grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/.test(html)
@@ -217,7 +219,7 @@ ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : (felder
 ctx.openModal = (h) => { modalHtml = h; };
 let modalHtml = '';
 w("lkBandDialog('ueberwachung')");
-ok(/id="lk-band-farbe" value="#15803D"/.test(modalHtml) && /id="lk-band-farbe-eigen" value="1"/.test(modalHtml) && (modalHtml.match(/lk-farbknopf/g) || []).length === 14 && /lkBandFarbeStandard\('ueberwachung'\)/.test(modalHtml) && /Eigene Farbe #15803D/.test(modalHtml),
+ok(/id="lk-band-farbe" value="#15803D"/.test(modalHtml) && /id="lk-band-farbe-eigen" value="1"/.test(modalHtml) && (modalHtml.match(/lk-farbknopf/g) || []).length === 14 && /lkBandFarbeStandard\(&quot;ueberwachung&quot;\)/.test(modalHtml) && /Eigene Farbe #15803D/.test(modalHtml),
   'Der Dialog zeigt die eigene Farbe, vierzehn Hausfarben und den Weg zurück zum Standard');
 felder = { 'lk-band-titel': { value: 'Überwachung' }, 'lk-band-form': { value: 'kacheln' }, 'lk-band-farbe': { value: '#0f766e' }, 'lk-band-farbe-eigen': { value: '1' }, 'lk-band-farbe-hinweis': { innerHTML: '' } };
 w("lkBandFarbeWahl('#0F766E')");
@@ -357,7 +359,7 @@ ok(tr('g').length === 0, 'Ein einzelner Buchstabe sucht noch nicht – das wäre
 ok(tr('SCHMELZ').length === 1, 'Groß-/Kleinschreibung ist egal');
 ok(tr('gibtesnicht').length === 0, 'Ohne Treffer nichts');
 w("_lkSuche = 'gieß';");
-ok(/lkSpringeZu\('SHB','giess'\)/.test(vm.runInContext('_lkTrefferHtml()', ctx)),
+ok(/lkSpringeZu\(&quot;SHB&quot;,&quot;giess&quot;\)/.test(vm.runInContext('_lkTrefferHtml()', ctx)),
   'Ein Treffer führt zur richtigen Karte und öffnet die Kachel');
 ok(/Kein Prozess mit/.test(vm.runInContext("_lkSuche = 'zzz'; _lkTrefferHtml()", ctx)),
   'Und sagt es, wenn es nichts gibt');
@@ -547,7 +549,7 @@ ctx.openModal = (h) => { modalUp = h; };
 let upFelder = {};
 ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : (upFelder[id] || null));
 w("lkUnterprozessDialog('vertrieb')");
-ok(/Unterprozess zu P-0\d\d Vertrieb/.test(modalUp) && /id="lk-up-suche"/.test(modalUp) && /lkUnterprozessEinbinden\('vertrieb','HOL:produktion'\)/.test(modalUp) && /lkUnterprozessEinbinden\('vertrieb','SHB:strategie'\)/.test(modalUp) && !/lkUnterprozessEinbinden\('vertrieb','HOL:vertrieb'\)/.test(modalUp),
+ok(/Unterprozess zu P-0\d\d Vertrieb/.test(modalUp) && /id="lk-up-suche"/.test(modalUp) && /lkUnterprozessEinbinden\(&quot;vertrieb&quot;,&quot;HOL:produktion&quot;\)/.test(modalUp) && /lkUnterprozessEinbinden\(&quot;vertrieb&quot;,&quot;SHB:strategie&quot;\)/.test(modalUp) && !/lkUnterprozessEinbinden\(&quot;vertrieb&quot;,&quot;HOL:vertrieb&quot;\)/.test(modalUp),
   'Der Dialog bietet jeden Prozess jeder Karte an – nur nicht sich selbst');
 const kand = w("lkUnterprozessKandidaten(lkKachelVonId('vertrieb'), 'produkt').map(x => x.ziel)");
 ok(kand.join() === 'HOL:produktion', 'Die Suche grenzt ein');

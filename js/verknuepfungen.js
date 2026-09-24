@@ -331,7 +331,7 @@ function vkSetAnsicht(a) {
 /** Umschalter zwischen Übersicht (Baum) und Nahsicht (Fokus). */
 function _vkAnsichtLeiste() {
   const knopf = (key, label, titel) => `<button class="btn btn-sm ${_vkAnsicht === key ? 'btn-primary' : 'btn-ghost'}"
-      onclick="vkSetAnsicht('${key}')" title="${titel}">${label}</button>`;
+      onclick="vkSetAnsicht(${jsArg(key)})" title="${titel}">${label}</button>`;
   return `${knopf('baum', '🌳 Übersicht', 'Die ganze Landschaft als Baum – aufklappbar')}
     ${knopf('abhaengig', '🔎 Abhängigkeiten', 'Einen Prozess suchen und sehen, was daran hängt – über Werke hinweg')}
     ${knopf('fokus', '🎯 Nahsicht', 'Ein Objekt in der Mitte, ringsum seine Beziehungen')}`;
@@ -473,7 +473,7 @@ function _vkTrefferHtml() {
         const art = VK_ARTEN[n.art] || {};
         const anzahl = n.werk ? 0 : vkBetroffeneWerke(n.id).length;
         const werke = anzahl > 1 ? ` · ${anzahl} Werke` : '';
-        return `<button class="vk-treffer-knopf" onclick="vkAbhaengigZeigen('${esc(n.id)}')"
+        return `<button class="vk-treffer-knopf" onclick="vkAbhaengigZeigen(${jsArg(n.id)})"
             title="Abhängigkeiten von „${esc(n.label)}" zeigen">
             <b>${esc(n.label)}</b>
             <span>${esc(art.label || n.art)}${n.werk ? ' · ' + esc(lkWerkLabel(n.werk)) : ''}${werke}</span>
@@ -510,7 +510,7 @@ function _vkWegHtml(weg) {
     const letzte = i === weg.length - 1;
     return trenner + (letzte
       ? `<b>${esc(x.knoten.label)}</b>`
-      : `<a href="#" onclick="vkAbhaengigZeigen('${esc(x.id)}');return false">${esc(x.knoten.label)}</a>`);
+      : `<a href="#" onclick="vkAbhaengigZeigen(${jsArg(x.id)});return false">${esc(x.knoten.label)}</a>`);
   }).join('');
 }
 
@@ -683,7 +683,7 @@ function _vkNachbarnListe(mitteId) {
         <div>${g.liste.map(n => {
           const art = VK_ARTEN[n.art] || VK_ARTEN.prozess;
           return `<button class="vk-chip" style="background:${art.farbe};color:${art.text}"
-            onclick="vkFokus('${esc(n.id)}')" title="${esc(art.label)}: ${esc(n.label)}">${esc(n.label)}</button>`;
+            onclick="vkFokus(${jsArg(n.id)})" title="${esc(art.label)}: ${esc(n.label)}">${esc(n.label)}</button>`;
         }).join('')}</div>
       </div>`).join('')}</div>`;
 }
@@ -693,7 +693,7 @@ function _vkKnotenSvg(n, x, y, istMitte, textVor, breiteVor) {
   const text = textVor || _vkKurz(n.label, istMitte ? 30 : 18);
   const b = breiteVor || Math.max(96, text.length * (istMitte ? 9.2 : 7.4) + 26);
   const h = istMitte ? 46 : 34;
-  return `<g class="vk-knoten${istMitte ? ' vk-mitte' : ''}" ${istMitte ? '' : `onclick="vkFokus('${esc(n.id)}')"`}>
+  return `<g class="vk-knoten${istMitte ? ' vk-mitte' : ''}" ${istMitte ? '' : `onclick="vkFokus(${jsArg(n.id)})"`}>
       <rect x="${(x - b / 2).toFixed(1)}" y="${(y - h / 2).toFixed(1)}" width="${b.toFixed(1)}" height="${h}"
         rx="9" fill="${art.farbe}" stroke="rgba(0,0,0,.14)"/>
       <text x="${x.toFixed(1)}" y="${(y + (istMitte ? 5 : 4)).toFixed(1)}" text-anchor="middle"
@@ -769,41 +769,41 @@ function _vkLueckenHtml() {
   return `<div class="vk-luecken">
       ${block('Prozesse ohne Verantwortlichen', l.ohneVerantwortlich,
         'Der Ablauf steht auf der Karte, aber niemand verantwortet ihn – die erste Frage jedes Audits.',
-        (k) => `<div><a href="#" onclick="vkZurKarte('${esc(k.werk)}','${esc(k.id)}');return false">${esc(k.name)}</a>
+        (k) => `<div><a href="#" onclick="vkZurKarte(${jsArg(k.werk)},${jsArg(k.id)});return false">${esc(k.name)}</a>
           <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${(l.abweichungen && l.abweichungen.length) ? `<div class="vk-luecke">
         <div class="vk-luecke-kopf">An der Kachel, aber nicht im Modell <span>${l.abweichungen.length}</span></div>
         <div class="field-hint" style="margin-bottom:6px">Dieselbe Aussage kann an zwei Stellen stehen –
           hier weichen Kachel und BPMN-Datei voneinander ab.</div>
         ${l.abweichungen.slice(0, 12).map(a => `<div style="padding:3px 0">
-            <a href="#" onclick="vkZurKarte('${esc(a.werk)}','${esc(a.kachel.id)}');return false">${esc(a.kachel.name)}</a>
+            <a href="#" onclick="vkZurKarte(${jsArg(a.werk)},${jsArg(a.kachel.id)});return false">${esc(a.kachel.name)}</a>
             <span class="field-hint"> · ${esc(a.werk)} · ${a.fehlend.length} Regelwerk(e)</span>
             ${a.modelle.map(m => `<button class="btn btn-ghost btn-sm"
-              onclick="vkAbgleichUebernehmen('${esc(a.werk)}','${esc(a.kachel.id)}','${esc(m.itemId)}')"
+              onclick="vkAbgleichUebernehmen(${jsArg(a.werk)},${jsArg(a.kachel.id)},${jsArg(m.itemId)})"
               title="Die fehlenden Zuordnungen in dieses Modell schreiben">→ ${esc(m.title)}</button>`).join('')}
           </div>`).join('')}
       </div>` : ''}
       ${block('Prozesse ohne jeden Bezug', l.ohneBezug,
         'Weder Modell noch Regelwerk – hier ist noch gar nichts hinterlegt.',
-        (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>
+        (k) => `<div><a href="#" onclick="vkFokus(${jsArg('prozess:' + k.werk + ':' + k.id)});return false">${esc(k.name)}</a>
           <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${block('Prozesse ohne Modell', l.ohneModell,
         'Ein Klick stellt den Prozess in die Mitte – dort lässt sich ein Modell anlegen oder verknüpfen.',
-        (k) => `<div><a href="#" onclick="vkFokus('prozess:${esc(k.werk)}:${esc(k.id)}');return false">${esc(k.name)}</a>
+        (k) => `<div><a href="#" onclick="vkFokus(${jsArg('prozess:' + k.werk + ':' + k.id)});return false">${esc(k.name)}</a>
           <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${block('Modelle ohne Regelwerk', l.modelleOhneRw,
         'Im Prozess-Editor lässt sich zuordnen, welche Regelwerke der Ablauf umsetzt.',
-        (m) => `<div><a href="#" onclick="openProcessAnsicht('${esc(m.itemId)}');return false">${esc(m.title)}</a></div>`)}
+        (m) => `<div><a href="#" onclick="openProcessAnsicht(${jsArg(m.itemId)});return false">${esc(m.title)}</a></div>`)}
       ${l.unterOhneZiel.length ? block('Eingebundene Unterprozesse, die es nicht mehr gibt', l.unterOhneZiel,
         'Das Modell öffnen und die ⊞ neu einbinden oder lösen – bis dahin zeigt sie ins Leere.',
-        (x) => `<div><a href="#" onclick="openProcessAnsicht('${esc(x.modell.itemId)}');return false">${esc(x.modell.title)}</a>
+        (x) => `<div><a href="#" onclick="openProcessAnsicht(${jsArg(x.modell.itemId)});return false">${esc(x.modell.title)}</a>
           <span class="field-hint"> · ⊞ ${esc(x.ziel)}</span></div>`) : ''}
       ${block('Veröffentlichte Regelwerke ohne Prozess', l.rwOhneProzess,
         'Nicht jedes Regelwerk beschreibt einen Ablauf – aber wo es einen gibt, sollte er verknüpft sein.',
-        (p) => `<div><a href="#" onclick="focusPolicyCard('${esc(p.id)}');return false">${esc(p.title)}</a></div>`)}
+        (p) => `<div><a href="#" onclick="focusPolicyCard(${jsArg(p.id)});return false">${esc(p.title)}</a></div>`)}
       ${block('Prozesse ohne Geltungsbereich', l.ohneGeltung,
         'Ungepflegt zählt als konzernweit – besser ausdrücklich festlegen.',
-        (k) => `<div><a href="#" onclick="vkZurKarte('${esc(k.werk)}','${esc(k.id)}');return false">${esc(k.name)}</a>
+        (k) => `<div><a href="#" onclick="vkZurKarte(${jsArg(k.werk)},${jsArg(k.id)});return false">${esc(k.name)}</a>
           <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
     </div>`;
 }
@@ -831,23 +831,23 @@ function _vkAktionenHtml(k) {
   let inhalt = '';
   if (k.art === 'prozess') {
     const modelle = _vkGraph.kanten.filter(x => x.von === k.id && x.typ === 'modelliert in');
-    inhalt = knopf(`vkZurKarte('${esc(k.werk)}','${esc(k.kachelId)}')`,
+    inhalt = knopf(`vkZurKarte(${jsArg(k.werk)},${jsArg(k.kachelId)})`,
       modelle.length ? 'In der Landkarte öffnen' : 'Modell anlegen oder verknüpfen',
       modelle.length ? 'ghost' : 'primary');
     if (modelle.length === 1) {
-      inhalt = knopf(`vkModellOeffnen('${esc(modelle[0].nach)}')`, 'Modell öffnen', 'primary')
-        + knopf(`vkRegelwerkeDialog('${esc(modelle[0].nach)}')`, 'Regelwerke zuordnen') + inhalt;
+      inhalt = knopf(`vkModellOeffnen(${jsArg(modelle[0].nach)})`, 'Modell öffnen', 'primary')
+        + knopf(`vkRegelwerkeDialog(${jsArg(modelle[0].nach)})`, 'Regelwerke zuordnen') + inhalt;
     } else if (modelle.length > 1) {
       // Bei mehreren Abläufen wäre „das Modell" mehrdeutig – dann führt der Weg
       // über die Kachel, wo alle stehen.
       inhalt = `<span class="field-hint" style="align-self:center">${modelle.length} Modelle – über die Kachel zu öffnen</span>` + inhalt;
     }
   } else if (k.art === 'modell') {
-    inhalt = knopf(`vkModellOeffnen('${esc(k.id)}')`, 'Modell öffnen', 'primary')
-      + knopf(`vkRegelwerkeDialog('${esc(k.id)}')`, 'Regelwerke zuordnen');
+    inhalt = knopf(`vkModellOeffnen(${jsArg(k.id)})`, 'Modell öffnen', 'primary')
+      + knopf(`vkRegelwerkeDialog(${jsArg(k.id)})`, 'Regelwerke zuordnen');
   } else if (k.art === 'regelwerk') {
-    inhalt = knopf(`closeModal();focusPolicyCard('${esc(k.policyId)}')`, 'Regelwerk öffnen', 'primary')
-      + knopf(`vkRegelwerkAnModell('${esc(k.id)}')`, 'Mit einem Modell verknüpfen');
+    inhalt = knopf(`closeModal();focusPolicyCard(${jsArg(k.policyId)})`, 'Regelwerk öffnen', 'primary')
+      + knopf(`vkRegelwerkAnModell(${jsArg(k.id)})`, 'Mit einem Modell verknüpfen');
   }
   return inhalt ? `<div class="vk-aktionen">${inhalt}</div>` : '';
 }
@@ -919,7 +919,7 @@ function vkRegelwerkeDialog(modellKnoten) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="vkRegelwerkeSpeichern('${esc(n.id)}')">Speichern</button>
+      <button class="btn btn-primary" onclick="vkRegelwerkeSpeichern(${jsArg(n.id)})">Speichern</button>
     </div>`);
 }
 
@@ -965,7 +965,7 @@ function vkRegelwerkAnModell(regelwerkKnoten) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="vkRegelwerkAnModellSpeichern('${esc(n.policyId)}')">Verknüpfen</button>
+      <button class="btn btn-primary" onclick="vkRegelwerkAnModellSpeichern(${jsArg(n.policyId)})">Verknüpfen</button>
     </div>`);
 }
 

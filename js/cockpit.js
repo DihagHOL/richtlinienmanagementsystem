@@ -17,7 +17,7 @@ function initCockpit() {
   const seq = ++_cockpitSeq;
 
   const tile = (id, icon, title, view, extra) => `
-    <div class="item-card" style="cursor:pointer;min-width:0" onclick="${extra || `switchView('${view}')`}">
+    <div class="item-card" style="cursor:pointer;min-width:0" onclick="${extra || `switchView(${jsArg(view)})`}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:1.15rem">${icon}</span>
         <b style="font-size:.85rem">${title}</b>

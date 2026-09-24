@@ -138,19 +138,19 @@ function _konzeptCard(k, isGF, canWrite) {
   const e = ko.entscheidung || {};
   const actions = [];
   if (canWrite && (st === 'Idee' || st === 'Zurückgestellt')) {
-    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();konzeptSubmitGF('${k.id}')">📤 Zur GF-Prüfung</button>`);
+    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();konzeptSubmitGF(${jsArg(k.id)})">📤 Zur GF-Prüfung</button>`);
   }
   if (isGF && st === 'GF-Prüfung') {
-    actions.push(`<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();konzeptDecide('${k.id}','angenommen')">✓ Annehmen → Regelwerk</button>`);
-    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();konzeptDecide('${k.id}','zurueckgestellt')">⏸ Zurückstellen</button>`);
-    actions.push(`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();konzeptDecide('${k.id}','abgelehnt')">✗ Ablehnen</button>`);
+    actions.push(`<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();konzeptDecide(${jsArg(k.id)},'angenommen')">✓ Annehmen → Regelwerk</button>`);
+    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();konzeptDecide(${jsArg(k.id)},'zurueckgestellt')">⏸ Zurückstellen</button>`);
+    actions.push(`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();konzeptDecide(${jsArg(k.id)},'abgelehnt')">✗ Ablehnen</button>`);
   }
   if (st === 'Angenommen' && ko.regelwerkId) {
-    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openPolicyFromKonzept('${esc(ko.regelwerkId)}')">→ Zum Regelwerk</button>`);
+    actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openPolicyFromKonzept(${jsArg(ko.regelwerkId)})">→ Zum Regelwerk</button>`);
   }
   const actionsRow = actions.length ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">${actions.join('')}</div>` : '';
   return `
-    <div class="item-card" id="konzept-${esc(k.id)}" onclick="openKonzeptEditor('${k.id}')">
+    <div class="item-card" id="konzept-${esc(k.id)}" onclick="openKonzeptEditor(${jsArg(k.id)})">
       <div class="ic-top">
         <div class="ic-title">💡 ${esc(k.title)}</div>
         <div class="ic-topright">${konzeptStatusBadge(k)}</div>
@@ -260,7 +260,7 @@ function renderKonzeptEditor() {
     <div class="modal-footer">
       ${readOnly
         ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff.</span><button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
-        : `${k.id ? `<button class="btn btn-danger btn-sm" onclick="konzeptDelete('${k.id}')" style="margin-right:auto">Löschen</button>` : ''}
+        : `${k.id ? `<button class="btn btn-danger btn-sm" onclick="konzeptDelete(${jsArg(k.id)})" style="margin-right:auto">Löschen</button>` : ''}
            <button class="btn btn-outline" onclick="saveKonzept(false)">Als Idee speichern</button>
            ${(st === 'Idee' || st === 'GF-Prüfung' || st === 'Zurückgestellt')
              ? `<button class="btn btn-primary" onclick="saveKonzept(true)">${st === 'GF-Prüfung' ? '↻ Erneut zur GF-Prüfung' : 'Zur GF-Prüfung einreichen →'}</button>`

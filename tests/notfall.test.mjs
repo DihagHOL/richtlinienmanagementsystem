@@ -15,6 +15,8 @@ import vm from 'vm';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
@@ -44,7 +46,7 @@ ok(/'nav-wirksamkeit', 'nav-notfall'/.test(lies('js/probelauf.js')), 'Im Probela
 /* ── 2) Module ── */
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;
-vm.createContext(kctx);
+kctx.jsArg ??= jsArg; vm.createContext(kctx);
 vm.runInContext(lies('js/module.js'), kctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = kctx.module.exports;
 ok(MODUL_ADMIN.includes('notfallmodell') && !MODUL_ADMIN.includes('notfall'), 'Das Modell im Verwaltungsblock (Audit Report rechnet damit), die Ansicht nicht');
@@ -73,7 +75,7 @@ ok(/async function _ergaenzeWirkSpalten/.test(sp) && /if \(create\) await _ergae
 // Das Werk am Asset – gelesen aus der Liste, tolerant zugeordnet (das Modell weiß wie: amWerkeVon)
 const sctx = { console, JSON, STANDORTE: ['HOL', 'SHB', 'WGC', 'ZAI'], module: { exports: {} } };
 sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
-vm.createContext(sctx);
+sctx.jsArg ??= jsArg; vm.createContext(sctx);
 vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
 const aw = (f) => vm.runInContext(`_assetWerke(${JSON.stringify(f)})`, sctx);
@@ -118,7 +120,7 @@ ok(/'krit\. Prozesse mit Plan'/.test(cl), 'Und eine Kachel im Bericht');
 // Die Dokumentation rendert – ohne dass ein Platzhalter als Text stehen bleibt
 const dctx = { console, esc: (s) => String(s ?? ''), module: { exports: {} } };
 dctx.window = dctx; dctx.globalThis = dctx;
-vm.createContext(dctx);
+dctx.jsArg ??= jsArg; vm.createContext(dctx);
 vm.runInContext(lies('js/notfallmodell.js'), dctx);
 vm.runInContext(lies('js/dokumentation.js'), dctx);
 const doku = vm.runInContext('_dokuSections()', dctx);
@@ -180,7 +182,7 @@ const ctx = {
   module: { exports: {} },
 };
 ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/notfallmodell.js'), ctx);
 vm.runInContext(lies('js/notfall.js'), ctx);
 
@@ -196,7 +198,7 @@ const optionen = [...out.matchAll(/<option value="([A-Z]+)"[^>]*>([^<]*)<\/optio
 ok(optionen.map(o => o[0]).join(',') === 'KONZERN,HOL,WGC', `Die Werk-Auswahl führt alle sichtbaren Werke (${optionen.map(o => o[0]).join(',')})`);
 ok(optionen.find(o => o[0] === 'WGC')[1].includes('ohne Landkarte') && !optionen.find(o => o[0] === 'HOL')[1].includes('ohne'), '… und sagt, welches noch keine Landkarte hat');
 ok(/1 Prozess\(e\) ohne Business-Impact-Analyse/.test(out), 'Personal ist unbewertet – und das steht oben');
-const zeilen = [...out.matchAll(/nfKachelOeffnen\('([a-z]+)'\)/g)].map(m => m[1]);
+const zeilen = [...out.matchAll(/nfKachelOeffnen\(&quot;([a-z]+)&quot;\)/g)].map(m => m[1]);
 ok(zeilen.join(',') === 'it,auftraege,personal', `Sortiert: kritische nach RTO (IT 2 h vor Aufträgen 4 h), dann unbewertet (${zeilen.join(',')})`);
 ok(/🖨 Notfallhandbuch/.test(out) && /🖨 Alarmkarte/.test(out), 'Beide Druckknöpfe');
 
@@ -223,8 +225,8 @@ vm.runInContext("nfSetModus('krisenstab')", ctx);
 out = mounts['notfall-mount'].innerHTML;
 ok(/noch kein Krisenstab angelegt/.test(out) && /nfStabAnlegen\(\)/.test(out), 'Ohne Stab: anlegen');
 vm.runInContext('nfStabAnlegen()', ctx);
-ok(modal && /Krisenstab HOL/.test(modal) && (modal.match(/nfStabZeile\('mitglieder'/g) || []).length >= 8 * 6, 'Der Editor bringt die acht Rollen mit');
-ok(/Eskalationsstufen – wer ruft wann wen\?/.test(modal) && (modal.match(/nfStabZeile\('alarmierung'/g) || []).length === 9 && !/nfStabZeileHinzu\('alarmierung'\)/.test(modal),
+ok(modal && /Krisenstab HOL/.test(modal) && (modal.match(/nfStabZeile\(&quot;mitglieder&quot;/g) || []).length >= 8 * 6, 'Der Editor bringt die acht Rollen mit');
+ok(/Eskalationsstufen – wer ruft wann wen\?/.test(modal) && (modal.match(/nfStabZeile\(&quot;alarmierung&quot;/g) || []).length === 9 && !/nfStabZeileHinzu\(&quot;alarmierung&quot;\)/.test(modal),
   'Die drei Stufen stehen fest: je drei Felder, kein Hinzufügen, kein Löschen');
 ok(/>1 – Störung</.test(modal) && />2 – Notfall</.test(modal) && />3 – Krise</.test(modal), 'Beschriftet aus dem Modell');
 ok(/Leitung Krisenstab ist nicht benannt/.test(modal), 'Und sagt, was fehlt');
@@ -292,7 +294,7 @@ ok(fenster.length === 3 && /Alarmkarte/.test(fenster[2]), 'Die Alarmkarte');
 
 // Haken für die Landkarte
 const zeile = vm.runInContext("nfKachelZeile(lkKachelVonId('it'), 'HOL')", ctx);
-ok(/🚨/.test(zeile) && /hoch/.test(zeile) && /RTO <b>2 h<\/b>/.test(zeile) && /Plan <span[^>]*>fehlt/.test(zeile) && /nfKachelOeffnen\('it'\)/.test(zeile),
+ok(/🚨/.test(zeile) && /hoch/.test(zeile) && /RTO <b>2 h<\/b>/.test(zeile) && /Plan <span[^>]*>fehlt/.test(zeile) && /nfKachelOeffnen\(&quot;it&quot;\)/.test(zeile),
   'Die Zeile im Kachel-Dialog: Kritikalität, RTO, Plan fehlt, Knopf');
 ok(vm.runInContext("nfKachelMarker(lkKachelVonId('it'))", ctx).includes('🚨') && vm.runInContext("nfKachelMarker({bcm:{kritikalitaet:'mittel'}})", ctx) === '',
   'Der Marker nur an kritischen Kacheln');

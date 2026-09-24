@@ -122,7 +122,7 @@ function renderVorfaelle() {
     <div style="font-size:1.45rem;font-weight:800;color:${col}">${n}</div><div style="font-size:.78rem;color:var(--c-muted)">${label}</div></div>`;
 
   const incidents = _vfGefiltert('incident'), changes = _vfGefiltert('change'), dokus = _vfGefiltert('doku'), sonstige = _vfGefiltert('sonstig');
-  const zeileAllg = (t, extra) => `<tr onclick="openVorfall('${esc(t.id)}')" style="cursor:pointer${t.offen ? '' : ';opacity:.7'}">
+  const zeileAllg = (t, extra) => `<tr onclick="openVorfall(${jsArg(t.id)})" style="cursor:pointer${t.offen ? '' : ';opacity:.7'}">
       <td style="white-space:nowrap;color:var(--c-muted)">${esc((t.erstellt || '').slice(0, 10))}</td>
       <td><b>#${esc(t.id)}</b> ${esc(t.titel)}${t.beschreibung ? `<div style="font-size:.7rem;color:var(--c-faint)">${esc(t.beschreibung.slice(0, 110))}${t.beschreibung.length > 110 ? ' …' : ''}</div>` : ''}</td>
       <td style="white-space:nowrap">${t.werke.length ? (t.werke.includes('ALLE') ? 'konzernweit' : esc(t.werke.join(', '))) : (t.werkText ? esc(t.werkText) : '<span style="color:var(--c-faint)">–</span>')}</td>
@@ -150,7 +150,7 @@ function renderVorfaelle() {
       ${kpi(z.letzte12Monate, 'Meldungen in 12 Monaten', '#17509e')}
       ${kpi(z.dauerMittelTage === null ? '–' : z.dauerMittelTage + ' T', 'Ø Bearbeitungsdauer', '#17509e')}
     </div>
-    ${z.offenListe.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Was drängt:</b> ${z.offenListe.slice(0, 5).map(o => `<a href="#" onclick="openVorfall('${esc(o.id)}');return false" style="color:inherit">#${esc(o.id)} ${esc(o.titel)}</a> – ${esc(o.fehler[0])}`).join(' · ')}${z.offenListe.length > 5 ? ` · +${z.offenListe.length - 5}` : ''}</div>` : ''}
+    ${z.offenListe.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Was drängt:</b> ${z.offenListe.slice(0, 5).map(o => `<a href="#" onclick="openVorfall(${jsArg(o.id)});return false" style="color:inherit">#${esc(o.id)} ${esc(o.titel)}</a> – ${esc(o.fehler[0])}`).join(' · ')}${z.offenListe.length > 5 ? ` · +${z.offenListe.length - 5}` : ''}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
       <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_vfFilter.q)}" oninput="_vfFilter.q=this.value;renderVorfaelle()" style="width:200px">
       <select class="sort-select" onchange="_vfFilter.werk=this.value;renderVorfaelle()"><option value="">alle Werke</option>${werke.filter(w => !sichtbar || sichtbar.includes(w)).map(w => `<option value="${esc(w)}"${_vfFilter.werk === w ? ' selected' : ''}>${esc(w)}</option>`).join('')}</select>
@@ -202,7 +202,7 @@ function _vfFristenBlock() {
   if (!fr.length) return '<div class="field-hint">Nicht erheblich, keine Personendaten: keine Meldepflicht. Bleibt die Entscheidung offen, gilt sie als Lücke.</div>';
   return `<table class="tbl" style="font-size:.8rem"><thead><tr><th>Frist</th><th>Fällig</th><th>Erledigt am</th><th>Stand</th></tr></thead><tbody>${fr.map(x => `<tr>
     <td><b>${esc(x.label)}</b><div class="field-hint">${esc(x.text)}</div></td><td style="white-space:nowrap">${_vfDt(x.faellig)}</td>
-    <td><input type="datetime-local" value="${esc(_vfLokal(x.erledigt))}" onchange="vfSetMeldung('${x.key}',this.value)"${ro}></td>
+    <td><input type="datetime-local" value="${esc(_vfLokal(x.erledigt))}" onchange="vfSetMeldung(${jsArg(x.key)},this.value)"${ro}></td>
     <td style="white-space:nowrap;font-weight:600;color:${x.stand === 'ueberfaellig' ? '#b91c1c' : x.stand === 'erledigt' ? '#15803d' : '#b45309'}">${x.stand === 'erledigt' ? 'fristgerecht ✓' : x.stand === 'verspaetet' ? 'verspätet abgegeben' : vfRestText(x.restStunden)}</td></tr>`).join('')}</tbody></table>
     <div class="form-group" style="margin-top:8px"><label>Behörde / Referenz der Meldung</label><input type="text" value="${esc(b.behoerde)}" oninput="vfSet('behoerde',this.value)" placeholder="BSI-Meldeportal, Aktenzeichen; LfDI, Vorgangsnummer"${ro}></div>`;
 }

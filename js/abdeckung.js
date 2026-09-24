@@ -18,7 +18,7 @@ let _abdeckungMode = 'heatmap';   // 'heatmap' | 'soa' (Erklärung zur Anwendbar
 /** Umschalter Heatmap ↔ SoA (beide Renderer setzen ihn an den Anfang des Mounts). */
 function _abModeSwitcher(active) {
   const b = (mode, label) => `<button class="btn btn-sm ${active === mode ? 'btn-primary' : 'btn-outline'}"
-    onclick="abdeckungSetMode('${mode}')">${label}</button>`;
+    onclick="abdeckungSetMode(${jsArg(mode)})">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA – Erklärung zur Anwendbarkeit')}${b('reifegrad', 'Reifegrad IT/OT-Betrieb')}</div>`;
 }
 
@@ -124,7 +124,7 @@ function renderAbdeckung() {
         + (d.prov.length  ? 'Vorläufig (Review): ' + d.prov.join(', ') : '')
         + (!d.saved.length && !d.prov.length ? 'Lücke – von keiner Richtlinie abgedeckt' : '');
       const badge = s > 1 ? ` <span style="opacity:.75">×${s}</span>` : (kind === 'prov' ? ' <span style="opacity:.75">◔</span>' : '');
-      return `<div class="ab-cell" title="${esc(tip)}" onclick="abdeckungShowControl('${esc(it.id)}')"
+      return `<div class="ab-cell" title="${esc(tip)}" onclick="abdeckungShowControl(${jsArg(it.id)})"
         style="${_abColor(kind, s)};border:1px solid;border-radius:6px;padding:5px 7px;font-size:.72rem;cursor:pointer;min-width:0">
         <b>${esc(it.id)}</b>${badge}</div>`;
     }).join('');

@@ -128,7 +128,7 @@ ok(/sessionStorage\.getItem\('rms_deeplink'\)/.test(auth),
   'Auch die Anmeldung greift auf den gesicherten Deeplink zurück');
 ok(/if \(adressat && ich && adressat !== ich\)/.test(ek), 'Und vergleicht ihn mit dem angemeldeten Konto');
 ok(/Dieser Link war an jemand anderen adressiert/.test(ek), 'Passt es nicht, wird nichts gespeichert');
-ok(/authAnmeldenAls\('\$\{esc\(adressat\)\}'\)/.test(ek), 'Sondern der Wechsel angeboten');
+ok(/authAnmeldenAls\(\$\{jsArg\(adressat\)\}\)/.test(ek), 'Sondern der Wechsel angeboten');
 ok(/Vertretung/.test(ek), 'Mit dem Hinweis auf die Vertretung – dafür gibt es den richtigen Weg');
 ok(ek.indexOf('const adressat') < ek.indexOf('await markFreigabe'), 'Die Prüfung steht vor der Entscheidung');
 

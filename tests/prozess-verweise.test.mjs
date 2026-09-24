@@ -115,8 +115,8 @@ ok(run(`lkVerweisArt('quatsch').art`) === 'nutzt', 'Eine unbekannte Art fällt a
 /* ── 7) Anklickbar, nicht nur lesbar ── */
 const lk = lies('js/landkarte.js');
 const html = run(`_lkVerweiseHtml('HOL', lkKachelVonId('vertrieb'))`);
-ok(/lkSpringeZu\('HOL','angebot'\)/.test(html), 'Jede Zeile springt auf ihr Ziel');
-ok(/lkSpringeZu\('SHB','giessen'\)/.test(html), 'Auch über die Gesellschaftsgrenze');
+ok(/lkSpringeZu\(&quot;HOL&quot;,&quot;angebot&quot;\)/.test(html), 'Jede Zeile springt auf ihr Ziel');
+ok(/lkSpringeZu\(&quot;SHB&quot;,&quot;giessen&quot;\)/.test(html), 'Auch über die Gesellschaftsgrenze');
 ok(html.includes('Prozesslandschaft'), 'Der Abschnitt ist benannt');
 ok(html.includes('Unterprozesse') && html.includes('Danach folgt') && html.includes('Nutzt'),
   'Nach Art gruppiert, nicht als eine lange Liste');

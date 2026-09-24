@@ -221,7 +221,7 @@ function renderNotfall() {
   const kpi = (n, label, col) => `<div style="flex:1;min-width:120px;background:var(--c-surface,#fff);border:1px solid var(--c-border);border-radius:10px;padding:10px 13px">
     <div style="font-size:1.45rem;font-weight:800;color:${col}">${n}</div>
     <div style="font-size:.78rem;color:var(--c-muted)">${label}</div></div>`;
-  const tab = (m, label) => `<button class="btn btn-sm ${_nfModus === m ? 'btn-primary' : 'btn-outline'}" onclick="nfSetModus('${m}')">${label}</button>`;
+  const tab = (m, label) => `<button class="btn btn-sm ${_nfModus === m ? 'btn-primary' : 'btn-outline'}" onclick="nfSetModus(${jsArg(m)})">${label}</button>`;
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
@@ -280,7 +280,7 @@ function _nfBiaHtml(schreiben) {
     <tbody>${rows.map(({ k, b, p }) => {
       const letzte = nfLetzteUebung(_nfUebungen, _lkWerk, k.id);
       const plan = nfHatPlan(k);
-      return `<tr onclick="nfKachelOeffnen('${esc(k.id)}')" style="cursor:pointer${b.kritikalitaet === 'niedrig' ? ';opacity:.6' : ''}">
+      return `<tr onclick="nfKachelOeffnen(${jsArg(k.id)})" style="cursor:pointer${b.kritikalitaet === 'niedrig' ? ';opacity:.6' : ''}">
         <td><b>${esc(k.name)}</b>${k.unter ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(k.unter)}</div>` : ''}</td>
         <td>${_nfKritBadge(b.kritikalitaet)}</td>
         <td style="white-space:nowrap">${zeit(b.mtpd)}</td><td style="white-space:nowrap">${zeit(b.rto)}</td><td style="white-space:nowrap">${zeit(b.rpo)}</td>
@@ -342,7 +342,7 @@ function _nfAusfallHtml() {
         ${schreiben ? `<span style="margin-left:auto;font-size:.8rem" title="${register ? 'Wird im Assetregister gespeichert' : 'Wird in der Landkarte gespeichert (alte Liste)'}">Wiederherstellzeit:
           <input type="number" min="0" step="0.5" style="width:70px" id="nf-arto-wert" value="${esc(nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').wert)}">
           <select id="nf-arto-einheit">${['min', 'h', 'tage'].map(e => `<option value="${e}"${nfDauerEingabe(rto[_nfAssetWahl] ? rto[_nfAssetWahl].rto : '').einheit === e ? ' selected' : ''}>${e === 'tage' ? 'Tage' : e}</option>`).join('')}</select>
-          <button class="btn btn-outline btn-sm" onclick="nfAssetRtoSpeichern('${esc(_nfAssetWahl)}')">Setzen</button></span>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="nfAssetRtoSpeichern(${jsArg(_nfAssetWahl)})">Setzen</button></span>` : ''}
       </div>
       ${mitNamen.length ? `<div style="font-size:.85rem;margin-bottom:6px;color:#b91c1c"><b>Reißt mit:</b> ${mitNamen.map(esc).join(', ')} <span class="field-hint">– hängen laut Assetregister daran; ihre Prozesse stehen mit in der Liste.</span></div>` : ''}
       ${(() => { const st = nfStufeBeiAusfall(_lkDaten, _nfAssetWahl, werke, ausfallOpt); const v = st.stufe;
@@ -358,7 +358,7 @@ function _nfAusfallHtml() {
             ${konflikt ? ' <span style="color:#b91c1c;font-weight:600" title="Das Asset braucht länger, als der Prozess weg sein darf">⚠ nicht haltbar</span>' : ''}
             · Plan ${plan ? '<span style="color:#15803d">✓</span>' : '<span style="color:#b91c1c">fehlt</span>'}
             ${(b.plan.verantwortlich || kachel.verantwortlich) ? ` · 👤 ${esc(_nfName(b.plan.verantwortlich || kachel.verantwortlich))}` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="nfSetWerk('${esc(werk)}');nfKachelOeffnen('${esc(kachel.id)}')">Plan öffnen</button></li>`; }).join('')}</ol>`
+            <button class="btn btn-ghost btn-sm" onclick="nfSetWerk(${jsArg(werk)});nfKachelOeffnen(${jsArg(kachel.id)})">Plan öffnen</button></li>`; }).join('')}</ol>`
         : '<div class="field-hint">Kein Prozess hängt an diesem Asset – oder niemand hat es eingetragen. Beides sollte man wissen.</div>'}
     </div>`;
   }
@@ -372,7 +372,7 @@ function _nfAusfallHtml() {
       // Prozesse, die laut Liste nicht in einem Werk dieses Assets liegen.
       const fremd = pr.filter(p => nfAssetFremd({ werke: aw }, p.werk));
       const abh = _nfRegister() && typeof amAbhaengige === 'function' ? amAbhaengige(_nfAssets, t.id).length : 0;
-      return `<tr onclick="_nfAssetWahl='${esc(t.id)}';renderNotfall()" style="cursor:pointer${t.id === _nfAssetWahl ? ';background:var(--c-bg,#f8fafc)' : ''}">
+      return `<tr onclick="_nfAssetWahl=${jsArg(t.id)};renderNotfall()" style="cursor:pointer${t.id === _nfAssetWahl ? ';background:var(--c-bg,#f8fafc)' : ''}">
         <td><b>${esc(t.title)}</b>${abh ? `<div style="font-size:.68rem;color:#b91c1c">reißt ${abh} Asset(s) mit</div>` : ''}</td>
         <td style="white-space:nowrap">${aw.length ? esc(aw.filter(x => x !== 'ALLE').join(', ') || 'konzernweit') : '<span style="color:var(--c-faint)">–</span>'}${
           fremd.length ? ` <span style="color:#b45309" title="${esc(fremd.map(p => p.name + ' (' + p.werk + ')').join(', '))} hängen daran, liegen aber in einem anderen Werk">⚠</span>` : ''}</td>
@@ -433,7 +433,7 @@ function _nfStabHtml(schreiben) {
   const z = nfKennzahlen(_lkDaten, [], _nfSichtbareWerke(), nfPflichtWerke());
   const andere = z.stabOffen.filter(o => o.werk !== _lkWerk);
   const uebersicht = andere.length ? `<div class="field-hint" style="margin-top:14px">In anderen Werken offen: ${
-    andere.map(o => `<a href="#" onclick="nfSetWerk('${esc(o.werk)}');return false" style="color:var(--c-primary);font-weight:600">${esc(lkWerkLabel(o.werk))}</a> (${o.fehlt ? 'kein Krisenstab' : `${o.luecken.length} Lücke(n)`})`).join(' · ')}</div>` : '';
+    andere.map(o => `<a href="#" onclick="nfSetWerk(${jsArg(o.werk)});return false" style="color:var(--c-primary);font-weight:600">${esc(lkWerkLabel(o.werk))}</a> (${o.fehlt ? 'kein Krisenstab' : `${o.luecken.length} Lücke(n)`})`).join(' · ')}</div>` : '';
   if (!stab) {
     return `${emptyState(`Für ${lkWerkLabel(_lkWerk)} ist noch kein Krisenstab angelegt.`, '🧭')}
       <div style="text-align:center;margin-top:-8px">
@@ -502,7 +502,7 @@ function renderNfStabEditor() {
   if (typeof lkMitgliederLaden === 'function') lkMitgliederLaden();
   const lu = nfStabLuecken(s);
   const inp = (liste, i, feld, wert, ph, breite, list) => `<input type="text" value="${esc(wert)}" placeholder="${esc(ph || '')}"${list ? ` list="${list}"` : ''}
-    oninput="nfStabZeile('${liste}',${i},'${feld}',this.value)" style="width:${breite || '100%'}">`;
+    oninput="nfStabZeile(${jsArg(liste)},${i},${jsArg(feld)},this.value)" style="width:${breite || '100%'}">`;
   const rollen = NF_STAB_ROLLEN.map(r => `<option value="${esc(r.rolle)}">${esc(r.aufgabe)}</option>`).join('');
   const mit = (s.mitglieder || []).map((m, i) => `<tr>
     <td>${inp('mitglieder', i, 'rolle', m.rolle, 'Rolle', '150px', 'nf-rollen')}</td>
@@ -663,8 +663,8 @@ function _nfAssetsHtml() {
     const e = nfDauerEingabe(wert);
     if (!darfRegister) return `<span style="margin-left:auto;white-space:nowrap;font-size:.75rem;color:var(--c-muted)" title="Wird im Assetregister gepflegt">Wiederherstellung ${wert === '' ? '<b style="color:#b45309">fehlt</b>' : `<b>${esc(nfDauerText(wert))}</b>`}</span>`;
     return `<span style="margin-left:auto;white-space:nowrap;font-size:.75rem;color:var(--c-muted)" title="${register ? 'Wird beim Speichern ins Assetregister geschrieben – die eine Wahrheit für alle Prozesse.' : 'Wie lange braucht die Wiederherstellung dieses Assets? Gilt für alle Prozesse, die daran hängen.'}">Wiederherstellung
-      <input type="number" min="0" step="0.5" id="nf-arto-${esc(a.id)}-wert" value="${esc(e.wert)}" style="width:60px" onchange="nfAssetRtoSetzen('${esc(a.id)}')">
-      <select id="nf-arto-${esc(a.id)}-einheit" onchange="nfAssetRtoSetzen('${esc(a.id)}')">${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x}</option>`).join('')}</select></span>`;
+      <input type="number" min="0" step="0.5" id="nf-arto-${esc(a.id)}-wert" value="${esc(e.wert)}" style="width:60px" onchange="nfAssetRtoSetzen(${jsArg(a.id)})">
+      <select id="nf-arto-${esc(a.id)}-einheit" onchange="nfAssetRtoSetzen(${jsArg(a.id)})">${['min', 'h', 'tage'].map(x => `<option value="${x}"${e.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x}</option>`).join('')}</select></span>`;
   };
   const sbBadge = (a) => {
     if (!register || !a.verfuegbarkeit) return '';
@@ -673,7 +673,7 @@ function _nfAssetsHtml() {
     return ` <span style="font-size:.66rem;color:${col};font-weight:700" title="Verfügbarkeit laut Assetregister">A: ${esc(a.verfuegbarkeit)}</span>`;
   };
   const row = (a, checked) => `<label class="ack-check" style="font-weight:500;align-items:center;display:flex;gap:8px">
-    <input type="checkbox" ${checked ? 'checked' : ''} onchange="nfAssetUmschalten('${esc(String(a.id))}',this.checked)">
+    <input type="checkbox" ${checked ? 'checked' : ''} onchange="nfAssetUmschalten(${jsArg(String(a.id))},this.checked)">
     <span><b>${esc(a.title)}</b> ${_nfWerkTag(a.werke)}${sbBadge(a)}${nfAssetFremd(a, _lkWerk) ? ' <span style="color:#b45309" title="Steht laut Liste in einem anderen Werk">⚠</span>' : ''}${a.sub && !register ? ` <span style="color:var(--c-faint)">${esc(a.sub)}</span>` : ''}${register && a.kategorie ? ` <span style="color:var(--c-faint)">${esc(a.kategorie)}</span>` : ''}</span>
     ${checked ? rtoZeile({ id: String(a.id), title: a.title }) : ''}</label>`;
   let html = '';
@@ -719,8 +719,8 @@ function renderNfEditor() {
   const zeit = (feld, label, hilfe) => {
     const v = nfDauerEingabe(b[feld]);
     return `<div class="form-group"><label>${label}${b.kritikalitaet === 'hoch' && feld !== 'mtpd' ? ' <span class="req">*</span>' : ''}</label>
-      <div style="display:flex;gap:6px"><input type="number" min="0" step="0.5" id="nf-${feld}-wert" value="${esc(v.wert)}" style="width:90px" onchange="nfZeit('${feld}')"${ro}>
-      <select id="nf-${feld}-einheit" onchange="nfZeit('${feld}')"${ro}>${['min', 'h', 'tage'].map(x => `<option value="${x}"${v.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x === 'h' ? 'Stunden' : 'Minuten'}</option>`).join('')}</select></div>
+      <div style="display:flex;gap:6px"><input type="number" min="0" step="0.5" id="nf-${feld}-wert" value="${esc(v.wert)}" style="width:90px" onchange="nfZeit(${jsArg(feld)})"${ro}>
+      <select id="nf-${feld}-einheit" onchange="nfZeit(${jsArg(feld)})"${ro}>${['min', 'h', 'tage'].map(x => `<option value="${x}"${v.einheit === x ? ' selected' : ''}>${x === 'tage' ? 'Tage' : x === 'h' ? 'Stunden' : 'Minuten'}</option>`).join('')}</select></div>
       <span class="field-hint">${hilfe}</span></div>`;
   };
   const uebungen = nfUebungenZu(_nfUebungen, _lkWerk, e.id);
@@ -740,7 +740,7 @@ function renderNfEditor() {
       <div class="field-hint" style="margin-bottom:8px">Was passiert, wenn dieser Prozess steht? Daraus folgt, wie schnell er wieder laufen muss.${b.standAm ? ` Stand ${fmtDate(b.standAm)}.` : ''}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         ${Object.entries(NF_KRITIKALITAET).map(([key, kr]) => `<label class="ack-check" style="font-weight:600;color:${kr.farbe};align-items:flex-start;flex:1;min-width:160px" title="${esc(kr.text)}">
-          <input type="radio" name="nf-krit" ${b.kritikalitaet === key ? 'checked' : ''} onchange="nfKritSetzen('${key}')"${ro}> <span>${esc(kr.label)}<div style="font-weight:400;font-size:.72rem;color:var(--c-muted)">${esc(kr.text)}</div></span></label>`).join('')}
+          <input type="radio" name="nf-krit" ${b.kritikalitaet === key ? 'checked' : ''} onchange="nfKritSetzen(${jsArg(key)})"${ro}> <span>${esc(kr.label)}<div style="font-weight:400;font-size:.72rem;color:var(--c-muted)">${esc(kr.text)}</div></span></label>`).join('')}
       </div>
       <div class="form-grid">
         <div class="form-group full"><label>Auswirkung bei Ausfall</label>
@@ -763,7 +763,7 @@ function renderNfEditor() {
           <input type="text" list="lk-people" value="${esc(p.verantwortlich)}" oninput="nfPlanFeld('verantwortlich',this.value)" placeholder="${esc(e.verantwortlich ? 'leer = Prozessverantwortliche(r) ' + _nfName(e.verantwortlich) : 'name@dihag.com')}"${ro}>
           <datalist id="lk-people">${(typeof _lkPeopleOptions === 'function') ? _lkPeopleOptions() : ''}</datalist></div>
         ${NF_PLAN_TEILE.map(t => `<div class="form-group full"><label>${esc(t.titel)}${t.pflicht ? ' <span class="req">*</span>' : ''}</label>
-          <textarea oninput="nfPlanFeld('${t.id}',this.value)" placeholder="${esc(t.frage)}" style="min-height:${t.pflicht ? 80 : 56}px"${ro}>${esc(p[t.id])}</textarea></div>`).join('')}
+          <textarea oninput="nfPlanFeld(${jsArg(t.id)},this.value)" placeholder="${esc(t.frage)}" style="min-height:${t.pflicht ? 80 : 56}px"${ro}>${esc(p[t.id])}</textarea></div>`).join('')}
       </div>
       <div style="font-weight:700;font-size:.85rem;margin:10px 0 4px">Kontakte <span class="req">*</span></div>
       <div class="field-hint" style="margin-bottom:6px">Wen ruft man um drei Uhr nachts an? Rollen zuerst, dann die Person, die sie gerade hat.</div>
@@ -774,14 +774,14 @@ function renderNfEditor() {
       <div style="font-weight:700;font-size:.9rem;margin:16px 0 4px">Übungen</div>
       <div class="field-hint" style="margin-bottom:6px">Ein Plan ohne Übung ist Papier. Übungen stehen im Wirksamkeits-Register – gefundene Lücken werden dort zu Abweichungen, und die haben Fristen.</div>
       ${uebungen.length ? `<table class="tbl" style="font-size:.8rem;width:100%"><thead><tr><th>Datum</th><th>Art</th><th>Bezeichnung</th><th>Status</th><th>Nachweis</th></tr></thead>
-        <tbody>${uebungen.map(u => `<tr onclick="${typeof openWirkEditor === 'function' ? `openWirkEditor('${esc(u.id)}')` : ''}" style="cursor:pointer">
+        <tbody>${uebungen.map(u => `<tr onclick="${typeof openWirkEditor === 'function' ? `openWirkEditor(${jsArg(u.id)})` : ''}" style="cursor:pointer">
           <td style="white-space:nowrap">${fmtDate(u.datum)}</td><td>${esc((NF_UEBUNGSARTEN[u.uebungsart] || {}).label || u.uebungsart || '–')}</td><td>${esc(u.titel)}</td><td>${esc(u.status)}</td>
           <td>${typeof wirkAbschlussfehler === 'function' && wirkAbschlussfehler(u).length ? `<span style="color:#b45309">${wirkAbschlussfehler(u).length} offen</span>` : '<span style="color:#15803d">✓</span>'}</td></tr>`).join('')}</tbody></table>`
         : `<div class="field-hint">${nfHatPlan({ bcm: b }) ? '<span style="color:#b45309;font-weight:600">Nie geübt.</span>' : 'Noch keine Übung – erst der Plan, dann die Übung.'}</div>`}
       ${schreiben && typeof wirkUebungFuer === 'function' ? `<button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="nfUebungErfassen()">+ Übung erfassen</button>` : ''}
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost btn-sm" onclick="nfPlanDrucken('${esc(e.id)}')" title="Diesen Plan als PDF – für die Schublade">🖨 Plan drucken</button>
+      <button class="btn btn-ghost btn-sm" onclick="nfPlanDrucken(${jsArg(e.id)})" title="Diesen Plan als PDF – für die Schublade">🖨 Plan drucken</button>
       <div style="flex:1"></div>
       ${schreiben ? `<button class="btn btn-primary" id="nf-save-btn" onclick="nfKachelSpeichern()">Speichern</button>` : ''}
       <button class="btn btn-ghost" onclick="closeModal()">Schließen</button>
@@ -894,7 +894,7 @@ function nfKachelZeile(k, werk) {
       letzte ? ` · geübt ${fmtDate(letzte.datum)}` : ''}${p.fehler.length ? ` · <span style="color:#b91c1c">${p.fehler.length} Lücke(n)</span>` : ''}`;
   return `<div style="margin:0 0 14px;font-size:.86rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span>🚨 ${text}</span>
-    <button class="btn btn-outline btn-sm" onclick="closeModal();nfKachelOeffnen('${esc(k.id)}')">Notfallplan</button></div>`;
+    <button class="btn btn-outline btn-sm" onclick="closeModal();nfKachelOeffnen(${jsArg(k.id)})">Notfallplan</button></div>`;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

@@ -10,6 +10,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -27,7 +29,7 @@ ok(/'nav-risiken', 'nav-assets'/.test(lies('js/probelauf.js')), 'Im Probelauf au
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;
-vm.createContext(kctx);
+kctx.jsArg ??= jsArg; vm.createContext(kctx);
 vm.runInContext(lies('js/module.js'), kctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = kctx.module.exports;
 ok(MODUL_ADMIN.includes('assetmodell') && !MODUL_ADMIN.includes('assets') && MODUL_ANSICHTEN.assets.includes('assets'), 'Modell im Verwaltungsblock, Ansicht in ihrer Gruppe');
@@ -58,7 +60,7 @@ ok(/modulLaden\('assetmodell'\)/.test(sp) && /\$expand=fields\$\{mitAuswahl \? `
 // _mapAsset / _assetFields: hin und zurück
 const sctx = { console, JSON, STANDORTE: ['HOL', 'WGC', 'SHB', 'ZAI'], module: { exports: {} } };
 sctx.window = sctx; sctx.globalThis = sctx; sctx.fetch = () => {}; sctx.location = { origin: '', pathname: '' };
-vm.createContext(sctx);
+sctx.jsArg ??= jsArg; vm.createContext(sctx);
 vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
 const gemappt = vm.runInContext(`_mapAsset(${JSON.stringify({ id: 12, webUrl: 'u', fields: { Title: 'SAP', Kategorie: 'anwendung', Werke: 'hol, WGC', Verfuegbarkeit: 'sehr hoch', Wiederherstellung: 12, Rpo: null, AbhaengigJson: '["3"]', ZusatzJson: '{"inventarnummer":"4711"}', Personenbezogen: 'ja', EOL: '2027-03-01T00:00:00Z', AStatus: 'aktiv' } })})`, sctx);
@@ -200,7 +202,7 @@ ok(/seg\('assets', '🗂 Assetregister'\)/.test(eins) && /function _assetsBereic
 
 const dctx = { console, esc: (s) => String(s ?? ''), module: { exports: {} } };
 dctx.window = dctx; dctx.globalThis = dctx;
-vm.createContext(dctx);
+dctx.jsArg ??= jsArg; vm.createContext(dctx);
 vm.runInContext(lies('js/notfallmodell.js'), dctx);
 vm.runInContext(lies('js/assetmodell.js'), dctx);
 vm.runInContext(lies('js/dokumentation.js'), dctx);
@@ -246,7 +248,7 @@ const ctx = {
 };
 ctx.__bestand = JSON.parse(JSON.stringify(bestand));
 ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/notfallmodell.js'), ctx);
 vm.runInContext(lies('js/assetmodell.js'), ctx);
 vm.runInContext(lies('js/assets.js'), ctx);
@@ -257,7 +259,7 @@ let out = mounts['assets-mount'].innerHTML;
 ok(/Assets aktiv/.test(out) && /<div[^>]*>2<\/div>[\s\S]*?Assets aktiv/.test(out), 'Die Ansicht zeichnet: zwei aktive Assets (der Drucker ist außer Betrieb)');
 ok(/ohne Verantwortlichen/.test(out) && /<div[^>]*color:#b91c1c">1<\/div>[\s\S]*?ohne Verantwortlichen/.test(out), 'Netz hat keinen Verantwortlichen');
 ok(/1 Asset\(s\) mit zu niedrigem Schutzbedarf/.test(out), 'Netz: kritischer Prozess verlangt „sehr hoch", eingetragen „hoch" – Vererbung oben genannt');
-const zeilen = [...out.matchAll(/openAssetEditor\('(\d+)'\)/g)].map(m => m[1]);
+const zeilen = [...out.matchAll(/openAssetEditor\(&quot;(\d+)&quot;\)/g)].map(m => m[1]);
 ok(zeilen.join() === '2,1', `Lückenhaftes zuerst: Netz vor SAP (${zeilen.join()})`);
 ok(!/Alter Drucker/.test(out), 'Außer Betrieb ist ausgeblendet …');
 vm.runInContext("_amFilter.status = 'außer Betrieb'; renderAssets()", ctx);
@@ -281,8 +283,8 @@ vm.runInContext("openAssetEditor('1')", ctx);
 ok(modal && /🗂 SAP S\/4/.test(modal) && /Stammdaten/.test(modal) && /Schutzbedarf/.test(modal) && /Liegt auf \/ hängt ab von/.test(modal) && /Zusatzfelder/.test(modal) && /Verwendung/.test(modal) && /Link zu den Informationen/.test(modal) && /<label>Art /.test(modal), 'Der Editor mit allen Abschnitten – auch Art und Link');
 ok(/Inventarnummer <span class="req">\*<\/span>/.test(modal) && /value="4711"/.test(modal) && /<option value="EG">/.test(modal), 'Zusatzfelder aus den Einstellungen: Pflicht-Text mit Wert, Auswahl mit Optionen');
 ok(/<b>Prozesse:<\/b> Aufträge abwickeln/.test(modal) && /<b>Risiken:<\/b> SAP-Ausfall/.test(modal), 'Verwendung: Prozess und Risiko');
-ok(/Netzwerk Werk/.test(modal) && /amAbhToggle\('2',this\.checked\)/.test(modal) && /checked onchange="amAbhToggle\('2'/.test(modal), 'Die Abhängigkeit auf Netz ist angehakt');
-ok(!/amAbhToggle\('1'/.test(modal) && !/amAbhToggle\('3'/.test(modal), 'Sich selbst und Ausgemustertes stehen nicht zur Wahl');
+ok(/Netzwerk Werk/.test(modal) && /amAbhToggle\(&quot;2&quot;,this\.checked\)/.test(modal) && /checked onchange="amAbhToggle\(&quot;2&quot;/.test(modal), 'Die Abhängigkeit auf Netz ist angehakt');
+ok(!/amAbhToggle\(&quot;1&quot;/.test(modal) && !/amAbhToggle\(&quot;3&quot;/.test(modal), 'Sich selbst und Ausgemustertes stehen nicht zur Wahl');
 
 // Die eine Verweigerung: Pflicht-Zusatzfeld
 vm.runInContext("openAssetEditor(null); amSet('titel', 'Neuer Server'); amSet('kategorie', 'server'); amWerkToggle('HOL', true)", ctx);

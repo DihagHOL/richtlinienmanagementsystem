@@ -90,7 +90,7 @@ ok(run(`_lkUnterbaumHtml('HOL', lkKachelVonId('p2f'), [])`) === '',
 run(`lkAufklappen('HOL','p2f')`);
 const baum = run(`_lkUnterbaumHtml('HOL', lkKachelVonId('p2f'), [])`);
 ok(baum.includes('Bedarfsanforderung') && baum.includes('Fertigung'), 'Aufgeklappt stehen die Unterprozesse da');
-ok(/lkSpringeZu\('HOL','banf'\)/.test(baum), 'Jede Zeile springt auf ihren Prozess');
+ok(/lkSpringeZu\(&quot;HOL&quot;,&quot;banf&quot;\)/.test(baum), 'Jede Zeile springt auf ihren Prozess');
 ok(/⇄ 3/.test(baum), 'Und der geteilte Prozess trägt sein Zeichen samt Zahl');
 ok(!baum.includes('Freigabe'), 'Die zweite Ebene bleibt zu, bis man sie aufklappt');
 
@@ -112,7 +112,7 @@ ok(run(`_lkAufgeklappt.size`) === 0, 'Und alles wieder zu');
 const zeichen = run(`_lkGliederungZeichen('HOL', lkKachelVonId('banf'))`);
 ok(/⇄ 3/.test(zeichen), 'Die Kachel sagt, zu wie vielen Hauptprozessen sie gehört');
 ok(/lk-geteilt-mehr/.test(zeichen), 'Mehrfach verwendet wird hervorgehoben');
-ok(/lkAufklappen\('HOL','banf'/.test(zeichen), 'Und sie lässt sich von dort aufklappen');
+ok(/lkAufklappen\(&quot;HOL&quot;,&quot;banf&quot;/.test(zeichen), 'Und sie lässt sich von dort aufklappen');
 ok(!/⇄/.test(run(`_lkGliederungZeichen('HOL', lkKachelVonId('s2p'))`)),
   'Ein Hauptprozess ohne Eltern trägt kein Zeichen');
 const lk = lies('js/landkarte.js');

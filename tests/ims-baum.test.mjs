@@ -9,6 +9,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -31,7 +33,7 @@ ok(/@param \{string\} \[folderName\]/.test(fn), 'Eine Einschränkung auf einen O
 const teil = isms.slice(isms.indexOf('let _ismsOrdnerOffen'), isms.indexOf('/* ── Anzeige-/Bearbeitungsfelder'));
 const ctx = { console, esc: (s) => String(s ?? ''), renderIsmsDocs: () => {} };
 ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(teil, ctx);
 
 const docs = [

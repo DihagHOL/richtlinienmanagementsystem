@@ -264,6 +264,46 @@ for (const key of ['kiGenehmigungsmodus', 'kiMailBeiEinreichung', 'kiMailBeiEnts
   else fail(`${key}: erwartetes KI-Einstellungsfeld fehlt in ki/app.js`);
 }
 
+/* ── 5. Sicherheit: Werte in Inline-Handlern nur über jsArg() ────────
+   `onclick="f('${esc(x)}')"` sieht sicher aus und ist es nicht: Der Browser
+   macht aus `&#39;` wieder ein `'`, BEVOR das JavaScript läuft. Ein Datei-
+   oder Ordnername mit Hochkomma lief so als Code. Richtig ist
+   `onclick="f(${jsArg(x)})"` – JSON-Literal, dann fürs Attribut escapen.
+   Gesperrt wird deshalb jedes `'${…}'` und jedes `esc(`/`JSON.stringify(`
+   direkt in einem Handler. */
+head('5. Sicherheit – Werte in Inline-Handlern');
+{
+  const quellen = ['index.html', 'ki/index.html', ...listFiles('js', '.js'), ...listFiles('ki', '.js')].filter(exists);
+  let treffer = 0;
+  for (const f of quellen) {
+    const src = rd(f);
+    for (const m of src.matchAll(/\bon[a-z]+\s*=\s*"([^"]*)"/g)) {
+      const wert = m[1];
+      if (/'\$\{/.test(wert) || /\$\{\s*(?:esc|JSON\.stringify)\(/.test(wert)) {
+        const zeile = src.slice(0, m.index).split('\n').length;
+        fail(`${f}:${zeile}: Wert im Handler ohne jsArg() – ${wert.replace(/\s+/g, ' ').slice(0, 90)}`);
+        treffer++;
+      }
+    }
+  }
+  if (!treffer) ok(`keine Handler-Werte in '…'-Strings oder über esc() (${quellen.length} Dateien)`);
+
+  // Der Helfer selbst: Ein Hochkomma, Anführungszeichen oder Backslash darf
+  // den String nicht verlassen – geprüft am entschlüsselten Attributwert.
+  const hctx = { module: { exports: {} } };
+  vm.createContext(hctx);
+  vm.runInContext(rd('js/util.js'), hctx);
+  const jsArg = hctx.module.exports.jsArg;
+  const entschluesselt = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const boese = [`x');alert(1);('`, `x");alert(1);("`, `x\\');alert(1);//`, `</button><img src=x onerror=alert(1)>`, 'a\nb c'];
+  const heil = boese.every(b => {
+    const a = jsArg(b);
+    return !/["'<>]/.test(a) && JSON.parse(entschluesselt(a)) === b;
+  });
+  if (heil) ok('jsArg() hält Hochkomma, Anführungszeichen, Backslash und Tags im String');
+  else fail('jsArg() lässt einen Wert aus dem String ausbrechen');
+}
+
 /* ── Ergebnis ───────────────────────────────────────────────────── */
 console.log(`\n${'─'.repeat(54)}`);
 if (failures.length === 0) {

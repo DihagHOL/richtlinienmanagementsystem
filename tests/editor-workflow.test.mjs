@@ -3,6 +3,8 @@ import vm from 'vm';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const admin = fs.readFileSync(ROOT + '/js/admin.js', 'utf8');
 
@@ -24,7 +26,7 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 sandbox.globalThis = sandbox;
-vm.createContext(sandbox);
+sandbox.jsArg ??= jsArg; vm.createContext(sandbox);
 vm.runInContext(admin, sandbox);
 
 // Alle Assertions im selben Kontext ausführen (teilen die let-Bindings _editing/_edSecOpen)

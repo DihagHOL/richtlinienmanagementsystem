@@ -96,7 +96,7 @@ function renderProposals() {
   mount.innerHTML = sub + `<div class="table-wrap"><table class="tbl">
     <thead><tr><th>Status</th><th>Betreff / Dokument</th><th>Eingereicht von</th><th>Datum</th></tr></thead>
     <tbody>${rows.map(p => `
-      <tr onclick="openProposalDrawer('${esc(p.id)}')" style="cursor:pointer">
+      <tr onclick="openProposalDrawer(${jsArg(p.id)})" style="cursor:pointer">
         <td>${_propStatusBadge(p.status)}</td>
         <td><b>${esc(p.titel || '–')}</b>${_propSourceChip(p.quelle)}${p.betreff ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(p.betreff)}</div>` : ''}</td>
         <td style="color:var(--c-muted)">${esc(p.eingereicht || '–')}</td>
@@ -135,8 +135,8 @@ function openProposalDrawer(id) {
     </div>
     <div style="padding:18px 20px">
       ${p.link ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenOffice('${esc(p.id)}')" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
-        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenWeb('${esc(p.id)}')" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>
+        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenOffice(${jsArg(p.id)})" title="Im Desktop-Office öffnen">✏️ In Office öffnen</button>
+        <button class="btn btn-outline btn-sm" onclick="proposalDrawerOpenWeb(${jsArg(p.id)})" title="In SharePoint / Office für das Web öffnen">🌐 Im Browser öffnen</button>
       </div>` : ''}
       ${p.empfaenger ? `<div style="margin-bottom:12px"><div class="field-hint">Benachrichtigt (E-Mail)</div><div style="font-weight:600;font-size:.85rem">${esc(p.empfaenger)}</div></div>` : ''}
       ${p.betreff ? `<div style="margin-bottom:12px"><div class="field-hint">Abschnitt / Betreff</div><div style="font-weight:600">${esc(p.betreff)}</div></div>` : ''}
@@ -157,7 +157,7 @@ function openProposalDrawer(id) {
     <div style="position:sticky;bottom:0;background:var(--c-surface);border-top:1px solid var(--c-border);
                 padding:14px 20px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
-      ${canEdit ? `<button class="btn btn-primary" id="prop-edit-btn" onclick="saveProposalEdit('${esc(p.id)}')">Speichern</button>` : ''}
+      ${canEdit ? `<button class="btn btn-primary" id="prop-edit-btn" onclick="saveProposalEdit(${jsArg(p.id)})">Speichern</button>` : ''}
     </div>`);
 }
 

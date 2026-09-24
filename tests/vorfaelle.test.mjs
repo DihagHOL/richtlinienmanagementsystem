@@ -11,6 +11,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -28,7 +30,7 @@ ok(/'nav-notfall', 'nav-vorfaelle'/.test(lies('js/probelauf.js')), 'Im Probelauf
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;
-vm.createContext(kctx);
+kctx.jsArg ??= jsArg; vm.createContext(kctx);
 vm.runInContext(lies('js/module.js'), kctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = kctx.module.exports;
 ok(MODUL_ADMIN.includes('vorfallmodell') && !MODUL_ADMIN.includes('vorfaelle') && MODUL_ANSICHTEN.vorfaelle.includes('vorfaelle') && MODUL_ANSICHTEN.vorfaelle.includes('wirksamkeit'), 'Modell im Verwaltungsblock, Ansicht in ihrer Gruppe – mit dem Wirksamkeits-Register für die Maßnahme');
@@ -72,7 +74,7 @@ sctx.fetch = async (url, opt) => {
   }
   return { ok: false, status: 404, text: async () => 'nix', json: async () => ({}), headers: { get: () => null } };
 };
-vm.createContext(sctx);
+sctx.jsArg ??= jsArg; vm.createContext(sctx);
 vm.runInContext(lies('js/assetmodell.js'), sctx);
 vm.runInContext(lies('js/vorfallmodell.js'), sctx);
 vm.runInContext(lies('js/sharepoint.js'), sctx);
@@ -106,7 +108,7 @@ ok(/Vorfall-Digest/.test(cron) && /TICKET_SITE_HOST/.test(cron) && /_require\('\
 
 const dctx = { console, esc: (s) => String(s ?? ''), module: { exports: {} } };
 dctx.window = dctx; dctx.globalThis = dctx;
-vm.createContext(dctx);
+dctx.jsArg ??= jsArg; vm.createContext(dctx);
 vm.runInContext(lies('js/notfallmodell.js'), dctx);
 vm.runInContext(lies('js/assetmodell.js'), dctx);
 vm.runInContext(lies('js/vorfallmodell.js'), dctx);
@@ -150,7 +152,7 @@ const ctx = {
   module: { exports: {} },
 };
 ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/notfallmodell.js'), ctx);
 vm.runInContext(lies('js/assetmodell.js'), ctx);
 vm.runInContext(lies('js/vorfallmodell.js'), ctx);
@@ -163,7 +165,7 @@ ok(/Vorfälle \/ Ereignisse offen/.test(out) && /<div[^>]*>2<\/div>[\s\S]*?Vorf�
 ok(!/Toner leer/.test(out) && /Phishing an Buchhaltung/.test(out) && /Firewall-Regel/.test(out) && /Backup-Konzept/.test(out), 'Muster-Kategorien: IT-Sicherheit und Datenschutz ja, Drucker nein – in drei Abschnitten');
 ok(/Vorfälle &amp; Ereignisse<\/div>/.test(out) && /Änderungen mit Sicherheitsbezug/.test(out) && /Dokumentation<\/div>/.test(out) && /A\.8\.32/.test(out) && /A\.5\.37/.test(out), 'Die drei Abschnitte mit Normbezug');
 ok(/nicht beurteilt<\/span>/.test(out) && /<div[^>]*color:#b91c1c">2<\/div>[\s\S]*?nicht beurteilt \(A\.5\.25\)/.test(out), 'Beide Vorfälle nicht beurteilt – Kennzahl und Badge');
-const reihen = [...out.matchAll(/openVorfall\('(\d+)'\)/g)].map(m => m[1]);
+const reihen = [...out.matchAll(/openVorfall\(&quot;(\d+)&quot;\)/g)].map(m => m[1]);
 ok(reihen[0] === '2', `Was drängt, steht oben: der USB-Stick ist seit 5 Tagen unbeurteilt (${reihen.join()})`);
 ok(/↗ Ticketsystem/.test(out) && /4 von 5 Tickets der letzten 24 Monate/.test(out), 'Link ins Ticketsystem, Zählung');
 ctx.__kats = ['Drucker'];
@@ -179,7 +181,7 @@ ok(/Beurteilung <span/.test(modal) && /vfSet\('einstufung'/.test(modal) && /vfSe
   'Beurteilung, Stufe, Erheblichkeit, noch keine Fristen, die vorhandene Maßnahme, Anlegen, Akte');
 vm.runInContext("vfSet('einstufung','vorfall'); vfSetErheblich('ja'); vfSetStufe('2')", ctx);
 const fristen = vm.runInContext('_vfFristenBlock()', ctx);
-ok(/Frühwarnung \(NIS2\)/.test(fristen) && /seit 6 h überfällig/.test(fristen) && /Meldung \(NIS2\)/.test(fristen) && /noch 42 h/.test(fristen) && /vfSetMeldung\('fruehwarnung'/.test(fristen) && /Behörde \/ Referenz/.test(fristen),
+ok(/Frühwarnung \(NIS2\)/.test(fristen) && /seit 6 h überfällig/.test(fristen) && /Meldung \(NIS2\)/.test(fristen) && /noch 42 h/.test(fristen) && /vfSetMeldung\(&quot;fruehwarnung&quot;/.test(fristen) && /Behörde \/ Referenz/.test(fristen),
   'Als erheblicher Vorfall: die Fristen ab Kenntnis (vor 30 h) – Frühwarnung überfällig, Meldung läuft, Erledigung eintragbar');
 vm.runInContext("vfSetMeldung('fruehwarnung', '2026-01-01T10:00')", ctx);
 ok(/erledigt/.test(vm.runInContext('_vfEditing.bewertung.meldungen.fruehwarnung', ctx)) || vm.runInContext('_vfEditing.bewertung.meldungen.fruehwarnung', ctx).startsWith('2026-01-01'), 'Die Erledigung wird als Zeitpunkt gespeichert');

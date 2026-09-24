@@ -71,7 +71,7 @@ function renderFreigaben() {
   const secBlock = (key, title, count, body) => {
     const open = _fgSecOpen[key] !== false;
     return `<div style="margin:14px 0 4px">
-      <div onclick="fgToggleSection('${key}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 2px">
+      <div onclick="fgToggleSection(${jsArg(key)})" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 2px">
         <span style="width:1em">${open ? '▾' : '▸'}</span><span>${title} (${count})</span>
       </div>
       <div id="fg-sec-${key}" style="${open ? '' : 'display:none'}">${body}</div>
@@ -217,8 +217,8 @@ function pruefCardHtml(p) {
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannPruefen ? `
-        <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Nicht konform</button>
-        <button class="btn btn-success btn-sm" onclick="markKonform('${p.id}',true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (Sie)' : 'Konform'}</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="markKonform(${jsArg(p.id)},false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markKonform(${jsArg(p.id)},true)">${mein && mein.entscheidung === 'konform' ? '✓ konform (Sie)' : 'Konform'}</button>` : ''}
     </div>
   </div>`;
 }
@@ -240,9 +240,9 @@ function mitbestimmungCardHtml(p, kannHandeln) {
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
       ${kannHandeln ? `
-        <button class="btn btn-outline btn-sm" onclick="resendMitbestimmung('${p.id}')" title="Mitbestimmungs-Mail an KBR/BR erneut senden">✉ Erneut an BR senden</button>
-        <button class="btn btn-ghost btn-sm" onclick="markMitbestimmung('${p.id}',false)">Nicht konform</button>
-        <button class="btn btn-success btn-sm" onclick="markMitbestimmung('${p.id}',true)">Konform</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="resendMitbestimmung(${jsArg(p.id)})" title="Mitbestimmungs-Mail an KBR/BR erneut senden">✉ Erneut an BR senden</button>
+        <button class="btn btn-ghost btn-sm" onclick="markMitbestimmung(${jsArg(p.id)},false)">Nicht konform</button>
+        <button class="btn btn-success btn-sm" onclick="markMitbestimmung(${jsArg(p.id)},true)">Konform</button>` : ''}
     </div>
   </div>`;
 }
@@ -259,8 +259,8 @@ function freigabeCardHtml(p) {
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="markKonform('${p.id}',false)">Zurück (nicht konform)</button>
-      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe('${p.id}')">${mein ? '✓ freigegeben (Sie)' : '✓ Freigeben'}</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="markKonform(${jsArg(p.id)},false)">Zurück (nicht konform)</button>
+      ${kannFreigeben ? `<button class="btn btn-success btn-sm" onclick="markFreigabe(${jsArg(p.id)})">${mein ? '✓ freigegeben (Sie)' : '✓ Freigeben'}</button>` : ''}
     </div>
   </div>`;
 }
@@ -885,7 +885,7 @@ async function _ekRegelwerkHolen(id) {
       <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor – entschieden wird
       darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
       <div style="margin-top:16px"><button class="btn btn-primary"
-        onclick="closeModal();konzeptOeffnen('${esc(String(id))}')">Konzept öffnen</button></div>`);
+        onclick="closeModal();konzeptOeffnen(${jsArg(String(id))})">Konzept öffnen</button></div>`);
     return null;
   }
 
@@ -928,8 +928,8 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
       <p style="line-height:1.55">Sind Sie <b>eingesprungen</b>, tragen Sie die Vertretung in den
       Einstellungen ein und entscheiden im Portal – dann steht es auch so im Protokoll.</p>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="authAnmeldenAls('${esc(adressat)}')">Als ${esc(adressat)} anmelden</button>
-        <button class="btn btn-outline" onclick="closeModal();focusPolicyCard('${esc(id)}')">Im Portal öffnen</button></div>`);
+        <button class="btn btn-primary" onclick="authAnmeldenAls(${jsArg(adressat)})">Als ${esc(adressat)} anmelden</button>
+        <button class="btn btn-outline" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Im Portal öffnen</button></div>`);
     return;
   }
 
@@ -941,7 +941,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     _ekPanel(`<div style="font-size:2rem">✓</div><h3>Schon erledigt</h3>
       <p style="line-height:1.55">„${esc(p.title)}" steht inzwischen auf <b>${esc(p.status)}</b> –
       hier ist nichts mehr zu tun.</p>
-      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard('${esc(id)}')">Vorgang ansehen</button></div>`);
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Vorgang ansehen</button></div>`);
     return;
   }
   const befugt = (art === 'mitbestimmung')
@@ -964,7 +964,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     _ekPanel(`<h3>Dieser Link ist nicht mehr aktuell</h3>
       <p style="line-height:1.55">Zu „${esc(p.title)}" läuft inzwischen eine neue Runde. Bitte den Vorgang
       öffnen und dort entscheiden – die Angaben sind dann auf dem aktuellen Stand.</p>
-      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard('${esc(id)}')">Vorgang öffnen</button></div>`);
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Vorgang öffnen</button></div>`);
     return;
   }
 
@@ -992,7 +992,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
       ? `<div style="font-size:2rem">🎉</div><h3>Freigegeben und veröffentlicht</h3>
          <p style="line-height:1.55">„${esc(p.title)}" ist ab sofort für die Zielgruppe sichtbar.</p>${inVertretung}
          <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-           <button class="btn btn-outline" onclick="freigabeZuruecknehmen('${esc(id)}')">Rückgängig</button>
+           <button class="btn btn-outline" onclick="freigabeZuruecknehmen(${jsArg(id)})">Rückgängig</button>
            <button class="btn btn-primary" onclick="closeModal()">Fertig</button></div>`
       : `<div style="font-size:2rem">✓</div><h3>Ihre Freigabe ist vermerkt</h3>
          <p style="line-height:1.55">Für die Veröffentlichung fehlen noch weitere Freigaben.</p>${inVertretung}${_ekSchliessen}`)

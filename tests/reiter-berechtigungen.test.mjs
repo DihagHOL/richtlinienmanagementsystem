@@ -240,7 +240,7 @@ ok(/dynamische Verteilerlisten aus Exchange/.test(sp),
 
 /* Oberfläche */
 ok(/📧/.test(eins), 'Verteiler bekommen ein eigenes Symbol in der Trefferliste');
-ok(/rrAddGruppe\('\$\{esc\(g\.id\)\}','\$\{esc\(g\.name \|\| g\.id\)\}','\$\{esc\(g\.art \|\| ''\)\}'\)/.test(eins),
+ok(/rrAddGruppe\(\$\{jsArg\(g\.id\)\},\$\{jsArg\(g\.name \|\| g\.id\)\},\$\{jsArg\(g\.art \|\| ''\)\}\)/.test(eins),
   'Beim Übernehmen wandert die Art mit');
 ok(/id="rr-gruppe-art"/.test(eins), 'Auch bei der Eingabe per Objekt-ID lässt sich die Art wählen');
 ok(/gruppenTypen: \{\},/.test(acc), 'Die Zuordnung hat einen Platz in der Konfiguration');

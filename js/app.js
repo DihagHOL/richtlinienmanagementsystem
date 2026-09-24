@@ -538,7 +538,7 @@ function renderMeine() {
 
   list.innerHTML = trHinweis + rows.map(p => {
     const st = completionStatus(p);
-    return `<div class="item-card" role="button" tabindex="0" onclick="openDetail('${p.id}')"
+    return `<div class="item-card" role="button" tabindex="0" onclick="openDetail(${jsArg(p.id)})"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       <div class="ic-top">
         <div class="ic-title">${esc(p.title)}</div>
@@ -598,7 +598,7 @@ async function openDetail(policyId) {
   v.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px" class="back-btn">
       <button class="btn btn-ghost btn-sm" onclick="switchView('meine')">← Zurück</button>
-      ${typeof proposePolicyChange === 'function' ? `<button class="btn btn-outline btn-sm" onclick="proposePolicyChange('${p.id}')">✏️ Änderung vorschlagen</button>` : ''}
+      ${typeof proposePolicyChange === 'function' ? `<button class="btn btn-outline btn-sm" onclick="proposePolicyChange(${jsArg(p.id)})">✏️ Änderung vorschlagen</button>` : ''}
     </div>
     <div class="detail-header">
       <h2>${esc(p.title)}</h2>
@@ -730,7 +730,7 @@ function renderAckCard(p, a, st) {
         </label>
         <div id="read-gate-hint" class="field-hint" style="margin-top:5px;color:#b45309">Bitte zuerst das Dokument lesen …</div>
         <div class="actions">
-          <button class="btn btn-primary" id="ack-btn" disabled onclick="confirmRead('${p.id}')">Kenntnisnahme bestätigen</button>
+          <button class="btn btn-primary" id="ack-btn" disabled onclick="confirmRead(${jsArg(p.id)})">Kenntnisnahme bestätigen</button>
         </div>
       </div></div>`;
   }
@@ -752,7 +752,7 @@ function renderAckCard(p, a, st) {
           <div class="t">Wissenstest absolvieren</div>
           <div class="s">${p.quiz.length} Frage(n) &middot; bestanden ab ${p.quizBestehenProzent}%</div>
           <div class="actions">
-            <button class="btn btn-primary" ${read ? '' : 'disabled'} onclick="startQuiz('${p.id}')">
+            <button class="btn btn-primary" ${read ? '' : 'disabled'} onclick="startQuiz(${jsArg(p.id)})">
               ${read ? 'Wissenstest starten' : 'Erst Kenntnisnahme bestätigen'}
             </button>
           </div>
@@ -764,7 +764,7 @@ function renderAckCard(p, a, st) {
   const banner = finished
     ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;margin-top:14px;color:#15803d;font-size:.85rem">
         <div style="font-weight:600;margin-bottom:8px">✓ Diese Richtlinie ist vollständig abgeschlossen.</div>
-        <button class="btn btn-outline btn-sm" onclick="sendCertificate('${p.id}')">📄 Nachweis per Mail an mich</button>
+        <button class="btn btn-outline btn-sm" onclick="sendCertificate(${jsArg(p.id)})">📄 Nachweis per Mail an mich</button>
       </div>`
     : '';
 

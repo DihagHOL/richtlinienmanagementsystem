@@ -2,6 +2,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -27,7 +29,7 @@ const ctx = {
   renderKonzeptCards: (q, t) => `<konzepte q="${q}" typ="${t||''}"/>`,
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 ADMIN_DATEIEN.forEach(f => vm.runInContext(fs.readFileSync(ROOT + '/js/' + f, 'utf8'), ctx));
 const run = (s) => vm.runInContext(s, ctx);
 
@@ -111,7 +113,7 @@ run("_adminMode='regelwerke';");
 const kctx = { console, esc, emptyState:(t,i)=>`<empty icon="${i}">${t}</empty>`, toast:()=>{}, canWriteTab:()=>true,
   fmtDate:()=> '', openModal:()=>{}, isCurrentUserGeschaeftsleitung:()=>false,
   geltungsbereichLabel: ctx.geltungsbereichLabel, State:{ konzepte:[], user:{} } };
-kctx.window=kctx; kctx.globalThis=kctx; vm.createContext(kctx);
+kctx.window=kctx; kctx.globalThis=kctx; kctx.jsArg ??= jsArg; vm.createContext(kctx);
 vm.runInContext(fs.readFileSync(ROOT+'/js/konzepte.js','utf8'), kctx);
 kctx.State.konzepte = [
   { id:'1', title:'KI-Regelwerk', kategorie:'IT-Sicherheit', regelwerkTyp:'Richtlinie', geltungsbereich:['SHB'], modifiedAt:'',

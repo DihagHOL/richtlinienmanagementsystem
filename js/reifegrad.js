@@ -221,30 +221,30 @@ function _rgRenderBody() {
         <td style="padding:6px 8px;font-size:.83rem;line-height:1.4;border-top:1px solid var(--c-border)">
           <div style="display:flex;align-items:center;gap:6px">
             ${p.custom
-              ? `<input type="text" value="${esc(p.text)}" ${canWrite ? '' : 'disabled'} onchange="reifegradSetMeasureText('${t.id}','${p.id}',this.value)"
+              ? `<input type="text" value="${esc(p.text)}" ${canWrite ? '' : 'disabled'} onchange="reifegradSetMeasureText(${jsArg(t.id)},${jsArg(p.id)},this.value)"
                    placeholder="Eigene Maßnahme …" style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:4px 7px;font-size:.82rem;font-family:inherit">`
               : `<span style="flex:1">${esc(p.text)}</span>`}
             ${canWrite ? `<button class="btn btn-ghost btn-sm" title="${p.custom ? 'Eigene Maßnahme löschen' : 'Katalog-Maßnahme ausblenden'}"
-                onclick="reifegradRemoveMeasure('${t.id}','${p.id}',${p.custom})" style="padding:0 6px;color:#b91c1c">✕</button>` : ''}
+                onclick="reifegradRemoveMeasure(${jsArg(t.id)},${jsArg(p.id)},${p.custom})" style="padding:0 6px;color:#b91c1c">✕</button>` : ''}
           </div>
         </td>
         ${werke.map(w => `<td style="padding:4px;text-align:center;border-top:1px solid var(--c-border)">${_rgCell(t.id, p.id, w, canWrite)}</td>`).join('')}
         <td style="padding:4px 6px;border-top:1px solid var(--c-border)">
           <input type="text" value="${esc((_reifegrad.kommentare || {})[p.id] || '')}" ${canWrite ? '' : 'disabled'}
-            onchange="reifegradSetComment('${p.id}', this.value)" placeholder="Notiz …"
+            onchange="reifegradSetComment(${jsArg(p.id)}, this.value)" placeholder="Notiz …"
             style="width:100%;min-width:130px;border:1px solid #d1d5db;border-radius:6px;padding:4px 7px;font-size:.78rem;font-family:inherit"></td>
       </tr>`).join('');
     const addRow = canWrite ? `<tr><td colspan="${cols}" style="padding:6px 8px;border-top:1px solid var(--c-border)">
-      <button class="btn btn-ghost btn-sm" onclick="reifegradAddMeasure('${t.id}')">+ Maßnahme</button></td></tr>` : '';
+      <button class="btn btn-ghost btn-sm" onclick="reifegradAddMeasure(${jsArg(t.id)})">+ Maßnahme</button></td></tr>` : '';
     const titleHtml = t.custom
       ? `<input type="text" value="${esc(t.titel)}" ${canWrite ? '' : 'disabled'} onclick="event.stopPropagation()"
-           onchange="reifegradSetTopicTitle('${t.id}',this.value)" placeholder="Eigenes Thema …"
+           onchange="reifegradSetTopicTitle(${jsArg(t.id)},this.value)" placeholder="Eigenes Thema …"
            style="font-weight:700;font-size:.88rem;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;font-family:inherit;min-width:220px">
-         ${canWrite ? `<button class="btn btn-ghost btn-sm" title="Eigenes Thema löschen" onclick="event.stopPropagation();reifegradRemoveTopic('${t.id}')" style="color:#b91c1c">🗑</button>` : ''}`
+         ${canWrite ? `<button class="btn btn-ghost btn-sm" title="Eigenes Thema löschen" onclick="event.stopPropagation();reifegradRemoveTopic(${jsArg(t.id)})" style="color:#b91c1c">🗑</button>` : ''}`
       : `<b style="font-size:.88rem">${esc(t.titel)}</b>`;
     html += `
       <div class="card" style="margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer" onclick="reifegradToggleTopic('${t.id}')">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer" onclick="reifegradToggleTopic(${jsArg(t.id)})">
           <span style="width:1em;color:var(--c-muted)">${open ? '▾' : '▸'}</span>
           ${titleHtml}${t.custom ? '<span class="ic-tag" style="background:#eef2ff;color:#3730a3">eigenes</span>' : ''}
           <div style="flex:1"></div>
@@ -272,7 +272,7 @@ function _rgCell(tid, mid, werk, canWrite) {
   const val = _rgRating(mid, werk);
   const s = REIFEGRAD_STUFEN[val];
   return `<button class="rg-cell" ${canWrite ? '' : 'disabled'} title="${esc(werk + ': ' + s.label)}${canWrite ? ' – klicken zum Ändern' : ''}"
-    onclick="reifegradCycle('${tid}','${mid}','${werk}',this)"
+    onclick="reifegradCycle(${jsArg(tid)},${jsArg(mid)},${jsArg(werk)},this)"
     style="background:${s.bg};border:1px solid ${s.color}55;border-radius:6px;padding:3px 9px;font-size:1rem;cursor:${canWrite ? 'pointer' : 'default'};line-height:1">${s.icon}</button>`;
 }
 

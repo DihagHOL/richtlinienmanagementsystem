@@ -87,9 +87,9 @@ function _govTreeNodeHtml(node, depth) {
   const caret = hasKids ? (expanded ? '▾' : '▸') : '';
   const html = `<div class="gov-tree-node${sel ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px"
     role="treeitem" tabindex="0" aria-level="${depth + 1}" aria-selected="${sel ? 'true' : 'false'}"${hasKids ? ` aria-expanded="${expanded ? 'true' : 'false'}"` : ''}
-    onclick="govSelectFolder('${esc(node.path)}')"
-    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();govSelectFolder('${esc(node.path)}')}${hasKids ? `else if(event.key==='ArrowRight'&&'${expanded}'==='false'){event.preventDefault();govToggleFolder('${esc(node.path)}')}else if(event.key==='ArrowLeft'&&'${expanded}'==='true'){event.preventDefault();govToggleFolder('${esc(node.path)}')}` : ''}">
-    <span class="gov-tree-caret"${hasKids ? ` onclick="event.stopPropagation();govToggleFolder('${esc(node.path)}')"` : ''}>${caret}</span>
+    onclick="govSelectFolder(${jsArg(node.path)})"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();govSelectFolder(${jsArg(node.path)})}${hasKids ? `else if(event.key==='ArrowRight'&&${jsArg(expanded)}==='false'){event.preventDefault();govToggleFolder(${jsArg(node.path)})}else if(event.key==='ArrowLeft'&&${jsArg(expanded)}==='true'){event.preventDefault();govToggleFolder(${jsArg(node.path)})}` : ''}">
+    <span class="gov-tree-caret"${hasKids ? ` onclick="event.stopPropagation();govToggleFolder(${jsArg(node.path)})"` : ''}>${caret}</span>
     <span>${node.path === '' ? '🗂' : (expanded && hasKids ? '📂' : '📁')}</span>
     <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
     <span class="gov-tree-count">${node.count}</span>
@@ -154,7 +154,7 @@ function renderGovernanceDocs() {
     ${_govLoading ? ' · <span style="color:var(--c-primary)">lädt weiter …</span>' : ''} · Zeile anklicken zum Öffnen.</div>`;
 
   const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
-  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortGovDocs('${key}')">${label}${arrow(key)}</th>`;
+  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortGovDocs(${jsArg(key)})">${label}${arrow(key)}</th>`;
 
   const docsHtml = !rows.length
     ? sub + emptyState('Keine Treffer in diesem Ordner / für die aktuelle Suche.', '🔍')
@@ -168,7 +168,7 @@ function renderGovernanceDocs() {
         ${th('size', 'Größe', 'num')}
       </tr></thead>
       <tbody>${rows.map(d => `
-        <tr onclick="openGovernanceDoc('${esc(d.driveItemId)}')" style="cursor:pointer">
+        <tr onclick="openGovernanceDoc(${jsArg(d.driveItemId)})" style="cursor:pointer">
           <td style="font-size:1.1rem;text-align:center">${fileIcon(d.name)}</td>
           <td><b>${esc(d.name)}</b></td>
           <td style="color:var(--c-muted)">${esc(d.folder || '–')}</td>
@@ -196,16 +196,16 @@ function openGovernanceDoc(driveItemId) {
         &nbsp;·&nbsp; <b>Größe:</b> ${fmtFileSize(d.size)}
       </div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 4px">
-        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="govEditOffice('${esc(d.driveItemId)}')">✏️ In Office bearbeiten</button>` : ''}
-        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="govEditWeb('${esc(d.driveItemId)}')">🌐 Im Browser bearbeiten</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="govPreview('${esc(d.driveItemId)}')">👁 Vorschau</button>
-        <button class="btn btn-outline btn-sm" onclick="govShowVersions('${esc(d.driveItemId)}','${esc(d.name)}')">🕘 Versionsverlauf</button>
+        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="govEditOffice(${jsArg(d.driveItemId)})">✏️ In Office bearbeiten</button>` : ''}
+        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="govEditWeb(${jsArg(d.driveItemId)})">🌐 Im Browser bearbeiten</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="govPreview(${jsArg(d.driveItemId)})">👁 Vorschau</button>
+        <button class="btn btn-outline btn-sm" onclick="govShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
         ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(d.webUrl)}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
       ${!canWrite ? `<div class="field-hint" style="margin-top:6px">👁 Nur Lesezugriff auf „Governance-Board" – Übernahme als Richtlinie ist gesperrt.</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${canWrite ? `<button class="btn btn-ghost" onclick="govToRichtlinie('${esc(d.driveItemId)}')">＋ Als Regelwerk übernehmen</button>` : ''}
+      ${canWrite ? `<button class="btn btn-ghost" onclick="govToRichtlinie(${jsArg(d.driveItemId)})">＋ Als Regelwerk übernehmen</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
     </div>`, true);

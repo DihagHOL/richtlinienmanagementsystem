@@ -268,7 +268,7 @@ function renderWirksamkeit() {
       const fertig = m.filter(x => x.status === 'erledigt').length;
       const folgen = w.art !== 'abweichung' ? wirkFolgen(w.id).length : 0;
       const luecken = wirkAbschlussfehler(w).length;
-      return `<tr onclick="openWirkEditor('${esc(w.id)}')" style="cursor:pointer${w.status === 'verworfen' ? ';opacity:.55' : ''}">
+      return `<tr onclick="openWirkEditor(${jsArg(w.id)})" style="cursor:pointer${w.status === 'verworfen' ? ';opacity:.55' : ''}">
         <td><b>${esc(w.titel)}</b>
           ${w.quelle ? `<div style="font-size:.68rem;color:var(--c-faint)">Quelle: ${esc(w.quelle)}</div>` : ''}
           ${folgen ? `<div style="font-size:.68rem;color:var(--c-faint)">↳ ${folgen} Abweichung(en) daraus</div>` : ''}</td>
@@ -515,7 +515,7 @@ function renderWirkEditor() {
         <div class="form-group full"><label>Geltung (Werke)</label>
           <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:6px">
             ${werke.map(x => `<label class="ack-check" style="font-weight:500"><input type="checkbox" ${(w.werke || []).includes(x) ? 'checked' : ''}
-              onchange="wirkToggleWerk('${esc(x)}',this.checked)"> ${esc(x)}</label>`).join('')}
+              onchange="wirkToggleWerk(${jsArg(x)},this.checked)"> ${esc(x)}</label>`).join('')}
           </div><div class="field-hint">Kein Haken = konzernweit.</div></div>
       </div>
 
@@ -554,7 +554,7 @@ function renderWirkEditor() {
           <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Feststellungen, Bewertung, Empfehlungen.">${esc(w.ergebnis)}</textarea></div>
         ${w.id ? `<div class="field-hint">Gefundene Abweichungen als eigene Einträge anlegen und hier als Herkunft wählen –
           dann hängen sie sichtbar zusammen. ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
-          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus('${esc(w.id)}')">+ Abweichung daraus</button></div>` : ''}
+          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
 
       ${w.art === 'uebung' ? `
@@ -584,7 +584,7 @@ function renderWirkEditor() {
         ${_wirkMassnahmenHtml()}
         ${w.id ? `<div class="field-hint" style="margin-top:8px">Größere Lücken als eigene Abweichung anlegen – dann bekommen sie Ursache, Frist und Wirksamkeitsprüfung.
           ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
-          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus('${esc(w.id)}')">+ Abweichung daraus</button></div>` : ''}
+          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
 
       ${w.art === 'bewertung' ? `
@@ -594,7 +594,7 @@ function renderWirkEditor() {
         <div style="display:flex;flex-direction:column;gap:4px">
           ${WIRK_EINGABEN.map(e => `<label class="ack-check" style="font-weight:500">
             <input type="checkbox" ${(w.eingaben || []).includes(e.id) ? 'checked' : ''}
-              onchange="wirkToggleEingabe('${e.id}',this.checked)"> ${esc(e.text)}</label>`).join('')}
+              onchange="wirkToggleEingabe(${jsArg(e.id)},this.checked)"> ${esc(e.text)}</label>`).join('')}
         </div>
         <div class="form-group full" style="margin-top:12px"><label>Entscheidungen und Ergebnisse <span class="req">*</span></label>
           <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Beschlüsse, Ressourcen, Änderungsbedarf am ISMS.">${esc(w.ergebnis)}</textarea></div>
@@ -606,7 +606,7 @@ function renderWirkEditor() {
         <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Verlauf</div>${histRows}</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${w.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteWirk('${esc(w.id)}')" style="color:#b91c1c">Löschen</button>` : ''}
+      ${w.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteWirk(${jsArg(w.id)})" style="color:#b91c1c">Löschen</button>` : ''}
       <div style="flex:1"></div>
       ${canWrite && w.status !== 'abgeschlossen'
         ? `<button class="btn btn-outline" onclick="wirkAbschliessen()" ${luecken.length ? 'title="Es fehlt noch etwas – siehe oben"' : ''}>Abschließen</button>` : ''}

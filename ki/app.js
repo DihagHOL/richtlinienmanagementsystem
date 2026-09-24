@@ -1334,7 +1334,7 @@ function openAntragPanel(itemId) {
           <button class="btn btn-success btn-sm" ${myApprovedAlready ? 'disabled' : ''} onclick="saveGremiumDecision(${item.id},'Genehmigt')">${showApprovalTracker && !myApprovedAlready ? '✓ Zustimmen' : showApprovalTracker && myApprovedAlready ? '✓ Bereits zugestimmt' : '✓ Genehmigen'}</button>
           <button class="btn btn-danger btn-sm" onclick="saveGremiumDecision(${item.id},'Abgelehnt')">✕ Ablehnen</button>
           <button id="btn-rueckfrage" class="btn btn-neutral btn-sm" disabled title="Bitte zuerst einen Kommentar eingeben" onclick="saveGremiumDecision(${item.id},'Rückfrage')">? Rückfrage</button>
-          <button class="btn btn-neutral btn-sm" onclick="saveGremiumDecision(${item.id},${JSON.stringify(STATUS_OPTS.includes(f[COL.status]) ? f[COL.status] : 'In Prüfung')})">💾 Kommentar speichern</button>
+          <button class="btn btn-neutral btn-sm" onclick="saveGremiumDecision(${item.id},${jsArg(STATUS_OPTS.includes(f[COL.status]) ? f[COL.status] : 'In Prüfung')})">💾 Kommentar speichern</button>
         </div>
         ${einstimmig ? '<div style="font-size:.75rem;color:#6b7280;margin-top:6px">ℹ️ Eine Ablehnung ist sofort final – unabhängig vom Einstimmig-Modus.</div>' : ''}
       `}
@@ -2910,7 +2910,19 @@ function esc(s) {
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');  // Single-quote: verhindert Attributkontext-Ausbruch in onclick='...'
+    .replace(/'/g,'&#39;');
+}
+
+/**
+ * Ein Wert als Argument in einem Inline-Handler: `onclick="f(${jsArg(x)})"`.
+ * esc() genügt dort nicht – der Browser macht aus `&#39;` wieder `'`, bevor das
+ * JavaScript läuft. Erst JSON-Literal, dann fürs Attribut escapen; die
+ * Anführungszeichen bringt das Ergebnis selbst mit. Gleiche Funktion wie in
+ * js/util.js (das diese Seite nicht lädt).
+ */
+function jsArg(v) {
+  return JSON.stringify(String(v ?? ''))
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function fmtDate(s) {

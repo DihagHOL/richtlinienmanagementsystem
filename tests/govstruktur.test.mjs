@@ -12,6 +12,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -53,7 +55,7 @@ function umgebung(opt = {}) {
     },
   };
   ctx.globalThis = ctx;
-  vm.createContext(ctx);
+  ctx.jsArg ??= jsArg; vm.createContext(ctx);
   vm.runInContext(quelle, ctx);
   return { ctx, felder, zustand, w: (a) => vm.runInContext(a, ctx), el };
 }

@@ -12,6 +12,8 @@ import vm from 'vm';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
@@ -128,7 +130,7 @@ ctx.__datei = { version: 1, themen: [{ id: 'ph', titel: 'Phishing & E-Mail', sym
   { id: 'i1', art: 'artikel', thema: 'ph', titel: 'Noch nicht fertig', text: 'Entwurf', aktiv: false },
 ] };
 ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/quiz.js'), ctx);        // die Engine: mischen, Fragen zeichnen, markieren
 vm.runInContext(lies('js/wissenmodell.js'), ctx);
 vm.runInContext(lies('js/wissen.js'), ctx);
@@ -148,7 +150,7 @@ ok(/3 Beiträge/.test(h) && /2 Frage/.test(h) && /⏱ 3 min/.test(h), 'Zahl, Fra
 
 run("wiFilter('art','test')");
 ok(/Wissenstest Phishing/.test(mount.innerHTML) && !/Fünf Merkmale/.test(mount.innerHTML), 'Der Filter nach Art greift');
-ok(/wi-chip aktiv" onclick="wiFilter\('art',''\)"/.test(mount.innerHTML) && /wi-chip-x/.test(mount.innerHTML), 'Der aktive Chip nimmt sich per Klick zurück, daneben steht ✕');
+ok(/wi-chip aktiv" onclick="wiFilter\('art',&quot;&quot;\)"/.test(mount.innerHTML) && /wi-chip-x/.test(mount.innerHTML), 'Der aktive Chip nimmt sich per Klick zurück, daneben steht ✕');
 run("wiFilter('art',''); wiSuche('merkmale')");
 ok(/Fünf Merkmale/.test(felder['wi-liste'].innerHTML) && !/Phishing in 3 Minuten/.test(felder['wi-liste'].innerHTML), 'Die Suche findet im Titel');
 run("wiSuche('')");
@@ -157,11 +159,11 @@ run("wiSuche('')");
 run("wiOeffnen('v1')");
 h = mount.innerHTML;
 ok(/<iframe src="https:\/\/www\.youtube-nocookie\.com\/embed\/abc12345"/.test(h) && /Quelle: BSI/.test(h), 'Das Video wird eingebettet, die Quelle steht darunter');
-ok(/wiGesehen\('v1'\)/.test(h) && /Ich habe das angesehen/.test(h) && /wiLinkKopieren\('v1'\)/.test(h), 'Darunter der freiwillige Knopf – und der Link');
+ok(/wiGesehen\(&quot;v1&quot;\)/.test(h) && /Ich habe das angesehen/.test(h) && /wiLinkKopieren\(&quot;v1&quot;\)/.test(h), 'Darunter der freiwillige Knopf – und der Link');
 await run("wiGesehen('v1')");
 ok(acksGeschrieben.length === 1 && acksGeschrieben[0].richtlinieId === 'wissen:v1' && acksGeschrieben[0].version === '1' && acksGeschrieben[0].gelesenAm && acksGeschrieben[0].benutzerUpn === 'anna@dihag.com',
   'Angesehen wird als Nachweis „wissen:v1" in der Bestätigungen-Liste festgehalten');
-ok(/✓ Angesehen am/.test(mount.innerHTML) && !/wiGesehen\('v1'\)/.test(mount.innerHTML), 'Danach steht das Datum, der Knopf ist weg');
+ok(/✓ Angesehen am/.test(mount.innerHTML) && !/wiGesehen\(&quot;v1&quot;\)/.test(mount.innerHTML), 'Danach steht das Datum, der Knopf ist weg');
 ok(run("wiLink('v1')") === 'https://rms.dihag.de/?ansicht=wissen&beitrag=v1', 'Der Link führt auf den Beitrag');
 
 // Ein Artikel
@@ -170,7 +172,7 @@ ok(/<div class="wi-artikel"><p>Text <b>fett<\/b>\.<\/p><\/div>/.test(mount.inner
 
 // Der Wissenstest – ohne Regelwerk, ohne Vorbedingung
 run("wiOeffnen('t1')");
-ok(/wiTestStarten\('t1'\)/.test(mount.innerHTML) && /bestanden ab 80 %/.test(mount.innerHTML), 'Der Test lässt sich sofort starten – keine Kenntnisnahme nötig');
+ok(/wiTestStarten\(&quot;t1&quot;\)/.test(mount.innerHTML) && /bestanden ab 80 %/.test(mount.innerHTML), 'Der Test lässt sich sofort starten – keine Kenntnisnahme nötig');
 run("wiTestStarten('t1')");
 ok(felder['wi-test'].innerHTML.includes('quiz-form') && run('_quiz.questions.length') === 2 && run('_quiz.policyId') === 'wissen:t1', 'Die Engine aus quiz.js zeichnet die Fragen – gemischt');
 run('_quiz.answers = { 0: _quiz.questions[0].richtig, 1: _quiz.questions[1].richtig };');
@@ -194,7 +196,7 @@ run('wiPflegeUmschalten()');
 h = mount.innerHTML;
 ok(/\+ Beitrag/.test(h) && /\+ Thema/.test(h) && /📊 Auswertung/.test(h) && /📋 Startbestand/.test(h), 'Im Pflege-Modus: anlegen, auswerten, Startbestand');
 ok(/Noch nicht fertig/.test(h) && /inaktiv/.test(h) && /Nur SHB/.test(h), 'Pflegende sehen alles – auch Inaktives und fremde Werke, gekennzeichnet');
-ok(/wiBeitragVerschieben\('a1',-1\)/.test(h) && /wiBeitragDialog\('a1'\)/.test(h) && /wiThemaDialog\('ph'\)/.test(h), 'Sortieren und Bearbeiten an jeder Karte, am Thema');
+ok(/wiBeitragVerschieben\(&quot;a1&quot;,-1\)/.test(h) && /wiBeitragDialog\(&quot;a1&quot;\)/.test(h) && /wiThemaDialog\(&quot;ph&quot;\)/.test(h), 'Sortieren und Bearbeiten an jeder Karte, am Thema');
 
 // Beitrag anlegen: erst unvollständig, dann vollständig
 run("wiBeitragDialog('', 'ph')");
@@ -326,7 +328,7 @@ run(`_wi.daten.beitraege.push(wiNormalisieren({ beitraege: [WI_KURS_PHISHING] })
 ctx.__schreiben = false;
 run('renderWissen()');
 h = mount.innerHTML;
-ok(/class="wi-pflicht"/.test(h) && /Pflichtschulung:<\/b> Phishing erkennen/.test(h) && /wiKursStarten\('start-phishing-kurs'\)/.test(h) && />Starten</.test(h),
+ok(/class="wi-pflicht"/.test(h) && /Pflichtschulung:<\/b> Phishing erkennen/.test(h) && /wiKursStarten\(&quot;start-phishing-kurs&quot;\)/.test(h) && />Starten</.test(h),
   'Eine offene Pflichtschulung steht oben im Reiter – mit Knopf');
 ok(/🎓 Schulung/.test(h) && /📋 Pflicht/.test(h) && /5 Module · Wissenstest/.test(h) && /○ Pflicht, noch offen/.test(h), 'Die Karte: Schulung, Pflicht, Module, Stand');
 
@@ -343,7 +345,7 @@ await run("wiKursStarten('start-phishing-kurs')");
 ok(acksGeschrieben.length === 1 && acksGeschrieben[0].richtlinieId === 'wissen:start-phishing-kurs' && acksGeschrieben[0].gelesenAm && !acksGeschrieben[0].abgeschlossenAm,
   'Starten hält „begonnen" fest – einmal, still');
 h = mount.innerHTML;
-ok(/Modul 01 von 05/.test(h) && /<h2[^>]*>Was ist Phishing\?<\/h2>/.test(h) && /<ol class="wi-schritte">/.test(h) && /wiKursWeiter\('start-phishing-kurs', 1\)/.test(h), 'Das erste Modul – mit Schritten und „Weiter"');
+ok(/Modul 01 von 05/.test(h) && /<h2[^>]*>Was ist Phishing\?<\/h2>/.test(h) && /<ol class="wi-schritte">/.test(h) && /wiKursWeiter\(&quot;start-phishing-kurs&quot;, 1\)/.test(h), 'Das erste Modul – mit Schritten und „Weiter"');
 acksGeschrieben.length = 0;
 run("wiKursWeiter('start-phishing-kurs', 1)");
 await new Promise(r => setTimeout(r, 10));
@@ -358,7 +360,7 @@ run("wiKursWeiter('start-phishing-kurs', 4)"); await new Promise(r => setTimeout
 ok(/Zum Wissenstest →/.test(mount.innerHTML), 'Das letzte Modul führt zum Test');
 run("wiKursWeiter('start-phishing-kurs', 5)"); await new Promise(r => setTimeout(r, 10));
 h = mount.innerHTML;
-ok(/Wissenstest: Phishing erkennen/.test(h) && /wiTestStarten\('start-phishing-kurs'\)/.test(h) && run("_wiFortschritt(wiBeitrag(_wi.daten, 'start-phishing-kurs')).length") === 5, 'Alle fünf gelesen – jetzt der Test');
+ok(/Wissenstest: Phishing erkennen/.test(h) && /wiTestStarten\(&quot;start-phishing-kurs&quot;\)/.test(h) && run("_wiFortschritt(wiBeitrag(_wi.daten, 'start-phishing-kurs')).length") === 5, 'Alle fünf gelesen – jetzt der Test');
 run("wiKursZu('start-phishing-kurs', 0)");
 ok((mount.innerHTML.match(/wi-modul-stand">✓/g) || []).length === 5 && /Fortsetzen →|Noch einmal durchgehen →|Schulung starten →/.test(mount.innerHTML), 'Die Übersicht hakt alle Module ab');
 run("wiKursZu('start-phishing-kurs', 6); wiTestStarten('start-phishing-kurs');");
@@ -367,9 +369,9 @@ run('_quiz.answers = Object.fromEntries(_quiz.questions.map((q, i) => [i, q.rich
 acksGeschrieben.length = 0;
 await run("wiTestAuswerten('start-phishing-kurs')");
 const kAck = acksGeschrieben[acksGeschrieben.length - 1];
-ok(kAck.quizBestanden === true && kAck.quizScore === 100 && kAck.abgeschlossenAm && /Schulung abgeschlossen, gültig bis/.test(felder['wi-test'].innerHTML) && /wiKursZu\('start-phishing-kurs', 0\)/.test(felder['wi-test'].innerHTML),
+ok(kAck.quizBestanden === true && kAck.quizScore === 100 && kAck.abgeschlossenAm && /Schulung abgeschlossen, gültig bis/.test(felder['wi-test'].innerHTML) && /wiKursZu\(&quot;start-phishing-kurs&quot;, 0\)/.test(felder['wi-test'].innerHTML),
   'Bestanden: die Schulung ist abgeschlossen, mit Ablaufdatum, und der Weg zurück zur Übersicht steht da');
-ok(/wiZertifikat\('start-phishing-kurs'\)/.test(felder['wi-test'].innerHTML), 'Und die Bescheinigung ist einen Klick entfernt');
+ok(/wiZertifikat\(&quot;start-phishing-kurs&quot;\)/.test(felder['wi-test'].innerHTML), 'Und die Bescheinigung ist einen Klick entfernt');
 let fenster = '';
 ctx.window.open = () => ({ document: { open() {}, write(h2) { fenster += h2; }, close() {} } });
 run("wiZertifikat('start-phishing-kurs')");
@@ -377,7 +379,7 @@ ok(/<title>Teilnahmebescheinigung: Phishing erkennen/.test(fenster) && /Anna Mus
   'Die Bescheinigung: Name, Schulung, Ergebnis, Gültigkeit, Nummer – eine Seite zum Drucken oder als PDF');
 ok((fenster.match(/<li>/g) || []).length === 5 && /window\.print\(\)/.test(fenster) && /@page \{ size: A4 landscape/.test(fenster), 'Mit den Modulen, einem Druckknopf und Querformat');
 run("wiKursZu('start-phishing-kurs', 0)");
-ok(/wiZertifikat\('start-phishing-kurs'\)/.test(mount.innerHTML), 'Auch die Übersicht bietet sie an');
+ok(/wiZertifikat\(&quot;start-phishing-kurs&quot;\)/.test(mount.innerHTML), 'Auch die Übersicht bietet sie an');
 run("wiSchliessen()");
 ok(!/class="wi-pflicht"/.test(mount.innerHTML) && /✓ abgeschlossen, gültig bis \d{2}\.\d{2}\.2027/.test(mount.innerHTML), 'Oben ist die Pflicht weg, die Karte zeigt „gültig bis"');
 // Ein Jahr später: Auffrischung

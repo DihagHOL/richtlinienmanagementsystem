@@ -131,7 +131,7 @@ ok(run(`procSprungElemente().length`) === 1,
   'Nur Elemente mit Ziel bekommen ein Zeichen – die Beschriftung nicht doppelt');
 run(`procSprungMarker()`);
 ok(overlays.length === 1 && overlays[0].id === 'Task_5', 'Das Zeichen hängt am richtigen Element');
-ok(/procSprungOeffnen\('SHB:giessen'\)/.test(overlays[0].html), 'Und es ist anklickbar');
+ok(/procSprungOeffnen\(&quot;SHB:giessen&quot;\)/.test(overlays[0].html), 'Und es ist anklickbar');
 ok(overlays[0].html.includes('Gießen'), 'Es nennt das Ziel beim Namen, nicht nur die Kennung');
 
 ctx.__tot = elem('Task_6', 'Alt', '[[rms:prozess=HOL:gibtesnicht]]');

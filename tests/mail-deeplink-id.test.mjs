@@ -20,6 +20,8 @@ import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
@@ -40,7 +42,7 @@ const ctx = {
   location: { search: '' },
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/app.js'), ctx);          // State, policyZuId, konzeptZuId, esc
 vm.runInContext(lies('js/freigaben.js'), ctx);    // einKlickAktion, _ekRegelwerkHolen
 const run = (s) => vm.runInContext(s, ctx);
@@ -98,7 +100,7 @@ ctx.reloadData = async () => {};
 panel.html = '';
 await run(`einKlickAktion('9','freigeben','tok','chef@dihag.com')`);
 ok(/noch ein Konzept/.test(panel.html), 'Ein Konzept wird als Konzept erkannt');
-ok(/konzeptOeffnen\('9'\)/.test(panel.html), 'Und lässt sich mit einem benannten Aufruf öffnen');
+ok(/konzeptOeffnen\(&quot;9&quot;\)/.test(panel.html), 'Und lässt sich mit einem benannten Aufruf öffnen');
 ok(!/typeof/.test(panel.html), 'Kein Programm im onclick-Attribut');
 ok(!/gelöscht oder archiviert/.test(panel.html), 'Auch hier kein „gelöscht"');
 

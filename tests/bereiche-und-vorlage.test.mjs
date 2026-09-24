@@ -137,7 +137,7 @@ ok(run(`lkBaender().length`) === 1,
 
 /* ── 6) Der Balken ist die Schaltfläche ── */
 const lk = lies('js/landkarte.js');
-ok(/lkBandDialog\('\$\{esc\(band\.key\)\}'\)/.test(lk), 'Ein Klick auf den Bereichsbalken öffnet ihn');
+ok(/lkBandDialog\(\$\{jsArg\(band\.key\)\}\)/.test(lk), 'Ein Klick auf den Bereichsbalken öffnet ihn');
 ok(/onclick="lkBandDialog\(''\)"/.test(lk), 'Und „+ Bereich" legt einen neuen an');
 ok(/if \(lkBandPfeile\(band\)\)/.test(lk), 'Gezeichnet wird nach der Form des Bereichs, nicht nach seinem Namen');
 

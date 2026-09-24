@@ -159,7 +159,7 @@ let _prozModus = 'karte';   // 'karte' | 'netz' | 'matrix' | 'liste'
 /** Umschalter, den beide Ansichten oben einblenden. */
 function prozessModusLeiste(aktiv) {
   const knopf = (key, label, titel) => `<button class="btn btn-sm ${aktiv === key ? 'btn-primary' : 'btn-ghost'}"
-      onclick="setProzessModus('${key}')" title="${titel}">${label}</button>`;
+      onclick="setProzessModus(${jsArg(key)})" title="${titel}">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
       ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran – Prozesse, Modelle, Regelwerke, Standorte')}
@@ -248,7 +248,7 @@ function _renderProcCards() {
     return;
   }
   const karte = (p) => `
-    <div class="item-card" style="cursor:pointer" onclick="openProcessAnsicht('${esc(p.itemId)}')" title="Ansehen: Diagramm, Schritte und Befunde">
+    <div class="item-card" style="cursor:pointer" onclick="openProcessAnsicht(${jsArg(p.itemId)})" title="Ansehen: Diagramm, Schritte und Befunde">
       <div class="ic-top"><div class="ic-title">🔀 ${esc(p.title)}</div></div>
       <div class="ic-tags"><span class="ic-tag">.bpmn</span>${p.modifiedBy ? `<span class="ic-tag">${esc(p.modifiedBy)}</span>` : ''}${p.modified ? `<span class="ic-tag">${esc(fmtDate(p.modified))}</span>` : ''}</div>
       <div id="proc-link-${esc(p.itemId)}" style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">…</div>
@@ -474,7 +474,7 @@ function procSprungMarker() {
     try {
       overlays.add(el.id, PROC_SPRUNG_TYP, {
         position: { top: -10, right: 10 },
-        html: `<div onclick="procSprungOeffnen('${esc(ziel)}')" title="${esc(titel)}"
+        html: `<div onclick="procSprungOeffnen(${jsArg(ziel)})" title="${esc(titel)}"
                  style="cursor:pointer;background:${treffer ? '#17509E' : '#b45309'};color:#fff;border-radius:11px;
                         padding:1px 7px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);
                         white-space:nowrap">↦ ${esc(name)}</div>`,
@@ -539,7 +539,7 @@ function _renderElementSprung(canWrite) {
       ${_procZielOptionen(ziel)}
     </select>
     ${ziel ? `<button class="btn btn-outline btn-sm" style="margin-top:6px"
-        onclick="procSprungOeffnen('${esc(ziel)}')">↦ Dorthin springen</button>` : ''}`;
+        onclick="procSprungOeffnen(${jsArg(ziel)})">↦ Dorthin springen</button>` : ''}`;
 }
 
 /** Auswahl im Kasten übernehmen: Marker schreiben, Zeichen neu setzen. */
@@ -789,7 +789,7 @@ function procUnterMarker() {
       // Aufrufaktivität, oben rechts sitzt der Übergang ↦.
       overlays.add(el.id, PROC_UNTER_TYP, {
         position: { top: -10, left: 10 },
-        html: `<div onclick="procUnterprozessOeffnen('${esc(itemId)}')" title="${esc(titel)}"
+        html: `<div onclick="procUnterprozessOeffnen(${jsArg(itemId)})" title="${esc(titel)}"
                  style="cursor:pointer;background:${m ? '#1A2644' : '#b45309'};color:#fff;border-radius:11px;
                         padding:1px 7px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);
                         white-space:nowrap">⊞ ${esc(name)}</div>`,
@@ -854,7 +854,7 @@ function _procUnterListeHtml(el, filter) {
       <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">⊞ ${esc(p.title)}${
         p.ordner ? ` <span class="field-hint">· ${esc(_procWerkLabel(p))}</span>` : ''}${
         procBindetEin(p.itemId).length ? ` <span class="field-hint" title="bindet selbst Unterprozesse ein">⊞ ${procBindetEin(p.itemId).length}</span>` : ''}</span>
-      <button class="btn btn-outline btn-sm" onclick="procUnterprozessEinbinden('${esc(p.itemId)}')">Einbinden</button>
+      <button class="btn btn-outline btn-sm" onclick="procUnterprozessEinbinden(${jsArg(p.itemId)})">Einbinden</button>
     </div>`).join('');
   const mehr = kand.length > 12 ? `<div class="field-hint" style="margin-top:4px">… ${kand.length - 12} weitere – Suche eingrenzen.</div>` : '';
   const doppel = name ? procNamensDoppel(name, _procEditing && _procEditing.itemId) : [];
@@ -884,13 +884,13 @@ function _renderElementUnter(canWrite) {
   const chip = (itemId) => {
     const m = procModellVon(itemId);
     return `<span class="ic-tag" style="cursor:pointer;background:#e6eef8;color:#1A2644"
-      onclick="procUnterprozessOeffnen('${esc(itemId)}')" title="öffnen">⊞ ${esc(m ? m.title : 'Modell fehlt')}</span>`;
+      onclick="procUnterprozessOeffnen(${jsArg(itemId)})" title="öffnen">⊞ ${esc(m ? m.title : 'Modell fehlt')}</span>`;
   };
   const fuss = (eigene.length
       ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${eigene.map(x => chip(procElementModell(x))).join('')}</div>` : '')
     + (oben.length
       ? `<div class="field-hint" style="margin-top:6px">↰ Dieses Modell ist eingebunden in ${oben.map(p =>
-          `<a href="#" onclick="procUnterprozessOeffnen('${esc(p.itemId)}');return false">${esc(p.title)}</a>`).join(', ')} – eine Änderung hier wirkt dort.</div>` : '');
+          `<a href="#" onclick="procUnterprozessOeffnen(${jsArg(p.itemId)});return false">${esc(p.title)}</a>`).join(', ')} – eine Änderung hier wirkt dort.</div>` : '');
 
   if (!el) {
     host.innerHTML = `<span class="field-hint">${auswahl.length > 1
@@ -914,7 +914,7 @@ function _renderElementUnter(canWrite) {
         <span style="flex:1;min-width:0">⊞ <b>${esc(m ? m.title : 'Modell fehlt')}</b>${
           m && m.ordner ? ` <span class="field-hint">· ${esc(_procWerkLabel(m))}</span>` : ''}${
           m ? '' : ' <span style="color:#b45309">– gibt es nicht mehr</span>'}</span>
-        ${m ? `<button class="btn btn-outline btn-sm" onclick="procUnterprozessOeffnen('${esc(itemId)}')">Öffnen</button>` : ''}
+        ${m ? `<button class="btn btn-outline btn-sm" onclick="procUnterprozessOeffnen(${jsArg(itemId)})">Öffnen</button>` : ''}
         ${canWrite ? '<button class="btn btn-ghost btn-sm" onclick="procUnterprozessLoesen()">Lösen</button>' : ''}
       </div>${fuss}`;
     return;
@@ -1307,7 +1307,7 @@ async function openProcessAnsicht(itemId) {
         ${herkunft ? `<button class="btn btn-sm btn-ghost" onclick="procZurueck()"
           title="Zurück in das Modell, das diesen Unterprozess einbindet">↰ Zurück zu „${esc(herkunft.title)}"</button>` : ''}
         <div class="toolbar-spacer"></div>
-        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor('${esc(itemId)}')"
+        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(${jsArg(itemId)})"
           title="Im Modeler ändern">✎ Bearbeiten</button>` : ''}
       </div>
       <div class="pa-karte">
@@ -1498,7 +1498,7 @@ function _procBefundeHtml(r, opt) {
   const zeile = (art, f) => {
     const regel = regeln.find(x => x.id === f.regel);
     const klick = f.id
-      ? ` class="pa-klick" data-befund="${esc(f.id)}" onclick="procStelleZeigen('${esc(f.id)}')" title="Stelle im Diagramm zeigen"` : '';
+      ? ` class="pa-klick" data-befund="${esc(f.id)}" onclick="procStelleZeigen(${jsArg(f.id)})" title="Stelle im Diagramm zeigen"` : '';
     return `<tr${klick}><td>${chip(art)}</td>
       <td><b>${esc(f.regel)}</b> ${esc(f.text)}${regel && !o.kompakt && !String(f.text).includes(regel.warum)
         ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
@@ -1510,7 +1510,7 @@ function _procBefundeHtml(r, opt) {
     return `<tr><td>${chip(art)}</td>
       <td><b>${esc(gruppe[0].regel)}</b> ${esc(regel ? regel.text : gruppe[0].text)} <b>${gruppe.length} Stellen:</b>
         <div class="pa-chips" style="margin-top:6px">${gruppe.map(f => f.id
-          ? `<span class="pa-chip pa-rolle" data-befund="${esc(f.id)}" style="cursor:pointer" onclick="procStelleZeigen('${esc(f.id)}')" title="${esc(f.text)}">${esc(f.name || f.id)}</span>`
+          ? `<span class="pa-chip pa-rolle" data-befund="${esc(f.id)}" style="cursor:pointer" onclick="procStelleZeigen(${jsArg(f.id)})" title="${esc(f.text)}">${esc(f.name || f.id)}</span>`
           : `<span class="pa-chip pa-rolle" title="${esc(f.text)}">${esc(f.name || '?')}</span>`).join('')}</div>
         ${regel && !o.kompakt ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
   };
@@ -1542,7 +1542,7 @@ function _procBefundeMarkieren(r) {
     try {
       overlays.add(id, PROC_BEFUND_TYP, {
         position: reg.get(id).waypoints ? { top: -10, left: -10 } : { bottom: 10, right: 12 },
-        html: `<div class="pa-plakette ${b.f.length ? 'f' : 'h'}" onclick="procStelleZeigen('${esc(id)}')"
+        html: `<div class="pa-plakette ${b.f.length ? 'f' : 'h'}" onclick="procStelleZeigen(${jsArg(id)})"
                  title="${esc(alle.map(x => x.regel + ' ' + x.text).join('\n'))}">⚠ ${esc([...new Set(alle.map(x => x.regel))].join(' '))}</div>`,
       });
     } catch (e) { /* Element ohne Darstellung */ }
@@ -1611,7 +1611,7 @@ function _procChipsHtml(proc, ids, docs) {
   (ids || []).forEach(id => {
     const p = pols.find(x => String(x.id) === String(id));
     teile.push(`<span class="pa-chip pa-regelwerk"${typeof openDetail === 'function'
-      ? ` onclick="openDetail('${esc(id)}')" style="cursor:pointer" title="Regelwerk öffnen"` : ''}>📘 ${esc(p ? p.title : 'Richtlinie ' + id)}</span>`);
+      ? ` onclick="openDetail(${jsArg(id)})" style="cursor:pointer" title="Regelwerk öffnen"` : ''}>📘 ${esc(p ? p.title : 'Richtlinie ' + id)}</span>`);
   });
   if (!(ids || []).length) teile.push('<span class="pa-chip t-warn">keine Richtlinie verknüpft</span>');
   (docs || []).forEach(d => teile.push(d.url
@@ -1652,14 +1652,14 @@ function _procAnsichtenLeiste(itemId, herkunft) {
     ${eindeutig.map(x => {
       const m = procModellVon(x.id);
       const name = m ? m.title : ((x.el.businessObject && x.el.businessObject.name) || 'Unterprozess');
-      return `<button type="button" onclick="procUnterprozessOeffnen('${esc(x.id)}')"
+      return `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.id)})"
         title="${m ? 'Unterprozess öffnen' : 'Das eingebundene Modell gibt es nicht mehr'}">↳ ${esc(name)}</button>`;
     }).join('')}`;
 }
 
 function _procLegendeHtml() {
   const offen = _procGemerkt(PROC_LEGENDE_SPEICHER, false);
-  return `<details class="pa-legende"${offen ? ' open' : ''} ontoggle="_procMerken('${PROC_LEGENDE_SPEICHER}', this.open)">
+  return `<details class="pa-legende"${offen ? ' open' : ''} ontoggle="_procMerken(${jsArg(PROC_LEGENDE_SPEICHER)}, this.open)">
     <summary>🎨 So lesen Sie das Diagramm</summary>
     <div class="pa-legende-inhalt">
       <div><h5>Wer oder was handelt</h5><div class="pa-chips">${
@@ -1688,7 +1688,7 @@ function _procSchritteHtml(a, befunde) {
     const weiter = (s.aus.length > 1 || (s.aus.length === 1 && s.aus[0].nachNr !== s.nr + 1))
       ? `<div class="pa-weiter">${s.aus.map(o => `${o.label ? esc(o.label) + ': ' : ''}weiter mit ${o.nachNr}${
           o.nachNr !== s.nr + 1 && o.nachName ? ' (' + esc(o.nachName) + ')' : ''}`).join(' · ')}</div>` : '';
-    return `<li data-schritt="${esc(s.id)}" onclick="procStelleZeigen('${esc(s.id)}')"${s.unerreichbar ? ' class="pa-lose"' : ''}>
+    return `<li data-schritt="${esc(s.id)}" onclick="procStelleZeigen(${jsArg(s.id)})"${s.unerreichbar ? ' class="pa-lose"' : ''}>
       <span class="pa-nr" style="background:${a2.stroke}">${s.nr}</span>
       <div>
         <div class="pa-schritt-kopf">${_procArtChip(s.art)}${s.bahn ? `<span class="pa-chip pa-rolle">${esc(s.bahn)}</span>` : ''}${
@@ -1710,7 +1710,7 @@ function _procStellschraubenHtml(a) {
     zeilen.push(`<tr><td><span class="pa-chip t-plan">${a.uebergaben.length} ${a.uebergaben.length === 1 ? 'Übergabe' : 'Übergaben'}</span></td>
       <td>An jeder Übergabe wartet der Vorgang auf eine andere Rolle. Hier geht er am ehesten verloren oder bleibt liegen.
         <div class="pa-chips" style="margin-top:6px">${paare.map(([text, u]) =>
-          `<span class="pa-chip pa-rolle" data-befund="${esc(u.id)}" style="cursor:pointer" onclick="procStelleZeigen('${esc(u.id)}')" title="Im Diagramm zeigen">${esc(text)}</span>`).join('')}</div></td></tr>`);
+          `<span class="pa-chip pa-rolle" data-befund="${esc(u.id)}" style="cursor:pointer" onclick="procStelleZeigen(${jsArg(u.id)})" title="Im Diagramm zeigen">${esc(text)}</span>`).join('')}</div></td></tr>`);
   }
   const aufgaben = z.mensch + z.automatik + z.handgriff;
   if (aufgaben) {
@@ -2321,7 +2321,7 @@ function _procDraftShowText(p, text, err) {
   if (footer) footer.innerHTML = `
     <button class="btn btn-outline" onclick="openProcessDraftPicker()">← Zurück</button>
     <div style="flex:1"></div>
-    <button class="btn btn-primary" onclick="procGenerateFromText('${esc(String(p.id))}')">BPMN-Entwurf erzeugen →</button>`;
+    <button class="btn btn-primary" onclick="procGenerateFromText(${jsArg(String(p.id))})">BPMN-Entwurf erzeugen →</button>`;
 }
 
 function procGenerateFromText(pid) {

@@ -832,7 +832,7 @@ function _dokuSections() {
 
 function dokumentationHtml() {
   const toc = _DOKU_TOC.map(([id, t], i) =>
-    `<a href="#doku-${id}" class="doku-toc-link" onclick="event.preventDefault();dokuGoto('${id}')">${i + 1} · ${t}</a>`).join('');
+    `<a href="#doku-${id}" class="doku-toc-link" onclick="event.preventDefault();dokuGoto(${jsArg(id)})">${i + 1} · ${t}</a>`).join('');
 
   return `
   <style>

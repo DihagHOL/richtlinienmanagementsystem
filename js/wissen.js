@@ -117,7 +117,7 @@ function renderWissen() {
         <span class="wi-pflicht-symbol">📋</span>
         <div style="flex:1;min-width:0"><b>Pflichtschulung${x.st.key === 'faellig' ? ' – Auffrischung fällig' : x.st.key === 'laeuft' ? ' – begonnen' : ''}:</b> ${esc(x.b.titel)}
           <span class="field-hint">${x.b.dauer ? `ca. ${x.b.dauer} Min. · ` : ''}${x.b.module.length} Module${x.b.fragen.length ? ' · 1 Wissenstest' : ''}</span></div>
-        <button class="btn btn-primary btn-sm" onclick="wiKursStarten('${esc(x.b.id)}')">${x.st.key === 'laeuft' ? 'Fortsetzen' : x.st.key === 'faellig' ? 'Auffrischen' : 'Starten'}</button>
+        <button class="btn btn-primary btn-sm" onclick="wiKursStarten(${jsArg(x.b.id)})">${x.st.key === 'laeuft' ? 'Fortsetzen' : x.st.key === 'faellig' ? 'Auffrischen' : 'Starten'}</button>
       </div>`).join('')}
     <div class="view-toolbar">
       <div class="search-box">
@@ -152,9 +152,9 @@ function _wiChipsHtml(sichtbar) {
   if (!themen.length && !arten.length) return '';
   const bereiche = [...new Set(themen.map(t => t.bereich || ''))].sort((a, b) => Number(a === '') - Number(b === ''));   // ohne Bereich zuletzt
   const mehrereBereiche = bereiche.filter(Boolean).length > 1 || (bereiche.includes('') && bereiche.length > 1);
-  const themaChip = (t) => chip(_wiFilter.thema === t.id, `wiFilter('thema','${_wiFilter.thema === t.id ? '' : esc(t.id)}')`, `${esc(t.symbol)} ${esc(t.titel)}`, t.kurz);
+  const themaChip = (t) => chip(_wiFilter.thema === t.id, `wiFilter('thema',${jsArg(_wiFilter.thema === t.id ? '' : t.id)})`, `${esc(t.symbol)} ${esc(t.titel)}`, t.kurz);
   const weitere = (themenMit.has('') || sichtbar.some(b => !wiThema(_wi.daten, b.thema)))
-    ? chip(_wiFilter.thema === '-', `wiFilter('thema','${_wiFilter.thema === '-' ? '' : '-'}')`, '📚 Weitere') : '';
+    ? chip(_wiFilter.thema === '-', `wiFilter('thema',${jsArg(_wiFilter.thema === '-' ? '' : '-')})`, '📚 Weitere') : '';
   const aktiv = !!(_wiFilter.thema || _wiFilter.art);
   const zurueck = aktiv ? `<button type="button" class="wi-chip wi-chip-x" onclick="wiFilter('thema','');wiFilter('art','')" title="Filter zurücksetzen">✕</button>` : '';
   const themenHtml = mehrereBereiche
@@ -162,7 +162,7 @@ function _wiChipsHtml(sichtbar) {
     : themen.map(themaChip).join('') + weitere;
   return `<div class="wi-chips${mehrereBereiche ? ' gruppiert' : ''}">${themenHtml}${mehrereBereiche ? '' : zurueck}</div>
     <div class="wi-chips">
-      ${arten.map(a => chip(_wiFilter.art === a.key, `wiFilter('art','${_wiFilter.art === a.key ? '' : a.key}')`, `${a.symbol} ${esc(a.label)}`, a.hinweis)).join('')}
+      ${arten.map(a => chip(_wiFilter.art === a.key, `wiFilter('art',${jsArg(_wiFilter.art === a.key ? '' : a.key)})`, `${a.symbol} ${esc(a.label)}`, a.hinweis)).join('')}
       ${mehrereBereiche ? zurueck : ''}
     </div>`;
 }
@@ -200,10 +200,10 @@ function _wiListeHtml() {
           ${g.t.kurz ? `<div class="wi-gruppe-kurz">${esc(g.t.kurz)}</div>` : ''}
         </div>
         ${_wiPflege && g.t.id ? `<div class="wi-pflege">
-          <button class="btn btn-ghost btn-sm" onclick="wiThemaVerschieben('${esc(g.t.id)}',-1)" title="Nach oben" ${gi === 0 ? 'disabled' : ''}>↑</button>
-          <button class="btn btn-ghost btn-sm" onclick="wiThemaVerschieben('${esc(g.t.id)}',1)" title="Nach unten">↓</button>
-          <button class="btn btn-ghost btn-sm" onclick="wiThemaDialog('${esc(g.t.id)}')" title="Thema bearbeiten">✎</button>
-          <button class="btn btn-ghost btn-sm" onclick="wiBeitragDialog('', '${esc(g.t.id)}')" title="Beitrag in diesem Thema anlegen">+</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiThemaVerschieben(${jsArg(g.t.id)},-1)" title="Nach oben" ${gi === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiThemaVerschieben(${jsArg(g.t.id)},1)" title="Nach unten">↓</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiThemaDialog(${jsArg(g.t.id)})" title="Thema bearbeiten">✎</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiBeitragDialog('', ${jsArg(g.t.id)})" title="Beitrag in diesem Thema anlegen">+</button>
         </div>` : ''}
       </div>
       <div class="wi-karten">${g.rows.map(b => _wiKarteHtml(b)).join('')}</div>
@@ -230,8 +230,8 @@ function _wiKarteHtml(b) {
   const art = wiArt(b.art), s = _wiStand(b);
   const geltung = (b.geltung || []).includes('ALLE') ? '' : `<span class="ic-tag" title="Geltungsbereich">${esc(b.geltung.join(', '))}</span>`;
   return `
-    <div class="wi-karte${b.aktiv === false ? ' inaktiv' : ''}${s.gesehen || s.bestanden ? ' erledigt' : ''}" onclick="wiOeffnen('${esc(b.id)}')" role="button" tabindex="0"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();wiOeffnen('${esc(b.id)}')}">
+    <div class="wi-karte${b.aktiv === false ? ' inaktiv' : ''}${s.gesehen || s.bestanden ? ' erledigt' : ''}" onclick="wiOeffnen(${jsArg(b.id)})" role="button" tabindex="0"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();wiOeffnen(${jsArg(b.id)})}">
       <div class="wi-karte-kopf">
         <span class="wi-art wi-art-${art.key}">${art.symbol} ${esc(art.label)}</span>
         ${b.dauer ? `<span class="wi-dauer">⏱ ${b.dauer} min</span>` : ''}
@@ -239,9 +239,9 @@ function _wiKarteHtml(b) {
         ${geltung}
         <span class="toolbar-spacer"></span>
         ${_wiPflege ? `<span class="wi-pflege" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="wiBeitragVerschieben('${esc(b.id)}',-1)" title="Nach oben">↑</button>
-          <button class="btn btn-ghost btn-sm" onclick="wiBeitragVerschieben('${esc(b.id)}',1)" title="Nach unten">↓</button>
-          <button class="btn btn-ghost btn-sm" onclick="wiBeitragDialog('${esc(b.id)}')" title="Bearbeiten">✎</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiBeitragVerschieben(${jsArg(b.id)},-1)" title="Nach oben">↑</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiBeitragVerschieben(${jsArg(b.id)},1)" title="Nach unten">↓</button>
+          <button class="btn btn-ghost btn-sm" onclick="wiBeitragDialog(${jsArg(b.id)})" title="Bearbeiten">✎</button>
         </span>` : ''}
       </div>
       <div class="wi-karte-titel">${esc(b.titel)}</div>
@@ -291,27 +291,27 @@ function _wiDetailHtml(b) {
         Freiwillig und beliebig oft – die Reihenfolge der Fragen und Antworten ist jedes Mal anders. Falsche Antworten werden
         nach der Auswertung mit der richtigen Lösung gezeigt: Der Test ist zugleich das Lernmittel.</p>
       ${s.bestanden ? `<div class="wi-stand ok" style="margin-bottom:10px">✓ Bestanden mit ${s.score} % (${_wiDatum(s.am)}). Noch einmal? Gern.</div>` : ''}
-      <button class="btn btn-primary" onclick="wiTestStarten('${esc(b.id)}')">${s.versuche ? 'Noch einmal versuchen' : 'Test starten'}</button>
+      <button class="btn btn-primary" onclick="wiTestStarten(${jsArg(b.id)})">${s.versuche ? 'Noch einmal versuchen' : 'Test starten'}</button>
     </div>`;
   }
   const quelle = b.quelle ? `<div class="lernvideo-quelle">Quelle: ${esc(b.quelle)}</div>` : '';
   const gesehenKnopf = b.art !== 'test'
     ? (s.gesehen
       ? `<span class="wi-stand ok">✓ Angesehen am ${_wiDatum(s.am)}</span>`
-      : `<button class="btn btn-success btn-sm" onclick="wiGesehen('${esc(b.id)}')" title="Freiwillig – hält fest, dass Sie den Beitrag angesehen haben">✓ Ich habe das angesehen</button>`)
+      : `<button class="btn btn-success btn-sm" onclick="wiGesehen(${jsArg(b.id)})" title="Freiwillig – hält fest, dass Sie den Beitrag angesehen haben">✓ Ich habe das angesehen</button>`)
     : '';
   return `
     <div class="wi-detail">
       <div class="view-toolbar" style="margin-bottom:12px">
         <button class="btn btn-sm btn-ghost" onclick="wiSchliessen()">← Zurück zur Bibliothek</button>
         <div class="toolbar-spacer"></div>
-        <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren('${esc(b.id)}')" title="Dauerhafter Link auf diesen Beitrag">🔗 Link</button>
-        ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog('${esc(b.id)}')">✎ Bearbeiten</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren(${jsArg(b.id)})" title="Dauerhafter Link auf diesen Beitrag">🔗 Link</button>
+        ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog(${jsArg(b.id)})">✎ Bearbeiten</button>` : ''}
       </div>
       <div class="wi-detail-kopf">
         <div class="ic-tags">
           <span class="wi-art wi-art-${art.key}">${art.symbol} ${esc(art.label)}</span>
-          ${t ? `<span class="ic-tag cat" style="cursor:pointer" onclick="wiFilter('thema','${esc(t.id)}');wiSchliessen()">${esc(t.symbol)} ${esc(t.titel)}</span>` : ''}
+          ${t ? `<span class="ic-tag cat" style="cursor:pointer" onclick="wiFilter('thema',${jsArg(t.id)});wiSchliessen()">${esc(t.symbol)} ${esc(t.titel)}</span>` : ''}
           ${b.dauer ? `<span class="ic-tag">⏱ ${b.dauer} min</span>` : ''}
           ${b.aktiv === false ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">inaktiv – nur im Pflege-Modus sichtbar</span>' : ''}
         </div>
@@ -354,7 +354,7 @@ function wiTestStarten(id) {
     <div class="quiz-progress" style="margin-bottom:10px">${_quiz.questions.length} Frage(n) · bestanden ab ${b.bestehen} % richtig</div>
     <form id="quiz-form" onsubmit="return false">${_quiz.questions.map((q, i) => quizQuestionHtml(q, i)).join('')}</form>
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
-      <button class="btn btn-primary btn-lg" id="quiz-submit" onclick="wiTestAuswerten('${esc(b.id)}')">Antworten auswerten</button>
+      <button class="btn btn-primary btn-lg" id="quiz-submit" onclick="wiTestAuswerten(${jsArg(b.id)})">Antworten auswerten</button>
     </div>`;
   host.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -409,8 +409,8 @@ async function wiTestAuswerten(id) {
       ? (kurs ? `bestanden ✓ Schulung abgeschlossen${neu && neu.faelligAm ? `, gültig bis ${_wiDatum(neu.faelligAm)}` : ''}` : 'bestanden ✓')
       : 'noch nicht bestanden – die richtigen Antworten stehen oben'}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      ${passed && kurs ? `<button class="btn btn-success" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button><button class="btn btn-outline" onclick="wiKursZu('${esc(b.id)}', 0)">Zur Übersicht</button>` : ''}
-      <button class="btn ${passed ? (kurs ? 'btn-ghost' : 'btn-success') : 'btn-primary'}" onclick="wiTestStarten('${esc(b.id)}')">${passed ? 'Noch einmal' : 'Erneut versuchen'}</button>
+      ${passed && kurs ? `<button class="btn btn-success" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button><button class="btn btn-outline" onclick="wiKursZu(${jsArg(b.id)}, 0)">Zur Übersicht</button>` : ''}
+      <button class="btn ${passed ? (kurs ? 'btn-ghost' : 'btn-success') : 'btn-primary'}" onclick="wiTestStarten(${jsArg(b.id)})">${passed ? 'Noch einmal' : 'Erneut versuchen'}</button>
       <button class="btn btn-ghost" onclick="wiSchliessen()">Zurück zur Bibliothek</button>
     </div>`;
   host.appendChild(res);
@@ -427,16 +427,16 @@ function _wiKursHtml(b) {
   const kopf = `
     <div class="view-toolbar" style="margin-bottom:12px">
       <button class="btn btn-sm btn-ghost" onclick="wiSchliessen()">← Zurück zur Bibliothek</button>
-      ${schritt > 0 ? `<button class="btn btn-sm btn-ghost" onclick="wiKursZu('${esc(b.id)}', 0)">☰ Übersicht</button>` : ''}
+      ${schritt > 0 ? `<button class="btn btn-sm btn-ghost" onclick="wiKursZu(${jsArg(b.id)}, 0)">☰ Übersicht</button>` : ''}
       <div class="toolbar-spacer"></div>
-      <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren('${esc(b.id)}')" title="Dauerhafter Link auf diese Schulung">🔗 Link</button>
-      ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog('${esc(b.id)}')">✎ Bearbeiten</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren(${jsArg(b.id)})" title="Dauerhafter Link auf diese Schulung">🔗 Link</button>
+      ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog(${jsArg(b.id)})">✎ Bearbeiten</button>` : ''}
     </div>`;
   const fortschritt = _wiFortschrittHtml(b);
 
   if (schritt === 0) {
     const t = _wiThemaVon(b);
-    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? ` – gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button></div>`
+    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? ` – gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button></div>`
       : st.key === 'faellig' ? `<div class="wi-box warn">🔄 Ihr Abschluss vom ${_wiDatum(st.stand.am)} ist abgelaufen – bitte auffrischen.</div>`
       : st.key === 'laeuft' ? `<div class="wi-box info">▶ Begonnen – ${gelesen.length} von ${n} Modulen gelesen.</div>` : '';
     const knopf = st.key === 'laeuft' && gelesen.length < n ? 'Fortsetzen' : st.key === 'erledigt' ? 'Noch einmal durchgehen' : st.key === 'faellig' ? 'Auffrischen' : 'Schulung starten';
@@ -461,11 +461,11 @@ function _wiKursHtml(b) {
       ${statusHtml}
       ${b.ziele.length ? `<div class="wi-kurs-block"><h3>Nach dieser Schulung können Sie …</h3><ul class="wi-ziele">${b.ziele.map(z => `<li>${esc(z)}</li>`).join('')}</ul></div>` : ''}
       <div class="wi-kurs-block"><h3>Die Module</h3>
-        <ol class="wi-module">${b.module.map((m, i) => `<li class="${gelesen.includes(m.id) ? 'da' : ''}" onclick="wiKursZu('${esc(b.id)}', ${i + 1})" role="button" tabindex="0"
-            onkeydown="if(event.key==='Enter'){wiKursZu('${esc(b.id)}', ${i + 1})}"><span class="wi-modul-nr">${String(i + 1).padStart(2, '0')}</span><span>${esc(m.titel)}</span><span class="wi-modul-stand">${gelesen.includes(m.id) ? '✓' : ''}</span></li>`).join('')}${
-          mitTest ? `<li class="${st.key === 'erledigt' ? 'da' : ''}" onclick="wiKursZu('${esc(b.id)}', ${n + 1})" role="button" tabindex="0"><span class="wi-modul-nr">❓</span><span>Wissenstest · ${b.fragen.length} Fragen, bestanden ab ${b.bestehen} %</span><span class="wi-modul-stand">${st.key === 'erledigt' ? '✓' : ''}</span></li>` : ''}</ol>
+        <ol class="wi-module">${b.module.map((m, i) => `<li class="${gelesen.includes(m.id) ? 'da' : ''}" onclick="wiKursZu(${jsArg(b.id)}, ${i + 1})" role="button" tabindex="0"
+            onkeydown="if(event.key==='Enter'){wiKursZu(${jsArg(b.id)}, ${i + 1})}"><span class="wi-modul-nr">${String(i + 1).padStart(2, '0')}</span><span>${esc(m.titel)}</span><span class="wi-modul-stand">${gelesen.includes(m.id) ? '✓' : ''}</span></li>`).join('')}${
+          mitTest ? `<li class="${st.key === 'erledigt' ? 'da' : ''}" onclick="wiKursZu(${jsArg(b.id)}, ${n + 1})" role="button" tabindex="0"><span class="wi-modul-nr">❓</span><span>Wissenstest · ${b.fragen.length} Fragen, bestanden ab ${b.bestehen} %</span><span class="wi-modul-stand">${st.key === 'erledigt' ? '✓' : ''}</span></li>` : ''}</ol>
       </div>
-      <div class="wi-detail-fuss"><button class="btn btn-primary btn-lg" onclick="wiKursStarten('${esc(b.id)}')">${knopf} →</button>${fortschritt}</div>
+      <div class="wi-detail-fuss"><button class="btn btn-primary btn-lg" onclick="wiKursStarten(${jsArg(b.id)})">${knopf} →</button>${fortschritt}</div>
     </div>`;
   }
 
@@ -478,8 +478,8 @@ function _wiKursHtml(b) {
       <h2 style="margin:4px 0 12px">${esc(m.titel)}</h2>
       <div class="wi-artikel">${wiTextHtml(m.text)}</div>
       <div class="wi-detail-fuss" style="justify-content:space-between">
-        <button class="btn btn-outline" onclick="wiKursZu('${esc(b.id)}', ${schritt - 1})">← ${schritt === 1 ? 'Übersicht' : 'Zurück'}</button>
-        <button class="btn btn-primary" onclick="wiKursWeiter('${esc(b.id)}', ${schritt})">${letztes ? (mitTest ? 'Zum Wissenstest →' : 'Schulung abschließen ✓') : 'Weiter →'}</button>
+        <button class="btn btn-outline" onclick="wiKursZu(${jsArg(b.id)}, ${schritt - 1})">← ${schritt === 1 ? 'Übersicht' : 'Zurück'}</button>
+        <button class="btn btn-primary" onclick="wiKursWeiter(${jsArg(b.id)}, ${schritt})">${letztes ? (mitTest ? 'Zum Wissenstest →' : 'Schulung abschließen ✓') : 'Weiter →'}</button>
       </div>
     </div>`;
   }
@@ -493,9 +493,9 @@ function _wiKursHtml(b) {
         <p style="margin:0 0 10px;line-height:1.55">${b.fragen.length} Frage${b.fragen.length > 1 ? 'n' : ''}, bestanden ab ${b.bestehen} % richtig.
           Die Reihenfolge ist jedes Mal anders; nach der Auswertung sehen Sie die richtigen Antworten. Nicht bestanden heißt: noch einmal – ohne Sperrfrist.</p>
         ${gelesen.length < n ? `<div class="wi-box info">Sie haben ${gelesen.length} von ${n} Modulen gelesen – der Test geht trotzdem. Die Module stehen jederzeit in der Übersicht.</div>` : ''}
-        <button class="btn btn-primary" onclick="wiTestStarten('${esc(b.id)}')">Test starten</button>
+        <button class="btn btn-primary" onclick="wiTestStarten(${jsArg(b.id)})">Test starten</button>
       </div>` : `<div class="wi-box ok">Sie haben alle ${n} Module gelesen.</div>
-        <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat('${esc(b.id)}')">🎓 Bescheinigung</button>` : `<button class="btn btn-success" onclick="wiKursAbschliessen('${esc(b.id)}')">✓ Schulung abschließen</button>`}</div>`}
+        <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button>` : `<button class="btn btn-success" onclick="wiKursAbschliessen(${jsArg(b.id)})">✓ Schulung abschließen</button>`}</div>`}
     </div>`;
 }
 
@@ -611,7 +611,7 @@ function wiThemaDialog(id) {
       ${t ? `<div class="field-hint">${_wi.daten.beitraege.filter(b => b.thema === t.id).length} Beiträge in diesem Thema. Beim Löschen bleiben sie erhalten und stehen unter „Weitere".</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${t ? `<button class="btn btn-ghost" style="color:#b91c1c" onclick="wiThemaLoeschen('${esc(t.id)}')">Löschen</button>` : ''}
+      ${t ? `<button class="btn btn-ghost" style="color:#b91c1c" onclick="wiThemaLoeschen(${jsArg(t.id)})">Löschen</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="wiThemaSpeichern()">Speichern</button>
@@ -756,7 +756,7 @@ function _wiBeitragDialogHtml() {
       <div class="form-group full" style="margin-top:8px"><label>Gilt für</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px 14px">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${alle ? 'checked' : ''} onchange="wiEditGeltung('ALLE',this.checked)"> Alle Standorte</label>
-          ${werke.map(w => `<label class="ack-check"><input type="checkbox" ${!alle && b.geltung.includes(w) ? 'checked' : ''} ${alle ? 'disabled' : ''} onchange="wiEditGeltung('${esc(w)}',this.checked)"> ${esc(w)}</label>`).join('')}
+          ${werke.map(w => `<label class="ack-check"><input type="checkbox" ${!alle && b.geltung.includes(w) ? 'checked' : ''} ${alle ? 'disabled' : ''} onchange="wiEditGeltung(${jsArg(w)},this.checked)"> ${esc(w)}</label>`).join('')}
         </div>
         <span class="field-hint">Ist die Trennung nach Gesellschaft eingeschaltet, sehen Beiträge nur die Werke, für die sie gelten. Konzernweites sieht jede:r.</span></div>
       <label class="ack-check" style="font-weight:600;margin-top:6px"><input type="checkbox" ${b.aktiv !== false ? 'checked' : ''} onchange="wiEditSet('aktiv',this.checked)"> Sichtbar (inaktive Beiträge sehen nur Pflegende)</label>
@@ -764,7 +764,7 @@ function _wiBeitragDialogHtml() {
       ${!b._neu && (b.erstelltAm || b.geaendertAm) ? `<div class="field-hint" style="margin-top:10px">${b.erstelltAm ? `Angelegt ${_wiDatum(b.erstelltAm)}${b.erstelltVon ? ' von ' + esc(b.erstelltVon) : ''}` : ''}${b.geaendertAm ? ` · zuletzt geändert ${_wiDatum(b.geaendertAm)}${b.geaendertVon ? ' von ' + esc(b.geaendertVon) : ''}` : ''}</div>` : ''}
     </div>
     <div class="modal-footer">
-      ${!b._neu ? `<button class="btn btn-ghost" style="color:#b91c1c" onclick="wiBeitragLoeschen('${esc(b.id)}')">Löschen</button>` : ''}
+      ${!b._neu ? `<button class="btn btn-ghost" style="color:#b91c1c" onclick="wiBeitragLoeschen(${jsArg(b.id)})">Löschen</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="wiBeitragSpeichern()">Speichern</button>

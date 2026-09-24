@@ -13,6 +13,8 @@ import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { createRequire as _requireFuerHelfer } from 'module';
+const { jsArg } = _requireFuerHelfer(import.meta.url)('../js/util.js');   // echter Helfer für Inline-Handler
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -126,7 +128,7 @@ const ctx = {
   localStorage: { getItem: () => null, setItem: () => {} },
 };
 ctx.window = ctx; ctx.globalThis = ctx;
-vm.createContext(ctx);
+ctx.jsArg ??= jsArg; vm.createContext(ctx);
 vm.runInContext(lies('js/prozessschema.js'), ctx);
 vm.runInContext(lies('js/prozesse.js'), ctx);
 const run = (code, extra) => vm.runInContext(code, Object.assign(ctx, extra || {}));
@@ -134,7 +136,7 @@ const run = (code, extra) => vm.runInContext(code, Object.assign(ctx, extra || {
 const befunde = run('_procBefundeHtml(__r, {})', { __r: r });
 ok(/<span class="pa-chip t-err">\d+ Verstöße<\/span>/.test(befunde) && /<span class="pa-chip t-warn">\d+ Hinweise?<\/span>/.test(befunde),
   'Kopf rechts: Zahl der Verstöße und Hinweise als farbige Chips');
-ok(/<tr class="pa-klick" data-befund="F3" onclick="procStelleZeigen\('F3'\)"/.test(befunde), 'Jede Zeile mit Element springt beim Klick dorthin');
+ok(/<tr class="pa-klick" data-befund="F3" onclick="procStelleZeigen\(&quot;F3&quot;\)"/.test(befunde), 'Jede Zeile mit Element springt beim Klick dorthin');
 ok(/<span class="pa-chip t-err">Verstoß<\/span>/.test(befunde) && /<span class="pa-chip t-warn">Hinweis<\/span>/.test(befunde),
   'Links in der Zeile die Einstufung, wie in der Regeltabelle der E-Rechnung');
 ok(/class="pa-warum"/.test(befunde) && /Verstöße nicht/.test(befunde), 'Mit der Begründung der Regel und dem Satz, was übergangen werden darf');
@@ -145,7 +147,7 @@ const viele = { fehler: [], hinweise: ['T1', 'T2', 'T3', 'T4'].map(id => ({ rege
 const gebuendelt = run('_procBefundeHtml(__v, {})', { __v: viele });
 ok((gebuendelt.match(/<tr/g) || []).length === 2 && /<b>4 Stellen:<\/b>/.test(gebuendelt),
   'Ab drei Befunden einer Regel eine Zeile mit den Stellen, statt viermal derselbe Satz');
-ok(/data-befund="T3"[^>]*onclick="procStelleZeigen\('T3'\)"[^>]*>Aufgabe T3</.test(gebuendelt), 'Jede Stelle im Bündel ist ein Chip, der ins Diagramm springt');
+ok(/data-befund="T3"[^>]*onclick="procStelleZeigen\(&quot;T3&quot;\)"[^>]*>Aufgabe T3</.test(gebuendelt), 'Jede Stelle im Bündel ist ein Chip, der ins Diagramm springt');
 ok(/<tr class="pa-klick" data-befund="L9"/.test(gebuendelt), 'Einzelne Befunde bleiben eigene Zeilen');
 const r9 = run('_procBefundeHtml(__r9, {})', { __r9: { fehler: [], hinweise: S.prozessSchemaPruefen(xml, { policyIds: [] }).hinweise.filter(f => f.regel === 'R9') } });
 ok((r9.match(/Gewohnheit, keine Vorgabe/g) || []).length === 1, 'Steht die Begründung schon im Befund, erscheint sie nicht ein zweites Mal');
@@ -163,7 +165,7 @@ ok(/<span class="pa-chip t-err" title="Befund im Hausschema">⚠ R3/.test(mitBef
 const schrauben = run('_procStellschraubenHtml(__a)');
 ok(/\d+ Übergaben/.test(schrauben) && /% automatisch/.test(schrauben) && /Entscheidung/.test(schrauben),
   'Stellschrauben: Übergaben, Automatikquote, Entscheidungen');
-ok(/onclick="procStelleZeigen\('Flow_\d+'\)"/.test(schrauben), 'Jede Übergabe zeigt ihren Fluss im Diagramm');
+ok(/onclick="procStelleZeigen\(&quot;Flow_\d+&quot;\)"/.test(schrauben), 'Jede Übergabe zeigt ihren Fluss im Diagramm');
 ok(new RegExp(`<b>${z.schritte}</b> Schritte`).test(run('_procKennzahlenHtml(__a)')), 'Kennzahlen über dem Diagramm');
 
 ok(/^Beginnt mit „Bedarf gemeldet"/.test(run('_procLead(__x, __a)', { __x: xml })) && /Beteiligt: /.test(run('_procLead(__x, __a)')),
@@ -172,7 +174,7 @@ const mitDoku = xml.replace(/(<bpmn:process\b[^>]*>)/, '$1\n    <bpmn:documentat
 ok(run('_procLead(__x, __a)', { __x: mitDoku }) === 'Beschafft Material.', 'Steht eine Beschreibung drin, gilt sie; Marker und Verweiszeilen fallen weg');
 
 const chips = run("_procChipsHtml({ ordner: '' }, ['7'], [{ name: 'Merkblatt.pdf', url: 'https://sp/m' }])");
-ok(/📘 Beschaffungsrichtlinie/.test(chips) && /openDetail\('7'\)/.test(chips) && /href="https:\/\/sp\/m"/.test(chips),
+ok(/📘 Beschaffungsrichtlinie/.test(chips) && /openDetail\(&quot;7&quot;\)/.test(chips) && /href="https:\/\/sp\/m"/.test(chips),
   'Kopf: Richtlinie zum Anklicken, Anlage als Link');
 ok(/keine Richtlinie verknüpft/.test(run("_procChipsHtml({ ordner: '' }, [], [])")), 'Ohne Richtlinie: gelber Chip');
 
@@ -187,8 +189,8 @@ ok(/Kritikalität hoch/.test(nf) && /RTO 8 h/.test(nf) && /Notfallplan vorhanden
 
 /* ── 5) Verdrahtung ── */
 const pjs = lies('js/prozesse.js');
-ok(/onclick="openProcessAnsicht\('\$\{esc\(p\.itemId\)\}'\)"/.test(pjs), 'Ein Klick auf die Karte öffnet die Ansicht, nicht mehr den Editor');
-ok(/onclick="openProcessEditor\('\$\{esc\(itemId\)\}'\)"[\s\S]{0,60}✎ Bearbeiten/.test(pjs), 'In der Ansicht führt „✎ Bearbeiten" in den Editor');
+ok(/onclick="openProcessAnsicht\(\$\{jsArg\(p\.itemId\)\}\)"/.test(pjs), 'Ein Klick auf die Karte öffnet die Ansicht, nicht mehr den Editor');
+ok(/onclick="openProcessEditor\(\$\{jsArg\(itemId\)\}\)"[\s\S]{0,60}✎ Bearbeiten/.test(pjs), 'In der Ansicht führt „✎ Bearbeiten" in den Editor');
 ok(/onclick="procZurAnsicht\(\)"/.test(pjs), '… und „👁 Ansicht" wieder zurück');
 ok(/'element\.dblclick'\]\s*\.forEach\(ev => bus\.on\(ev, 10000, \(\) => false\)\)/.test(pjs) && /'shape\.move\.start'/.test(pjs),
   'Die Ansicht ist gesperrt: nichts verschieben, verbinden oder umbenennen');
@@ -198,7 +200,7 @@ ok(datei.includes('_procAnsichtXml') && !datei.includes('_setProcessDoku'),
 ok(/_procSvgFaerben\(svg\)/.test(pjs), 'Das Bild der Ansicht trägt die Farben in sich (für Word und PowerPoint)');
 ok(/await \(_procAnsicht \? openProcessAnsicht\(itemId\) : openProcessEditor\(itemId\)\)/.test(pjs), 'Im Unterprozess liest weiter, wer liest');
 ok(/_procNachpruefenBald\(\); \}\);/.test(pjs) && /_procBefundeMarkieren\(r\);/.test(pjs), 'Im Editor: Befunde live nachgeprüft und im Diagramm markiert');
-ok(/openProcessAnsicht\('\$\{esc\(m\.itemId\)\}'\)">Öffnen/.test(lies('js/landkarte.js')), 'Landkarte: „Öffnen" zeigt die Ansicht');
+ok(/openProcessAnsicht\(\$\{jsArg\(m\.itemId\)\}\)">Öffnen/.test(lies('js/landkarte.js')), 'Landkarte: „Öffnen" zeigt die Ansicht');
 const vjs = lies('js/verknuepfungen.js');
 ok((vjs.match(/openProcessAnsicht\(/g) || []).length === 3 && !/openProcessEditor/.test(vjs), 'Verknüpfungen: jeder Link auf ein Modell zeigt die Ansicht');
 ok(!/\bdu\b|\bdein/i.test(pjs.slice(pjs.indexOf('/* ── Die Ansicht: lesen statt bauen'), pjs.indexOf('/* ── Hausschema im Editor'))),

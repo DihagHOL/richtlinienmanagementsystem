@@ -11,6 +11,26 @@
  */
 
 /**
+ * Ein Wert als Argument in einem Inline-Handler: `onclick="f(${jsArg(x)})"`.
+ *
+ * `esc()` genügt dort nicht. Der Browser entschlüsselt die Entitäten eines
+ * Attributs, BEVOR er das JavaScript darin ausführt – aus `&#39;` wird wieder
+ * ein `'`. Ein Dateiname wie „x');alert(1);('.docx" in `f('${esc(name)}')`
+ * brach so aus dem String aus und lief als Code, mit den Graph-Rechten der
+ * angemeldeten Person.
+ *
+ * Deshalb zwei Schichten in der richtigen Reihenfolge: erst ein JavaScript-
+ * Literal (JSON maskiert Anführungszeichen, Backslash, Zeilenumbrüche), dann
+ * fürs Attribut escapen. Das Ergebnis bringt seine Anführungszeichen selbst
+ * mit – also OHNE eigene Quotes drumherum schreiben. Es ist immer ein String,
+ * wie vorher `'…'` auch.
+ */
+function jsArg(v) {
+  return JSON.stringify(String(v ?? ''))
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
  * Ein Eintrag des Prozess-Verknüpfungs-Caches, auf eine Form gebracht.
  *
  * Der Cache (`_procLinkCache` in `js/prozesse.js`, gespiegelt in
@@ -113,7 +133,7 @@ function druckKopf(zeile) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
+  module.exports = { jsArg, fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
 }
 
 /* ═══════════════════════════════════════════════════
