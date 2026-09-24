@@ -21,6 +21,7 @@ const SP = {
   wirkList:     'Wirksamkeit',             // Audits, Managementbewertung, Korrekturmaßnahmen
   assetRegList: 'Assets',                  // das Asset-Inventar (A.5.9) – dieselbe Liste, jetzt geführt statt nur gelesen
   configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
+  m365NachweisList: 'Compliance_M365Nachweise',  // gesicherte M365-Nachweise aus dem Compliance-Cockpit (nur lesen)
 
   // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
   ismsSiteHost: 'dihag.sharepoint.com:/sites/ISMS',
@@ -2277,6 +2278,40 @@ async function spSaveSoa(data) {
   if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
   await _uploadFile(token, `${SP.configFolder}/soa-config.json`,
     new TextEncoder().encode(JSON.stringify(data, null, 2)), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   M365-Nachweise aus dem Compliance-Cockpit (nur lesen)
+   Das Cockpit (dfedorov12.github.io/compliance) ruft Live-Werte aus
+   Microsoft 365 ab und sichert sie je Annex-A-Control mit Stichtag in der
+   Liste „Compliance_M365Nachweise" auf der App-Site. Die SoA zeigt davon je
+   Control den jüngsten Eintrag. Ergebnis: { "A.8.5": { wert, stand, zeit } }.
+═══════════════════════════════════════════════════ */
+
+async function spGetM365Nachweise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return {};
+  await spInit();
+  let listId;
+  try {
+    listId = await _findListId(token, SP.m365NachweisList);
+  } catch (e) {
+    return {};   // Liste gibt es erst, wenn das Cockpit sie angelegt hat
+  }
+  const out = {};
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields($select=Title,Wert,Stand,Zeit)&$top=500`;
+  while (url) {
+    const r = await _get(url, token);
+    for (const it of (r.value || [])) {
+      const f = it.fields || {};
+      const id = String(f.Title || '').trim();
+      if (!id) continue;
+      const zeit = String(f.Zeit || f.Stand || '');
+      if (!out[id] || zeit > out[id].zeit) out[id] = { wert: f.Wert || '', stand: f.Stand || '', zeit };
+    }
+    url = r['@odata.nextLink'] || null;
+  }
+  return out;
 }
 
 /* ═══════════════════════════════════════════════════

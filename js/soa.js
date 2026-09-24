@@ -24,6 +24,23 @@ let _soaLoading = false;
 let _soaDirty = false;    // ungespeicherte Änderungen?
 let _soaFilter = { q: '', nur: '' };   // nur: '' | 'offen' | 'ausgeschlossen'
 
+/* Jüngster M365-Nachweis je Control aus dem Compliance-Cockpit
+   ({ "A.8.5": { wert, stand, zeit } }); null = noch nicht geladen. */
+let _soaM365 = null;
+const SOA_COCKPIT_URL = 'https://dfedorov12.github.io/compliance/';
+
+function _soaCockpitLink(id) {
+  return SOA_COCKPIT_URL + '?ansicht=nachweise' + (id ? '&control=' + encodeURIComponent(id) : '');
+}
+
+/** Kleine Zeile unter der Bezeichnung: der jüngste M365-Nachweis, falls es einen gibt. */
+function _soaM365Zeile(id) {
+  const n = _soaM365 && _soaM365[id];
+  if (!n) return '';
+  return `<div style="font-size:.72rem;color:#1e40af;margin-top:2px">M365-Nachweis ${esc(fmtDate(n.stand))}: ${esc(n.wert)}
+    <a href="${esc(_soaCockpitLink(id))}" target="_blank" rel="noopener" style="white-space:nowrap">im Cockpit ↗</a></div>`;
+}
+
 function _soaCtl(id) {
   if (!_soaData) _soaData = { controls: {}, meta: {} };
   if (!_soaData.controls) _soaData.controls = {};
@@ -73,6 +90,11 @@ function _soaKpis() {
 }
 
 async function initSoa() {
+  // Die M365-Nachweise laufen nebenher; fehlen sie, bleibt die SoA wie sie war.
+  if (_soaM365 === null && typeof spGetM365Nachweise === 'function') {
+    _soaM365 = {};
+    spGetM365Nachweise().then(m => { _soaM365 = m || {}; renderSoa(); }).catch(() => { _soaM365 = {}; });
+  }
   if (_soaData || _soaLoading) { renderSoa(); return; }
   _soaLoading = true;
   renderSoa();   // Spinner
@@ -133,7 +155,7 @@ function renderSoa() {
       return `<tr${waehlbar && c.anwendbar === false ? ' style="background:#fafafa"' : ''}>
         <td style="white-space:nowrap;vertical-align:top"><b>${esc(it.id)}</b></td>
         <td style="vertical-align:top">${esc(it.label)}
-          <div style="font-size:.72rem;color:var(--c-faint)">${esc(covTxt)}</div></td>
+          <div style="font-size:.72rem;color:var(--c-faint)">${esc(covTxt)}</div>${_soaM365Zeile(it.id)}</td>
         <td style="vertical-align:top">${anwendbarZelle}</td>
         <td style="vertical-align:top"><select class="sort-select" style="font-size:.78rem;padding:3px 6px"${waehlbar && c.anwendbar === false ? ' disabled' : dis}
             onchange="soaSet('${esc(it.id)}','status',this.value)">
@@ -158,6 +180,8 @@ function renderSoa() {
       <br>Entschieden wird über die <b>${k.total} Annex-A-Controls</b>. Klauseln, NIS2 und die Rechtsnormen
       (${k.immer} Anforderungen) stehen mit „<b>gilt immer</b>" darin – sie lassen sich nicht ausschließen,
       ihr Umsetzungsstatus wird aber mitgeführt.
+      <br>Blaue Zeilen sind <b>M365-Nachweise</b> aus dem <a href="${esc(_soaCockpitLink(''))}" target="_blank" rel="noopener">Compliance-Cockpit</a>:
+      der jüngste gesicherte Live-Wert aus Microsoft 365 zum Control${_soaM365 && Object.keys(_soaM365).length ? ` (${Object.keys(_soaM365).length} Controls belegt)` : ''}.
       ${meta.updatedAt ? `<br><span style="color:var(--c-faint)">Zuletzt gespeichert: ${fmtDateTime(meta.updatedAt)}${meta.updatedBy ? ' von ' + esc(meta.updatedBy) : ''} · Version ${meta.version || 1}</span>` : ''}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">

@@ -172,7 +172,9 @@ async function applyDeepLinkOrDefault() {
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
     if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
-      await switchView(ansicht); return;
+      await switchView(ansicht);
+      await _ansichtZielOeffnen(ansicht, params);
+      return;
     }
     // Startansicht: „Meine Regelwerke", wenn freigegeben – sonst „Wissen", das
     // jede:r hat. Auch Admins fangen so an; das Cockpit ist einen Klick entfernt.
@@ -349,6 +351,41 @@ function showSync(on, text) {
 /* ═══════════════════════════════════════════════════
    View-Switching
 ═══════════════════════════════════════════════════ */
+
+/**
+ * Direktlinks auf einen Eintrag – aus dem Compliance-Cockpit und aus Mails:
+ *   ?ansicht=risiken&risiko=ID           öffnet das Risiko
+ *   ?ansicht=wirksamkeit&eintrag=ID      öffnet Abweichung/Audit/Bewertung
+ *   ?ansicht=abdeckung&modus=soa&control=A.8.12   SoA, auf das Control gefiltert
+ * Die Module laden erst mit dem Reiter und ihre Daten danach; deshalb wird kurz
+ * gewartet, bis die Liste da ist. Alles ist abgesichert: Fehlt etwas, bleibt
+ * es bei der Ansicht.
+ */
+async function _ansichtZielOeffnen(ansicht, params) {
+  const warteBis = async (bereit, ms = 10000) => {
+    const ende = Date.now() + ms;
+    while (!bereit() && Date.now() < ende) await new Promise(r => setTimeout(r, 150));
+    return bereit();
+  };
+  const risiko = params.get('risiko');
+  const eintrag = params.get('eintrag');
+  const control = params.get('control');
+  const modus = params.get('modus') || (control ? 'soa' : '');
+  if (ansicht === 'risiken' && risiko) {
+    const da = await warteBis(() => typeof _risks !== 'undefined' && Array.isArray(_risks));
+    if (!da || typeof openRiskEditor !== 'function') return;
+    if (!_risks.some(r => String(r.id) === String(risiko))) { toast('Das Risiko aus dem Link gibt es nicht mehr.'); return; }
+    openRiskEditor(risiko);
+  } else if (ansicht === 'wirksamkeit' && eintrag) {
+    const da = await warteBis(() => typeof _wirk !== 'undefined' && Array.isArray(_wirk));
+    if (!da || typeof openWirkEditor !== 'function') return;
+    if (!_wirk.some(w => String(w.id) === String(eintrag))) { toast('Den Eintrag aus dem Link gibt es nicht mehr.'); return; }
+    openWirkEditor(eintrag);
+  } else if (ansicht === 'abdeckung' && modus) {
+    if (control && typeof _soaFilter !== 'undefined') _soaFilter.q = control;
+    if (typeof abdeckungSetMode === 'function') abdeckungSetMode(modus);
+  }
+}
 
 async function switchView(view) {
   // Was früher jede:r sah, ist jetzt freizugeben (Einstellungen → Reiter-

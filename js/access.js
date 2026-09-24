@@ -851,7 +851,11 @@ function initRoleNav() {
   show('nav-ki',            canReadTab('ki'));
   show('nav-grp-ki',        canReadTab('ki'));
   show('nav-zapp',          canReadTab('zapp'));
-  show('nav-grp-apps',      canReadTab('zapp'));
+  // Das Compliance-Cockpit gehört zum ISMS: sichtbar für alle, die SoA, Risiken
+  // oder das Cockpit lesen dürfen. Ohne eigenen Eintrag in der Reitermatrix.
+  const m365Cockpit = canReadTab('abdeckung') || canReadTab('risiken') || canReadTab('cockpit');
+  show('nav-m365-cockpit',  m365Cockpit);
+  show('nav-grp-apps',      canReadTab('zapp') || m365Cockpit);
 
   // Einzelne Reiter
   show('nav-cockpit',       v.cockpit);
