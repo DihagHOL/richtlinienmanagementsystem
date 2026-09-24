@@ -30,6 +30,14 @@ ok(deute(`<iframe width="640" src="${sp}" frameborder="0"></iframe>`)?.src === s
 ok(deute(`<iframe width="640" src="${sp}"></iframe>`)?.art === 'einbetten', 'Und direkt abgespielt');
 ok(deute(sp)?.art === 'einbetten', 'Die nackte embed.aspx-Adresse ebenso');
 ok(deute(`<iframe src='${sp}'></iframe>`)?.src === sp, 'Auch mit einfachen Anführungszeichen');
+ok(deute('https://dihag-my.sharepoint.com/personal/x/_layouts/15/embed.aspx?UniqueId=1')?.art === 'einbetten',
+  'Auch aus OneDrive (…-my.sharepoint.com)');
+/* Den Pfad kann jeder Server nachbauen. Ein fremder Rahmen mitten in der App
+   könnte eine falsche Anmeldeseite zeigen – eingebettet wird nur SharePoint. */
+ok(deute('https://angreifer.example/_layouts/15/embed.aspx?x=1')?.art === 'link', 'Fremdes embed.aspx: nur ein Link, kein Rahmen');
+ok(deute('https://dihag.sharepoint.com.angreifer.example/_layouts/15/embed.aspx')?.art === 'link', 'Auch nicht mit sharepoint.com als Vorsilbe');
+ok(deute('http://dihag.sharepoint.com/_layouts/15/embed.aspx')?.art === 'link', 'Und nur über https');
+ok(deute('https://angreifer.example/?u=https://dihag.sharepoint.com/_layouts/15/embed.aspx')?.art === 'link', 'SharePoint im Parameter zählt nicht');
 ok(deute('https://dihag.sharepoint.com/sites/ISMS/_layouts/15/embed.aspx?a=1&amp;b=2')?.src
   === 'https://dihag.sharepoint.com/sites/ISMS/_layouts/15/embed.aspx?a=1&b=2',
   'HTML-Maskierung im Code wird zurückgedreht');
@@ -120,6 +128,7 @@ ok(deute('https://www.youtube.com/watch?v=8hKPmMOMuz8')?.src === 'https://www.yo
 const herkunft = (x) => vm.runInContext('videoHerkunft(' + JSON.stringify(x) + ')', ctx);
 ok(herkunft(sp).extern === false, 'Was in SharePoint/Stream liegt, ist kein fremdes Material');
 ok(herkunft('https://dihag.sharepoint.com/sites/x/video.mp4').extern === false, 'Der eigene Mandant ebenso wenig');
+ok(herkunft('https://angreifer.example/.sharepoint.com/video.mp4').extern === true, 'Entscheidend ist der Host, nicht ein Stück der Adresse');
 ok(herkunft('https://www.youtube.com/watch?v=8hKPmMOMuz8').extern === true
    && herkunft('https://www.youtube.com/watch?v=8hKPmMOMuz8').dienst === 'YouTube', 'YouTube ist extern');
 ok(herkunft('https://www.youtube-nocookie.com/embed/8hKPmMOMuz8').dienst === 'YouTube',

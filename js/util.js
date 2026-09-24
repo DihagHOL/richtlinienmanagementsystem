@@ -148,6 +148,9 @@ if (typeof module !== 'undefined' && module.exports) {
    Alles andere bekommt einen Knopf, der in einem neuen Tab öffnet – ein
    leerer Rahmen (X-Frame-Options) wäre schlechter als ein ehrlicher Link. */
 
+/** Adresse auf einem SharePoint-Host des Tenants (auch …-my.sharepoint.com). */
+const VIDEO_SHAREPOINT = /^https:\/\/[a-z0-9-]+\.sharepoint\.com(?:[:\/?#]|$)/i;
+
 /** @returns {{art:'einbetten'|'link', src:string}|null} */
 function videoEinbettung(eingabe) {
   let url = String(eingabe || '').trim();
@@ -157,7 +160,10 @@ function videoEinbettung(eingabe) {
   url = url.replace(/&amp;/g, '&').trim();
   if (!/^https?:\/\//i.test(url)) return null;
 
-  if (/\/_layouts\/15\/embed\.aspx/i.test(url)) return { art: 'einbetten', src: url };
+  // Eingebettet wird embed.aspx nur aus SharePoint selbst. Den Pfad kann jeder
+  // Server nachbauen – ein fremder Rahmen mitten in der App könnte etwa eine
+  // falsche Microsoft-Anmeldung zeigen. Alles andere wird ein ehrlicher Link.
+  if (/\/_layouts\/15\/embed\.aspx/i.test(url) && VIDEO_SHAREPOINT.test(url)) return { art: 'einbetten', src: url };
 
   // „shorts/" gehört dazu: Kurzvideos sind genau das Format, das man für eine
   // Regel-Erklärung dreht – ohne den Zweig liefe der Link nur als Verweis raus.
@@ -175,7 +181,7 @@ function videoEinbettung(eingabe) {
 
 /* Was im eigenen Haus liegt, braucht keine Quellenangabe – wer dort ablegt,
    ist ohnehin bekannt. Alles andere ist fremdes Material. */
-const VIDEO_INTERN = /(\.sharepoint\.com|\/_layouts\/15\/embed\.aspx|\.dihag\.(?:de|com))/i;
+const VIDEO_INTERN = /^https?:\/\/(?:[a-z0-9-]+\.)*(?:sharepoint\.com|dihag\.de|dihag\.com)(?:[:\/?#]|$)/i;   // am Host, nicht irgendwo in der Adresse
 
 /**
  * Woher stammt ein Video? Für fremdes Material gehört eine Quelle dazu –

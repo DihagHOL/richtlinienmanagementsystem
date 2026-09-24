@@ -2819,7 +2819,7 @@ function mailTemplate(title, lines, ctaLabel, ctaUrl) {
   const safeOrigin = location.origin + location.pathname;
   const href = (ctaUrl && ctaUrl.startsWith(safeOrigin)) ? ctaUrl : safeOrigin;
   const cta = ctaLabel
-    ? `<p style="margin:24px 0 0"><a href="${href}"
+    ? `<p style="margin:24px 0 0"><a href="${esc(href)}"
         style="background:#17509e;color:#fff;padding:10px 22px;border-radius:7px;text-decoration:none;font-weight:600"
         >${esc(ctaLabel)}</a></p>`
     : '';

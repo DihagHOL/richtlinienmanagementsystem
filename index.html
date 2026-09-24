@@ -4,11 +4,18 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"/>
+  <!-- Sicherheit: Was die Seite laden und wohin sie senden darf. Die Anmeldung
+       liegt im Browser – gelänge doch einmal eingeschleuster Code, darf er weder
+       fremde Skripte nachladen noch Daten an fremde Server schicken (nur Graph,
+       Anmeldung, SharePoint). 'unsafe-inline' bleibt, solange die Oberfläche
+       Inline-Handler nutzt. Liste gepflegt in docs/ENTWICKLUNGSDOKUMENTATION.md. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com; frame-src 'self' https://login.microsoftonline.com https://*.sharepoint.com https://*.officeapps.live.com https://*.office.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'"/>
   <title>DIHAG · Regelwerk-Management</title>
   <link rel="icon" type="image/png" href="assets/dihag-zeichen.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 2.38.2, Integrität beim Holen geprüft) – keine fremde Skriptquelle -->
+  <script src="vendor/msal-browser/2.38.2/msal-browser.min.js"></script>
   <link rel="stylesheet" href="css/style.css?v=9b39c250"/>
 </head>
 <body>

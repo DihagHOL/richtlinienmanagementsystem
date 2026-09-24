@@ -1,6 +1,6 @@
 /**
  * Microsoft Entra ID (Azure AD) Authentication
- * MSAL.js 2.x (msal-browser 2.38.2, CDN alcdn.msauth.net) — Single-Tenant: nur DIHAG-Konten.
+ * MSAL.js 2.x (msal-browser 2.38.2, selbst ausgeliefert aus vendor/msal-browser/) — Single-Tenant: nur DIHAG-Konten.
  * Muster übernommen aus e-rechnung/js/auth.js.
  */
 
@@ -109,7 +109,9 @@ async function authInit() {
   // Sub-App-Rückkehr: Login/Token-Redirect aus einer Unterseite (z.B. /ki/)
   // landet auf der App-Wurzel (registrierte Redirect-URI) – der state-Parameter
   // enthält den Ursprungspfad, dorthin zurückleiten (Konto ist bereits gecacht).
-  if (response && typeof response.state === 'string' && response.state.startsWith('/')
+  // Nur ein Pfad auf DIESER Seite: „//host" oder „/\\host" wäre für den Browser
+  // eine fremde Adresse.
+  if (response && typeof response.state === 'string' && /^\/(?![\/\\])/.test(response.state)
       && response.state !== location.pathname + location.search) {
     location.replace(response.state);
     return;

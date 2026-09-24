@@ -302,6 +302,37 @@ head('5. Sicherheit – Werte in Inline-Handlern');
   });
   if (heil) ok('jsArg() hält Hochkomma, Anführungszeichen, Backslash und Tags im String');
   else fail('jsArg() lässt einen Wert aus dem String ausbrechen');
+
+  // Content-Security-Policy: Beide Seiten tragen sie, bevor irgendein Skript
+  // lädt, und sie lässt Daten nur zu Graph, Anmeldung und SharePoint.
+  for (const seite of ['index.html', 'ki/index.html']) {
+    const html = rd(seite);
+    const m = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/);
+    const csp = m ? m[1] : '';
+    const direktive = (name) => ((csp.split(';').map(x => x.trim()).find(x => x.startsWith(name + ' ')) || '').split(/\s+/).slice(1));
+    const connect = direktive('connect-src');
+    const script = direktive('script-src');
+    if (!csp) { fail(`${seite}: keine Content-Security-Policy`); continue; }
+    if (html.indexOf('Content-Security-Policy') > html.indexOf('<script')) fail(`${seite}: CSP steht erst nach dem ersten Skript`);
+    else if (connect.some(q => q === '*' || q === 'https:' || q === 'http:')) fail(`${seite}: connect-src erlaubt jedes Ziel (${connect.join(' ')})`);
+    else if (script.some(q => /^https?:|^\*$/.test(q))) fail(`${seite}: script-src erlaubt fremde Quellen (${script.join(' ')})`);
+    else if (!direktive('img-src').length || direktive('img-src').includes('https:')) fail(`${seite}: img-src fehlt oder erlaubt jedes Ziel`);
+    else if (!/object-src 'none'/.test(csp) || !/base-uri 'self'/.test(csp)) fail(`${seite}: object-src/base-uri fehlen`);
+    else ok(`${seite}: CSP vor dem ersten Skript, Daten nur an ${connect.filter(q => q !== "'self'").length} feste Ziele`);
+    const fremdeSkripte = [...html.matchAll(/<script\s+[^>]*src="(https?:[^"]+)"/g)].map(x => x[1]);
+    if (fremdeSkripte.length) fail(`${seite}: Skript von fremder Quelle: ${fremdeSkripte.join(', ')}`);
+    else ok(`${seite}: alle Skripte aus der eigenen Domain (MSAL aus vendor/)`);
+  }
+
+  // GitHub Actions: auf Commits festgelegt, nicht auf verschiebbare Tags.
+  const lose = [];
+  for (const f of listFiles('.github/workflows', '.yml')) {
+    for (const u of rd(f).matchAll(/uses:\s*([^\s#]+)/g)) {
+      if (!/@[0-9a-f]{40}$/.test(u[1])) lose.push(`${f}: ${u[1]}`);
+    }
+  }
+  if (!lose.length) ok('alle Actions auf einen Commit festgelegt');
+  else lose.forEach(l => fail(`Action nicht auf einen Commit festgelegt – ${l}`));
 }
 
 /* ── Ergebnis ───────────────────────────────────────────────────── */

@@ -83,6 +83,26 @@ ok(w("linkAdresse(\"x');alert(document.domain);//\")") === '', 'linkAdresse: ein
 ok(w("linkAdresse(\"a'b@x.de\")") === '' && w("linkAdresse('a\"b@x.de')") === '', 'linkAdresse: Anführungszeichen nie');
 ok(w('linkAdresse(null)') === '' && w('linkAdresse(undefined)') === '', 'linkAdresse: nichts bleibt nichts');
 
+/* Rückkehr vom Login: Der state-Parameter führt nur auf einen Pfad DIESER Seite. */
+const redirectMit = async (state) => {
+  delete spur.replace;
+  const alt = ctx.msal.PublicClientApplication;
+  ctx.msal.PublicClientApplication = function (cfg) {
+    const o = alt.call(this, cfg);
+    o.handleRedirectPromise = async () => ({ account: { username: 'x@dihag.com' }, state });
+    return o;
+  };
+  ctx.location.pathname = '/'; ctx.location.search = '';
+  await ctx.authInit();
+  ctx.msal.PublicClientApplication = alt;
+  return spur.replace;
+};
+ok(await redirectMit('/ki/?antrag=4') === '/ki/?antrag=4', 'Rückkehr vom Login in die Unterseite, von der er ausging');
+ok(await redirectMit('//angreifer.example/') === undefined, '„//host" ist kein Pfad, sondern eine fremde Adresse – keine Weiterleitung');
+ok(await redirectMit('/\\angreifer.example/') === undefined, '„/\\host" liest der Browser genauso');
+ok(await redirectMit('https://angreifer.example/') === undefined, 'Eine volle Adresse erst recht nicht');
+w('_account = null;');
+
 /* ── 3) Anmeldung: erst stumm, dann mit Hinweis ── */
 setSuche('?richtlinie=7&aktion=freigeben&t=abc&u=chef@dihag.com');
 await ctx.authInit();
