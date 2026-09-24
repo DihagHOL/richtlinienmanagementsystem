@@ -3031,7 +3031,7 @@ function lkKachelOeffnen(id) {
                 (m.ordner || '') === _lkWerk ? '' :
                 ` <span class="ic-tag" title="Die Datei liegt nicht im Ordner dieses Werks">${
                   esc(m.ordner ? lkWerkLabel(m.ordner) : 'ohne Werk')}</span>`}</span>
-              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessEditor('${esc(m.itemId)}')">Öffnen</button>
+              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessAnsicht('${esc(m.itemId)}')">Öffnen</button>
               ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen('${esc(k.id)}','${esc(m.itemId)}')">Lösen</button>` : ''}
             </div>`).join('')
           : `<div class="field-hint" style="margin-bottom:8px">Für diesen Prozess ist noch kein Modell hinterlegt.</div>`}

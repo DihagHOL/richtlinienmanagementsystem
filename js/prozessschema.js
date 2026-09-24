@@ -31,16 +31,16 @@
 
 const PROZESS_BAUSTEINE = [
   { key: 'start',   bpmn: 'startEvent',              symbol: '○',  titel: 'Auslöser',
-    zweck: 'Womit fängt der Prozess an – ein Ereignis, kein Tun.',
+    zweck: 'Womit fängt der Prozess an? Mit einem Ereignis, nicht mit einem Tun.',
     benennung: 'Zustand: „Antrag geht ein", „Frist erreicht"', beispiel: 'Antrag geht ein' },
   { key: 'user',    bpmn: 'userTask',                symbol: '👤', titel: 'Aufgabe (Mensch)',
-    zweck: 'Eine Person tut etwas – im System oder daneben.',
+    zweck: 'Eine Person tut etwas, im System oder daneben.',
     benennung: 'Verb im Infinitiv + Objekt', beispiel: 'Antrag fachlich prüfen' },
   { key: 'service', bpmn: 'serviceTask',             symbol: '⚙',  titel: 'Automatik (System)',
     zweck: 'Läuft ohne Zutun: Mail, Workflow, Schnittstelle, Cron.',
     benennung: 'Verb im Infinitiv + Objekt', beispiel: 'Bestätigung versenden' },
   { key: 'manual',  bpmn: 'manualTask',              symbol: '✋', titel: 'Handgriff (ohne System)',
-    zweck: 'Findet außerhalb jeder Anwendung statt – Werkstatt, Papier, Telefon.',
+    zweck: 'Findet außerhalb jeder Anwendung statt: Werkstatt, Papier, Telefon.',
     benennung: 'Verb im Infinitiv + Objekt', beispiel: 'Probe entnehmen' },
   { key: 'frage',   bpmn: 'exclusiveGateway',        symbol: '◇',  titel: 'Entscheidung (entweder/oder)',
     zweck: 'Genau ein Weg geht weiter. Jeder Ausgang ist beschriftet.',
@@ -55,10 +55,10 @@ const PROZESS_BAUSTEINE = [
     zweck: 'Wie der Prozess ausgeht. Mehrere Ergebnisse sind normal.',
     benennung: 'Zustand, kein Verb', beispiel: 'Antrag genehmigt' },
   { key: 'bahn',    bpmn: 'lane',                    symbol: '▭',  titel: 'Bahn (Rolle)',
-    zweck: 'Wer verantwortlich ist. Rolle oder Stelle – nie eine Person.',
+    zweck: 'Wer verantwortlich ist. Rolle oder Stelle, nie eine Person.',
     benennung: 'Rollenbezeichnung', beispiel: 'Einkauf' },
   { key: 'unter',   bpmn: 'callActivity',            symbol: '⊞',  titel: 'Unterprozess (eingebundenes Modell)',
-    zweck: 'Ein eigener Prozess, der an dieser Stelle im Ganzen läuft – einmal modelliert, hier nur eingebunden.',
+    zweck: 'Ein eigener Prozess, der an dieser Stelle im Ganzen läuft. Einmal modelliert, hier nur eingebunden.',
     benennung: 'Name des eingebundenen Prozesses', beispiel: 'Auftragserfassung' },
 ];
 
@@ -89,7 +89,7 @@ const PROZESS_REGELN = [
     warum: 'Zwei Startpunkte heißen: es sind zwei Prozesse.' },
   { id: 'R2', text: 'Mindestens ein Ergebnis, und jedes ist benannt.',
     warum: 'Ein unbenanntes Ende beantwortet nicht, wie die Sache ausging.' },
-  { id: 'R3', text: 'Keine nackte Aufgabe – jede ist 👤, ⚙ oder ✋.',
+  { id: 'R3', text: 'Keine nackte Aufgabe: Jede ist 👤, ⚙ oder ✋.',
     warum: 'Ob ein Mensch oder ein System handelt, ist die erste Frage bei jeder Übergabe.' },
   { id: 'R4', text: 'Jeder Knoten liegt in genau einer Bahn.',
     warum: 'Sonst hat „wer ist zuständig" keine Antwort.' },
@@ -103,7 +103,7 @@ const PROZESS_REGELN = [
     warum: 'Ein Substantiv sagt nicht, was zu tun ist.' },
   { id: 'R9', text: 'Der Prozess nennt mindestens eine Richtlinie.',
     warum: 'Ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe.' },
-  { id: 'R10', text: 'Ein Unterprozess wird eingebunden, nicht abgeschrieben – jede ⊞ zeigt auf genau ein Modell.',
+  { id: 'R10', text: 'Ein Unterprozess wird eingebunden, nicht abgeschrieben. Jede ⊞ zeigt auf genau ein Modell.',
     warum: 'Was zweimal ausgeschrieben steht, ist bald zweimal verschieden; was eingebunden ist, gibt es einmal.' },
 ];
 
@@ -432,8 +432,10 @@ function prozessSchemaPruefen(xml, opt) {
   const o = opt || {};
   const s = String(xml || '');
   const fehler = [], hinweise = [];
-  const melde = (regel, text) => fehler.push({ regel, text });
-  const rate = (regel, text) => hinweise.push({ regel, text });
+  // Jeder Befund nennt das Element, an dem er hängt. Die Ansicht zeigt ihn dort
+  // an und springt beim Klick hin; ohne Kennung bliebe nur der Text.
+  const melde = (regel, text, id) => fehler.push({ regel, text, id: id || '' });
+  const rate = (regel, text, id) => hinweise.push({ regel, text, id: id || '' });
 
   const knoten = [];
   let m;
@@ -461,20 +463,20 @@ function prozessSchemaPruefen(xml, opt) {
   // R1 – genau ein Auslöser
   const starts = knoten.filter(k => k.typ === 'startEvent');
   if (!starts.length) melde('R1', 'Kein Auslöser: Der Prozess hat keinen Anfang.');
-  else if (starts.length > 1) melde('R1', `${starts.length} Auslöser – das sind ${starts.length} Prozesse.`);
+  else if (starts.length > 1) melde('R1', `${starts.length} Auslöser: Das sind ${starts.length} Prozesse.`, starts[1].id);
 
   // R2 – Ergebnisse
   const enden = knoten.filter(k => k.typ === 'endEvent');
   if (!enden.length) melde('R2', 'Kein Ergebnis: Es steht nicht da, wie der Prozess ausgeht.');
-  enden.filter(k => !String(k.name || '').trim()).forEach(() =>
-    melde('R2', 'Ein Ergebnis ist unbenannt – „Ende" allein sagt nicht, wie es ausging.'));
+  enden.filter(k => !String(k.name || '').trim()).forEach(k =>
+    melde('R2', 'Ein Ergebnis ist unbenannt. „Ende" allein sagt nicht, wie es ausging.', k.id));
 
   // R3 – keine nackten Aufgaben
   knoten.filter(k => k.typ === 'task').forEach(k =>
-    melde('R3', `„${k.name || k.id}" ist eine Aufgabe ohne Typ – 👤 Mensch, ⚙ System oder ✋ Handgriff?`));
+    melde('R3', `„${k.name || k.id}" ist eine Aufgabe ohne Typ. Tut es ein 👤 Mensch, ein ⚙ System, oder ist es ein ✋ Handgriff?`, k.id));
   ['scriptTask', 'sendTask', 'receiveTask', 'businessRuleTask'].forEach(t =>
     knoten.filter(k => k.typ === t).forEach(k =>
-      rate('R3', `„${k.name || k.id}" nutzt ${t} – das Hausschema kennt nur 👤, ⚙ und ✋.`)));
+      rate('R3', `„${k.name || k.id}" nutzt ${t}. Das Hausschema kennt nur 👤, ⚙ und ✋.`, k.id)));
 
   // R4 – jeder Knoten in genau einer Bahn
   if (!bahnen.length) {
@@ -483,28 +485,28 @@ function prozessSchemaPruefen(xml, opt) {
     const zugeordnet = new Map();
     bahnen.forEach(b => b.knoten.forEach(id => zugeordnet.set(id, (zugeordnet.get(id) || 0) + 1)));
     knoten.filter(k => !zugeordnet.has(k.id)).forEach(k =>
-      melde('R4', `„${k.name || k.id}" liegt in keiner Bahn – wer ist dafür zuständig?`));
+      melde('R4', `„${k.name || k.id}" liegt in keiner Bahn. Wer ist dafür zuständig?`, k.id));
     [...zugeordnet].filter(([, n]) => n > 1).forEach(([id]) =>
-      melde('R4', `„${id}" liegt in mehreren Bahnen – Zuständigkeit ist dann nicht entscheidbar.`));
+      melde('R4', `„${id}" liegt in mehreren Bahnen, damit ist die Zuständigkeit nicht entscheidbar.`, id));
   }
 
   // R5 – Rollen, keine Personen
   bahnen.forEach(b => {
     const nm = String(b.name || '').trim();
-    if (!nm) { melde('R5', 'Eine Bahn ist unbenannt.'); return; }
-    if (/@/.test(nm)) melde('R5', `Bahn „${nm}" nennt eine E-Mail-Adresse – Bahnen tragen Rollen.`);
+    if (!nm) { melde('R5', 'Eine Bahn ist unbenannt.', b.id); return; }
+    if (/@/.test(nm)) melde('R5', `Bahn „${nm}" nennt eine E-Mail-Adresse. Bahnen tragen Rollen.`, b.id);
     else if (/^[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][a-zäöüß]+$/.test(nm))
-      rate('R5', `Bahn „${nm}" sieht nach einem Personennamen aus – gemeint ist die Rolle.`);
+      rate('R5', `Bahn „${nm}" sieht nach einem Personennamen aus. Gemeint ist die Rolle.`, b.id);
   });
 
   // R6 – Entscheidungen
   knoten.filter(k => k.typ === 'exclusiveGateway').forEach(k => {
     const raus = fluesse.filter(f => f.von === k.id);
-    if (raus.length < 2) melde('R6', `Entscheidung „${k.name || k.id}" hat nur ${raus.length} Ausgang/Ausgänge.`);
-    raus.filter(f => !String(f.name || '').trim()).forEach(() =>
-      melde('R6', `Ein Ausgang von „${k.name || k.id}" ist unbeschriftet – wann gilt er?`));
+    if (raus.length < 2) melde('R6', `Entscheidung „${k.name || k.id}" hat ${raus.length ? 'nur einen Ausgang' : 'keinen Ausgang'}. Sie braucht mindestens zwei.`, k.id);
+    raus.filter(f => !String(f.name || '').trim()).forEach(f =>
+      melde('R6', `Ein Ausgang von „${k.name || k.id}" ist unbeschriftet. Wann gilt er?`, f.id || k.id));
     if (!/\?\s*$/.test(String(k.name || '').trim()))
-      rate('R8', `Entscheidung „${k.name || k.id}" ist keine Frage – ein Fragezeichen macht sie eindeutig.`);
+      rate('R8', `Entscheidung „${k.name || k.id}" ist keine Frage. Ein Fragezeichen macht sie eindeutig.`, k.id);
   });
 
   // R7 – nichts hängt lose
@@ -512,24 +514,24 @@ function prozessSchemaPruefen(xml, opt) {
   const hatAus = new Set(fluesse.map(f => f.von));
   knoten.forEach(k => {
     if (k.typ !== 'startEvent' && !hatEin.has(k.id))
-      melde('R7', `„${k.name || k.id}" hat keinen Eingang – wie kommt der Prozess dorthin?`);
+      melde('R7', `„${k.name || k.id}" hat keinen Eingang. Wie kommt der Prozess dorthin?`, k.id);
     if (k.typ !== 'endEvent' && !hatAus.has(k.id))
-      melde('R7', `„${k.name || k.id}" hat keinen Ausgang – wie geht es weiter?`);
+      melde('R7', `„${k.name || k.id}" hat keinen Ausgang. Wie geht es weiter?`, k.id);
   });
 
   // R8 – Benennung der Aufgaben
   knoten.filter(k => /Task$/.test(k.typ)).forEach(k => {
     const nm = String(k.name || '').trim();
-    if (!nm) { melde('R8', 'Eine Aufgabe ist unbenannt.'); return; }
+    if (!nm) { melde('R8', 'Eine Aufgabe ist unbenannt.', k.id); return; }
     // Ein Verb im Infinitiv endet auf -en oder -n. Grob, aber es fängt genau
     // den häufigen Fall „Rechnungsprüfung" statt „Rechnung prüfen".
     if (!/\b\w+e?n\b\s*$/.test(nm))
-      rate('R8', `„${nm}" endet nicht auf einem Verb – „Rechnung prüfen" statt „Rechnungsprüfung".`);
+      rate('R8', `„${nm}" endet nicht auf einem Verb: „Rechnung prüfen" statt „Rechnungsprüfung".`, k.id);
   });
 
   // R9 – Regelwerksbezug (der Aufrufer weiß, ob welche verknüpft sind)
   if (o.policyIds && !o.policyIds.length)
-    rate('R9', 'Keine Richtlinie verknüpft – ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe.');
+    rate('R9', 'Keine Richtlinie verknüpft. Ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe.');
 
   // R10 – Unterprozesse werden eingebunden, nicht abgeschrieben. Eine ⊞ ohne
   // Modell ist ein Versprechen; ein ausgeschriebener Unterprozess ist eine
@@ -537,12 +539,142 @@ function prozessSchemaPruefen(xml, opt) {
   [...s.matchAll(/<bpmn:callActivity\b([^>]*?)(?:\/>|>([\s\S]*?)<\/bpmn:callActivity>)/g)].forEach(x => {
     const nm = PS_ATTR(x[1], 'name') || PS_ATTR(x[1], 'id');
     const hatModell = /\[\[rms:modell=[^\]]+\]\]/.test(x[2] || '') || !!PS_ATTR(x[1], 'calledElement');
-    if (!hatModell) melde('R10', `⊞ „${nm}" bindet kein Modell ein – welcher Prozess läuft hier?`);
+    if (!hatModell) melde('R10', `⊞ „${nm}" bindet kein Modell ein. Welcher Prozess läuft hier?`, PS_ATTR(x[1], 'id'));
   });
   knoten.filter(k => k.typ === 'subProcess').forEach(k =>
-    rate('R10', `„${k.name || k.id}" ist ein ausgeschriebener Unterprozess – als eigenes Modell anlegen und einbinden, dann gibt es ihn genau einmal.`));
+    rate('R10', `„${k.name || k.id}" ist ein ausgeschriebener Unterprozess. Als eigenes Modell anlegen und einbinden, dann gibt es ihn genau einmal.`, k.id));
 
   return { fehler, hinweise, zahlen };
+}
+
+/* ── 5b) Die Ansicht: Farbe je Baustein, Ablauf als Schrittliste ───────── */
+
+/* Dieselben Farben und dieselbe Bedeutung wie auf der Prozessseite der
+   E-Rechnung: Orange tut ein Mensch, Blau läuft von selbst, Violett ist ein
+   eingebundener Prozess, Gold eine Entscheidung, Grün Anfang und gutes Ende,
+   Rot ein Ende, das niemand will. Wer beide Seiten kennt, liest beide gleich. */
+const PROZESS_ARTEN = {
+  start:     { titel: 'Auslöser',           symbol: '○',  fill: '#DDF3E4', stroke: '#1E7B3A' },
+  mensch:    { titel: 'Mensch',             symbol: '👤', fill: '#FFE3C8', stroke: '#C2410C' },
+  automatik: { titel: 'Automatik',          symbol: '⚙',  fill: '#D8E8F8', stroke: '#17509E' },
+  handgriff: { titel: 'Handgriff',          symbol: '✋', fill: '#E6E6E4', stroke: '#424241' },
+  unter:     { titel: 'Unterprozess',       symbol: '⊞',  fill: '#E6DDF7', stroke: '#5B3FA8' },
+  frage:     { titel: 'Entscheidung',       symbol: '◇',  fill: '#FFF8DB', stroke: '#8A6100' },
+  parallel:  { titel: 'Aufteilung',         symbol: '✛',  fill: '#FFF8DB', stroke: '#8A6100' },
+  warten:    { titel: 'Warten',             symbol: '⏱',  fill: '#F1F1F3', stroke: '#8A8F98' },
+  ende:      { titel: 'Ergebnis',           symbol: '◎',  fill: '#DDF3E4', stroke: '#1E7B3A' },
+  abbruch:   { titel: 'Ergebnis, negativ',  symbol: '⊗',  fill: '#FDE2E1', stroke: '#B42318' },
+  ohne:      { titel: 'Aufgabe ohne Typ',   symbol: '▭',  fill: '#FFFFFF', stroke: '#8A8F98' },
+};
+
+/* Ein Ergebnis, das niemand will, sagt es im Namen. */
+const PS_ABBRUCH_RE = /abgelehnt|zurückgewiesen|zurueckgewiesen|abgebrochen|gescheitert|fehlgeschlagen|verworfen|storniert|eskaliert|nicht\s+(erteilt|genehmigt|freigegeben|bestanden|möglich|zulässig|erfolgt)/i;
+
+/** BPMN-Typ und Name → Art (Schlüssel in PROZESS_ARTEN); leer für Unbekanntes. */
+function prozessArt(typ, name) {
+  switch (String(typ || '').replace(/^bpmn:/, '')) {
+    case 'startEvent': return 'start';
+    case 'endEvent': return PS_ABBRUCH_RE.test(String(name || '')) ? 'abbruch' : 'ende';
+    case 'userTask': return 'mensch';
+    case 'serviceTask': case 'scriptTask': case 'sendTask': case 'receiveTask': case 'businessRuleTask': return 'automatik';
+    case 'manualTask': return 'handgriff';
+    case 'callActivity': case 'subProcess': return 'unter';
+    case 'exclusiveGateway': case 'inclusiveGateway': case 'eventBasedGateway': case 'complexGateway': return 'frage';
+    case 'parallelGateway': return 'parallel';
+    case 'intermediateCatchEvent': case 'intermediateThrowEvent': case 'boundaryEvent': return 'warten';
+    case 'task': return 'ohne';
+    default: return '';
+  }
+}
+
+/** Entitäten aus einem Attribut: Im Modell steht „&amp;", gezeigt wird „&". */
+function _psText(s) {
+  return String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&#10;/g, ' ').replace(/&amp;/g, '&');
+}
+
+/**
+ * Das Modell als Schrittliste, für alle, die kein BPMN lesen.
+ *
+ * Gelesen wird vom Auslöser aus, der Hauptweg zuerst: Ein unbeschrifteter oder
+ * mit „ja" beschrifteter Ausgang kommt vor den anderen, so steht der Regelfall
+ * oben und die Abzweigungen darunter. Was vom Auslöser aus nicht erreichbar
+ * ist, hängt hinten an und ist markiert. Eine Übergabe ist jeder Fluss, der
+ * die Bahn wechselt: Dort wartet ein Vorgang auf jemand anderen, und dort geht
+ * er am ehesten verloren.
+ *
+ * @returns {{schritte:Array, uebergaben:Array, zahlen:object}}
+ */
+function prozessAblauf(xml) {
+  const s = String(xml || '');
+  const knoten = [];
+  let m;
+  PS_KNOTEN_RE.lastIndex = 0;
+  while ((m = PS_KNOTEN_RE.exec(s))) {
+    knoten.push({ typ: m[1], id: PS_ATTR(m[2], 'id'), name: _psText(PS_ATTR(m[2], 'name')) });
+  }
+  const fluesse = [...s.matchAll(/<bpmn:sequenceFlow\b([^>]*)>/g)].map(x => ({
+    id: PS_ATTR(x[1], 'id'), von: PS_ATTR(x[1], 'sourceRef'),
+    nach: PS_ATTR(x[1], 'targetRef'), name: _psText(PS_ATTR(x[1], 'name')),
+  }));
+  const bahnVon = {};
+  [...s.matchAll(/<bpmn:lane\b([^>]*)>([\s\S]*?)<\/bpmn:lane>/g)].forEach(x => {
+    const name = _psText(PS_ATTR(x[1], 'name'));
+    [...x[2].matchAll(/<bpmn:flowNodeRef>([^<]+)<\/bpmn:flowNodeRef>/g)].forEach(y => {
+      if (!bahnVon[y[1]]) bahnVon[y[1]] = name;
+    });
+  });
+
+  const beiId = {};
+  knoten.forEach(k => { beiId[k.id] = k; });
+  const regelfall = (f) => {
+    const n = String(f.name || '').trim().toLowerCase();
+    return !n || /^(ja|yes|ok|in ordnung|freigegeben|genehmigt|vollständig)$/.test(n) ? 0 : 1;
+  };
+  const raus = (id) => fluesse.filter(f => f.von === id && beiId[f.nach])
+    .map((f, i) => ({ f, i })).sort((a, b) => regelfall(a.f) - regelfall(b.f) || a.i - b.i).map(x => x.f);
+
+  const reihe = [], gesehen = new Set();
+  const besuche = (id) => {
+    if (gesehen.has(id) || !beiId[id]) return;
+    gesehen.add(id);
+    reihe.push(beiId[id]);
+    raus(id).forEach(f => besuche(f.nach));
+  };
+  knoten.filter(k => k.typ === 'startEvent').forEach(k => besuche(k.id));
+  const erreichbar = new Set(gesehen);
+  knoten.filter(k => !gesehen.has(k.id)).forEach(k => { gesehen.add(k.id); reihe.push(k); });
+
+  const nr = {};
+  reihe.forEach((k, i) => { nr[k.id] = i + 1; });
+  const schritte = reihe.map(k => ({
+    nr: nr[k.id], id: k.id, typ: k.typ, art: prozessArt(k.typ, k.name),
+    name: k.name, bahn: bahnVon[k.id] || '',
+    unerreichbar: !erreichbar.has(k.id),
+    aus: raus(k.id).map(f => ({ label: f.name, nach: f.nach, nachNr: nr[f.nach], nachName: beiId[f.nach].name })),
+    uebergabeVon: '',
+  }));
+
+  // Übergaben: Flüsse, die die Bahn wechseln. Am Ziel vermerkt, wer abgibt.
+  const uebergaben = fluesse.filter(f => bahnVon[f.von] && bahnVon[f.nach] && bahnVon[f.von] !== bahnVon[f.nach])
+    .map(f => ({ id: f.id, von: f.von, nach: f.nach, vonBahn: bahnVon[f.von], nachBahn: bahnVon[f.nach] }));
+  uebergaben.forEach(u => {
+    const z = schritte.find(x => x.id === u.nach);
+    if (z && !z.uebergabeVon) z.uebergabeVon = u.vonBahn;
+  });
+
+  const zaehle = (art) => schritte.filter(x => x.art === art).length;
+  const mensch = zaehle('mensch'), automatik = zaehle('automatik'), handgriff = zaehle('handgriff');
+  const aufgaben = mensch + automatik + handgriff + zaehle('unter') + zaehle('ohne');
+  const zahlen = {
+    schritte: schritte.length, aufgaben, mensch, automatik, handgriff,
+    unter: zaehle('unter'), entscheidungen: zaehle('frage'), ergebnisse: zaehle('ende') + zaehle('abbruch'),
+    bahnen: [...new Set(Object.values(bahnVon))].length, uebergaben: uebergaben.length,
+    unerreichbar: schritte.filter(x => x.unerreichbar).length,
+    // Anteil der Aufgaben, die ohne Zutun laufen: die Stellschraube beim Optimieren.
+    automatikQuote: (mensch + automatik + handgriff) ? Math.round(100 * automatik / (mensch + automatik + handgriff)) : 0,
+  };
+  return { schritte, uebergaben, zahlen };
 }
 
 /* ── 6) Die Vorlage zum Abschreiben ──────────────────────────────────────── */
@@ -577,8 +709,8 @@ function prozessVorlageXml(name) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PROZESS_BAUSTEINE, PROZESS_REGELN, PROZESS_VORLAGE_TEXT, PROZESS_KENNUNG_GENERISCH,
+    PROZESS_BAUSTEINE, PROZESS_REGELN, PROZESS_VORLAGE_TEXT, PROZESS_KENNUNG_GENERISCH, PROZESS_ARTEN,
     prozessTextLesen, prozessXmlBauen, prozessXmlAusText, prozessSchemaPruefen, prozessVorlageXml,
-    prozessKennungNeu, prozessKennungGueltig,
+    prozessKennungNeu, prozessKennungGueltig, prozessArt, prozessAblauf,
   };
 }

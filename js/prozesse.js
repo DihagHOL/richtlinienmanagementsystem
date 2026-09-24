@@ -185,6 +185,7 @@ async function initProzesse() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
   _destroyModeler();   // evtl. offenen Editor beenden → zurück zur Liste
+  _procAnsicht = false;
   _procPfad = [];      // der Weg durch die Unterprozesse endet mit der Liste
   if (_processes) renderProzesseAktuell();
   else mount.innerHTML = '<div class="doc-loading">Lade Prozesse …</div>';
@@ -247,7 +248,7 @@ function _renderProcCards() {
     return;
   }
   const karte = (p) => `
-    <div class="item-card" style="cursor:pointer" onclick="openProcessEditor('${esc(p.itemId)}')">
+    <div class="item-card" style="cursor:pointer" onclick="openProcessAnsicht('${esc(p.itemId)}')" title="Ansehen: Diagramm, Schritte und Befunde">
       <div class="ic-top"><div class="ic-title">🔀 ${esc(p.title)}</div></div>
       <div class="ic-tags"><span class="ic-tag">.bpmn</span>${p.modifiedBy ? `<span class="ic-tag">${esc(p.modifiedBy)}</span>` : ''}${p.modified ? `<span class="ic-tag">${esc(fmtDate(p.modified))}</span>` : ''}</div>
       <div id="proc-link-${esc(p.itemId)}" style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">…</div>
@@ -815,13 +816,14 @@ async function procUnterprozessOeffnen(itemId) {
     if (!weiter) return;
   }
   if (_procEditing && _procEditing.itemId) _procPfad.push(String(_procEditing.itemId));
-  await openProcessEditor(itemId);
+  // Wer liest, liest im Unterprozess weiter; wer baut, baut weiter.
+  await (_procAnsicht ? openProcessAnsicht(itemId) : openProcessEditor(itemId));
 }
 
 /** Zurück in das Modell, aus dem man in den Unterprozess kam. */
 async function procZurueck() {
   const zu = _procPfad.pop();
-  if (zu && procModellVon(zu)) await openProcessEditor(zu);
+  if (zu && procModellVon(zu)) await (_procAnsicht ? openProcessAnsicht(zu) : openProcessEditor(zu));
   else await initProzesse();
 }
 
@@ -1101,6 +1103,7 @@ function procUnterprozesseAbgleichen() {
 async function openProcessEditor(itemId, seed) {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;
+  _procAnsicht = false;
   const proc = itemId ? (_processes || []).find(p => String(p.itemId) === String(itemId)) : null;
   _procEditing = { itemId: itemId || null, origName: proc ? proc.name : '',
     origWerk: proc ? (proc.ordner || '') : '' };
@@ -1118,6 +1121,8 @@ async function openProcessEditor(itemId, seed) {
         title="Zurück in das Modell, das diesen Unterprozess einbindet">↰ Zurück zu „${esc(herkunft.title)}"</button>` : ''}
       <div style="font-weight:700">${proc ? 'Prozess bearbeiten' : 'Neuer Prozess'}</div>
       <div class="toolbar-spacer"></div>
+      ${itemId ? `<button class="btn btn-outline btn-sm" onclick="procZurAnsicht()"
+        title="Zurück zur Ansicht mit Schritten und Befunden">👁 Ansicht</button>` : ''}
       <button class="btn btn-outline btn-sm" id="proc-seite-btn" onclick="prozessSeiteUmschalten()"
         title="Angaben rechts ein-/ausblenden – im Vollbild gehört die Breite dem Diagramm">▤ Angaben</button>
       <button class="btn btn-outline btn-sm" id="proc-voll-btn" onclick="prozessVollbildUmschalten()"
@@ -1230,13 +1235,17 @@ async function openProcessEditor(itemId, seed) {
   if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* dann eben ohne Ziele */ } }
   try {
     const bus = _bpmnModeler.get('eventBus');
-    bus.on('selection.changed', () => { _renderElementSprung(canWrite); _renderElementUnter(canWrite); });
+    bus.on('selection.changed', (e) => { _renderElementSprung(canWrite); _renderElementUnter(canWrite); _procAuswahlSpiegeln(e && e.newSelection); });
     // Nach jeder Änderung neu zeichnen: ein verschobenes Element nimmt sein
     // Zeichen sonst nicht mit, ein gelöschtes ließe es zurück.
-    bus.on('elements.changed', () => { procSprungMarker(); procUnterMarker(); });
-    bus.on('commandStack.changed', () => { _procDirty = true; });
+    bus.on('elements.changed', () => { procSprungMarker(); procUnterMarker(); _procFaerbenBald(); });
+    // Nach jeder Änderung still nachprüfen: Die Befunde rechts und im Diagramm
+    // folgen dem Modell, ohne dass jemand „🔍 Schema" drücken muss.
+    bus.on('commandStack.changed', () => { _procDirty = true; _procNachpruefenBald(); });
   } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
   _procDirty = false;
+  _procFarbStil();
+  _procFaerben();
   procSprungMarker();
   procUnterMarker();
   _renderElementSprung(canWrite);
@@ -1253,6 +1262,591 @@ async function openProcessEditor(itemId, seed) {
   if (_procGemerkt(PROC_VOLL_SPEICHER, false)) prozessVollbildUmschalten(true);
   prozessSchemaLegende();
   if (itemId || (seed && seed.xml)) prozessSchemaPruefung(true);
+}
+
+/* ── Die Ansicht: lesen statt bauen ────────────────────────────────────────
+   Wer ein Modell öffnet, will es meistens lesen, nicht ändern. Die Ansicht
+   folgt der Prozessseite der E-Rechnung: oben Kopf und Aktionen, dann das
+   farbige Diagramm, darunter links die Schritte und rechts, was auffällt.
+   Jede Zeile rechts und jeder Schritt links zeigt beim Klick die Stelle im
+   Diagramm; umgekehrt markiert ein Klick ins Diagramm die passende Zeile.
+
+   Gezeichnet wird mit demselben Modeler wie im Editor, nur gesperrt. So
+   funktionieren die Marker für Unterprozesse ⊞ und Übergänge ↦ unverändert,
+   und „✎ Bearbeiten" ist nur ein Wechsel, kein zweites Werkzeug. */
+
+let _procAnsicht = false;     // Ist das offene Modell die Ansicht (lesen) statt der Editor?
+let _procAnsichtXml = '';     // die Datei, wie sie geladen wurde: der Download gibt genau sie heraus
+let _procAblauf = null;       // Schrittliste des offenen Modells (prozessAblauf)
+let _procBefunde = null;      // letzte Hausschema-Prüfung des offenen Modells
+let _procPruefTimer = null;   // Editor: nachprüfen, sobald eine Weile nichts geändert wurde
+let _procFarbTimer = null;
+const PROC_BEFUND_TYP = 'rms-befund';
+const PROC_LEGENDE_SPEICHER = 'rms_proc_legende';
+
+/** Das Modell zum Lesen öffnen. */
+async function openProcessAnsicht(itemId) {
+  const mount = document.getElementById('prozesse-mount');
+  if (!mount || !itemId) return;
+  if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { /* unten gemeldet */ } }
+  const proc = (_processes || []).find(p => String(p.itemId) === String(itemId));
+  if (!proc) { toast('Dieses Modell gibt es nicht mehr, vielleicht wurde es gelöscht.', 'error'); return; }
+  _destroyModeler();
+  _procAnsicht = true;
+  _procAnsichtXml = '';
+  _procEditing = { itemId: String(itemId), origName: proc.name, origWerk: proc.ordner || '' };
+  _procDirty = false;
+  _procFarbStil();
+  const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
+  const herkunft = _procPfad.length ? procModellVon(_procPfad[_procPfad.length - 1]) : null;
+
+  mount.innerHTML = `
+    <div id="proc-ansicht">
+      <div class="view-toolbar">
+        <button class="btn btn-sm btn-ghost" onclick="initProzesse()">← Zurück zur Liste</button>
+        ${herkunft ? `<button class="btn btn-sm btn-ghost" onclick="procZurueck()"
+          title="Zurück in das Modell, das diesen Unterprozess einbindet">↰ Zurück zu „${esc(herkunft.title)}"</button>` : ''}
+        <div class="toolbar-spacer"></div>
+        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor('${esc(itemId)}')"
+          title="Im Modeler ändern">✎ Bearbeiten</button>` : ''}
+      </div>
+      <div class="pa-karte">
+        <div class="pa-kopf">
+          <div class="pa-kopf-text">
+            <h2>🔀 ${esc(proc.title)}</h2>
+            <p class="pa-lead" id="pa-lead">Modell wird geladen …</p>
+            <div class="pa-chips" id="pa-chips"></div>
+          </div>
+          <div class="pa-aktionen">
+            <button type="button" onclick="procAnsichtAktion('in')" title="Vergrößern">＋</button>
+            <button type="button" onclick="procAnsichtAktion('out')" title="Verkleinern">－</button>
+            <button type="button" onclick="procAnsichtAktion('fit')" title="Ganzes Diagramm zeigen">⤢ Einpassen</button>
+            <button type="button" onclick="procAnsichtAktion('voll')" title="Vollbild, Esc beendet">⛶ Vollbild</button>
+            <button type="button" onclick="procAnsichtAktion('svg')" title="Farbiges Bild für Word, PowerPoint und Regelwerke">🖼 Bild</button>
+            <button type="button" class="dl" onclick="procAnsichtAktion('bpmn')" title="Die BPMN-Datei, unverändert">⬇ BPMN</button>
+          </div>
+        </div>
+        <div class="pa-kennzahlen" id="pa-kennzahlen"></div>
+        <div class="pa-ansichten" id="pa-ansichten"></div>
+        <div class="pa-box" id="pa-box">
+          <div id="bpmn-canvas"></div>
+          <div class="pa-hint">Ziehen verschiebt · Strg + Mausrad zoomt · ⊞ öffnet den Unterprozess · Klick auf Schritt oder Befund zeigt die Stelle</div>
+        </div>
+        ${_procLegendeHtml()}
+        <div class="pa-unten">
+          <div>
+            <h4 class="pa-titel">Schritt für Schritt</h4>
+            <div id="pa-schritte"><div class="field-hint">Wird gelesen …</div></div>
+          </div>
+          <div class="pa-seite">
+            <h4 class="pa-titel">Was auffällt</h4>
+            <div id="pa-befunde"><div class="field-hint">Wird geprüft …</div></div>
+            <div id="pa-stellschrauben"></div>
+            <div id="pa-notfall"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const nochDa = () => _procAnsicht && !!document.getElementById('proc-ansicht')
+    && _procEditing && String(_procEditing.itemId) === String(itemId);
+  const lead = (html) => { const el = document.getElementById('pa-lead'); if (el) el.innerHTML = html; };
+  try { await _ensureBpmnLib(); } catch (e) { lead(`<span style="color:#b91c1c">${esc(e.message)}</span>`); return; }
+  let xml = '';
+  try { xml = await spGetProcessXml(itemId); }
+  catch (e) { lead(`<span style="color:#b91c1c">Modell nicht lesbar: ${esc(e.message)}</span>`); return; }
+  // Wer inzwischen woanders hingeklickt hat, bekommt kein Diagramm untergeschoben.
+  if (!nochDa()) return;
+  if (!/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''))) {
+    lead('Die Datei enthält kein BPMN. „✎ Bearbeiten" lädt ein leeres Diagramm, Speichern repariert die Datei.');
+    return;
+  }
+  _procAnsichtXml = xml;
+  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas' });
+  _procLesemodus(_bpmnModeler);
+  try { await _bpmnModeler.importXML(xml); }
+  catch (e) { lead(`<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`); return; }
+  _procFaerben();
+  _procBuehneNeu(true);
+
+  const ids = _parsePolicyIds(xml);
+  _procDocs = _parseProcessDocs(xml);
+  _procAblauf = prozessAblauf(xml);
+  _procBefunde = prozessSchemaPruefen(xml, { policyIds: ids });
+  lead(esc(_procLead(xml, _procAblauf)));
+  const setze = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  setze('pa-chips', _procChipsHtml(proc, ids, _procDocs));
+  setze('pa-kennzahlen', _procKennzahlenHtml(_procAblauf));
+  setze('pa-schritte', _procSchritteHtml(_procAblauf, _procBefunde));
+  setze('pa-befunde', _procBefundeHtml(_procBefunde, {}));
+  setze('pa-stellschrauben', _procStellschraubenHtml(_procAblauf));
+  _procBefundeMarkieren(_procBefunde);
+  procSprungMarker();
+  procUnterMarker();
+  _procAnsichtenLeiste(itemId, herkunft);
+  try { _bpmnModeler.get('eventBus').on('selection.changed', (e) => _procAuswahlSpiegeln(e && e.newSelection)); }
+  catch (e) { /* dann ohne Rückmeldung in den Listen */ }
+
+  // Die Landkarte weiß, an welcher Kachel das Modell hängt und wie es um BIA
+  // und Notfallplan steht. Sie ist gecacht; beim ersten Mal kommt sie nach.
+  const notfall = () => { if (nochDa()) { setze('pa-notfall', _procNotfallHtml(itemId)); procSprungMarker(); } };
+  if (typeof lkDatenLaden === 'function') lkDatenLaden().then(notfall).catch(notfall);
+  else notfall();
+  // Die Namen der eingebundenen Modelle stehen in deren Dateien.
+  procEintraegeLaden().then(() => { if (nochDa()) { procUnterMarker(); _procAnsichtenLeiste(itemId, herkunft); } }).catch(() => {});
+}
+
+/** Aus dem Editor zurück in die Ansicht. */
+async function procZurAnsicht() {
+  const id = _procEditing && _procEditing.itemId;
+  if (!id) return;
+  if (_procUngespeichert() && typeof uiConfirm === 'function') {
+    const weiter = await uiConfirm(
+      'Im Diagramm gibt es ungespeicherte Änderungen. Die Ansicht zeigt den gespeicherten Stand, vorher „💾 Speichern".',
+      { title: 'Zur Ansicht wechseln?', okLabel: 'Trotzdem wechseln' });
+    if (!weiter) return;
+  }
+  // Das Vollbild des Editors liegt über allem und bliebe sonst über der Ansicht stehen.
+  if (_procVoll) await prozessVollbildUmschalten(false);
+  await openProcessAnsicht(id);
+}
+
+/**
+ * In der Ansicht wird gelesen, nicht gebaut: Verschieben, Verbinden,
+ * Umbenennen und Größe ändern sind aus. Verschieben der Fläche und Zoomen
+ * bleiben. Eine Rückgabe `false` bricht die jeweilige Geste ab.
+ */
+function _procLesemodus(modeler) {
+  let bus;
+  try { bus = modeler.get('eventBus'); } catch (e) { return; }
+  ['shape.move.start', 'connection.move.start', 'connectionSegment.move.start', 'bendpoint.move.start',
+   'resize.start', 'create.start', 'connect.start', 'global-connect.start', 'spaceTool.selection.start',
+   'element.dblclick']
+    .forEach(ev => bus.on(ev, 10000, () => false));
+}
+
+/* ── Farben ──
+   Aus PROZESS_ARTEN (js/prozessschema.js) als Stilregeln gebaut: eine Tabelle,
+   aus der Diagramm, Chips, Legende und Bild-Export ihre Farben nehmen. */
+function _procFarbStil() {
+  if (typeof document === 'undefined' || !document.head || document.getElementById('pa-farben')) return;
+  if (typeof PROZESS_ARTEN === 'undefined') return;
+  const regeln = [];
+  for (const [k, a] of Object.entries(PROZESS_ARTEN)) {
+    const sel = (t) => `.djs-element.pa-art-${k} > .djs-visual > ${t}`;
+    regeln.push(`${sel('rect')}, ${sel('circle')}, ${sel('polygon')} { fill: ${a.fill} !important; stroke: ${a.stroke} !important; }`);
+    regeln.push((k === 'frage' || k === 'parallel')
+      ? `${sel('path')} { fill: ${a.stroke} !important; stroke: ${a.stroke} !important; }`
+      : `${sel('path')} { stroke: ${a.stroke} !important; }`);
+  }
+  const st = document.createElement('style');
+  st.id = 'pa-farben';
+  st.textContent = regeln.join('\n');
+  document.head.appendChild(st);
+}
+
+const _PROC_FARB_MARKER = () => Object.keys(typeof PROZESS_ARTEN !== 'undefined' ? PROZESS_ARTEN : {}).map(k => 'pa-art-' + k);
+
+/** Jedes Element bekommt die Farbe seiner Art, jede zweite Bahn einen Hauch Grau. */
+function _procFaerben() {
+  if (!_bpmnModeler || typeof prozessArt !== 'function') return;
+  let reg, canvas;
+  try { reg = _bpmnModeler.get('elementRegistry'); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  const marker = _PROC_FARB_MARKER();
+  let bahn = 0;
+  reg.getAll().forEach(el => {
+    if (!el.businessObject || el.type === 'label' || el.labelTarget) return;
+    marker.concat(['pa-bahn-0', 'pa-bahn-1']).forEach(m => canvas.removeMarker(el.id, m));
+    const t = String(el.type || '').replace(/^bpmn:/, '');
+    if (t === 'Lane') { canvas.addMarker(el.id, 'pa-bahn-' + (bahn++ % 2)); return; }
+    const art = prozessArt(t.charAt(0).toLowerCase() + t.slice(1), el.businessObject.name);
+    if (art) canvas.addMarker(el.id, 'pa-art-' + art);
+  });
+}
+function _procFaerbenBald() {
+  clearTimeout(_procFarbTimer);
+  _procFarbTimer = setTimeout(() => { if (_bpmnModeler) _procFaerben(); }, 250);
+}
+function _procNachpruefenBald() {
+  if (_procAnsicht) return;
+  clearTimeout(_procPruefTimer);
+  _procPruefTimer = setTimeout(() => { if (_bpmnModeler && !_procAnsicht) prozessSchemaPruefung(true); }, 900);
+}
+
+/* ── Befunde: rechts als Tabelle, im Diagramm als Rahmen und Plakette ── */
+
+/**
+ * Die Befunde der Hausschema-Prüfung als Tabelle, gebaut wie „Worauf das Tool
+ * achtet" auf der Prozessseite der E-Rechnung: links die Einstufung als
+ * farbiger Chip, rechts der Satz. Eine Zeile mit Element springt beim Klick
+ * dorthin. `kompakt` lässt die Begründungen weg (Editor, schmale Spalte).
+ */
+function _procBefundeHtml(r, opt) {
+  const o = opt || {};
+  const fehler = (r && r.fehler) || [], hinweise = (r && r.hinweise) || [];
+  const zahl = (n, eins, viele) => `${n} ${n === 1 ? eins : viele}`;
+  const kopf = `<div class="pa-befund-kopf">${fehler.length
+      ? `<span class="pa-chip t-err">${zahl(fehler.length, 'Verstoß', 'Verstöße')}</span>`
+      : '<span class="pa-chip t-ok">✓ Hausschema erfüllt</span>'}${
+      hinweise.length ? `<span class="pa-chip t-warn">${zahl(hinweise.length, 'Hinweis', 'Hinweise')}</span>` : ''}</div>`;
+  if (!fehler.length && !hinweise.length) {
+    return kopf + (o.kompakt ? '' : '<p class="pa-note">Das Modell beantwortet ohne Rückfrage, wer zuständig ist, was automatisch läuft und wie die Sache ausgeht.</p>');
+  }
+  const regeln = (typeof PROZESS_REGELN !== 'undefined') ? PROZESS_REGELN : [];
+  const zeile = (art, f) => {
+    const regel = regeln.find(x => x.id === f.regel);
+    const klick = f.id
+      ? ` class="pa-klick" data-befund="${esc(f.id)}" onclick="procStelleZeigen('${esc(f.id)}')" title="Stelle im Diagramm zeigen"` : '';
+    return `<tr${klick}><td><span class="pa-chip ${art === 'f' ? 't-err' : 't-warn'}">${art === 'f' ? 'Verstoß' : 'Hinweis'}</span></td>
+      <td><b>${esc(f.regel)}</b> ${esc(f.text)}${regel && !o.kompakt ? `<div class="pa-warum">${esc(regel.warum)}</div>` : ''}</td></tr>`;
+  };
+  return kopf + `<table class="pa-regeln">${fehler.map(f => zeile('f', f)).join('')}${hinweise.map(f => zeile('h', f)).join('')}</table>`
+    + (hinweise.length && !o.kompakt ? '<p class="pa-note">Hinweise dürfen begründet übergangen werden, Verstöße nicht.</p>' : '');
+}
+
+/** Rahmen und Plakette an jedem Element mit Befund. */
+function _procBefundeMarkieren(r) {
+  if (!_bpmnModeler) return;
+  let reg, canvas, overlays;
+  try { reg = _bpmnModeler.get('elementRegistry'); canvas = _bpmnModeler.get('canvas'); overlays = _bpmnModeler.get('overlays'); }
+  catch (e) { return; }
+  try { overlays.remove({ type: PROC_BEFUND_TYP }); } catch (e) { /* noch keine */ }
+  reg.getAll().forEach(el => { canvas.removeMarker(el.id, 'pa-fehler'); canvas.removeMarker(el.id, 'pa-hinweis'); });
+  const je = {};
+  const merke = (art) => (f) => { if (!f.id) return; (je[f.id] = je[f.id] || { f: [], h: [] })[art].push(f); };
+  ((r && r.fehler) || []).forEach(merke('f'));
+  ((r && r.hinweise) || []).forEach(merke('h'));
+  Object.entries(je).forEach(([id, b]) => {
+    if (!reg.get(id)) return;
+    const alle = b.f.concat(b.h);
+    canvas.addMarker(id, b.f.length ? 'pa-fehler' : 'pa-hinweis');
+    try {
+      overlays.add(id, PROC_BEFUND_TYP, {
+        position: reg.get(id).waypoints ? { top: -10, left: -10 } : { bottom: 10, right: 12 },
+        html: `<div class="pa-plakette ${b.f.length ? 'f' : 'h'}" onclick="procStelleZeigen('${esc(id)}')"
+                 title="${esc(alle.map(x => x.regel + ' ' + x.text).join('\n'))}">⚠ ${esc([...new Set(alle.map(x => x.regel))].join(' '))}</div>`,
+      });
+    } catch (e) { /* Element ohne Darstellung */ }
+  });
+}
+
+/** Die Stelle eines Elements zeigen: in die Mitte holen, auswählen, kurz aufleuchten lassen. */
+function procStelleZeigen(id) {
+  if (!_bpmnModeler || !id) return;
+  let reg, canvas;
+  try { reg = _bpmnModeler.get('elementRegistry'); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  const el = reg.get(id);
+  if (!el) { toast('Diese Stelle gibt es im Diagramm nicht mehr. Bitte neu prüfen.', 'error'); return; }
+  const box = document.getElementById(_procAnsicht ? 'pa-box' : 'bpmn-canvas');
+  if (box && box.scrollIntoView && !document.fullscreenElement) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const xs = el.waypoints ? el.waypoints.map(p => p.x) : [el.x, el.x + (el.width || 0)];
+  const ys = el.waypoints ? el.waypoints.map(p => p.y) : [el.y, el.y + (el.height || 0)];
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const vb = canvas.viewbox();
+  const skala = Math.min(Math.max(vb.scale || 1, 0.85), 1.2);
+  const w = vb.outer.width / skala, h = vb.outer.height / skala;
+  canvas.viewbox({ x: cx - w / 2, y: cy - h / 2, width: w, height: h });
+  try { _bpmnModeler.get('selection').select(el); } catch (e) { /* ohne Auswahl */ }
+  canvas.addMarker(id, 'pa-blink');
+  setTimeout(() => { try { canvas.removeMarker(id, 'pa-blink'); } catch (e) { /* Modeler fort */ } }, 2600);
+}
+
+/** Klick ins Diagramm: den passenden Schritt und Befund markieren. */
+function _procAuswahlSpiegeln(auswahl) {
+  const ids = new Set((auswahl || []).map(el => (el.labelTarget || el).id));
+  document.querySelectorAll('[data-schritt],[data-befund]').forEach(n => {
+    n.classList.toggle('pa-aktiv', ids.has(n.getAttribute('data-schritt') || n.getAttribute('data-befund')));
+  });
+}
+
+/* ── Die Teile der Seite ── */
+
+function _procArtChip(k) {
+  const arten = (typeof PROZESS_ARTEN !== 'undefined') ? PROZESS_ARTEN : {};
+  const a = arten[k] || arten.ohne || { fill: '#fff', stroke: '#8A8F98', symbol: '', titel: k };
+  return `<span class="pa-chip" style="background:${a.fill};border-color:${a.stroke};color:${a.stroke}">${a.symbol} ${esc(a.titel)}</span>`;
+}
+
+/** Der Satz unter dem Titel: die Beschreibung aus dem Modell, sonst ein erzeugter. */
+function _procLead(xml, a) {
+  const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
+  const text = _xmlUnesc(m ? m[1] : '').split('\n').map(z => z.trim())
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente):/.test(z))
+    .join(' ').trim();
+  if (text) return text;
+  const schritte = (a && a.schritte) || [];
+  const start = schritte.find(s => s.art === 'start');
+  const enden = schritte.filter(s => s.art === 'ende' || s.art === 'abbruch').map(s => s.name).filter(Boolean);
+  const rollen = [...new Set(schritte.map(s => s.bahn).filter(Boolean))];
+  if (!start) return 'Das Modell hat noch keinen Auslöser.';
+  const zitat = (s) => '„' + s + '"';
+  return `Beginnt mit ${zitat(start.name || 'Start')}${enden.length
+      ? ` und endet ${enden.length === 1 ? 'mit ' + zitat(enden[0]) : 'in einem von ' + enden.length + ' Ergebnissen: ' + enden.map(zitat).join(', ')}` : ''}.${
+    rollen.length ? ' Beteiligt: ' + rollen.join(', ') + '.' : ''}`;
+}
+
+function _procChipsHtml(proc, ids, docs) {
+  const teile = [`<span class="pa-chip pa-rolle">${proc.ordner ? '🏭 ' + esc(_procWerkLabel(proc)) : '📄 ohne Werk'}</span>`];
+  const pols = (typeof State !== 'undefined' && State.policies) || [];
+  (ids || []).forEach(id => {
+    const p = pols.find(x => String(x.id) === String(id));
+    teile.push(`<span class="pa-chip pa-regelwerk"${typeof openDetail === 'function'
+      ? ` onclick="openDetail('${esc(id)}')" style="cursor:pointer" title="Regelwerk öffnen"` : ''}>📘 ${esc(p ? p.title : 'Richtlinie ' + id)}</span>`);
+  });
+  if (!(ids || []).length) teile.push('<span class="pa-chip t-warn">keine Richtlinie verknüpft</span>');
+  (docs || []).forEach(d => teile.push(d.url
+    ? `<a class="pa-chip pa-regelwerk" href="${esc(d.url)}" target="_blank" rel="noopener">📎 ${esc(d.name)}</a>`
+    : `<span class="pa-chip pa-regelwerk">📎 ${esc(d.name)}</span>`));
+  return teile.join('');
+}
+
+function _procKennzahlenHtml(a) {
+  const z = (a && a.zahlen) || {};
+  const k = (wert, text, titel) => `<span class="pa-kz"${titel ? ` title="${esc(titel)}"` : ''}><b>${esc(String(wert))}</b> ${esc(text)}</span>`;
+  const plural = (n, eins, viele) => (n === 1 ? eins : viele);
+  return [
+    k(z.schritte || 0, 'Schritte'),
+    k(z.bahnen || 0, plural(z.bahnen, 'Rolle', 'Rollen')),
+    k(z.mensch || 0, '👤 Mensch'),
+    k(z.automatik || 0, '⚙ Automatik'),
+    z.handgriff ? k(z.handgriff, '✋ Handgriff') : '',
+    z.unter ? k(z.unter, '⊞ ' + plural(z.unter, 'Unterprozess', 'Unterprozesse')) : '',
+    k(z.entscheidungen || 0, plural(z.entscheidungen, 'Entscheidung', 'Entscheidungen')),
+    k(z.uebergaben || 0, plural(z.uebergaben, 'Übergabe', 'Übergaben'), 'Wechsel zwischen Rollen'),
+    k((z.automatikQuote || 0) + ' %', 'automatisch', 'Anteil der Aufgaben, die ohne Zutun laufen'),
+  ].join('');
+}
+
+/** Oben die Wege: zurück ins einbindende Modell, hinein in die eingebundenen. */
+function _procAnsichtenLeiste(itemId, herkunft) {
+  const host = document.getElementById('pa-ansichten');
+  if (!host) return;
+  let unter = [];
+  try { unter = procUnterElemente().map(el => ({ el, id: String(procElementModell(el)) })); } catch (e) { /* ohne */ }
+  const eindeutig = [...new Map(unter.map(x => [x.id, x])).values()];
+  if (!herkunft && !eindeutig.length) { host.innerHTML = ''; return; }
+  const eigen = procModellVon(itemId);
+  host.innerHTML = `<span>Ansicht:</span>
+    ${herkunft ? `<button type="button" onclick="procZurueck()" title="Zurück in das einbindende Modell">↰ ${esc(herkunft.title)}</button>` : ''}
+    <button type="button" class="active">${esc(eigen ? eigen.title : 'Dieses Modell')}</button>
+    ${eindeutig.map(x => {
+      const m = procModellVon(x.id);
+      const name = m ? m.title : ((x.el.businessObject && x.el.businessObject.name) || 'Unterprozess');
+      return `<button type="button" onclick="procUnterprozessOeffnen('${esc(x.id)}')"
+        title="${m ? 'Unterprozess öffnen' : 'Das eingebundene Modell gibt es nicht mehr'}">↳ ${esc(name)}</button>`;
+    }).join('')}`;
+}
+
+function _procLegendeHtml() {
+  const offen = _procGemerkt(PROC_LEGENDE_SPEICHER, false);
+  return `<details class="pa-legende"${offen ? ' open' : ''} ontoggle="_procMerken('${PROC_LEGENDE_SPEICHER}', this.open)">
+    <summary>🎨 So lesen Sie das Diagramm</summary>
+    <div class="pa-legende-inhalt">
+      <div><h5>Wer oder was handelt</h5><div class="pa-chips">${
+        ['mensch', 'automatik', 'handgriff', 'unter', 'frage', 'parallel', 'warten'].map(_procArtChip).join('')}</div></div>
+      <div><h5>Wie es beginnt und ausgeht</h5><div class="pa-chips">${['start', 'ende', 'abbruch'].map(_procArtChip).join('')}</div></div>
+      <div><h5>Befunde und Wege</h5><div class="pa-chips">
+        <span class="pa-chip t-err">Rahmen rot: Verstoß</span><span class="pa-chip t-warn">Rahmen gestrichelt: Hinweis</span>
+        <span class="pa-chip pa-rolle">Bahn: eine Rolle</span>
+        <span class="pa-chip" style="background:#1A2644;border-color:#1A2644;color:#fff">⊞ Unterprozess öffnen</span>
+        <span class="pa-chip" style="background:#17509E;border-color:#17509E;color:#fff">↦ weiter in anderen Prozess</span></div></div>
+    </div></details>`;
+}
+
+/** Links: der Ablauf als nummerierte Liste. */
+function _procSchritteHtml(a, befunde) {
+  const schritte = (a && a.schritte) || [];
+  if (!schritte.length) return '<p class="pa-note">Das Modell ist leer.</p>';
+  const arten = (typeof PROZESS_ARTEN !== 'undefined') ? PROZESS_ARTEN : {};
+  const je = {};
+  const merke = (art) => (f) => { if (f.id) (je[f.id] = je[f.id] || { f: [], h: [] })[art].push(f.regel); };
+  ((befunde && befunde.fehler) || []).forEach(merke('f'));
+  ((befunde && befunde.hinweise) || []).forEach(merke('h'));
+  return `<ol class="pa-schritte">${schritte.map(s => {
+    const a2 = arten[s.art] || arten.ohne || { stroke: '#8A8F98' };
+    const b = je[s.id];
+    const weiter = (s.aus.length > 1 || (s.aus.length === 1 && s.aus[0].nachNr !== s.nr + 1))
+      ? `<div class="pa-weiter">${s.aus.map(o => `${o.label ? esc(o.label) + ': ' : ''}weiter mit ${o.nachNr}${
+          o.nachNr !== s.nr + 1 && o.nachName ? ' (' + esc(o.nachName) + ')' : ''}`).join(' · ')}</div>` : '';
+    return `<li data-schritt="${esc(s.id)}" onclick="procStelleZeigen('${esc(s.id)}')"${s.unerreichbar ? ' class="pa-lose"' : ''}>
+      <span class="pa-nr" style="background:${a2.stroke}">${s.nr}</span>
+      <div>
+        <div class="pa-schritt-kopf">${_procArtChip(s.art)}${s.bahn ? `<span class="pa-chip pa-rolle">${esc(s.bahn)}</span>` : ''}${
+          b ? `<span class="pa-chip ${b.f.length ? 't-err' : 't-warn'}" title="Befund im Hausschema">⚠ ${esc([...new Set(b.f.concat(b.h))].join(' '))}</span>` : ''}</div>
+        <div class="pa-schritt-text">${esc(s.name || '(ohne Namen)')}</div>
+        ${s.uebergabeVon ? `<div class="pa-uebergabe">↪ Übergabe von ${esc(s.uebergabeVon)}</div>` : ''}
+        ${s.unerreichbar ? '<div class="pa-uebergabe">Vom Auslöser aus nicht erreichbar</div>' : ''}
+        ${weiter}
+      </div></li>`;
+  }).join('')}</ol>`;
+}
+
+/** Rechts unter den Befunden: wo ein Prozess sich verbessern lässt. */
+function _procStellschraubenHtml(a) {
+  if (!a || !a.schritte || !a.schritte.length) return '';
+  const z = a.zahlen, zeilen = [];
+  if (a.uebergaben.length) {
+    const paare = [...new Map(a.uebergaben.map(u => [u.vonBahn + ' → ' + u.nachBahn, u])).entries()];
+    zeilen.push(`<tr><td><span class="pa-chip t-plan">${a.uebergaben.length} ${a.uebergaben.length === 1 ? 'Übergabe' : 'Übergaben'}</span></td>
+      <td>An jeder Übergabe wartet der Vorgang auf eine andere Rolle. Hier geht er am ehesten verloren oder bleibt liegen.
+        <div class="pa-chips" style="margin-top:6px">${paare.map(([text, u]) =>
+          `<span class="pa-chip pa-rolle" data-befund="${esc(u.id)}" style="cursor:pointer" onclick="procStelleZeigen('${esc(u.id)}')" title="Im Diagramm zeigen">${esc(text)}</span>`).join('')}</div></td></tr>`);
+  }
+  const aufgaben = z.mensch + z.automatik + z.handgriff;
+  if (aufgaben) {
+    zeilen.push(`<tr><td><span class="pa-chip ${z.automatikQuote >= 50 ? 't-ok' : 't-plan'}">${z.automatikQuote} % automatisch</span></td>
+      <td>${z.automatik} von ${aufgaben} Aufgaben laufen ohne Zutun.${z.handgriff
+        ? ` ${z.handgriff} ${z.handgriff === 1 ? 'Handgriff läuft' : 'Handgriffe laufen'} ganz ohne System, dort entsteht kein Nachweis.` : ''}</td></tr>`);
+  }
+  if (z.entscheidungen) {
+    zeilen.push(`<tr><td><span class="pa-chip t-gate">${z.entscheidungen} ${z.entscheidungen === 1 ? 'Entscheidung' : 'Entscheidungen'}</span></td>
+      <td>${z.ergebnisse} ${z.ergebnisse === 1 ? 'mögliches Ergebnis' : 'mögliche Ergebnisse'}. Jede Entscheidung braucht eine Regel, wer sie trifft und wonach.</td></tr>`);
+  }
+  return zeilen.length ? `<h4 class="pa-titel" style="margin-top:16px">Stellschrauben</h4><table class="pa-regeln">${zeilen.join('')}</table>` : '';
+}
+
+/** Die Kacheln der Landkarte, an denen dieses Modell hängt. */
+function _procKachelnMitModell(itemId) {
+  const out = [];
+  if (typeof _lkDaten === 'undefined' || !_lkDaten || !_lkDaten.karten || typeof lkProzesseVon !== 'function') return out;
+  for (const [werk, karte] of Object.entries(_lkDaten.karten)) {
+    for (const kachel of (karte.kacheln || [])) {
+      let modelle = [];
+      try { modelle = lkProzesseVon(kachel, werk); } catch (e) { continue; }
+      if (modelle.some(m => String(m.itemId) === String(itemId))) out.push({ werk, kachel });
+    }
+  }
+  return out;
+}
+
+/** Rechts ganz unten: Kachel, BIA und Notfallplan zu diesem Ablauf. */
+function _procNotfallHtml(itemId) {
+  const titel = '<h4 class="pa-titel" style="margin-top:16px">Landkarte und Notfall</h4>';
+  const treffer = _procKachelnMitModell(itemId);
+  if (!treffer.length) {
+    return titel + '<p class="pa-note">Dieses Modell hängt an keiner Kachel der Landkarte. Ohne Kachel gibt es für den Ablauf keine Business-Impact-Analyse und keinen Notfallplan.</p>';
+  }
+  const zeilen = treffer.map(({ werk, kachel }) => {
+    const b = (typeof nfBcmVon === 'function') ? nfBcmVon(kachel) : (kachel.bcm || {});
+    const krit = b.kritikalitaet || '';
+    const chip = krit === 'hoch' ? 't-err' : krit === 'mittel' ? 't-warn' : krit === 'niedrig' ? 't-ok' : 't-plan';
+    let luecken = 0;
+    try {
+      if (krit && typeof nfPruefung === 'function' && typeof _nfKontext === 'function') luecken = (nfPruefung(kachel, _nfKontext(werk)).fehler || []).length;
+    } catch (e) { /* dann ohne Zählung */ }
+    const rto = (b.rto !== '' && b.rto != null && typeof nfDauerText === 'function') ? nfDauerText(b.rto) : '';
+    const plan = b.plan && String(b.plan.sofort || '').trim();
+    const teile = [];
+    if (rto) teile.push('RTO ' + rto);
+    if (krit) teile.push(plan ? 'Notfallplan vorhanden' : 'kein Notfallplan');
+    if (luecken) teile.push(luecken + (luecken === 1 ? ' Lücke' : ' Lücken') + ' im Notfallplan');
+    return `<tr class="pa-klick" onclick="switchView('notfall')" title="Im Reiter Notfall ansehen">
+      <td><span class="pa-chip ${chip}">${krit ? 'Kritikalität ' + esc(krit) : 'ohne BIA'}</span></td>
+      <td><b>${esc(typeof lkWerkLabel === 'function' ? lkWerkLabel(werk) : werk)}</b>: ${esc(kachel.name)}${
+        teile.length ? `<div class="pa-warum">${esc(teile.join(' · '))}</div>` : ''}</td></tr>`;
+  }).join('');
+  return titel + `<table class="pa-regeln">${zeilen}</table>`;
+}
+
+/* ── Aktionen der Ansicht ── */
+
+function procAnsichtAktion(act) {
+  if (!_bpmnModeler) return;
+  let canvas;
+  try { canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  if (act === 'in') canvas.zoom(canvas.zoom() * 1.25);
+  else if (act === 'out') canvas.zoom(canvas.zoom() / 1.25);
+  else if (act === 'fit') _procBuehneNeu(true);
+  else if (act === 'voll') _procAnsichtVollbild();
+  else if (act === 'svg') _procAnsichtBild();
+  else if (act === 'bpmn') _procAnsichtDatei();
+}
+
+async function _procAnsichtVollbild(an) {
+  const box = document.getElementById('pa-box');
+  if (!box) return;
+  const ziel = (an === undefined) ? !box.classList.contains('pa-voll') : !!an;
+  box.classList.toggle('pa-voll', ziel);
+  try {
+    if (ziel && !document.fullscreenElement && box.requestFullscreen) await box.requestFullscreen();
+    if (!ziel && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+  } catch (e) { /* dann bleibt es bei der Überlagerung */ }
+  _procBuehneNeu(true);
+}
+
+/** Der Dateiname aus dem Titel des Modells. */
+function _procDateiName() {
+  const m = _procEditing && procModellVon(_procEditing.itemId);
+  return String((m && m.title) || (_procEditing && _procEditing.origName) || 'prozess').replace(/\.bpmn$/i, '').trim() || 'prozess';
+}
+
+/**
+ * Die Datei, wie sie geladen wurde. Bewusst nicht über downloadProcessXml():
+ * Das schreibt vorher die Richtlinien aus dem Auswahlfeld des Editors ins
+ * Modell, und in der Ansicht gibt es dieses Feld nicht. Die Verknüpfungen
+ * wären im Download dann leer.
+ */
+function _procAnsichtDatei() {
+  if (!_procAnsichtXml) return;
+  const blob = new Blob([_procAnsichtXml], { type: 'application/xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = _procDateiName() + '.bpmn';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Die Farben ins Bild schreiben. Im Browser kommen sie aus Stilregeln, die
+ * eine SVG-Datei nicht mitnimmt; Word und PowerPoint sähen sonst ein
+ * schwarz-weißes Diagramm. Deshalb bekommt jede Form ihre Farbe direkt.
+ */
+function _procSvgFaerben(svg) {
+  if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined' || typeof PROZESS_ARTEN === 'undefined') return svg;
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  doc.querySelectorAll('g.djs-element').forEach(g => {
+    const cls = g.getAttribute('class') || '';
+    const visual = [...g.children].find(n => /\bdjs-visual\b/.test(n.getAttribute('class') || ''));
+    if (!visual) return;
+    if (/\bpa-bahn-1\b/.test(cls)) { const r = visual.querySelector('rect'); if (r) r.style.fill = '#F6F8FB'; }
+    const m = cls.match(/\bpa-art-([a-z]+)\b/);
+    const a = m && PROZESS_ARTEN[m[1]];
+    if (!a) return;
+    [...visual.children].forEach(n => {
+      const tag = n.tagName.toLowerCase();
+      if (tag === 'rect' || tag === 'circle' || tag === 'polygon') { n.style.fill = a.fill; n.style.stroke = a.stroke; }
+      else if (tag === 'path') {
+        n.style.stroke = a.stroke;
+        if (m[1] === 'frage' || m[1] === 'parallel') n.style.fill = a.stroke;
+      }
+    });
+  });
+  return new XMLSerializer().serializeToString(doc);
+}
+
+async function _procAnsichtBild() {
+  if (!_bpmnModeler) return;
+  try {
+    const { svg } = await _bpmnModeler.saveSVG();
+    const blob = new Blob([_procSvgFaerben(svg)], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = _procDateiName() + '.svg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Bild gespeichert ✓', 'success');
+  } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/* Esc beendet das Vollbild des Browsers, ohne dass die Ansicht davon erfährt.
+   Das Ereignis nimmt die Überlagerung dann mit zurück. */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('fullscreenchange', () => {
+    const box = document.getElementById('pa-box');
+    if (box && !document.fullscreenElement && box.classList.contains('pa-voll')) _procAnsichtVollbild(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    const box = document.getElementById('pa-box');
+    if (e.key === 'Escape' && box && box.classList.contains('pa-voll') && !document.fullscreenElement) _procAnsichtVollbild(false);
+  });
 }
 
 /* ── Hausschema im Editor ── */
@@ -1283,28 +1877,18 @@ async function prozessSchemaPruefung(still) {
 
   const ids = (typeof _selectedPolicyIds === 'function') ? _selectedPolicyIds() : null;
   const r = prozessSchemaPruefen(xml, ids ? { policyIds: ids } : {});
-  const zeile = (art, f) => `<li style="margin:2px 0"><b style="color:${art === 'f' ? '#b91c1c' : '#b45309'}">${
-    esc(f.regel)}</b> ${esc(f.text)}</li>`;
+  _procBefunde = r;
   const zahlen = r.zahlen;
-
   host.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;margin-bottom:8px">
-      ${PROZESS_BAUSTEINE.map(b => `<span title="${esc(b.zweck)} · ${esc(b.benennung)}">
-        <b style="font-size:.95rem">${b.symbol}</b> ${esc(b.titel)}</span>`).join('')}
-    </div>
-    <div style="font-size:.8rem;color:var(--c-muted);margin-bottom:6px">
+    <div style="font-size:.8rem;color:var(--c-muted);margin-bottom:8px">
       ${zahlen.bahnen} Bahn(en) · 👤 ${zahlen.mensch} · ⚙ ${zahlen.automatik} · ✋ ${zahlen.handgriff}${
         zahlen.unterprozesse ? ` · ⊞ ${zahlen.unterprozesse}` : ''} · ${zahlen.fluesse} Verbindungen</div>
-    ${r.fehler.length
-      ? `<div class="col-warning" style="display:block"><b>${r.fehler.length} Regelverstoß/-verstöße:</b>
-          <ul style="margin:6px 0 0 18px;padding:0">${r.fehler.map(f => zeile('f', f)).join('')}</ul></div>`
-      : '<div style="color:#15803d;font-weight:600;font-size:.85rem">✓ Entspricht dem Hausschema.</div>'}
-    ${r.hinweise.length
-      ? `<div style="margin-top:8px;font-size:.82rem"><b>Hinweise</b> (dürfen begründet übergangen werden):
-          <ul style="margin:4px 0 0 18px;padding:0">${r.hinweise.map(f => zeile('h', f)).join('')}</ul></div>` : ''}`;
+    ${_procBefundeHtml(r, { kompakt: true })}
+    <div class="pa-note">Ein Klick auf eine Zeile zeigt die Stelle im Diagramm.</div>`;
+  _procBefundeMarkieren(r);
 
   if (!still && typeof toast === 'function') {
-    toast(r.fehler.length ? `${r.fehler.length} Regelverstoß/-verstöße – siehe „Hausschema"`
+    toast(r.fehler.length ? `${r.fehler.length} ${r.fehler.length === 1 ? 'Verstoß' : 'Verstöße'}, siehe „Hausschema"`
                           : 'Modell entspricht dem Hausschema ✓',
       r.fehler.length ? 'error' : 'success');
   }

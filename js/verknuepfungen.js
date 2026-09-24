@@ -793,10 +793,10 @@ function _vkLueckenHtml() {
           <span class="field-hint"> · ${esc(k.werk)}</span></div>`)}
       ${block('Modelle ohne Regelwerk', l.modelleOhneRw,
         'Im Prozess-Editor lässt sich zuordnen, welche Regelwerke der Ablauf umsetzt.',
-        (m) => `<div><a href="#" onclick="openProcessEditor('${esc(m.itemId)}');return false">${esc(m.title)}</a></div>`)}
+        (m) => `<div><a href="#" onclick="openProcessAnsicht('${esc(m.itemId)}');return false">${esc(m.title)}</a></div>`)}
       ${l.unterOhneZiel.length ? block('Eingebundene Unterprozesse, die es nicht mehr gibt', l.unterOhneZiel,
         'Das Modell öffnen und die ⊞ neu einbinden oder lösen – bis dahin zeigt sie ins Leere.',
-        (x) => `<div><a href="#" onclick="openProcessEditor('${esc(x.modell.itemId)}');return false">${esc(x.modell.title)}</a>
+        (x) => `<div><a href="#" onclick="openProcessAnsicht('${esc(x.modell.itemId)}');return false">${esc(x.modell.title)}</a>
           <span class="field-hint"> · ⊞ ${esc(x.ziel)}</span></div>`) : ''}
       ${block('Veröffentlichte Regelwerke ohne Prozess', l.rwOhneProzess,
         'Nicht jedes Regelwerk beschreibt einen Ablauf – aber wo es einen gibt, sollte er verknüpft sein.',
@@ -854,7 +854,7 @@ function _vkAktionenHtml(k) {
 
 function vkModellOeffnen(knotenId) {
   const n = _vkGraph && _vkGraph.knoten.get(knotenId);
-  if (n && n.itemId && typeof openProcessEditor === 'function') openProcessEditor(n.itemId);
+  if (n && n.itemId && typeof openProcessAnsicht === 'function') openProcessAnsicht(n.itemId);
 }
 
 /* ── Regelwerke einem Modell zuordnen (ohne den Modeler zu öffnen) ── */

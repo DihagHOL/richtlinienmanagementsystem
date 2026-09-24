@@ -350,8 +350,8 @@ ok(/_procPfad = \[\];\s*\/\/ der Weg/.test(lies('js/prozesse.js')), 'Zurück zur
 /* ── 12) Angeschlossen: Liste, Mindmap, Doku ── */
 const pjs = lies('js/prozesse.js');
 ok(/⊞ \$\{e\.u\.length\}/.test(pjs) && /↰ \$\{oben\.length\}/.test(pjs), 'Die Karte zeigt ⊞ n (bindet ein) und ↰ n (ist eingebunden)');
-ok(/bus\.on\('selection\.changed', \(\) => \{ _renderElementSprung\(canWrite\); _renderElementUnter\(canWrite\); \}\)/.test(pjs),
-  'Der Kasten folgt der Auswahl im Diagramm');
+ok(/bus\.on\('selection\.changed', \(e\) => \{ _renderElementSprung\(canWrite\); _renderElementUnter\(canWrite\); _procAuswahlSpiegeln\(e && e\.newSelection\); \}\)/.test(pjs),
+  'Der Kasten folgt der Auswahl im Diagramm, die passende Befundzeile rechts ebenso');
 ok(/'bindet ein'/.test(lies('js/verknuepfungen.js')) && /'bindet ein': 'eingebunden in'/.test(lies('js/verknuepfungen.js')),
   'Die Verknüpfungen kennen die Kante „bindet ein"');
 ok(/'bindet ein'/.test(lies('js/mindmapbaum.js')), 'Im Baum hängt das eingebundene Modell unter dem einbindenden');

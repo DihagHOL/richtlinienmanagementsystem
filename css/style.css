@@ -1097,3 +1097,87 @@ body.demo-mode .main { padding-bottom: 64px; }
 .proc-voll:fullscreen, .proc-voll:-webkit-full-screen { background: var(--c-bg, #f8fafc); }
 
 @media print { .proc-voll { position: static; height: auto; } }
+
+/* ── Prozessansicht: lesen statt bauen ─────────────────────────────────────
+   Aufbau wie die Prozessseite der E-Rechnung: Kopf mit Aktionen, farbiges
+   Diagramm, darunter links die Schritte, rechts was auffällt. Die Farben der
+   Formen kommen aus PROZESS_ARTEN (js/prozessschema.js), nicht von hier. */
+#proc-ansicht .djs-palette, #proc-ansicht .djs-context-pad, #proc-ansicht .djs-popup { display: none !important; }
+.pa-karte { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; padding: 18px; }
+.pa-kopf { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.pa-kopf-text { flex: 1 1 420px; min-width: 0; }
+.pa-kopf h2 { margin: 0 0 4px; font-size: 1.2rem; color: var(--c-navy); }
+.pa-lead { color: var(--c-muted); font-size: .9rem; line-height: 1.6; margin: 0 0 8px; }
+.pa-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pa-chip { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 600; line-height: 1.1;
+           padding: 5px 9px; border-radius: 999px; border: 1.5px solid; white-space: nowrap; text-decoration: none; }
+.pa-chip.t-ok   { background: #DDF3E4; border-color: #1E7B3A; color: #1E7B3A; }
+.pa-chip.t-warn { background: #FFF1CC; border-color: #A65F00; color: #A65F00; }
+.pa-chip.t-err  { background: #FDE2E1; border-color: #B42318; color: #B42318; }
+.pa-chip.t-gate { background: #FFF8DB; border-color: #8A6100; color: #8A6100; }
+.pa-chip.t-plan { background: #F1F1F3; border-color: #8A8F98; color: #5B616B; }
+.pa-chip.pa-rolle { background: #fff; border-color: #99B7CD; color: var(--c-navy); }
+.pa-chip.pa-regelwerk { background: var(--c-primary-l); border-color: var(--c-primary); color: var(--c-primary); }
+.pa-aktionen { display: flex; flex-wrap: wrap; gap: 6px; }
+.pa-aktionen button { font: inherit; font-size: .8rem; font-weight: 600; padding: 7px 11px; border-radius: 8px; cursor: pointer;
+                      border: 1px solid var(--c-border); background: #f8fafc; color: #374151; white-space: nowrap; }
+.pa-aktionen button:hover { background: #fff; border-color: var(--c-primary); color: var(--c-primary); }
+.pa-aktionen .dl { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+.pa-aktionen .dl:hover { background: var(--c-primary-d); color: #fff; }
+.pa-kennzahlen { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 10px; font-size: .82rem; color: var(--c-muted); }
+.pa-kennzahlen:empty { display: none; }
+.pa-kz b { color: var(--c-navy); font-size: .95rem; }
+.pa-ansichten { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; }
+.pa-ansichten:empty { display: none; }
+.pa-ansichten span { font-size: .75rem; color: var(--c-muted); margin-right: 2px; }
+.pa-ansichten button { font: inherit; font-size: .8rem; font-weight: 600; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+                       border: 1.5px solid #d1d5db; background: #fff; color: #374151; }
+.pa-ansichten button:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.pa-ansichten button.active { background: var(--c-primary); border-color: var(--c-primary); color: #fff; cursor: default; }
+.pa-box { position: relative; height: 62vh; min-height: 440px; border: 1px solid var(--c-border); border-radius: 12px; overflow: hidden;
+          background: radial-gradient(circle, #e7ecf3 1px, transparent 1px) 0 0 / 22px 22px, #fbfcfe; }
+.pa-box #bpmn-canvas { position: absolute; inset: 0; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
+.pa-box.pa-voll { position: fixed; inset: 0; z-index: 1200; height: auto; min-height: 0; border-radius: 0; }
+.pa-box:fullscreen { height: 100vh; border-radius: 0; }
+.pa-hint { position: absolute; left: 12px; bottom: 10px; font-size: .72rem; color: var(--c-muted); background: rgba(255,255,255,.92);
+           padding: 4px 9px; border-radius: 6px; pointer-events: none; }
+.pa-legende { margin: 10px 0 0; border: 1px solid var(--c-border); border-radius: 10px; background: #f8fafc; }
+.pa-legende summary { cursor: pointer; padding: 9px 12px; font-size: .85rem; font-weight: 600; color: var(--c-navy); }
+.pa-legende-inhalt { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 0 12px 12px; }
+.pa-legende h5 { margin: 0 0 6px; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); }
+.pa-unten { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; margin-top: 18px; }
+@media (max-width: 980px) { .pa-unten { grid-template-columns: 1fr; } }
+.pa-titel { margin: 0 0 10px; font-size: .9rem; color: var(--c-navy); }
+.pa-seite { background: #f8fafc; border: 1px solid var(--c-border); border-radius: 12px; padding: 14px 16px; align-self: start; }
+.pa-schritte { list-style: none; margin: 0; padding: 0; }
+.pa-schritte li { display: flex; gap: 12px; padding: 9px 8px; border-top: 1px solid var(--c-border-2); cursor: pointer; border-radius: 8px; }
+.pa-schritte li:first-child { border-top: 0; }
+.pa-schritte li:hover, .pa-schritte li.pa-aktiv { background: var(--c-primary-l); }
+.pa-schritte li.pa-lose { opacity: .75; }
+.pa-nr { flex: 0 0 26px; height: 26px; border-radius: 50%; color: #fff; font-weight: 700; font-size: .78rem;
+         display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.pa-schritt-kopf { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+.pa-schritt-text { font-size: .88rem; color: #1f2937; line-height: 1.45; font-weight: 600; }
+.pa-weiter { font-size: .78rem; color: var(--c-muted); margin-top: 2px; }
+.pa-uebergabe { font-size: .78rem; color: #C2410C; margin-top: 2px; }
+.pa-regeln { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.pa-regeln td { padding: 8px 6px; border-top: 1px solid var(--c-border); vertical-align: top; color: #374151; line-height: 1.45; }
+.pa-regeln tr:first-child td { border-top: 0; }
+.pa-regeln td:first-child { white-space: nowrap; width: 1%; }
+.pa-regeln tr.pa-klick { cursor: pointer; }
+.pa-regeln tr.pa-klick:hover td, .pa-regeln tr.pa-aktiv td { background: var(--c-primary-l); }
+.pa-chip.pa-aktiv { box-shadow: 0 0 0 2px var(--c-primary); }
+.pa-befund-kopf { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.pa-warum { font-size: .74rem; color: var(--c-muted); margin-top: 3px; }
+.pa-note { font-size: .78rem; color: var(--c-muted); line-height: 1.5; margin: 6px 0 0; }
+
+/* Im Diagramm: jede zweite Bahn leicht grau, Befunde als Rahmen und Plakette. */
+.djs-element.pa-bahn-1 > .djs-visual > rect { fill: #F6F8FB !important; }
+.djs-element.pa-fehler > .djs-visual > :first-child { stroke: #B42318 !important; stroke-width: 3px !important; }
+.djs-element.pa-hinweis > .djs-visual > :first-child { stroke: #A65F00 !important; stroke-width: 2.5px !important; stroke-dasharray: 6 3 !important; }
+.djs-element.pa-blink > .djs-visual { animation: paBlink .65s ease-in-out 4; }
+@keyframes paBlink { 50% { filter: drop-shadow(0 0 8px rgba(23, 80, 158, .95)); } }
+.pa-plakette { cursor: pointer; font: 700 11px/1.5 system-ui, sans-serif; padding: 0 6px; border-radius: 9px; color: #fff;
+               box-shadow: 0 1px 3px rgba(0,0,0,.3); white-space: nowrap; }
+.pa-plakette.f { background: #B42318; }
+.pa-plakette.h { background: #A65F00; }
