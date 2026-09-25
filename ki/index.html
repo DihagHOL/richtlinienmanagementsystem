@@ -17,11 +17,11 @@
   <!-- Clickjacking-Schutz: unsichtbar, bis js/rahmenschutz.js bestätigt, dass die Seite
        nicht in einem fremden Rahmen steckt. -->
   <style id="rahmenschutz">body { display: none !important; }</style>
-  <script src="../js/rahmenschutz.js?v=6047e18a"></script>
+  <script src="../js/rahmenschutz.js?v=8f265a82"></script>
   <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 5.23.0, Integrität geprüft) – keine fremde Skriptquelle -->
   <script src="../vendor/msal-browser/5.23.0/msal-browser.min.js"></script>
-  <link rel="stylesheet" href="../css/style.css?v=6047e18a"/>
-  <link rel="stylesheet" href="style.css?v=6047e18a"/>
+  <link rel="stylesheet" href="../css/style.css?v=8f265a82"/>
+  <link rel="stylesheet" href="style.css?v=8f265a82"/>
 </head>
 <body>
 
@@ -260,7 +260,7 @@
 </div>
 
 <!-- Scripts: gemeinsame Anmeldung (RMS) + KI-App -->
-<script src="../js/auth.js?v=6047e18a"></script>
+<script src="../js/auth.js?v=8f265a82"></script>
 <script>
   // Rückkehrseite und Abmelde-Ziel liegen an der App-Wurzel (nur redirect.html ist
   // in Entra als SPA-Redirect-URI registriert). Die Redirect-Bridge führt nach der
@@ -268,6 +268,6 @@
   _AUTH.appBase = _redirectBase().replace(/ki\/$/, '');
   _AUTH.redirectUri = _AUTH.appBase + 'redirect.html';
 </script>
-<script src="app.js?v=6047e18a"></script>
+<script src="app.js?v=8f265a82"></script>
 </body>
 </html>
