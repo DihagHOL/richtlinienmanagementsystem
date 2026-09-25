@@ -14,8 +14,12 @@
   <link rel="icon" type="image/png" href="assets/dihag-zeichen.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 4.30.0 LTS, Integrität beim Holen geprüft) – keine fremde Skriptquelle -->
-  <script src="vendor/msal-browser/4.30.0/msal-browser.min.js"></script>
+  <!-- Clickjacking-Schutz: unsichtbar, bis js/rahmenschutz.js bestätigt, dass die Seite
+       nicht in einem fremden Rahmen steckt. -->
+  <style id="rahmenschutz">body { display: none !important; }</style>
+  <script src="js/rahmenschutz.js?v=6047e18a"></script>
+  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 5.23.0, Integrität geprüft) – keine fremde Skriptquelle -->
+  <script src="vendor/msal-browser/5.23.0/msal-browser.min.js"></script>
   <link rel="stylesheet" href="css/style.css?v=6047e18a"/>
 </head>
 <body>

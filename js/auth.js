@@ -1,6 +1,8 @@
 /**
  * Microsoft Entra ID (Azure AD) Authentication
- * MSAL.js 4.x (msal-browser 4.30.0 LTS, selbst ausgeliefert aus vendor/msal-browser/) — Single-Tenant: nur DIHAG-Konten.
+ * MSAL.js 5.x (msal-browser 5.23.0, selbst ausgeliefert aus vendor/msal-browser/) — Single-Tenant: nur DIHAG-Konten.
+ * Die Antwort von Microsoft landet auf redirect.html („Redirect-Bridge") und wird von dort an
+ * die Seite weitergereicht, die die Anmeldung begonnen hat.
  * Ab v3 muss initialize() fertig sein, bevor irgendeine andere MSAL-Funktion läuft.
  * Muster übernommen aus e-rechnung/js/auth.js.
  */
@@ -15,8 +17,11 @@ function _redirectBase() {
 const _AUTH = {
   clientId:    '46c63ab1-1bd7-4774-b702-ed73a3f57072',
   tenantId:    'fdb70646-023a-403b-a4b9-1f474a935123',
-  // dynamisch: GitHub-Pages-URL ODER eigene Domain – BEIDE in Azure als SPA-Redirect-URI hinterlegen
-  redirectUri: _redirectBase(),
+  // Wurzel der App – nach dem Abmelden geht es hierher zurück.
+  appBase:     _redirectBase(),
+  // MSAL 5: die Rückkehrseite. In Entra als SPA-Redirect-URI hinterlegt
+  // (https://rms.dihag.de/redirect.html). Unterseiten (/ki/) setzen beides auf die Wurzel.
+  redirectUri: _redirectBase() + 'redirect.html',
 };
 
 // Alle benötigten Scopes bereits beim Login anfordern (wie ZAPP) → Consent einmalig,
@@ -83,7 +88,7 @@ async function authInit() {
       clientId:              _AUTH.clientId,
       authority:             `https://login.microsoftonline.com/${_AUTH.tenantId}`,
       redirectUri:           _AUTH.redirectUri,
-      postLogoutRedirectUri: _AUTH.redirectUri,
+      postLogoutRedirectUri: _AUTH.appBase,
     },
     cache: {
       // localStorage statt sessionStorage: Ein Klick aus Outlook öffnet einen NEUEN

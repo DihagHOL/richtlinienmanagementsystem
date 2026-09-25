@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <!-- Rückkehrseite der Anmeldung (MSAL 5 „Redirect-Bridge"). Microsoft leitet nach der
+       Anmeldung hierher; die Seite reicht die Antwort an das RMS (oder das KI-Dashboard) weiter (Popup und
+       unsichtbares iframe per BroadcastChannel, Weiterleitung per sessionStorage).
+       Bewusst leer und ohne Einbett-Sperre: MSAL lädt sie im unsichtbaren iframe.
+       Fester Titel: sonst stünde die Adresse samt Anmeldecode im Tab und im Verlauf. -->
+  <title>Anmeldung – Regelwerk-Management</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="referrer" content="no-referrer">
+</head>
+<body>
+  <p>Anmeldung wird abgeschlossen …</p>
+  <script src="vendor/msal-browser/5.23.0/msal-redirect-bridge.min.js"></script>
+  <script src="js/redirect.js"></script>
+</body>
+</html>
