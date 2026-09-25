@@ -2282,7 +2282,7 @@ async function spSaveSoa(data) {
 
 /* ═══════════════════════════════════════════════════
    M365-Nachweise aus dem Compliance-Cockpit (nur lesen)
-   Das Cockpit (dfedorov12.github.io/compliance) ruft Live-Werte aus
+   Das Cockpit (compliance.dihag.de) ruft Live-Werte aus
    Microsoft 365 ab und sichert sie je Annex-A-Control mit Stichtag in der
    Liste „Compliance_M365Nachweise" auf der App-Site. Die SoA zeigt davon je
    Control den jüngsten Eintrag. Ergebnis: { "A.8.5": { wert, stand, zeit } }.

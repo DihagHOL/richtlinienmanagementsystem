@@ -27,7 +27,7 @@ let _soaFilter = { q: '', nur: '' };   // nur: '' | 'offen' | 'ausgeschlossen'
 /* Jüngster M365-Nachweis je Control aus dem Compliance-Cockpit
    ({ "A.8.5": { wert, stand, zeit } }); null = noch nicht geladen. */
 let _soaM365 = null;
-const SOA_COCKPIT_URL = 'https://dfedorov12.github.io/compliance/';
+const SOA_COCKPIT_URL = 'https://compliance.dihag.de/';
 
 function _soaCockpitLink(id) {
   return SOA_COCKPIT_URL + '?ansicht=nachweise' + (id ? '&control=' + encodeURIComponent(id) : '');

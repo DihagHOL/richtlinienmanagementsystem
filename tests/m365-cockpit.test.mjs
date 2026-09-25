@@ -1,5 +1,5 @@
 /**
- * Anbindung an das Compliance-Cockpit (dfedorov12.github.io/compliance).
+ * Anbindung an das Compliance-Cockpit (compliance.dihag.de).
  *
  * Das RMS bleibt führend für SoA, Risiken und Maßnahmen; das Cockpit liefert
  * die M365-Nachweise je Annex-A-Control und springt per Direktlink hierher.
@@ -129,7 +129,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
   const access = lies('js/access.js');
   ok((html.match(/id="nav-compliance"/g) || []).length === 1, 'bestehende ID nav-compliance gibt es genau einmal');
   ok((html.match(/id="nav-m365-cockpit"/g) || []).length === 1, 'Link zum Compliance-Cockpit hat eine eigene ID');
-  ok(/href="https:\/\/dfedorov12\.github\.io\/compliance\/"[^>]*id="nav-m365-cockpit"/.test(html), 'Link zeigt auf das Cockpit');
+  ok(/href="https:\/\/compliance\.dihag\.de\/"[^>]*id="nav-m365-cockpit"/.test(html), 'Link zeigt auf das Cockpit');
   ok(/show\('nav-m365-cockpit'/.test(access) && /show\('nav-compliance',\s*v\.compliance\)/.test(access),
     'Sichtbarkeit getrennt: Cockpit-Link und Reiter Compliance');
 }
