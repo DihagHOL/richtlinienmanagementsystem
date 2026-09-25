@@ -14,8 +14,12 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Exo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 4.30.0 LTS, Integrität beim Holen geprüft) – keine fremde Skriptquelle -->
-  <script src="../vendor/msal-browser/4.30.0/msal-browser.min.js"></script>
+  <!-- Clickjacking-Schutz: unsichtbar, bis js/rahmenschutz.js bestätigt, dass die Seite
+       nicht in einem fremden Rahmen steckt. -->
+  <style id="rahmenschutz">body { display: none !important; }</style>
+  <script src="../js/rahmenschutz.js?v=6047e18a"></script>
+  <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 5.23.0, Integrität geprüft) – keine fremde Skriptquelle -->
+  <script src="../vendor/msal-browser/5.23.0/msal-browser.min.js"></script>
   <link rel="stylesheet" href="../css/style.css?v=6047e18a"/>
   <link rel="stylesheet" href="style.css?v=6047e18a"/>
 </head>
@@ -258,10 +262,11 @@
 <!-- Scripts: gemeinsame Anmeldung (RMS) + KI-App -->
 <script src="../js/auth.js?v=6047e18a"></script>
 <script>
-  // MSAL-Redirect-URI auf die App-Wurzel setzen (nur diese ist in Azure als
-  // SPA-Redirect-URI registriert). Nach dem Login leitet auth.js anhand des
-  // state-Parameters wieder hierher (/ki/) zurück.
-  _AUTH.redirectUri = _redirectBase().replace(/ki\/$/, '');
+  // Rückkehrseite und Abmelde-Ziel liegen an der App-Wurzel (nur redirect.html ist
+  // in Entra als SPA-Redirect-URI registriert). Die Redirect-Bridge führt nach der
+  // Anmeldung wieder hierher (/ki/) zurück.
+  _AUTH.appBase = _redirectBase().replace(/ki\/$/, '');
+  _AUTH.redirectUri = _AUTH.appBase + 'redirect.html';
 </script>
 <script src="app.js?v=6047e18a"></script>
 </body>

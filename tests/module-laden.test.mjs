@@ -100,7 +100,10 @@ for (const [view, gruppe] of Object.entries(MODUL_ANSICHTEN)) {
 /* ── 3) Keine verwaisten Dateien ──
    Eine Datei, die in keiner Gruppe steht, wird nie geladen – sie ist dann
    entweder tot oder ein vergessener Eintrag. Beides will man wissen. */
-const imBundle = new Set([...MODUL_KERN, 'module', ...alleModule]);
+// Zwei Dateien stehen bewusst außerhalb der Gruppen: der Clickjacking-Schutz läuft vor
+// allem anderen im <head>, redirect.js nur auf der Rückkehrseite der Anmeldung.
+const EIGENSTAENDIG = ['rahmenschutz', 'redirect'];
+const imBundle = new Set([...MODUL_KERN, 'module', ...alleModule, ...EIGENSTAENDIG]);
 const aufPlatte = fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js')).map(f => f.replace('.js', ''));
 const verwaist = aufPlatte.filter(f => !imBundle.has(f));
 ok(verwaist.length === 0, verwaist.length ? `nie geladen: ${verwaist.join(', ')}` : `alle ${aufPlatte.length} Dateien in js/ werden geladen`);
@@ -112,7 +115,10 @@ const gesamt = Math.round(aufPlatte.reduce((a, f) => a + kb(f), 0));
 ok(kern < gesamt * 0.25, `Erstladung ${kern} KB von ${gesamt} KB (${Math.round(100 - kern / gesamt * 100)} % weniger)`);
 
 const html = lies('index.html');
-const tags = [...html.matchAll(/src="js\/([a-z-]+)\.js/g)].map(m => m[1]);
+const alleTags = [...html.matchAll(/src="js\/([a-z-]+)\.js/g)].map(m => m[1]);
+ok(alleTags[0] === 'rahmenschutz', 'Der Clickjacking-Schutz ist das erste Skript der Seite');
+ok(!alleTags.includes('redirect') && /src="js\/redirect\.js"/.test(lies('redirect.html')), 'redirect.js steht nur auf der Rückkehrseite');
+const tags = alleTags.filter(t => t !== 'rahmenschutz');
 ok(tags.length === MODUL_KERN.length + 1, `die Seite trägt nur noch ${tags.length} Skript-Tags (Kern + Lader)`);
 ok(tags.every(t => MODUL_KERN.includes(t) || t === 'module'), 'und keines davon gehört in eine Nachlade-Gruppe');
 ok(tags.indexOf('module') > tags.indexOf('util') && tags.indexOf('module') < tags.indexOf('app'),

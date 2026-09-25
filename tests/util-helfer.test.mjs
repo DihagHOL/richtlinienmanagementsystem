@@ -51,7 +51,8 @@ ok(kopien.length === 0, 'Keine dreifachen Kopien mehr' + (kopien.length ? ': ' +
 
 /* ── util.js wird zuerst geladen (sonst sind die Helfer beim Start nicht da) ── */
 const html = fs.readFileSync(ROOT + '/index.html', 'utf8');
-const reihenfolge = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(m => m[1]);
+// Der Clickjacking-Schutz (rahmenschutz.js) läuft bewusst davor – er braucht keine Helfer.
+const reihenfolge = [...html.matchAll(/<script src="js\/([a-z-]+)\.js/g)].map(m => m[1]).filter(n => n !== 'rahmenschutz');
 ok(reihenfolge.includes('util'), 'util.js ist in index.html eingebunden');
 ok(reihenfolge.indexOf('util') === 0, `util.js steht vor allen anderen (ist an Position ${reihenfolge.indexOf('util') + 1})`);
 
