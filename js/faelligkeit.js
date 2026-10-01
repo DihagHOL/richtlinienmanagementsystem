@@ -108,6 +108,34 @@ function renderFaelligkeit() {
    geladen. Gerechnet wird mit js/prozessmodell.js. */
 
 let _faelligPzDaten = null;   // gelesene Landkarten (Cache bis „Aktualisieren")
+let _faelligPzModelle = null; // Modelle mit ihren Angaben aus den .bpmn-Dateien (Cache)
+
+/**
+ * Die Modelle samt Angaben. Ein Modell ist ein Prozess, auch ohne Kachel –
+ * seine Überprüfung steht in der Datei. Gelesen wird direkt (fünf Dateien
+ * nebeneinander), die Prozess-Ansicht wird dafür nicht geladen.
+ */
+async function _faelligPzModelleLesen(daten) {
+  if (typeof spListProcesses !== 'function' || typeof spGetProcessXml !== 'function' || typeof pzPmAusText !== 'function') return [];
+  const liste = await spListProcesses();
+  const karten = (daten && daten.karten) || {};
+  const kachelnVon = (itemId) => {
+    const out = [];
+    Object.keys(karten).forEach(werk => (karten[werk].kacheln || []).forEach(k => {
+      if ((Array.isArray(k.prozesse) ? k.prozesse : []).some(v => v && String(v.id) === String(itemId))) out.push({ werk, kachel: k });
+    }));
+    return out;
+  };
+  const modelle = [];
+  for (let i = 0; i < liste.length; i += 5) {
+    await Promise.all(liste.slice(i, i + 5).map(async p => {
+      let pm = null;
+      try { pm = pzPmAusText(String(await spGetProcessXml(p.itemId)).split('&amp;').join('&')); } catch (e) { /* ohne Angaben */ }
+      modelle.push({ itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm, kacheln: kachelnVon(p.itemId) });
+    }));
+  }
+  return modelle;
+}
 
 /** Karten, die man sehen darf – dieselbe Trennung wie in der Landkarte. */
 function _faelligPzWerke(daten) {
@@ -125,6 +153,7 @@ async function _faelligProzesseZeigen(neu) {
     try {
       const g = (typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null;
       _faelligPzDaten = (g && g.daten && g.daten.karten) ? g.daten : { karten: {} };
+      try { _faelligPzModelle = await _faelligPzModelleLesen(_faelligPzDaten); } catch (e) { _faelligPzModelle = []; }
     } catch (e) {
       host.innerHTML = `<div class="field-hint">Prozesse konnten nicht gelesen werden: ${esc(e.message)}</div>`;
       return;
@@ -132,7 +161,7 @@ async function _faelligProzesseZeigen(neu) {
   }
   const ziel = document.getElementById('fael-prozesse');
   if (!ziel) return;
-  ziel.innerHTML = _faelligProzesseHtml(pzFaellige(_faelligPzDaten, _faelligPzWerke(_faelligPzDaten)));
+  ziel.innerHTML = _faelligProzesseHtml(pzFaellige(_faelligPzDaten, _faelligPzWerke(_faelligPzDaten), undefined, _faelligPzModelle || []));
 }
 
 function _faelligProzesseHtml(b) {
@@ -142,15 +171,15 @@ function _faelligProzesseHtml(b) {
     const wann = p.stufe === 'fehlt' ? 'freigegeben, aber ohne Termin' : `${p.datum.split('-').reverse().join('.')} · ${_faelligDueLabel(p.tage)}`;
     const eigner = e.eigner.upn ? esc(e.eigner.upn) : '<span style="color:#b45309">kein Prozesseigner</span>';
     return `<div class="item-card" style="cursor:default;border-left:4px solid ${accent}">
-      <div class="ic-top"><div class="ic-title">${esc(e.kachel.name)}${pzNrText(e.kachel) ? ` <span class="field-hint">${esc(pzNrText(e.kachel))}</span>` : ''}</div>
+      <div class="ic-top"><div class="ic-title">${e.art === 'modell' ? '🔀 ' : ''}${esc(e.kachel.name)}${pzNrText(e.kachel) ? ` <span class="field-hint">${esc(pzNrText(e.kachel))}</span>` : ''}</div>
         <div class="ic-topright"><span class="ic-tag">${esc(pzStatusInfo(e.status).label)}</span></div></div>
       <div class="ic-tags">
-        <span class="ic-tag cat">${esc(label(e.werk))}</span>
+        <span class="ic-tag cat">${esc(e.werk ? label(e.werk) : 'ohne Ablage')}</span>
         <span class="ic-tag" style="${p.stufe === 'ueberfaellig' || p.stufe === 'fehlt' ? 'background:#fef2f2;color:#b91c1c' : (p.stufe === 'bald' ? 'background:#fffbeb;color:#b45309' : '')}">🔎 ${esc(wann)}</span>
         <span class="ic-tag">👤 ${eigner}</span>
       </div>
       <div style="display:flex;gap:7px;margin-top:10px;justify-content:flex-end">
-        <button class="btn btn-outline btn-sm" onclick="faelligProzessOeffnen(${jsArg(e.werk)},${jsArg(e.kachel.id)})">Prozess öffnen</button>
+        <button class="btn btn-outline btn-sm" onclick="${e.art === 'modell' ? `faelligModellOeffnen(${jsArg(e.kachel.id)})` : `faelligProzessOeffnen(${jsArg(e.werk)},${jsArg(e.kachel.id)})`}">Prozess öffnen</button>
       </div>
     </div>`;
   };
@@ -163,7 +192,7 @@ function _faelligProzesseHtml(b) {
     <div class="view-desc" style="margin:0 0 10px">
       Überprüfung der Prozesse aus den Landkarten. Freigegebene Prozesse werden spätestens alle
       ${typeof PZ_UEBERPRUEFUNG_MONATE !== 'undefined' ? PZ_UEBERPRUEFUNG_MONATE : 12} Monate durch den Prozesseigner überprüft.
-      Der Termin wird an der Kachel gepflegt (Landkarte, „Bearbeiten").
+      Der Termin steht am Modell (Prozess-Editor) oder an der Kachel (Landkarte, „Bearbeiten").
       <button class="btn btn-ghost btn-sm" onclick="_faelligProzesseZeigen(true)" title="Landkarten neu lesen">↻ Aktualisieren</button>
     </div>
     ${summe ? '' : '<div class="field-hint">Noch kein Prozess mit Überprüfungstermin. Er entsteht, sobald ein Prozess freigegeben wird.</div>'}
@@ -171,6 +200,12 @@ function _faelligProzesseHtml(b) {
     ${liste('Freigegeben ohne Termin', b.fehlt, '#ef4444')}
     ${liste(`Fällig in ≤ ${FAELLIG_SOON_DAYS} Tagen`, b.bald, '#f59e0b')}
     ${liste('Später terminiert', b.spaeter, '#22c55e')}`;
+}
+
+/** Aus den Fälligkeiten ins Modell. */
+async function faelligModellOeffnen(itemId) {
+  if (typeof switchView === 'function') await switchView('prozesse');
+  if (typeof openProcessAnsicht === 'function') await openProcessAnsicht(itemId);
 }
 
 /** Aus den Fälligkeiten in die Landkarte, Kachel geöffnet. */

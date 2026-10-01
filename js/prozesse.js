@@ -56,6 +56,7 @@ const PROC_POLICY_MARKER = /\[\[rms:policies=([^\]]*)\]\]/;
    Format je Dokument: [[rms:doc=Name|Adresse|Bibliothek|Kennung]] */
 const PROC_DOC_MARKER = /\[\[rms:doc=([^\]]*)\]\]/g;
 let _procDocs = [];             // Anlagen des gerade offenen Modells
+let _procPm = null;             // Prozessmanagement des offenen Modells (Status, Eigner …)
 
 /** Ein Feld für den Marker tauglich machen: Trenner und Klammern raus. */
 function _docFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, ' ').trim(); }
@@ -88,10 +89,17 @@ function _procDocMarker(d) {
  * Der Text, der Verknüpfungen und Anlagen im Modell festhält: erst im Klartext
  * (damit auch ein fremder Modeler sie zeigt), dann als Marker.
  */
-function _procDokuText(ids, docs) {
+function _procDokuText(ids, docs, pm) {
   ids = (ids || []).map(String);
   docs = (docs || []).filter(d => d && (d.name || d.url));
   const zeilen = [];
+  // Status, Prozesseigner und Co. (js/prozessmodell.js) – ein Modell ist ein
+  // Prozess, auch ohne Kachel. Fehlt das Modul, bleibt die Zeile weg; ein
+  // vorhandener Marker wird dann aber auch nicht gelöscht (siehe procXmlDokuNeu).
+  if (pm && typeof pzPmMarker === 'function' && pzPmMarker(pm)) {
+    zeilen.push(pzPmKlartext(pm));
+    zeilen.push(pzPmMarker(pm));
+  }
   if (ids.length) {
     const pols = (typeof State !== 'undefined' && State.policies) || [];
     const namen = ids.map(id => {
@@ -356,7 +364,9 @@ function _renderCardLink(itemId, e) {
   const oben = procEingebundenIn(itemId);
   const drin = oben.length
     ? `<span class="ic-tag" style="background:#e6eef8;color:#1A2644" title="eingebunden in: ${esc(oben.map(p => p.title).join(', '))}">↰ ${oben.length}</span>` : '';
-  const extra = [anlagen, unter, drin].filter(Boolean).join(' ');
+  const pmInfo = (e.m && e.m.status && typeof pzStatusInfo === 'function') ? pzStatusInfo(e.m.status) : null;
+  const status = pmInfo ? `<span class="ic-tag" style="background:${pmInfo.farbe};color:#fff" title="Status im Prozessmanagement">${esc(pmInfo.label)}</span>` : '';
+  const extra = [status, anlagen, unter, drin].filter(Boolean).join(' ');
   if (kaputt) {
     el.innerHTML = `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
       title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${extra}`;
@@ -390,7 +400,52 @@ function procEintragAusXml(xml) {
     k: !/<(bpmn:)?definitions[\s>]/i.test(s),
     i: procKennungAusXml(s),
     u: procUnterAusXml(s),
+    m: (typeof pzPmAusText === 'function') ? pzPmAusText(_xmlUnesc(s)) : null,
   };
+}
+
+/** Die Angaben zum Prozessmanagement aus dem XML eines Modells (null = keine). */
+function procPmAusXml(xml) {
+  return (typeof pzPmAusText === 'function') ? pzPmAusText(_xmlUnesc(String(xml || ''))) : null;
+}
+
+/**
+ * Die Dokumentation des Prozesses im XML ersetzen, ohne den Modeler zu öffnen.
+ * Sie ist laut Schema das erste Kindelement von <process>.
+ */
+function procXmlDokuErsetzen(xml, text) {
+  const esc2 = (x) => (typeof _xmlEsc === 'function') ? _xmlEsc(x)
+    : String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const proc = String(xml).match(/<(\w+:)?process\b[^>]*>/);
+  if (!proc) return xml;
+  const prefix = proc[1] || '';
+  const pos = proc.index + proc[0].length;
+  const rest = xml.slice(pos);
+  const doku = rest.match(/^(\s*)<(\w+:)?documentation\b[^>]*>[\s\S]*?<\/(\w+:)?documentation>/);
+  if (doku) {
+    const ersatz = text ? `${doku[1]}<${prefix}documentation>${esc2(text)}</${prefix}documentation>` : '';
+    return xml.slice(0, pos) + ersatz + rest.slice(doku[0].length);
+  }
+  if (!text) return xml;
+  return xml.slice(0, pos) + `\n    <${prefix}documentation>${esc2(text)}</${prefix}documentation>` + rest;
+}
+
+/**
+ * Die Dokumentation neu schreiben: was nicht übergeben wird, bleibt, wie es in
+ * der Datei steht. So löscht „Regelwerk zuordnen" keine Anlagen und keinen
+ * Status, und „Status setzen" keine Regelwerke.
+ */
+function procXmlDokuNeu(xml, teile) {
+  const t = teile || {};
+  const ids = Array.isArray(t.ids) ? t.ids : _parsePolicyIds(xml);
+  const docs = Array.isArray(t.docs) ? t.docs : _parseProcessDocs(xml);
+  const pm = ('pm' in t) ? t.pm : procPmAusXml(xml);
+  // Den freien Text (Beschreibung) erhalten – nur Marker und ihre Klartextzeilen werden neu geschrieben.
+  const m = String(xml || '').match(/<(\w+:)?process\b[^>]*>\s*<(\w+:)?documentation\b[^>]*>([\s\S]*?)<\/(\w+:)?documentation>/);
+  const frei = m ? _xmlUnesc(m[3]).split('\n').filter(z => z.trim() && !/^\[\[rms:(policies|doc|pm)=/.test(z.trim())
+    && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement):/.test(z.trim())) : [];
+  const text = frei.concat(_procDokuText(ids, docs, pm) ? [_procDokuText(ids, docs, pm)] : []).join('\n');
+  return procXmlDokuErsetzen(xml, text);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1165,6 +1220,14 @@ async function openProcessEditor(itemId, seed) {
           </div>` : ''}
           <span class="field-hint">Merkblatt, Formular, Kundeninformation – was zum Ablauf gehört, aber nicht ins Diagramm passt.
             Hochgeladene Dateien liegen in „Prozesse/&lt;Kürzel&gt;/Anlagen"; verknüpft wird ihre Kennung, nicht der Pfad.</span></div>
+        <div class="form-group full"><label>Prozessmanagement</label>
+          <div id="proc-pm" style="border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
+          <span class="field-hint">Ein Modell ist ein Prozess, auch ohne Landkarte. Was hier leer bleibt, gilt von
+            der Kachel, an der das Modell hängt. Gespeichert wird in der BPMN-Datei, das Backlog zeigt es.</span></div>
+        <div class="form-group full"><label>Dokumente an diesem Schritt</label>
+          <div id="proc-elem-docs" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
+          <span class="field-hint">Einen Schritt im Diagramm anklicken und das Formular, die Arbeitsanweisung oder
+            das Merkblatt hinterlegen, das genau dort gebraucht wird. Am Element erscheint ein 📎, ein Klick öffnet es.</span></div>
         <div class="form-group full"><label>Übergang zu einem anderen Prozess</label>
           <div id="proc-elem-link" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
           <span class="field-hint">Ein Element im Diagramm anklicken und hier den Prozess wählen, in den der Ablauf
@@ -1186,6 +1249,7 @@ async function openProcessEditor(itemId, seed) {
     </div>
     </div>`;
   _procDocs = (seed && Array.isArray(seed.docs)) ? seed.docs.slice() : [];
+  _procPm = (seed && seed.pm) ? Object.assign({}, seed.pm) : null;
   _renderPolicyPicker([], canWrite);
   _renderProcDocs(canWrite);
 
@@ -1204,12 +1268,13 @@ async function openProcessEditor(itemId, seed) {
 
   let xml = procLeeresBpmn(), ids = [], unbrauchbar = false;
   if (itemId) {
-    try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); _procDocs = _parseProcessDocs(xml); }
+    try { xml = await spGetProcessXml(itemId); ids = _parsePolicyIds(xml); _procDocs = _parseProcessDocs(xml); _procPm = procPmAusXml(xml); }
     catch (e) { toast('Prozess laden fehlgeschlagen: ' + e.message, 'error'); }
   } else if (seed && seed.xml) {
     xml = seed.xml;
     ids = (seed.policyIds && seed.policyIds.length) ? seed.policyIds : _parsePolicyIds(xml);
     if (!_procDocs.length) _procDocs = _parseProcessDocs(xml);
+    if (!_procPm) _procPm = procPmAusXml(xml);
   }
   // Enthält die Datei kein BPMN, darf das keine Sackgasse sein: leeres Diagramm
   // laden, damit ein Speichern sie repariert. Die Kennung bleibt dabei – alle
@@ -1237,10 +1302,10 @@ async function openProcessEditor(itemId, seed) {
   if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* dann eben ohne Ziele */ } }
   try {
     const bus = _bpmnModeler.get('eventBus');
-    bus.on('selection.changed', (e) => { _renderElementSprung(canWrite); _renderElementUnter(canWrite); _procAuswahlSpiegeln(e && e.newSelection); });
+    bus.on('selection.changed', (e) => { _renderElementSprung(canWrite); _renderElementUnter(canWrite); _renderElementDocs(canWrite); _procAuswahlSpiegeln(e && e.newSelection); });
     // Nach jeder Änderung neu zeichnen: ein verschobenes Element nimmt sein
     // Zeichen sonst nicht mit, ein gelöschtes ließe es zurück.
-    bus.on('elements.changed', () => { procSprungMarker(); procUnterMarker(); _procFaerbenBald(); });
+    bus.on('elements.changed', () => { procSprungMarker(); procUnterMarker(); procDokMarker(); _procFaerbenBald(); });
     // Nach jeder Änderung still nachprüfen: Die Befunde rechts und im Diagramm
     // folgen dem Modell, ohne dass jemand „🔍 Schema" drücken muss.
     bus.on('commandStack.changed', () => { _procDirty = true; _procNachpruefenBald(); });
@@ -1250,8 +1315,11 @@ async function openProcessEditor(itemId, seed) {
   _procFaerben();
   procSprungMarker();
   procUnterMarker();
+  procDokMarker();
   _renderElementSprung(canWrite);
   _renderElementUnter(canWrite);
+  _renderElementDocs(canWrite);
+  _renderProcPm(canWrite);
   // Kreisprüfung und „eingebunden in" brauchen die Einträge aller Modelle –
   // im Hintergrund, der Kasten zieht nach, sobald sie da sind.
   _procLadeLauf = procEintraegeLaden().then(n => {
@@ -1374,6 +1442,7 @@ async function openProcessAnsicht(itemId) {
 
   const ids = _parsePolicyIds(xml);
   _procDocs = _parseProcessDocs(xml);
+  _procPm = procPmAusXml(xml);
   _procAblauf = prozessAblauf(xml);
   _procBefunde = prozessSchemaPruefen(xml, { policyIds: ids });
   lead(esc(_procLead(xml, _procAblauf)));
@@ -1386,13 +1455,14 @@ async function openProcessAnsicht(itemId) {
   _procBefundeMarkieren(_procBefunde);
   procSprungMarker();
   procUnterMarker();
+  procDokMarker();
   _procAnsichtenLeiste(itemId, herkunft);
   try { _bpmnModeler.get('eventBus').on('selection.changed', (e) => _procAuswahlSpiegeln(e && e.newSelection)); }
   catch (e) { /* dann ohne Rückmeldung in den Listen */ }
 
   // Die Landkarte weiß, an welcher Kachel das Modell hängt und wie es um BIA
   // und Notfallplan steht. Sie ist gecacht; beim ersten Mal kommt sie nach.
-  const notfall = () => { if (nochDa()) { setze('pa-notfall', _procNotfallHtml(itemId)); procSprungMarker(); } };
+  const notfall = () => { if (nochDa()) { setze('pa-notfall', _procNotfallHtml(itemId)); setze('pa-chips', _procChipsHtml(proc, ids, _procDocs)); procSprungMarker(); } };
   if (typeof lkDatenLaden === 'function') lkDatenLaden().then(notfall).catch(notfall);
   else notfall();
   // Die Namen der eingebundenen Modelle stehen in deren Dateien.
@@ -1593,7 +1663,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -1616,6 +1686,7 @@ function _procChipsHtml(proc, ids, docs) {
       ? ` onclick="openDetail(${jsArg(id)})" style="cursor:pointer" title="Regelwerk öffnen"` : ''}>📘 ${esc(p ? p.title : 'Richtlinie ' + id)}</span>`);
   });
   if (!(ids || []).length) teile.push('<span class="pa-chip t-warn">keine Richtlinie verknüpft</span>');
+  teile.push(..._procPmChips(proc));
   (docs || []).forEach(d => teile.push(d.url
     ? `<a class="pa-chip pa-regelwerk" href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener">📎 ${esc(d.name)}</a>`
     : `<span class="pa-chip pa-regelwerk">📎 ${esc(d.name)}</span>`));
@@ -1696,6 +1767,7 @@ function _procSchritteHtml(a, befunde) {
         <div class="pa-schritt-kopf">${_procArtChip(s.art)}${s.bahn ? `<span class="pa-chip pa-rolle">${esc(s.bahn)}</span>` : ''}${
           b ? `<span class="pa-chip ${b.f.length ? 't-err' : 't-warn'}" title="Befund im Hausschema">⚠ ${esc([...new Set(b.f.concat(b.h))].join(' '))}</span>` : ''}</div>
         <div class="pa-schritt-text">${esc(s.name || '(ohne Namen)')}</div>
+        ${_procSchrittDocsHtml(s.id)}
         ${s.uebergabeVon ? `<div class="pa-uebergabe">↪ Übergabe von ${esc(s.uebergabeVon)}</div>` : ''}
         ${s.unerreichbar ? '<div class="pa-uebergabe">Vom Auslöser aus nicht erreichbar</div>' : ''}
         ${weiter}
@@ -2036,6 +2108,311 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   });
 }
 
+/* ── Prozessmanagement am Modell ─────────────────────────────────────
+   Ein Modell ist ein Prozess, auch ohne Kachel. Status, Prozesseigner,
+   Standardisierungsgrad, Priorität und Überprüfung stehen deshalb in der
+   Datei selbst (Marker [[rms:pm=…]], js/prozessmodell.js). Was am Modell leer
+   bleibt, gilt von der Kachel, an der es hängt. */
+
+/** Die Kacheln, die auf ein Modell zeigen: [{ werk, kachel }]. */
+function procKachelnVon(itemId) {
+  if (!itemId || typeof lkAlleKacheln !== 'function' || typeof lkModellVerweise !== 'function') return [];
+  const p = procModellVon(itemId);
+  return lkAlleKacheln().filter(x => lkModellVerweise(x.kachel).some(v => {
+    if (v.id) return String(v.id) === String(itemId);
+    const m = (typeof lkModellZu === 'function') ? lkModellZu(v, x.werk) : null;
+    return !!(m && p && m.itemId === p.itemId);
+  }));
+}
+
+/** Kurzer Text, woher ein leerer Wert kommt. */
+function _procPmErbe(itemId) {
+  const k = procKachelnVon(itemId);
+  if (k.length !== 1) return null;
+  return k[0];
+}
+
+function _renderProcPm(canWrite) {
+  const host = document.getElementById('proc-pm');
+  if (!host) return;
+  if (typeof pzStatusInfo !== 'function') { host.innerHTML = '<span class="field-hint">Nicht verfügbar.</span>'; return; }
+  const pm = (typeof pzPmNormal === 'function') ? pzPmNormal(_procPm) : (_procPm || {});
+  const itemId = _procEditing && _procEditing.itemId;
+  const erbe = _procPmErbe(itemId);
+  const kacheln = procKachelnVon(itemId);
+  const k = erbe ? erbe.kachel : null;
+  const label = (x) => `${(typeof lkNrText === 'function' && lkNrText(x.kachel)) ? lkNrText(x.kachel) + ' ' : ''}${x.kachel.name} (${(typeof lkWerkLabel === 'function') ? lkWerkLabel(x.werk) : x.werk})`;
+  const sel = (a, b) => (a === b ? ' selected' : '');
+  const dis = canWrite ? '' : 'disabled';
+  const erbeStatus = k ? pzStatusInfo(pzStatus(k)).label : 'IST erfasst';
+  const erbeEigner = erbe && typeof pzEigner === 'function' ? pzEigner(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).upn : '';
+  const erbeStd = erbe && typeof pzStandard === 'function' ? pzStandardInfo(pzStandard(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).key) : null;
+  const erbePrio = k && pzPrioInfo(k.prioritaet) ? pzPrioInfo(k.prioritaet).label : '';
+  host.innerHTML = `
+    <div class="field-hint" style="margin-bottom:6px">${kacheln.length
+      ? `Hängt an ${kacheln.length === 1 ? 'der Kachel' : kacheln.length + ' Kacheln'}: <b>${esc(kacheln.map(label).join(', '))}</b>${kacheln.length > 1 ? '. Leere Felder erben nur bei genau einer Kachel.' : ''}`
+      : 'Hängt an keiner Kachel der Landkarten.'}</div>
+    <label class="field-hint" style="display:block;margin:4px 0 2px">Status</label>
+    <select id="proc-pm-status" ${dis} onchange="procPmStatusWahl(this.value)">
+      <option value=""${sel('', pm.status)}>wie ${k ? 'Kachel' : 'Vorgabe'}: ${esc(erbeStatus)}</option>
+      ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, pm.status)}>${esc(s.label)}</option>`).join('')}
+    </select>
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Prozesseigner (E-Mail)</label>
+    <input type="text" id="proc-pm-eigner" ${dis} list="lk-people" value="${esc(pm.prozesseigner || '')}"
+      placeholder="${esc(erbeEigner ? 'leer = ' + erbeEigner : 'name@dihag.com')}">
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Standardisierungsgrad</label>
+    <select id="proc-pm-std" ${dis}>
+      <option value=""${sel('', pm.standardisierung)}>${erbeStd ? 'wie Kachel: ' + esc(erbeStd.label) : 'noch nicht entschieden'}</option>
+      ${PZ_STANDARD.map(s => `<option value="${s.key}"${sel(s.key, pm.standardisierung)}>${esc(s.label)}</option>`).join('')}
+    </select>
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Priorität</label>
+    <select id="proc-pm-prio" ${dis}>
+      <option value=""${sel('', pm.prioritaet)}>${erbePrio ? 'wie Kachel: ' + esc(erbePrio) : 'nicht priorisiert'}</option>
+      ${PZ_PRIO.map(p => `<option value="${p.key}"${sel(p.key, pm.prioritaet)}>${esc(p.label)}</option>`).join('')}
+    </select>
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Nächste Überprüfung</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="date" id="proc-pm-termin" ${dis} value="${esc(pm.naechsteUeberpruefung || '')}" style="flex:1">
+      ${canWrite ? `<button type="button" class="btn btn-ghost btn-sm" onclick="procPmTerminVorschlagen()" title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>` : ''}
+    </div>
+    <datalist id="lk-people">${(typeof _lkPeopleOptions === 'function') ? _lkPeopleOptions() : ''}</datalist>`;
+  if (typeof lkMitgliederLaden === 'function') lkMitgliederLaden();
+}
+
+/** Formular → _procPm (nur im Editor; die Ansicht hat kein Formular). */
+function _procPmAusFormular() {
+  const wert = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : null; };
+  const status = wert('proc-pm-status');
+  if (status === null) return _procPm;
+  _procPm = (typeof pzPmNormal === 'function') ? pzPmNormal({
+    status, prozesseigner: wert('proc-pm-eigner'), standardisierung: wert('proc-pm-std'),
+    prioritaet: wert('proc-pm-prio'), naechsteUeberpruefung: wert('proc-pm-termin'),
+  }) : null;
+  return _procPm;
+}
+
+/** Wer freigibt oder ausrollt, bekommt einen Überprüfungstermin vorgeschlagen. */
+function procPmStatusWahl(wert) {
+  const termin = document.getElementById('proc-pm-termin');
+  if (!termin || typeof pzStatusSetzen !== 'function' || !wert) return;
+  const pm = { status: '', naechsteUeberpruefung: termin.value };
+  pzStatusSetzen(pm, wert);
+  termin.value = pm.naechsteUeberpruefung || '';
+}
+
+function procPmTerminVorschlagen() {
+  const termin = document.getElementById('proc-pm-termin');
+  if (termin && typeof pzTerminVorschlag === 'function') termin.value = pzTerminVorschlag();
+}
+
+/** Chips der Ansicht: Status, Eigner, Priorität – eigene Angaben, sonst geerbte. */
+function _procPmChips(proc) {
+  if (typeof pzModellEintraege !== 'function' || !proc) return [];
+  const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
+  const e = pzModellEintraege(daten, [{ itemId: proc.itemId, title: proc.title, ordner: proc.ordner || '', pm: _procPm, kacheln: procKachelnVon(proc.itemId) }])[0];
+  if (!e) return [];
+  const st = pzStatusInfo(e.status);
+  const teile = [`<span class="pa-chip" style="background:${st.farbe};border-color:${st.farbe};color:#fff" title="Status im Prozessmanagement">${esc(st.label)}</span>`];
+  if (e.eigner.upn) teile.push(`<span class="pa-chip pa-rolle" title="Prozesseigner${e.eigner.geerbt ? ' (von der Kachel)' : ''}">👤 ${esc((typeof lkPersonName === 'function') ? lkPersonName(e.eigner.upn) : e.eigner.upn)}</span>`);
+  else teile.push('<span class="pa-chip t-warn">kein Prozesseigner</span>');
+  const prio = pzPrioInfo(e.prio);
+  if (prio) teile.push(`<span class="pa-chip" style="color:${prio.farbe};border-color:${prio.farbe}">Priorität ${esc(prio.label)}</span>`);
+  if (e.pruefung.datum) teile.push(`<span class="pa-chip${e.pruefung.stufe === 'ueberfaellig' ? ' t-err' : ''}">🔎 ${esc(e.pruefung.datum.split('-').reverse().join('.'))}</span>`);
+  else if (e.pruefung.stufe === 'fehlt') teile.push('<span class="pa-chip t-err">Überprüfung fehlt</span>');
+  return teile;
+}
+
+/* ── Dokumente an einem Schritt ──────────────────────────────────────
+   Das Formular gehört an den Schritt, an dem es ausgefüllt wird, nicht an den
+   ganzen Prozess. Der Marker steht – wie Übergang und Unterprozess – in der
+   Dokumentation des Elements und wandert mit der Datei:
+     [[rms:schrittdok=Name|Adresse|Bibliothek|Kennung]]
+   Ein eigener Name, kein [[rms:doc=…]]: Die Anlagen des Prozesses werden aus
+   dem ganzen XML gelesen und dürfen die Dokumente der Schritte nicht einsammeln. */
+const PROC_SCHRITTDOK_MARKER = /\[\[rms:schrittdok=([^\]]*)\]\]/g;
+const PROC_SCHRITTDOK_TYP = 'rms-schrittdok';
+const PROC_SCHRITTDOK_TEXTZEILE = 'Dokument: ';
+
+/** Die Dokumente aus dem Text einer Element-Dokumentation. */
+function procSchrittDocsAusText(text) {
+  const re = new RegExp(PROC_SCHRITTDOK_MARKER.source, 'g');
+  const out = [];
+  let m;
+  while ((m = re.exec(String(text || '')))) {
+    const t = _xmlUnesc(m[1]).split('|').map(x => (x || '').trim());
+    if (t[0] || t[1]) out.push({ name: t[0] || 'Dokument', url: t[1] || '', driveId: t[2] || '', itemId: t[3] || '' });
+  }
+  return out;
+}
+
+/** Den Text neu bauen: Übriges bleibt, die Dokumente stehen am Ende. */
+function procSchrittDokuText(alt, docs) {
+  const behalten = String(alt || '').split('\n')
+    .filter(z => z.trim() && !/\[\[rms:schrittdok=/.test(z) && z.indexOf(PROC_SCHRITTDOK_TEXTZEILE) !== 0);
+  (docs || []).filter(d => d && (d.name || d.url)).forEach(d => {
+    behalten.push(PROC_SCHRITTDOK_TEXTZEILE + _docFeld(d.name));
+    behalten.push(`[[rms:schrittdok=${_docFeld(d.name)}|${_docFeld(d.url)}|${_docFeld(d.driveId)}|${_docFeld(d.itemId)}]]`);
+  });
+  return behalten.join('\n').trim();
+}
+
+function procElementDocs(el) { return procSchrittDocsAusText(_elemDokuText(el)); }
+
+/** Über den commandStack setzen – widerrufbar, und das Modell gilt als geändert. */
+function procElementDocsSetzen(el, docs) {
+  if (!_bpmnModeler || !el || !el.businessObject) return false;
+  const text = procSchrittDokuText(_elemDokuText(el), docs);
+  const moddle = _bpmnModeler.get('moddle');
+  _bpmnModeler.get('modeling').updateProperties(el, {
+    documentation: text ? [moddle.create('bpmn:Documentation', { text })] : undefined,
+  });
+  return true;
+}
+
+function procDokElemente() {
+  if (!_bpmnModeler) return [];
+  try {
+    return _bpmnModeler.get('elementRegistry')
+      .filter(el => !el.labelTarget && el.type !== 'label' && procElementDocs(el).length > 0);
+  } catch (e) { return []; }
+}
+
+/** Das 📎 am Element – im Editor wie in der Ansicht. */
+function procDokMarker() {
+  if (!_bpmnModeler) return;
+  let overlays;
+  try { overlays = _bpmnModeler.get('overlays'); } catch (e) { return; }
+  try { overlays.remove({ type: PROC_SCHRITTDOK_TYP }); } catch (e) { /* noch keine */ }
+  procDokElemente().forEach(el => {
+    const docs = procElementDocs(el);
+    try {
+      overlays.add(el.id, PROC_SCHRITTDOK_TYP, {
+        position: { bottom: 12, left: -8 },
+        html: `<div onclick="procElementDocsZeigen(${jsArg(el.id)})" title="${esc(docs.map(d => d.name).join(', '))}"
+                 style="cursor:pointer;background:#F08300;color:#fff;border-radius:11px;padding:1px 7px;
+                        font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3);white-space:nowrap">📎 ${docs.length}</div>`,
+      });
+    } catch (e) { /* Element ohne Darstellung */ }
+  });
+}
+
+/** Klick aufs 📎: ein Dokument öffnet sich direkt, mehrere stehen zur Wahl. */
+function procElementDocsZeigen(elId) {
+  let el = null;
+  try { el = _bpmnModeler && _bpmnModeler.get('elementRegistry').get(elId); } catch (e) { /* weg */ }
+  const docs = el ? procElementDocs(el) : [];
+  if (!docs.length) return;
+  if (docs.length === 1 && docs[0].url) { window.open(sichereUrl(docs[0].url), '_blank', 'noopener'); return; }
+  const name = (el.businessObject && el.businessObject.name) || el.id;
+  openModal(`
+    <div class="modal-header"><h3>📎 ${esc(name)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">${docs.map(d => d.url
+      ? `<div style="padding:4px 0"><a href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener">${esc(d.name)}</a></div>`
+      : `<div style="padding:4px 0">${esc(d.name)}</div>`).join('')}</div>
+    <div class="modal-footer"><div style="flex:1"></div><button class="btn btn-primary" onclick="closeModal()">Schließen</button></div>`);
+}
+
+/** Die Dokumente eines Schritts in der Schrittliste der Ansicht. */
+function _procSchrittDocsHtml(id) {
+  if (!_bpmnModeler || !id) return '';
+  let el = null;
+  try { el = _bpmnModeler.get('elementRegistry').get(id); } catch (e) { return ''; }
+  const docs = el ? procElementDocs(el) : [];
+  if (!docs.length) return '';
+  return `<div class="pa-schritt-kopf">${docs.map(d => d.url
+    ? `<a class="pa-chip pa-regelwerk" href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 ${esc(d.name)}</a>`
+    : `<span class="pa-chip pa-regelwerk">📎 ${esc(d.name)}</span>`).join('')}</div>`;
+}
+
+function _procElementGewaehlt() {
+  let auswahl = [];
+  try { auswahl = _bpmnModeler ? _bpmnModeler.get('selection').get() : []; } catch (e) { /* kein Modeler */ }
+  return { auswahl, el: _procGemeint(auswahl.length === 1 ? auswahl[0] : null) };
+}
+
+/** Der Kasten in der Seitenspalte – er folgt der Auswahl im Diagramm. */
+function _renderElementDocs(canWrite) {
+  const host = document.getElementById('proc-elem-docs');
+  if (!host) return;
+  const { auswahl, el } = _procElementGewaehlt();
+  if (!el || el.type === 'bpmn:Process' || el.type === 'bpmn:Collaboration') {
+    const n = procDokElemente().length;
+    host.innerHTML = `<span class="field-hint">${auswahl.length > 1 ? 'Mehrere Elemente ausgewählt, bitte genau eines anklicken.'
+      : 'Einen Schritt im Diagramm anklicken.'}${n ? ` Aktuell ${n} Schritt${n > 1 ? 'e' : ''} mit Dokumenten.` : ''}</span>`;
+    return;
+  }
+  const docs = procElementDocs(el);
+  const name = (el.businessObject && el.businessObject.name) || el.id;
+  host.innerHTML = `
+    <div style="font-weight:600;font-size:.82rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
+    ${docs.length ? docs.map((d, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:.82rem">
+        <span>📎</span>
+        ${d.url ? `<a href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
+          : `<span style="flex:1;min-width:0">${esc(d.name)}</span>`}
+        ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px" title="Vom Schritt lösen – die Datei bleibt liegen" onclick="procElementDokEntfernen(${i})">×</button>` : ''}
+      </div>`).join('') : '<span class="field-hint">Noch kein Dokument an diesem Schritt.</span>'}
+    ${canWrite ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-elem-doc-input').click()" title="Datei hochladen und an diesem Schritt hinterlegen">📎 Datei</button>
+      <button class="btn btn-outline btn-sm" onclick="procElementDokLink()" title="Bereits abgelegtes Dokument verlinken">🔗 Link</button>
+      ${_procDocs.length ? `<select onchange="procElementDokAusAnlage(this.value);this.value=''" style="max-width:170px" aria-label="Aus den Anlagen des Prozesses">
+        <option value="">aus den Anlagen …</option>
+        ${_procDocs.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('')}</select>` : ''}
+      <input type="file" id="proc-elem-doc-input" style="display:none" onchange="procElementDokHochladen(this)">
+    </div>` : ''}`;
+}
+
+function _procElementDokDazu(d) {
+  const { el } = _procElementGewaehlt();
+  if (!el) { toast('Bitte zuerst einen Schritt im Diagramm anklicken.', 'error'); return false; }
+  const docs = procElementDocs(el).filter(x => !(d.itemId && x.itemId && String(x.itemId) === String(d.itemId)));
+  docs.push(d);
+  procElementDocsSetzen(el, docs);
+  procDokMarker();
+  _renderElementDocs(true);
+  toast('Dokument am Schritt hinterlegt – mit „💾 Speichern" sichern.', 'success');
+  return true;
+}
+
+async function procElementDokLink() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  if (!_procElementGewaehlt().el) { toast('Bitte zuerst einen Schritt im Diagramm anklicken.', 'error'); return; }
+  const url = await uiPrompt('Adresse (URL) des Dokuments:', { title: 'Dokument am Schritt', okLabel: 'Weiter', multiline: false, placeholder: 'https://dihag.sharepoint.com/…' });
+  if (!url || !url.trim()) return;
+  const vorschlag = decodeURIComponent(String(url).split(/[?#]/)[0].split('/').pop() || '').trim();
+  const name = await uiPrompt('Anzeigename:', { title: 'Dokument am Schritt', okLabel: 'Hinterlegen', multiline: false, value: vorschlag });
+  if (name === null) return;
+  _procElementDokDazu({ name: (name || vorschlag || 'Dokument').trim(), url: url.trim(), driveId: '', itemId: '' });
+}
+
+async function procElementDokHochladen(input) {
+  const file = input && input.files && input.files[0];
+  if (input) input.value = '';
+  if (!file) return;
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  if (!_procElementGewaehlt().el) { toast('Bitte zuerst einen Schritt im Diagramm anklicken.', 'error'); return; }
+  if (file.size > 4 * 1024 * 1024) { toast('Die Datei ist größer als 4 MB – bitte in der Bibliothek ablegen und als „🔗 Link" hinterlegen.', 'error'); return; }
+  try {
+    const werk = (document.getElementById('proc-werk') || {}).value || '';
+    const d = await spUploadProcessDoc(werk, file.name, await file.arrayBuffer(), file.type || 'application/octet-stream');
+    _procElementDokDazu({ name: d.name, url: d.url, driveId: d.driveId, itemId: d.itemId });
+  } catch (e) { toast('Hochladen fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+function procElementDokAusAnlage(i) {
+  const d = _procDocs[Number(i)];
+  if (d) _procElementDokDazu({ name: d.name, url: d.url, driveId: d.driveId, itemId: d.itemId });
+}
+
+function procElementDokEntfernen(i) {
+  const { el } = _procElementGewaehlt();
+  if (!el) return;
+  const docs = procElementDocs(el);
+  docs.splice(Number(i), 1);
+  procElementDocsSetzen(el, docs);
+  procDokMarker();
+  _renderElementDocs(true);
+}
+
 /* ── Anlagen im Editor ── */
 
 function _renderProcDocs(canWrite) {
@@ -2135,14 +2512,19 @@ function _selectedPolicyIds() {
 }
 
 /** Richtlinien und Anlagen in die Prozess-Dokumentation schreiben (Klartext + Marker). */
-function _setProcessDoku(ids, docs) {
+function _setProcessDoku(ids, docs, pm) {
   if (!_bpmnModeler) return;
   try {
     const root = _bpmnModeler.get('canvas').getRootElement();
     const bo = root && root.businessObject;
     if (!bo) return;
     const moddle = _bpmnModeler.get('moddle');
-    const text = _procDokuText(ids, docs);
+    // Freier Text (Beschreibung) bleibt stehen – neu geschrieben werden nur die Marker.
+    const vorher = (Array.isArray(bo.documentation) && bo.documentation[0] && bo.documentation[0].text) || '';
+    const frei = String(vorher).split('\n').filter(z => z.trim() && !/^\[\[rms:(policies|doc|pm)=/.test(z.trim())
+      && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement):/.test(z.trim()));
+    const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm);
+    const text = frei.concat(marker ? [marker] : []).join('\n');
     if (!text) { bo.documentation = undefined; return; }
     bo.documentation = [moddle.create('bpmn:Documentation', { text })];
   } catch (e) { console.warn('Prozess-Dokumentation nicht gesetzt:', e.message); }
@@ -2169,7 +2551,8 @@ async function saveProcess() {
   const btn = document.getElementById('proc-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {
-    _setProcessDoku(_selectedPolicyIds(), _procDocs);
+    _procPmAusFormular();
+    _setProcessDoku(_selectedPolicyIds(), _procDocs, _procPm);
     // Die Kennung darf kein anderes Modell tragen – also erst zu Ende lesen,
     // was die anderen heißen, falls das Hintergrund-Lesen noch läuft.
     if (_procLadeLauf) { try { await _procLadeLauf; } catch (e) { /* dann mit dem, was da ist */ } }
@@ -2207,7 +2590,8 @@ async function saveProcess() {
 async function downloadProcessXml() {
   if (!_bpmnModeler) return;
   try {
-    _setProcessDoku(_selectedPolicyIds(), _procDocs);
+    _procPmAusFormular();
+    _setProcessDoku(_selectedPolicyIds(), _procDocs, _procPm);
     const { xml } = await _bpmnModeler.saveXML({ format: true });
     const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
     const fname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';
@@ -2530,5 +2914,6 @@ if (typeof module !== 'undefined' && module.exports) {
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
   module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
+    procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
     procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden };
 }

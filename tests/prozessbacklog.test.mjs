@@ -146,5 +146,63 @@ ok(/Überfällig \(1\)/.test(fh) && fh.includes('Archiv'), 'Überfällige Prozes
 ok(/Freigegeben ohne Termin \(1\)/.test(fh), 'Freigegebene Prozesse ohne Termin sind eine eigene Gruppe');
 ok(fh.includes('faelligProzessOeffnen(&quot;HOL&quot;,&quot;h-alt&quot;)'), 'Ein Klick führt zur Kachel');
 
+console.log('Modelle im Backlog');
+const mount2 = { innerHTML: '' };
+const dateien = {};      // itemId → XML
+const gesichert = [];
+const mctx = {
+  console, JSON, Date, Array, Object, String, Math, Set, Map, Promise, Number, RegExp, encodeURIComponent,
+  setTimeout: (f) => f(), clearTimeout: () => {}, esc, toast: () => {}, fmtDate: (d) => String(d || '').slice(0, 10),
+  canWriteTab: () => true, STANDORTE: ['HOL', 'SHB'], localStorage: { getItem: () => null, setItem: () => {} },
+  State: { user: { name: 'Anna Muster', upn: 'anna@dihag.com' }, policies: [{ id: '7', title: 'Einkauf' }] },
+  emptyState: (t) => `<div class="empty">${t}</div>`, prozessModusLeiste: (a) => `<div class="modus">${a}</div>`,
+  openModal: () => {}, closeModal: () => {},
+  spLoadLandkarte: async () => ({ daten: JSON.parse(JSON.stringify(DATEN)), geaendertAm: 'T1' }),
+  spLandkarteMeta: async () => 'T1', spSaveLandkarte: async () => 'T1',
+  spGetProcessXml: async (id) => dateien[id],
+  spSaveProcess: async (name, xml, werk) => { gesichert.push({ name, xml, werk }); dateien[name === 'Bestellung' ? 'M1' : 'M2'] = xml; return { id: name === 'Bestellung' ? 'M1' : 'M2' }; },
+  spListProcesses: async () => [{ itemId: 'M1', title: 'Bestellung', name: 'Bestellung.bpmn', ordner: 'HOL', modified: 'T2' },
+                                { itemId: 'M2', title: 'Reisekosten', name: 'Reisekosten.bpmn', ordner: '', modified: 'T2' }],
+  document: { getElementById: (id) => (id === 'prozesse-mount' ? mount2 : null), querySelectorAll: () => [], querySelector: () => null },
+};
+mctx.window = mctx; mctx.globalThis = mctx;
+vm.createContext(mctx);
+vm.runInContext(lies('js/util.js'), mctx);
+vm.runInContext(lies('js/prozessmodell.js'), mctx);
+vm.runInContext(lies('js/landkarte.js'), mctx);
+vm.runInContext(lies('js/prozesse.js'), mctx);
+vm.runInContext(lies('js/prozessbacklog.js'), mctx);
+const m = (code) => vm.runInContext(code, mctx);
+dateien.M1 = m('procLeeresBpmn()');
+dateien.M2 = m(`procXmlDokuNeu(procLeeresBpmn(), { ids: [], docs: [], pm: { status: 'soll', prioritaet: 'hoch' } })`);
+// Die Beschaffung in HOL bekommt das Modell M1
+await m('lkDatenLaden()');
+m(`_lkDaten.karten.HOL.kacheln.find(k => k.id === 'h-einkauf').prozesse = [{ id: 'M1', name: 'Bestellung' }]`);
+m(`_processes = [{ itemId: 'M1', title: 'Bestellung', name: 'Bestellung.bpmn', ordner: 'HOL', modified: 'T1' },
+                 { itemId: 'M2', title: 'Reisekosten', name: 'Reisekosten.bpmn', ordner: '', modified: 'T1' }]`);
+await m('procEintraegeLaden(_processes)');
+m('_prozModus = "backlog"; _pbIstAlle = true; renderProzessBacklog()');
+const bh = mount2.innerHTML;
+ok(bh.includes('🔀 Bestellung') && bh.includes('🔀 Reisekosten'), 'Beide Modelle stehen als eigene Prozesse da');
+ok(!bh.includes('pbOeffnen(&quot;HOL&quot;,&quot;h-einkauf&quot;)'), 'Die Kachel mit Modell steht nicht noch einmal da');
+ok(/🔀 Bestellung[\s\S]*?🗺 P-002/.test(bh), 'Das Modell nennt seine Kachel');
+ok(/🔀 Reisekosten[\s\S]*?ohne Ablage[\s\S]*?ohne Landkarte/.test(bh), 'Ein Modell ohne Ablage und ohne Kachel ist als solches erkennbar');
+const poc = bh.split('<span>POC läuft</span>')[1].split('pb-spalte-kopf')[0];
+ok(poc.includes('🔀 Bestellung'), 'Ohne eigenen Status übernimmt das Modell den der Kachel (POC)');
+const soll = bh.split('<span>SOLL in Arbeit</span>')[1].split('pb-spalte-kopf')[0];
+ok(soll.includes('🔀 Reisekosten') && soll.includes('Prio hoch'), 'Der Status aus der Datei zählt');
+ok(bh.includes('pbModellStatusSetzen(&quot;M1&quot;,this.value)'), 'Der Status eines Modells wird am Modell gesetzt');
+ok(bh.includes('+ Prozess anlegen'), '„+ Prozess anlegen" steht im Backlog');
+m('pbSetArt("frei")');
+ok(mount2.innerHTML.includes('🔀 Reisekosten') && !mount2.innerHTML.includes('🔀 Bestellung'), 'Filter „Modelle ohne Landkarte"');
+m('pbSetArt("")');
+
+await m('pbModellStatusSetzen("M1", "freigegeben")');
+const letzteDatei = gesichert[gesichert.length - 1];
+ok(letzteDatei && letzteDatei.name === 'Bestellung' && letzteDatei.werk === 'HOL', 'Gespeichert wird die Datei des Modells in ihrer Ablage');
+ok(/\[\[rms:pm=freigegeben\|/.test(letzteDatei.xml), 'Der Status steht im BPMN');
+ok(/\[\[rms:pm=freigegeben\|\|\|\|\d{4}-\d{2}-\d{2}\]\]/.test(letzteDatei.xml), 'Weder Modell noch Kachel hatten einen Termin – die Freigabe setzt ihn am Modell');
+ok(m('_lkDaten.karten.HOL.kacheln.find(k => k.id === "h-einkauf").status') === 'poc', 'Die Kachel bleibt unberührt');
+
 console.log(`\n${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

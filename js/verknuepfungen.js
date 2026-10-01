@@ -862,6 +862,9 @@ function vkModellOeffnen(knotenId) {
 /** Marker im BPMN-XML setzen/ersetzen/entfernen. Die Dokumentation des Prozesses
  *  ist laut Schema sein erstes Kindelement – dort steht sie auch beim Modeler. */
 function vkXmlMitRegelwerken(xml, ids) {
+  // Wo es geht, schreibt prozesse.js die Dokumentation: Sie hält Anlagen,
+  // Prozessmanagement und freien Text fest und ersetzt nur die Regelwerke.
+  if (typeof procXmlDokuNeu === 'function') return procXmlDokuNeu(xml, { ids });
   // Die Anlagen des Modells stehen in derselben Dokumentation, die hier neu
   // geschrieben wird. Ohne sie vorher auszulesen, löschte ein Klick auf
   // „Regelwerk zuordnen" jedes hinterlegte Dokument mit.

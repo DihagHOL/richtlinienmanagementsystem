@@ -81,7 +81,8 @@ function procLinkEintrag(e) {
     k: !!e.k,
     i: String(e.i || ''),
     u: Array.isArray(e.u) ? e.u.map(String) : [],
-    alt: !('k' in e) || !('u' in e),
+    m: (e.m && typeof e.m === 'object') ? e.m : null,   // Prozessmanagement am Modell (js/prozessmodell.js)
+    alt: !('k' in e) || !('u' in e) || !('m' in e),
   };
 }
 

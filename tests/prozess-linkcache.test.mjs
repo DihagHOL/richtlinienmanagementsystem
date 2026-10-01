@@ -43,7 +43,7 @@ const run = (s) => vm.runInContext(s, ctx);
 
 /* ── 1) Ein Leser, der beide Formen versteht ── */
 run(`_procLinkCache = {
-  neu:  { p: ['7', '9'], d: 2, k: false, i: 'Process_m1abc', u: ['01B'] },
+  neu:  { p: ['7', '9'], d: 2, k: false, i: 'Process_m1abc', u: ['01B'], m: null },
   mittel: { p: ['7', '9'], d: 2, k: false },
   alt:  ['7', '9'],
   leer: { p: [], d: 0, k: true, i: '', u: [] },

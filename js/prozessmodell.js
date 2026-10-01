@@ -183,14 +183,20 @@ function pzStatusSetzen(k, neu, heute) {
 /**
  * Jede Kachel als Eintrag mit allem, was das Backlog braucht.
  * `werke` begrenzt auf die sichtbaren Karten (Trennung nach Gesellschaft).
+ *
+ * Mit `modelle` kommen die BPMN-Modelle dazu (siehe pzModellEintraege). Eine
+ * Kachel, an der ein Modell hängt, steht dann nicht mehr für sich da: Der
+ * Prozess ist das Modell, die Kachel ordnet es nur in die Landschaft ein.
  */
-function pzEintraege(daten, werke, heute) {
+function pzEintraege(daten, werke, heute, modelle) {
   const karten = (daten && daten.karten) || {};
   const out = [];
+  const mitModell = new Set();
+  (modelle || []).forEach(m => (m.kacheln || []).forEach(x => mitModell.add(x.werk + ':' + x.kachel.id)));
   Object.keys(karten).filter(w => !werke || werke.includes(w)).forEach(werk => {
     const liste = Array.isArray(karten[werk].kacheln) ? karten[werk].kacheln : [];
-    liste.filter(pzIstAblauf).forEach(k => out.push({
-      werk, kachel: k,
+    liste.filter(pzIstAblauf).filter(k => !mitModell.has(werk + ':' + k.id)).forEach(k => out.push({
+      art: 'kachel', werk, kachel: k,
       status: pzStatus(k),
       eigner: pzEigner(daten, werk, k),
       standard: pzStandard(daten, werk, k),
@@ -198,6 +204,9 @@ function pzEintraege(daten, werke, heute) {
       pruefung: pzUeberpruefung(k, heute),
     }));
   });
+  // Modelle ohne Ablage gehören noch niemandem – sie bleiben sichtbar, damit
+  // sie einsortiert werden (wie in der Modell-Liste).
+  if (modelle) out.push(...pzModellEintraege(daten, modelle.filter(m => !werke || !m.ordner || werke.includes(m.ordner)), heute));
   return out;
 }
 
@@ -239,13 +248,114 @@ function pzKennzahlen(eintraege) {
  * Für „Fälligkeiten": Prozesse mit Termin oder mit fehlendem Pflichttermin,
  * gruppiert wie bei den Regelwerken.
  */
-function pzFaellige(daten, werke, heute) {
+function pzFaellige(daten, werke, heute, modelle) {
   const b = { ueberfaellig: [], bald: [], spaeter: [], fehlt: [] };
-  pzEintraege(daten, werke, heute).forEach(e => { if (b[e.pruefung.stufe]) b[e.pruefung.stufe].push(e); });
+  pzEintraege(daten, werke, heute, modelle).forEach(e => { if (b[e.pruefung.stufe]) b[e.pruefung.stufe].push(e); });
   const nachTagen = (a, c) => (a.pruefung.tage - c.pruefung.tage) || String(a.kachel.name).localeCompare(String(c.kachel.name), 'de');
   b.ueberfaellig.sort(nachTagen); b.bald.sort(nachTagen); b.spaeter.sort(nachTagen);
   b.fehlt.sort((a, c) => String(a.kachel.name).localeCompare(String(c.kachel.name), 'de'));
   return b;
+}
+
+/* ── Modelle: die Prozesse in BPMN ───────────────────────────────────
+   Ein Modell ist ein Prozess, auch wenn es (noch) an keiner Kachel hängt.
+   Seine Angaben stehen in der Datei selbst, als Marker in der Dokumentation
+   des Prozesses, so wie Regelwerke und Anlagen:
+
+     [[rms:pm=Status|Prozesseigner|Standardisierung|Priorität|Überprüfung]]
+
+   Was am Modell leer ist, kommt von der Kachel, an der es hängt, und von dort
+   wie gehabt von der gleichnamigen Konzernkachel. Hängt es an keiner, zählt
+   für Eigner und Standardisierung die gleichnamige Konzernkachel. */
+
+const PZ_PM_MARKER = /\[\[rms:pm=([^\]]*)\]\]/;
+const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung'];
+const PZ_PM_TEXTZEILE = 'Prozessmanagement: ';
+
+/** Ein Feld für den Marker tauglich machen: Trenner und Klammern raus. */
+function _pzFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, ' ').trim(); }
+
+/** Nur gültige Werte behalten – was nicht passt, gilt als nicht gesetzt. */
+function pzPmNormal(pm) {
+  const p = pm || {};
+  const datum = String(p.naechsteUeberpruefung || '').trim().slice(0, 10);
+  return {
+    status: PZ_STATUS.some(s => s.key === p.status) ? p.status : '',
+    prozesseigner: _pzFeld(p.prozesseigner),
+    standardisierung: pzStandardInfo(p.standardisierung) ? p.standardisierung : '',
+    prioritaet: pzPrioInfo(p.prioritaet) ? p.prioritaet : '',
+    naechsteUeberpruefung: pzTageBis(datum) === null ? '' : datum,
+  };
+}
+
+function pzPmLeer(pm) { const n = pzPmNormal(pm); return PZ_PM_FELDER.every(f => !n[f]); }
+
+/** Der Marker ('' wenn nichts gesetzt ist). */
+function pzPmMarker(pm) {
+  if (pzPmLeer(pm)) return '';
+  const n = pzPmNormal(pm);
+  return '[[rms:pm=' + PZ_PM_FELDER.map(f => _pzFeld(n[f])).join('|') + ']]';
+}
+
+/** Die Zeile im Klartext – damit auch ein fremder Modeler zeigt, was gilt. */
+function pzPmKlartext(pm) {
+  if (pzPmLeer(pm)) return '';
+  const n = pzPmNormal(pm);
+  const teile = [];
+  if (n.status) teile.push('Status ' + pzStatusInfo(n.status).label);
+  if (n.prozesseigner) teile.push('Prozesseigner ' + n.prozesseigner);
+  if (n.standardisierung) teile.push(pzStandardInfo(n.standardisierung).label);
+  if (n.prioritaet) teile.push('Priorität ' + pzPrioInfo(n.prioritaet).label);
+  if (n.naechsteUeberpruefung) teile.push('Überprüfung bis ' + n.naechsteUeberpruefung);
+  return PZ_PM_TEXTZEILE + teile.join(' · ');
+}
+
+/** Die Angaben aus einem Text oder XML lesen (null, wenn kein Marker drinsteht). */
+function pzPmAusText(text) {
+  const m = String(text || '').match(PZ_PM_MARKER);
+  if (!m) return null;
+  const t = m[1].split('|').map(x => (x || '').trim());
+  const pm = {};
+  PZ_PM_FELDER.forEach((f, i) => { pm[f] = t[i] || ''; });
+  return pzPmNormal(pm);
+}
+
+/**
+ * Modelle als Backlog-Einträge.
+ * modelle: [{ itemId, title, ordner, pm, kacheln: [{ werk, kachel }] }] –
+ * `kacheln` sind die Kacheln, die auf das Modell zeigen.
+ */
+function pzModellEintraege(daten, modelle, heute) {
+  return (modelle || []).map(m => {
+    const pm = pzPmNormal(m.pm);
+    const host = (Array.isArray(m.kacheln) && m.kacheln.length === 1) ? m.kacheln[0] : null;
+    const werk = m.ordner || '';
+    const alsKachel = { name: m.title };
+    const status = pm.status || (host ? pzStatus(host.kachel) : 'ist');
+    let eigner = { upn: pm.prozesseigner, geerbt: false };
+    if (!eigner.upn) {
+      let von = '';
+      if (host) von = pzEigner(daten, host.werk, host.kachel).upn;
+      else {
+        const kk = pzKonzernKachel(daten, werk === 'KONZERN' ? '' : werk, alsKachel);
+        von = kk ? (String(kk.prozesseigner || '').trim() || String(kk.verantwortlich || '').trim()) : '';
+      }
+      eigner = { upn: von, geerbt: !!von };
+    }
+    let standard = { key: pm.standardisierung, geerbt: false };
+    if (!standard.key) {
+      const von = host ? pzStandard(daten, host.werk, host.kachel).key
+        : ((pzKonzernKachel(daten, werk === 'KONZERN' ? '' : werk, alsKachel) || {}).standardisierung || '');
+      standard = { key: pzStandardInfo(von) ? von : '', geerbt: !!pzStandardInfo(von) };
+    }
+    const prio = pm.prioritaet || (host && pzPrioInfo(host.kachel.prioritaet) ? host.kachel.prioritaet : '');
+    const termin = pm.naechsteUeberpruefung || (host ? String(host.kachel.naechsteUeberpruefung || '') : '');
+    return {
+      art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
+      status, eigner, standard, prio,
+      pruefung: pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute),
+    };
+  });
 }
 
 /* Node-Export nur für Tests. */
@@ -255,5 +365,6 @@ if (typeof module !== 'undefined' && module.exports) {
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
     pzKonzernKachel, pzEigner, pzStandard, pzTageBis, pzUeberpruefung, pzTerminVorschlag,
     pzStatusSetzen, pzEintraege, pzSortieren, pzSpalten, pzKennzahlen, pzFaellige,
+    PZ_PM_TEXTZEILE, pzPmNormal, pzPmLeer, pzPmMarker, pzPmKlartext, pzPmAusText, pzModellEintraege,
   };
 }

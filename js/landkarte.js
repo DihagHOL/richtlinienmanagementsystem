@@ -3925,8 +3925,11 @@ function _lkPzEditorHtml(k) {
   const erbStd = erbe ? pzStandardInfo(erbe.standardisierung) : null;
   const sel = (a, b) => (a === b ? ' selected' : '');
   const status = pzStatus(k);
+  const modelle = (typeof lkModellVerweise === 'function') ? lkModellVerweise(k).length : 0;
   return `<div style="border-top:1px solid var(--c-border);margin-top:6px;padding-top:10px">
       <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozessmanagement</div>
+      ${modelle ? `<div class="field-hint" style="margin:0 0 8px">An dieser Kachel ${modelle === 1 ? 'hängt ein BPMN-Modell' : 'hängen ' + modelle + ' BPMN-Modelle'}.
+        Im Backlog steht der Prozess als Modell. Was am Modell gepflegt ist, hat Vorrang. Was hier steht, gilt für ein Modell, solange dort nichts steht.</div>` : ''}
       <div class="form-grid">
         <div class="form-group">
           <label>Prozesseigner (E-Mail)</label>

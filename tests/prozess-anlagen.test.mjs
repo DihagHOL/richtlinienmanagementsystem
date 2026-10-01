@@ -199,9 +199,9 @@ ok(/id="proc-doc-list"/.test(pjs), 'Der Editor hat ein Feld für hinterlegte Dok
 ok(/onchange="prozessDokHochladen\(this\)"/.test(pjs), 'Datei-Knopf hängt am Hochladen');
 ok(/onclick="prozessDokLink\(\)"/.test(pjs), 'Link-Knopf für bereits abgelegte Dokumente');
 ok(/4 \* 1024 \* 1024/.test(pjs), 'Über 4 MB wird auf den Link-Weg verwiesen statt blind hochzuladen');
-ok(/_setProcessDoku\(_selectedPolicyIds\(\), _procDocs\)/.test(pjs),
-  'Gespeichert wird beides zusammen – Richtlinien und Anlagen');
-ok((pjs.match(/_setProcessDoku\(_selectedPolicyIds\(\), _procDocs\)/g) || []).length === 2,
+ok(/_setProcessDoku\(_selectedPolicyIds\(\), _procDocs, _procPm\)/.test(pjs),
+  'Gespeichert wird alles zusammen – Richtlinien, Anlagen und Prozessmanagement');
+ok((pjs.match(/_setProcessDoku\(_selectedPolicyIds\(\), _procDocs, _procPm\)/g) || []).length === 2,
   'Auch der .bpmn-Download nimmt die Anlagen mit');
 ok(/_procDocs = _parseProcessDocs\(xml\)/.test(pjs), 'Beim Öffnen werden sie aus dem Modell gelesen');
 ok(/if \(_procEditing && _procEditing\.itemId\) await saveProcess\(\)/.test(pjs),
