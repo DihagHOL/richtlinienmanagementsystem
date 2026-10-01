@@ -96,10 +96,7 @@ function _procDokuText(ids, docs, pm) {
   // Status, Prozesseigner und Co. (js/prozessmodell.js) – ein Modell ist ein
   // Prozess, auch ohne Kachel. Fehlt das Modul, bleibt die Zeile weg; ein
   // vorhandener Marker wird dann aber auch nicht gelöscht (siehe procXmlDokuNeu).
-  if (pm && typeof pzPmMarker === 'function' && pzPmMarker(pm)) {
-    zeilen.push(pzPmKlartext(pm));
-    zeilen.push(pzPmMarker(pm));
-  }
+  if (pm && typeof pzPmZeilen === 'function') zeilen.push(...pzPmZeilen(pm));
   if (ids.length) {
     const pols = (typeof State !== 'undefined' && State.policies) || [];
     const namen = ids.map(id => {
@@ -114,6 +111,13 @@ function _procDokuText(ids, docs, pm) {
     docs.forEach(d => zeilen.push(_procDocMarker(d)));
   }
   return zeilen.join('\n');
+}
+
+/** Gehört die Zeile zu dem, was _procDokuText schreibt? Alles andere ist Beschreibung und bleibt stehen. */
+function _procIstDokuZeile(z) {
+  const t = String(z || '').trim();
+  return /^\[\[rms:(policies|doc|pm|kpi)=/.test(t)
+    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen):/.test(t);
 }
 
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
@@ -442,8 +446,7 @@ function procXmlDokuNeu(xml, teile) {
   const pm = ('pm' in t) ? t.pm : procPmAusXml(xml);
   // Den freien Text (Beschreibung) erhalten – nur Marker und ihre Klartextzeilen werden neu geschrieben.
   const m = String(xml || '').match(/<(\w+:)?process\b[^>]*>\s*<(\w+:)?documentation\b[^>]*>([\s\S]*?)<\/(\w+:)?documentation>/);
-  const frei = m ? _xmlUnesc(m[3]).split('\n').filter(z => z.trim() && !/^\[\[rms:(policies|doc|pm)=/.test(z.trim())
-    && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement):/.test(z.trim())) : [];
+  const frei = m ? _xmlUnesc(m[3]).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z)) : [];
   const text = frei.concat(_procDokuText(ids, docs, pm) ? [_procDokuText(ids, docs, pm)] : []).join('\n');
   return procXmlDokuErsetzen(xml, text);
 }
@@ -1663,7 +1666,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Dokument):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -2148,6 +2151,9 @@ function _renderProcPm(canWrite) {
   const erbeEigner = erbe && typeof pzEigner === 'function' ? pzEigner(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).upn : '';
   const erbeStd = erbe && typeof pzStandard === 'function' ? pzStandardInfo(pzStandard(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).key) : null;
   const erbePrio = k && pzPrioInfo(k.prioritaet) ? pzPrioInfo(k.prioritaet).label : '';
+  const erbeRg = (k && typeof pzReifegrad === 'function') ? pzReifegradInfo(pzReifegrad(k).key) : null;
+  // Ab hier bearbeitet die Kennzahl-Tabelle _procPm.kennzahlen direkt.
+  if (typeof pzPmNormal === 'function') _procPm = pzPmNormal(_procPm);
   host.innerHTML = `
     <div class="field-hint" style="margin-bottom:6px">${kacheln.length
       ? `Hängt an ${kacheln.length === 1 ? 'der Kachel' : kacheln.length + ' Kacheln'}: <b>${esc(kacheln.map(label).join(', '))}</b>${kacheln.length > 1 ? '. Leere Felder erben nur bei genau einer Kachel.' : ''}`
@@ -2175,8 +2181,48 @@ function _renderProcPm(canWrite) {
       <input type="date" id="proc-pm-termin" ${dis} value="${esc(pm.naechsteUeberpruefung || '')}" style="flex:1">
       ${canWrite ? `<button type="button" class="btn btn-ghost btn-sm" onclick="procPmTerminVorschlagen()" title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>` : ''}
     </div>
+    ${typeof PZ_REIFEGRAD !== 'undefined' ? `
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Reifegrad (ISO/IEC 33020)</label>
+    <select id="proc-pm-rg" ${dis} onchange="procPmRgHinweis()">
+      <option value=""${sel('', pm.reifegrad)}>${erbeRg ? 'wie Kachel: ' + esc(erbeRg.label) : 'nicht bewertet'}</option>
+      ${PZ_REIFEGRAD.map(r => `<option value="${r.key}"${sel(r.key, pm.reifegrad)}>${esc(r.label)}</option>`).join('')}
+    </select>
+    <div class="field-hint" id="proc-pm-rg-hinweis" style="margin-top:2px">${esc((pzReifegradInfo(pm.reifegrad) || erbeRg || { text: '' }).text)}</div>
+    <label class="field-hint" style="display:block;margin:8px 0 2px">Kennzahlen (ISO 9001, 4.4)</label>
+    <div id="proc-pm-kpi">${(typeof lkKpiEditorHtml === 'function') ? lkKpiEditorHtml('proc', canWrite) : ''}</div>` : ''}
     <datalist id="lk-people">${(typeof _lkPeopleOptions === 'function') ? _lkPeopleOptions() : ''}</datalist>`;
+  // Auch was hier geändert wird, ist ungespeichert – nicht nur das Diagramm.
+  host.oninput = host.onchange = canWrite ? procPmGeaendert : null;
   if (typeof lkMitgliederLaden === 'function') lkMitgliederLaden();
+}
+
+function procPmGeaendert() { if (_bpmnModeler) _procDirty = true; }
+
+function procPmRgHinweis() {
+  const sel = document.getElementById('proc-pm-rg');
+  const el = document.getElementById('proc-pm-rg-hinweis');
+  if (!sel || !el || typeof pzReifegradInfo !== 'function') return;
+  const k = (_procPmErbe(_procEditing && _procEditing.itemId) || {}).kachel;
+  const info = pzReifegradInfo(sel.value) || (k ? pzReifegradInfo(pzReifegrad(k).key) : null);
+  el.textContent = info ? info.text : '';
+}
+
+/** Die Kennzahlen des offenen Modells – die Tabelle (landkarte.js) schreibt hier hinein. */
+function procKpiListe() {
+  if (typeof pzPmNormal !== 'function') return null;
+  if (!_procPm) _procPm = pzPmNormal({});
+  if (!Array.isArray(_procPm.kennzahlen)) _procPm.kennzahlen = [];
+  return _procPm.kennzahlen;
+}
+
+/** Die Vorgabe, die gilt, solange das Modell keine eigenen Kennzahlen hat. */
+function procKpiVorgabe() {
+  if (typeof pzModellEintraege !== 'function' || !_procEditing || !_procEditing.itemId) return [];
+  const p = procModellVon(_procEditing.itemId) || { itemId: _procEditing.itemId, title: String(_procEditing.origName || '').replace(/\.bpmn$/i, ''), ordner: _procEditing.origWerk || '' };
+  const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
+  const pm = Object.assign({}, _procPm || {}, { kennzahlen: [] });
+  const e = pzModellEintraege(daten, [{ itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm, kacheln: procKachelnVon(p.itemId) }])[0];
+  return (e && e.kennzahlen.geerbt) ? e.kennzahlen.liste : [];
 }
 
 /** Formular → _procPm (nur im Editor; die Ansicht hat kein Formular). */
@@ -2187,7 +2233,11 @@ function _procPmAusFormular() {
   _procPm = (typeof pzPmNormal === 'function') ? pzPmNormal({
     status, prozesseigner: wert('proc-pm-eigner'), standardisierung: wert('proc-pm-std'),
     prioritaet: wert('proc-pm-prio'), naechsteUeberpruefung: wert('proc-pm-termin'),
+    reifegrad: wert('proc-pm-rg') || '', kennzahlen: (_procPm && _procPm.kennzahlen) || [],
   }) : null;
+  // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
+  const kc = document.getElementById('proc-pm-kpi');
+  if (kc && typeof lkKpiEditorHtml === 'function') kc.innerHTML = lkKpiEditorHtml('proc', !document.getElementById('proc-pm-status').disabled);
   return _procPm;
 }
 
@@ -2219,6 +2269,14 @@ function _procPmChips(proc) {
   if (prio) teile.push(`<span class="pa-chip" style="color:${prio.farbe};border-color:${prio.farbe}">Priorität ${esc(prio.label)}</span>`);
   if (e.pruefung.datum) teile.push(`<span class="pa-chip${e.pruefung.stufe === 'ueberfaellig' ? ' t-err' : ''}">🔎 ${esc(e.pruefung.datum.split('-').reverse().join('.'))}</span>`);
   else if (e.pruefung.stufe === 'fehlt') teile.push('<span class="pa-chip t-err">Überprüfung fehlt</span>');
+  const rg = (typeof pzReifegradInfo === 'function' && e.reifegrad) ? pzReifegradInfo(e.reifegrad.key) : null;
+  if (rg) teile.push(`<span class="pa-chip" title="Reifegrad nach ISO/IEC 33020${e.reifegrad.geerbt ? ' (von der Kachel)' : ''}: ${esc(rg.text)}">Reifegrad ${esc(rg.label)}</span>`);
+  if (e.kennzahlen && e.kennzahlen.liste.length) {
+    const s = pzKpiStand(e.kennzahlen.liste);
+    const titel = e.kennzahlen.liste.map(pzKpiText).join('\n') + (e.kennzahlen.geerbt ? '\n(Vorgabe der Kachel bzw. Konzern-Landkarte)' : '');
+    teile.push(`<span class="pa-chip${s.verfehlt ? ' t-err' : ''}" title="${esc(titel)}">📊 ${s.erfuellt} von ${s.gesamt} im Ziel${s.verfehlt ? ', ' + s.verfehlt + ' verfehlt' : ''}</span>`);
+  }
+  if (typeof pzLuecken === 'function') pzLuecken(e).forEach(l => teile.push(`<span class="pa-chip t-warn">${esc(l)}</span>`));
   return teile;
 }
 
@@ -2521,8 +2579,7 @@ function _setProcessDoku(ids, docs, pm) {
     const moddle = _bpmnModeler.get('moddle');
     // Freier Text (Beschreibung) bleibt stehen – neu geschrieben werden nur die Marker.
     const vorher = (Array.isArray(bo.documentation) && bo.documentation[0] && bo.documentation[0].text) || '';
-    const frei = String(vorher).split('\n').filter(z => z.trim() && !/^\[\[rms:(policies|doc|pm)=/.test(z.trim())
-      && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement):/.test(z.trim()));
+    const frei = String(vorher).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z));
     const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm);
     const text = frei.concat(marker ? [marker] : []).join('\n');
     if (!text) { bo.documentation = undefined; return; }

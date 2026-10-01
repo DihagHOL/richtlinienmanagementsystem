@@ -17,6 +17,8 @@
  *   standardisierung       gruppeneinheitlich · einheitlicher Rahmen · werksspezifisch
  *   prioritaet             hoch · mittel · niedrig
  *   naechsteUeberpruefung  JJJJ-MM-TT
+ *   reifegrad              '0' … '5', Fähigkeitsstufe nach ISO/IEC 33020
+ *   kennzahlen             [{ name, einheit, richtung, ziel, ist, stand }] (ISO 9001 4.4 c)
  *
  * **Eine Wahrheit für den Konzernprozess.** Eigner und Standardisierungsgrad
  * gehören zum Konzernprozess, nicht zur einzelnen Werkkachel. Bleiben sie an
@@ -60,6 +62,36 @@ const PZ_PRIO = [
   { key: 'niedrig', label: 'niedrig', rang: 3, farbe: '#64748b' },
 ];
 
+/* ── Reifegrad: die Fähigkeitsstufen nach ISO/IEC 33020 ──────────────
+   Bewertet wird je Werk, wie der Status: Ein Prozess kann im Konzern
+   etabliert sein und im neuen Werk erst durchgeführt werden. Deshalb erbt
+   eine Werkkachel den Reifegrad nicht von der Konzernkachel. */
+const PZ_REIFEGRAD = [
+  { key: '0', label: '0 unvollständig', kurz: 'RG 0',
+    text: 'Der Prozess wird nicht oder nur lückenhaft durchgeführt. Sein Zweck wird nicht sicher erreicht.' },
+  { key: '1', label: '1 durchgeführt',  kurz: 'RG 1',
+    text: 'Der Prozess erreicht seinen Zweck, hängt aber an einzelnen Personen. Planung und Steuerung fehlen.' },
+  { key: '2', label: '2 gesteuert',     kurz: 'RG 2',
+    text: 'Die Durchführung wird geplant, überwacht und bei Bedarf angepasst. Arbeitsergebnisse werden geprüft.' },
+  { key: '3', label: '3 etabliert',     kurz: 'RG 3',
+    text: 'Ein festgelegter Standardprozess (Modell, Rollen, Regelwerke) wird so angewendet, wie er beschrieben ist.' },
+  { key: '4', label: '4 vorhersagbar',  kurz: 'RG 4',
+    text: 'Der Prozess wird über Kennzahlen gesteuert. Abweichungen werden erkannt und ihre Ursachen analysiert.' },
+  { key: '5', label: '5 innovierend',   kurz: 'RG 5',
+    text: 'Der Prozess wird anhand seiner Kennzahlen laufend verbessert. Änderungen werden erprobt und gezielt eingeführt.' },
+];
+/** Mindeststufe für einen ausgerollten, gruppeneinheitlichen Prozess (Konzernfachregelung). */
+const PZ_REIFEGRAD_ZIEL = '3';
+
+/* ── Kennzahlen: ISO 9001 Abschnitt 4.4 c verlangt je Prozess Kriterien und
+   Leistungsindikatoren. Eine Kennzahl hat ein Ziel und eine Richtung
+   („mindestens" 95 % Liefertreue, „höchstens" 5 Tage Durchlaufzeit) und den
+   zuletzt gemessenen Wert mit Stand. */
+const PZ_RICHTUNG = [
+  { key: 'hoch',    label: 'mindestens', zeichen: '≥' },
+  { key: 'niedrig', label: 'höchstens',  zeichen: '≤' },
+];
+
 /** Spätester Abstand zur nächsten Überprüfung eines freigegebenen Prozesses. */
 const PZ_UEBERPRUEFUNG_MONATE = 12;
 /** „Bald fällig" – dasselbe Fenster wie bei den Regelwerken. */
@@ -72,6 +104,8 @@ function pzStatus(k) {
 function pzStatusInfo(key) { return PZ_STATUS.find(x => x.key === key) || PZ_STATUS[0]; }
 function pzStandardInfo(key) { return PZ_STANDARD.find(x => x.key === key) || null; }
 function pzPrioInfo(key) { return PZ_PRIO.find(x => x.key === key) || null; }
+function pzReifegradInfo(key) { return PZ_REIFEGRAD.find(x => x.key === String(key == null ? '' : key)) || null; }
+function pzRichtungInfo(key) { return PZ_RICHTUNG.find(x => x.key === key) || PZ_RICHTUNG[0]; }
 
 /** Vergleichsschlüssel: derselbe wie in der Matrix – verglichen wird der Name. */
 function pzSchluessel(name) {
@@ -118,6 +152,85 @@ function pzStandard(daten, werk, k) {
   const kk = pzKonzernKachel(daten, werk, k);
   if (kk && pzStandardInfo(kk.standardisierung)) return { key: kk.standardisierung, geerbt: true };
   return { key: '', geerbt: false };
+}
+
+/** Reifegrad der Kachel. Nur der eigene Eintrag – siehe PZ_REIFEGRAD. → { key, geerbt } */
+function pzReifegrad(k) {
+  const key = String((k && k.reifegrad) == null ? '' : k.reifegrad);
+  return { key: pzReifegradInfo(key) ? key : '', geerbt: false };
+}
+
+/* ── Kennzahlen ──────────────────────────────────────────────────────── */
+
+/** Zahl aus einer Eingabe: „95", „95,5", „1.250,5" → Zahl, sonst null. */
+function pzZahl(s) {
+  let t = String(s == null ? '' : s).replace(/\s/g, '').replace(/[%€]/g, '');
+  if (!t) return null;
+  // Deutsch geschrieben: Komma trennt Dezimalen, Punkte gliedern Tausender.
+  if (t.includes(',') || /^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.split('.').join('').replace(',', '.');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Kennzahlen bereinigen: ohne Namen keine Kennzahl, ungültige Werte fallen raus. */
+function pzKpiNormal(liste) {
+  return (Array.isArray(liste) ? liste : []).map(x => {
+    const k = x || {};
+    const stand = String(k.stand || '').trim().slice(0, 10);
+    return {
+      name: _pzFeld(k.name),
+      einheit: _pzFeld(k.einheit),
+      richtung: PZ_RICHTUNG.some(r => r.key === k.richtung) ? k.richtung : 'hoch',
+      ziel: _pzFeld(k.ziel),
+      ist: _pzFeld(k.ist),
+      stand: pzTageBis(stand) === null ? '' : stand,
+    };
+  }).filter(k => k.name);
+}
+
+/** Erfüllt? → 'erfuellt' · 'verfehlt' · 'offen' (Ziel oder Ist fehlt). */
+function pzKpiBewertung(k) {
+  const ziel = pzZahl(k && k.ziel), ist = pzZahl(k && k.ist);
+  if (ziel === null || ist === null) return 'offen';
+  const gut = (k.richtung === 'niedrig') ? ist <= ziel : ist >= ziel;
+  return gut ? 'erfuellt' : 'verfehlt';
+}
+
+/** Zusammenfassung einer Liste: { gesamt, erfuellt, verfehlt, offen }. */
+function pzKpiStand(liste) {
+  const s = { gesamt: 0, erfuellt: 0, verfehlt: 0, offen: 0 };
+  (liste || []).forEach(k => { s.gesamt++; s[pzKpiBewertung(k)]++; });
+  return s;
+}
+
+/** „Liefertreue ≥ 95 %, Ist 93 % (Stand 30.09.2026)" */
+function pzKpiText(k) {
+  const r = pzRichtungInfo(k.richtung);
+  const e = k.einheit ? ' ' + k.einheit : '';
+  let t = k.name;
+  if (k.ziel) t += ` ${r.zeichen} ${k.ziel}${e}`;
+  if (k.ist) t += `, Ist ${k.ist}${e}`;
+  if (k.stand) t += ` (Stand ${k.stand.split('-').reverse().join('.')})`;
+  return t;
+}
+
+/**
+ * Kennzahlen einer Kachel: die eigenen, sonst die der gleichnamigen
+ * Konzernkachel als Vorgabe – aber ohne deren Messwerte, denn gemessen wird
+ * im Werk. Ein werksspezifischer Prozess legt seine Kennzahlen selbst fest.
+ * → { liste, geerbt }
+ */
+function pzKennzahlenVon(daten, werk, k) {
+  const eigen = pzKpiNormal(k && k.kennzahlen);
+  if (eigen.length) return { liste: eigen, geerbt: false };
+  if (pzStandard(daten, werk, k).key === 'lokal') return { liste: [], geerbt: false };
+  return _pzKpiVorgabe(pzKonzernKachel(daten, werk, k));
+}
+
+/** Die Kennzahlen einer Konzernkachel als Vorgabe: Ziel ja, Messwerte nein. */
+function _pzKpiVorgabe(kk) {
+  const liste = pzKpiNormal(kk && kk.kennzahlen).map(x => Object.assign(x, { ist: '', stand: '' }));
+  return { liste, geerbt: liste.length > 0 };
 }
 
 /* ── Überprüfung ─────────────────────────────────────────────────────── */
@@ -202,6 +315,8 @@ function pzEintraege(daten, werke, heute, modelle) {
       standard: pzStandard(daten, werk, k),
       prio: pzPrioInfo(k.prioritaet) ? k.prioritaet : '',
       pruefung: pzUeberpruefung(k, heute),
+      reifegrad: pzReifegrad(k),
+      kennzahlen: pzKennzahlenVon(daten, werk, k),
     }));
   });
   // Modelle ohne Ablage gehören noch niemandem – sie bleiben sichtbar, damit
@@ -241,7 +356,25 @@ function pzKennzahlen(eintraege) {
     ausgerollt: zaehl(e => e.status === 'ausgerollt'),
     ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig'),
     ohneTermin: zaehl(e => e.pruefung.stufe === 'fehlt'),
+    mitKennzahl: zaehl(e => e.kennzahlen && e.kennzahlen.liste.length),
+    kennzahlVerfehlt: zaehl(e => e.kennzahlen && pzKpiStand(e.kennzahlen.liste).verfehlt),
+    reifegradBewertet: zaehl(e => e.reifegrad && e.reifegrad.key),
   };
+}
+
+/**
+ * Was einem freigegebenen oder ausgerollten Prozess nach der
+ * Konzernfachregelung noch fehlt (ISO 9001 4.4, ISO/IEC 33020).
+ * Vor der Freigabe ist nichts davon eine Lücke. → ['…', …]
+ */
+function pzLuecken(e) {
+  if (!e || !['freigegeben', 'ausgerollt'].includes(e.status)) return [];
+  const out = [];
+  if (!e.kennzahlen || !e.kennzahlen.liste.length) out.push('keine Kennzahl');
+  if (!e.reifegrad || !e.reifegrad.key) out.push('Reifegrad nicht bewertet');
+  else if (e.status === 'ausgerollt' && e.standard && e.standard.key === 'einheitlich'
+    && Number(e.reifegrad.key) < Number(PZ_REIFEGRAD_ZIEL)) out.push(`Reifegrad unter ${PZ_REIFEGRAD_ZIEL}`);
+  return out;
 }
 
 /**
@@ -262,15 +395,22 @@ function pzFaellige(daten, werke, heute, modelle) {
    Seine Angaben stehen in der Datei selbst, als Marker in der Dokumentation
    des Prozesses, so wie Regelwerke und Anlagen:
 
-     [[rms:pm=Status|Prozesseigner|Standardisierung|Priorität|Überprüfung]]
+     [[rms:pm=Status|Prozesseigner|Standardisierung|Priorität|Überprüfung|Reifegrad]]
+     [[rms:kpi=Name|Einheit|Richtung|Ziel|Ist|Stand]]      (je Kennzahl eine Zeile)
+
+   Der Reifegrad steht hinten und nur, wenn er gesetzt ist: Ältere Modelle
+   mit fünf Feldern lesen sich unverändert.
 
    Was am Modell leer ist, kommt von der Kachel, an der es hängt, und von dort
    wie gehabt von der gleichnamigen Konzernkachel. Hängt es an keiner, zählt
    für Eigner und Standardisierung die gleichnamige Konzernkachel. */
 
 const PZ_PM_MARKER = /\[\[rms:pm=([^\]]*)\]\]/;
-const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung'];
+const PZ_KPI_MARKER = /\[\[rms:kpi=([^\]]*)\]\]/g;
+const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung', 'reifegrad'];
+const PZ_KPI_FELDER = ['name', 'einheit', 'richtung', 'ziel', 'ist', 'stand'];
 const PZ_PM_TEXTZEILE = 'Prozessmanagement: ';
+const PZ_KPI_TEXTZEILE = 'Kennzahlen: ';
 
 /** Ein Feld für den Marker tauglich machen: Trenner und Klammern raus. */
 function _pzFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, ' ').trim(); }
@@ -285,37 +425,72 @@ function pzPmNormal(pm) {
     standardisierung: pzStandardInfo(p.standardisierung) ? p.standardisierung : '',
     prioritaet: pzPrioInfo(p.prioritaet) ? p.prioritaet : '',
     naechsteUeberpruefung: pzTageBis(datum) === null ? '' : datum,
+    reifegrad: pzReifegradInfo(p.reifegrad) ? String(p.reifegrad) : '',
+    kennzahlen: pzKpiNormal(p.kennzahlen),
   };
 }
 
-function pzPmLeer(pm) { const n = pzPmNormal(pm); return PZ_PM_FELDER.every(f => !n[f]); }
+/** Sind die Angaben der pm-Zeile leer? (Die Kennzahlen stehen in eigenen Zeilen.) */
+function _pzPmZeileLeer(n) { return PZ_PM_FELDER.every(f => !n[f]); }
 
-/** Der Marker ('' wenn nichts gesetzt ist). */
+function pzPmLeer(pm) { const n = pzPmNormal(pm); return _pzPmZeileLeer(n) && !n.kennzahlen.length; }
+
+/** Der Marker der pm-Zeile ('' wenn dort nichts gesetzt ist). */
 function pzPmMarker(pm) {
-  if (pzPmLeer(pm)) return '';
   const n = pzPmNormal(pm);
-  return '[[rms:pm=' + PZ_PM_FELDER.map(f => _pzFeld(n[f])).join('|') + ']]';
+  if (_pzPmZeileLeer(n)) return '';
+  const felder = PZ_PM_FELDER.map(f => _pzFeld(n[f]));
+  if (!felder[felder.length - 1]) felder.pop();   // ohne Reifegrad: das alte Format mit fünf Feldern
+  return '[[rms:pm=' + felder.join('|') + ']]';
 }
 
 /** Die Zeile im Klartext – damit auch ein fremder Modeler zeigt, was gilt. */
 function pzPmKlartext(pm) {
-  if (pzPmLeer(pm)) return '';
   const n = pzPmNormal(pm);
+  if (_pzPmZeileLeer(n)) return '';
   const teile = [];
   if (n.status) teile.push('Status ' + pzStatusInfo(n.status).label);
   if (n.prozesseigner) teile.push('Prozesseigner ' + n.prozesseigner);
   if (n.standardisierung) teile.push(pzStandardInfo(n.standardisierung).label);
   if (n.prioritaet) teile.push('Priorität ' + pzPrioInfo(n.prioritaet).label);
   if (n.naechsteUeberpruefung) teile.push('Überprüfung bis ' + n.naechsteUeberpruefung);
+  if (n.reifegrad) teile.push('Reifegrad ' + pzReifegradInfo(n.reifegrad).label);
   return PZ_PM_TEXTZEILE + teile.join(' · ');
 }
 
-/** Die Angaben aus einem Text oder XML lesen (null, wenn kein Marker drinsteht). */
+function pzKpiMarker(k) {
+  return '[[rms:kpi=' + PZ_KPI_FELDER.map(f => _pzFeld(k[f])).join('|') + ']]';
+}
+
+/**
+ * Alle Zeilen für die Dokumentation des Prozesses: die pm-Zeile im Klartext
+ * und als Marker, dann die Kennzahlen (eine Klartextzeile, je Kennzahl ein
+ * Marker – wie bei den Anlagen).
+ */
+function pzPmZeilen(pm) {
+  const n = pzPmNormal(pm);
+  const zeilen = [];
+  if (!_pzPmZeileLeer(n)) zeilen.push(pzPmKlartext(n), pzPmMarker(n));
+  if (n.kennzahlen.length) {
+    zeilen.push(PZ_KPI_TEXTZEILE + n.kennzahlen.map(pzKpiText).join('; '));
+    n.kennzahlen.forEach(k => zeilen.push(pzKpiMarker(k)));
+  }
+  return zeilen;
+}
+
+/** Die Angaben aus einem Text oder XML lesen (null, wenn weder pm- noch Kennzahl-Marker drinsteht). */
 function pzPmAusText(text) {
-  const m = String(text || '').match(PZ_PM_MARKER);
-  if (!m) return null;
-  const t = m[1].split('|').map(x => (x || '').trim());
-  const pm = {};
+  const s = String(text || '');
+  const m = s.match(PZ_PM_MARKER);
+  const kpis = [...s.matchAll(PZ_KPI_MARKER)].map(x => {
+    const t = x[1].split('|').map(v => (v || '').trim());
+    const k = {};
+    PZ_KPI_FELDER.forEach((f, i) => { k[f] = t[i] || ''; });
+    return k;
+  });
+  if (!m && !kpis.length) return null;
+  const pm = { kennzahlen: kpis };
+  const t = m ? m[1].split('|').map(x => (x || '').trim()) : [];
   PZ_PM_FELDER.forEach((f, i) => { pm[f] = t[i] || ''; });
   return pzPmNormal(pm);
 }
@@ -350,10 +525,25 @@ function pzModellEintraege(daten, modelle, heute) {
     }
     const prio = pm.prioritaet || (host && pzPrioInfo(host.kachel.prioritaet) ? host.kachel.prioritaet : '');
     const termin = pm.naechsteUeberpruefung || (host ? String(host.kachel.naechsteUeberpruefung || '') : '');
+    // Reifegrad und Kennzahlen: Modell und Kachel sind derselbe Prozess im
+    // selben Werk – die Kachel vererbt beides samt Messwerten. Ohne Kachel
+    // gelten die Kennzahlen der Konzernkachel als Vorgabe (ohne Messwerte).
+    const rgKachel = host ? pzReifegrad(host.kachel).key : '';
+    const reifegrad = pm.reifegrad ? { key: pm.reifegrad, geerbt: false } : { key: rgKachel, geerbt: !!rgKachel };
+    let kennzahlen = { liste: pm.kennzahlen, geerbt: false };
+    if (!kennzahlen.liste.length) {
+      if (host) {
+        const v = pzKennzahlenVon(daten, host.werk, host.kachel);
+        kennzahlen = { liste: v.liste, geerbt: v.liste.length > 0 };
+      } else if (standard.key !== 'lokal') {
+        kennzahlen = _pzKpiVorgabe(pzKonzernKachel(daten, werk === 'KONZERN' ? '' : werk, alsKachel));
+      }
+    }
     return {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
       status, eigner, standard, prio,
       pruefung: pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute),
+      reifegrad, kennzahlen,
     };
   });
 }
@@ -362,9 +552,13 @@ function pzModellEintraege(daten, modelle, heute) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PZ_STATUS, PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE,
+    PZ_REIFEGRAD, PZ_REIFEGRAD_ZIEL, PZ_RICHTUNG,
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
+    pzReifegradInfo, pzRichtungInfo, pzReifegrad,
+    pzZahl, pzKpiNormal, pzKpiBewertung, pzKpiStand, pzKpiText, pzKennzahlenVon,
     pzKonzernKachel, pzEigner, pzStandard, pzTageBis, pzUeberpruefung, pzTerminVorschlag,
-    pzStatusSetzen, pzEintraege, pzSortieren, pzSpalten, pzKennzahlen, pzFaellige,
-    PZ_PM_TEXTZEILE, pzPmNormal, pzPmLeer, pzPmMarker, pzPmKlartext, pzPmAusText, pzModellEintraege,
+    pzStatusSetzen, pzEintraege, pzSortieren, pzSpalten, pzKennzahlen, pzLuecken, pzFaellige,
+    PZ_PM_TEXTZEILE, PZ_KPI_TEXTZEILE, pzPmNormal, pzPmLeer, pzPmMarker, pzPmKlartext, pzKpiMarker, pzPmZeilen,
+    pzPmAusText, pzModellEintraege,
   };
 }

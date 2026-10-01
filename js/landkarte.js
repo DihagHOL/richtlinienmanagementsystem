@@ -3913,7 +3913,20 @@ function _lkPzBlock(k) {
       ${zeile('Standardisierung', si ? `${esc(si.label)}${std.geerbt ? geerbt : ''}` : '<span class="field-hint">noch nicht entschieden</span>')}
       ${zeile('Priorität', prio ? `<span style="color:${prio.farbe};font-weight:600">${esc(prio.label)}</span>` : '<span class="field-hint">nicht priorisiert</span>')}
       ${zeile('Nächste Überprüfung', pruef)}
+      ${typeof pzReifegrad === 'function' ? _lkPzReifeZeilen(k, zeile) : ''}
     </div>`;
+}
+
+/** Reifegrad und Kennzahlen in der Kachel-Ansicht. */
+function _lkPzReifeZeilen(k, zeile) {
+  const rg = pzReifegradInfo(pzReifegrad(k).key);
+  const kz = pzKennzahlenVon(_lkDaten, _lkWerk, k);
+  const liste = kz.liste.length
+    ? kz.liste.map(x => `<div>${_lkKpiAmpel(x)} ${esc(pzKpiText(x))}</div>`).join('')
+      + (kz.geerbt ? '<span class="field-hint">Vorgabe der Konzern-Landkarte, im Werk noch nicht gemessen</span>' : '')
+    : `<span${['freigegeben', 'ausgerollt'].includes(pzStatus(k)) ? ' style="color:#b45309"' : ' class="field-hint"'}>noch keine</span>`;
+  return `${zeile('Reifegrad', rg ? `${esc(rg.label)} <span class="field-hint">${esc(rg.text)}</span>` : '<span class="field-hint">nicht bewertet</span>')}
+      ${zeile('Kennzahlen', liste)}`;
 }
 
 /** Eingabefelder im Kachel-Editor. */
@@ -3972,8 +3985,27 @@ function _lkPzEditorHtml(k) {
           </div>
           <span class="field-hint">Freigegebene Prozesse werden spätestens alle ${PZ_UEBERPRUEFUNG_MONATE} Monate überprüft. Der Termin erscheint unter „Fälligkeiten".</span>
         </div>
+        ${typeof PZ_REIFEGRAD !== 'undefined' ? `
+        <div class="form-group">
+          <label>Reifegrad (ISO/IEC 33020)</label>
+          <select onchange="_lkEditing.reifegrad=this.value;_lkPzRgHinweis()">
+            <option value=""${sel('', String(k.reifegrad || ''))}>nicht bewertet</option>
+            ${PZ_REIFEGRAD.map(r => `<option value="${r.key}"${sel(r.key, String(k.reifegrad == null ? '' : k.reifegrad))}>${esc(r.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-rg-hinweis">${esc((pzReifegradInfo(k.reifegrad) || { text: 'Bewertet wird je Werk, beim Audit oder bei der Überprüfung.' }).text)}</span>
+        </div>
+        <div class="form-group full">
+          <label>Kennzahlen (ISO 9001, 4.4)</label>
+          <div id="lk-pz-kpi">${lkKpiEditorHtml('lk', true)}</div>
+        </div>` : ''}
       </div>
     </div>`;
+}
+
+function _lkPzRgHinweis() {
+  const el = document.getElementById('lk-pz-rg-hinweis');
+  const info = _lkEditing ? pzReifegradInfo(_lkEditing.reifegrad) : null;
+  if (el) el.textContent = info ? info.text : 'Bewertet wird je Werk, beim Audit oder bei der Überprüfung.';
 }
 
 function _lkPzHinweis() {
@@ -4020,13 +4052,128 @@ function _lkPzUebernehmen(ziel, k) {
   ziel.standardisierung = neu.std;
   ziel.prioritaet = neu.prio;
   ziel.naechsteUeberpruefung = /^\d{4}-\d{2}-\d{2}$/.test(neu.termin) ? neu.termin : '';
+  const rgAlt = pzReifegrad(ziel).key, rgNeu = pzReifegrad(k).key;
+  const kzAlt = JSON.stringify(pzKpiNormal(ziel.kennzahlen)), kzNeu = pzKpiNormal(k.kennzahlen);
+  if (rgNeu) ziel.reifegrad = rgNeu; else delete ziel.reifegrad;
+  if (kzNeu.length) ziel.kennzahlen = kzNeu; else delete ziel.kennzahlen;
   if (k.neu) return teile;
+  if (rgAlt !== rgNeu) teile.push(`Reifegrad: ${(pzReifegradInfo(rgAlt) || { label: 'nicht bewertet' }).label} → ${(pzReifegradInfo(rgNeu) || { label: 'nicht bewertet' }).label}`);
+  if (kzAlt !== JSON.stringify(kzNeu)) teile.push(`Kennzahlen: ${kzNeu.length ? kzNeu.map(pzKpiText).join('; ') : 'keine'}`);
   if (alt.status !== neu.status) teile.push(`Status: ${pzStatusInfo(alt.status).label} → ${pzStatusInfo(neu.status).label}`);
   if (alt.eigner !== neu.eigner) teile.push(`Prozesseigner: ${alt.eigner || '(niemand)'} → ${neu.eigner || '(niemand)'}`);
   if (alt.std !== neu.std) teile.push(`Standardisierung: ${(pzStandardInfo(alt.std) || { label: 'offen' }).label} → ${(pzStandardInfo(neu.std) || { label: 'offen' }).label}`);
   if (alt.prio !== neu.prio) teile.push(`Priorität: ${alt.prio || 'keine'} → ${neu.prio || 'keine'}`);
   if (alt.termin !== ziel.naechsteUeberpruefung) teile.push(`Überprüfung: ${ziel.naechsteUeberpruefung || 'kein Termin'}`);
   return teile;
+}
+
+/* ── Kennzahlen bearbeiten ───────────────────────────────────────────
+   Dieselbe Tabelle im Kachel-Editor (ort 'lk', _lkEditing.kennzahlen) und im
+   Modell-Editor (ort 'proc', siehe procKpiListe in prozesse.js). Geschrieben
+   wird direkt in die Liste des Editors; bereinigt wird erst beim Speichern
+   (pzKpiNormal), damit eine neue, noch leere Zeile stehen bleibt. */
+
+function _lkKpiListe(ort) {
+  if (ort === 'proc') return (typeof procKpiListe === 'function') ? procKpiListe() : null;
+  if (!_lkEditing) return null;
+  if (!Array.isArray(_lkEditing.kennzahlen)) _lkEditing.kennzahlen = [];
+  return _lkEditing.kennzahlen;
+}
+
+/** Was gilt, solange keine eigenen Kennzahlen eingetragen sind (Konzernkachel bzw. Kachel). */
+function _lkKpiVorgabe(ort) {
+  if (ort === 'proc') return (typeof procKpiVorgabe === 'function') ? procKpiVorgabe() : [];
+  if (!_lkEditing || typeof pzKennzahlenVon !== 'function') return [];
+  const v = pzKennzahlenVon(_lkDaten, _lkWerk, Object.assign({}, _lkEditing, { kennzahlen: [] }));
+  return v.geerbt ? v.liste : [];
+}
+
+function _lkKpiAmpel(k) {
+  const b = pzKpiBewertung(k);
+  const [farbe, text] = { erfuellt: ['#15803d', 'im Ziel'], verfehlt: ['#b91c1c', 'Ziel verfehlt'], offen: ['#94a3b8', 'noch nicht gemessen'] }[b];
+  return `<i class="pz-kpi-ampel" style="background:${farbe}" title="${text}" aria-label="${text}"></i>`;
+}
+
+function lkKpiEditorHtml(ort, schreiben) {
+  if (typeof pzKpiNormal !== 'function') return '';
+  const liste = _lkKpiListe(ort) || [];
+  const vorgabe = liste.length ? [] : _lkKpiVorgabe(ort);
+  const dis = schreiben ? '' : ' disabled';
+  const o = jsArg(ort);
+  const feld = (i, f, x, ph, breite) => `<input type="text" value="${esc(x[f] || '')}" placeholder="${ph}" aria-label="${ph}"
+      style="width:${breite}"${dis} oninput="lkKpiFeld(${o},${i},${jsArg(f)},this.value)">`;
+  const zeilen = liste.map((x, i) => `
+    <div class="pz-kpi">
+      <div class="pz-kpi-reihe">
+        <span id="pz-kpi-ampel-${ort}-${i}">${_lkKpiAmpel(x)}</span>
+        <input type="text" class="pz-kpi-name" value="${esc(x.name || '')}" placeholder="Kennzahl, z. B. Liefertreue"
+          aria-label="Name der Kennzahl"${dis} oninput="lkKpiFeld(${o},${i},'name',this.value)">
+        ${schreiben ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkKpiWeg(${o},${i})" title="Kennzahl entfernen" aria-label="Kennzahl entfernen">×</button>` : ''}
+      </div>
+      <div class="pz-kpi-reihe">
+        <select aria-label="Richtung"${dis} onchange="lkKpiFeld(${o},${i},'richtung',this.value)">
+          ${PZ_RICHTUNG.map(r => `<option value="${r.key}"${r.key === (x.richtung || 'hoch') ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}
+        </select>
+        ${feld(i, 'ziel', x, 'Ziel', '4.5em')}
+        ${feld(i, 'einheit', x, 'Einheit', '4.5em')}
+        ${feld(i, 'ist', x, 'Ist', '4.5em')}
+        <input type="date" id="pz-kpi-stand-${ort}-${i}" value="${esc(String(x.stand || '').slice(0, 10))}"
+          title="Stand des Ist-Werts" aria-label="Stand des Ist-Werts"${dis} onchange="lkKpiFeld(${o},${i},'stand',this.value)">
+      </div>
+    </div>`).join('');
+  const vonWo = ort === 'proc' ? 'der Kachel bzw. der Konzern-Landkarte' : 'der Konzern-Landkarte';
+  const leer = vorgabe.length
+    ? `<div class="field-hint" style="margin:2px 0 6px">Vorgabe ${vonWo}, gemessen wird hier:</div>
+       ${vorgabe.map(x => `<div class="pz-kpi-vorgabe">${_lkKpiAmpel(x)} ${esc(pzKpiText(x))}</div>`).join('')}
+       ${schreiben ? `<button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="lkKpiVorgabeUebernehmen(${o})"
+         title="Die Vorgabe als eigene Kennzahlen übernehmen und Ist-Werte eintragen">Übernehmen und messen</button>` : ''}`
+    : '<div class="field-hint" style="margin:2px 0 6px">Noch keine Kennzahl. Ein freigegebener Prozess braucht mindestens eine (ISO 9001, 4.4).</div>';
+  return `${liste.length ? zeilen : leer}
+    ${schreiben ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="lkKpiNeu(${o})">+ Kennzahl</button>` : ''}`;
+}
+
+function _lkKpiNeuZeichnen(ort) {
+  const el = document.getElementById(ort === 'proc' ? 'proc-pm-kpi' : 'lk-pz-kpi');
+  if (el) el.innerHTML = lkKpiEditorHtml(ort, true);
+  if (ort === 'proc' && typeof procPmGeaendert === 'function') procPmGeaendert();
+}
+
+function lkKpiFeld(ort, i, feld, wert) {
+  const l = _lkKpiListe(ort);
+  if (!l || !l[i]) return;
+  l[i][feld] = wert;
+  // Ein neuer Messwert ist von heute – das Datum lässt sich danach ändern.
+  if (feld === 'ist' && String(wert).trim()) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    l[i].stand = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const st = document.getElementById(`pz-kpi-stand-${ort}-${i}`);
+    if (st) st.value = l[i].stand;
+  }
+  const a = document.getElementById(`pz-kpi-ampel-${ort}-${i}`);
+  if (a) a.innerHTML = _lkKpiAmpel(l[i]);
+}
+
+function lkKpiNeu(ort) {
+  const l = _lkKpiListe(ort);
+  if (!l) return;
+  l.push({ name: '', einheit: '', richtung: 'hoch', ziel: '', ist: '', stand: '' });
+  _lkKpiNeuZeichnen(ort);
+  const namen = document.querySelectorAll(`#${ort === 'proc' ? 'proc-pm-kpi' : 'lk-pz-kpi'} .pz-kpi-name`);
+  if (namen.length && namen[namen.length - 1].focus) namen[namen.length - 1].focus();
+}
+
+function lkKpiWeg(ort, i) {
+  const l = _lkKpiListe(ort);
+  if (!l || !l[i]) return;
+  l.splice(i, 1);
+  _lkKpiNeuZeichnen(ort);
+}
+
+function lkKpiVorgabeUebernehmen(ort) {
+  const l = _lkKpiListe(ort);
+  if (!l) return;
+  _lkKpiVorgabe(ort).forEach(x => l.push(Object.assign({}, x, { ist: '', stand: '' })));
+  _lkKpiNeuZeichnen(ort);
 }
 
 /* ── Ziehen und Ablegen: Reihenfolge und Band ────────────────────────── */

@@ -52,6 +52,7 @@ const FEATURES = [
   { name: 'Prozess-Backlog',         code: () => /function renderProzessBacklog/.test(read('js/prozessbacklog.js')), begriffe: ['Backlog', 'Prozesseigner', 'Standardisierungsgrad', 'nächste Überprüfung'] },
   { name: 'Modelle als Prozesse',    code: () => /function pbNeuAnlegen/.test(read('js/prozessbacklog.js')),  begriffe: ['Modelle sind Prozesse', '+ Prozess anlegen'] },
   { name: 'Dokumente am Schritt',    code: () => /function procElementDocsSetzen/.test(prozesse),                begriffe: ['Dokumente am Schritt', 'Dokumente an diesem Schritt'] },
+  { name: 'Reifegrad und Kennzahlen', code: () => /function pzKpiBewertung/.test(read('js/prozessmodell.js')),  begriffe: ['Reifegrad und Kennzahlen', 'ISO/IEC 33020', 'Kennzahl verfehlt'] },
   { name: 'Mindmap als Baum',        code: () => /function vbBaum/.test(read('js/mindmapbaum.js')),          begriffe: ['Baum', 'Nahsicht'] },
   { name: 'Landkarten-Vorlagen',     code: () => /const LK_KONZERN/.test(read('js/landkarte.js')),           begriffe: ['Vorlage', 'Führungsholding'] },
   { name: 'Diagramm als Bild',       code: () => /function downloadProcessSvg/.test(prozesse),              begriffe: ['als Bild'] },

@@ -35,7 +35,8 @@ console.log('Marker');
 const pm = { status: 'soll', prozesseigner: 'cfo@dihag.com', standardisierung: 'einheitlich', prioritaet: 'hoch', naechsteUeberpruefung: '2027-03-01' };
 const marker = M.pzPmMarker(pm);
 ok(marker === '[[rms:pm=soll|cfo@dihag.com|einheitlich|hoch|2027-03-01]]', 'Der Marker trägt alle fünf Angaben');
-ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(pm), 'Rundlauf: gelesen kommt dasselbe heraus');
+ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(Object.assign({}, pm, { reifegrad: '', kennzahlen: [] })),
+  'Rundlauf: gelesen kommt dasselbe heraus');
 ok(M.pzPmAusText('kein Marker') === null, 'Ohne Marker: null');
 const kaputt = M.pzPmAusText('[[rms:pm=quatsch|a@b.de|irgendwas|dringend|morgen]]');
 ok(kaputt.status === '' && kaputt.standardisierung === '' && kaputt.prioritaet === '' && kaputt.naechsteUeberpruefung === '' && kaputt.prozesseigner === 'a@b.de',
@@ -109,7 +110,7 @@ ok((frei.match(/<bpmn:documentation>/g) || []).length === 1, 'Es bleibt bei eine
 const eintrag = run(`procLinkEintrag(procEintragAusXml(${JSON.stringify(nurStatus)}))`);
 ok(eintrag.m && eintrag.m.status === 'poc' && eintrag.alt === false, 'Der Cache-Eintrag trägt die Angaben und gilt als vollständig');
 ok(run(`procLinkEintrag({ p: [], d: 0, k: false, i: '', u: [] }).alt`) === true, 'Ein Eintrag von vor den Angaben wird nachgelesen');
-ok(/Prozessmanagement\|Dokument\)/.test(lies('js/prozesse.js')), 'Die Ansicht zeigt die Klartextzeilen nicht als Beschreibung');
+ok(/Prozessmanagement\|Kennzahlen\|Dokument\)/.test(lies('js/prozesse.js')), 'Die Ansicht zeigt die Klartextzeilen nicht als Beschreibung');
 
 console.log('Dokumente am Schritt');
 const text = run(`procSchrittDokuText('Hier wird bestellt.' + String.fromCharCode(10) + 'Weiter im Prozess: Versand' + String.fromCharCode(10) + '[[rms:prozess=HOL:versand]]', [{ name: 'Bestellformular', url: 'https://x/b.pdf', driveId: 'd', itemId: 'i1' }])`);

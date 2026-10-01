@@ -110,7 +110,8 @@ function renderProzessBacklog() {
       danach die regelmäßige <b>Überprüfung</b>. Ein Prozess ist ein <b>BPMN-Modell</b> 🔀, auch ohne Landkarte,
       oder eine <b>Kachel</b> 🗺, die noch kein Modell hat. Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
       der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
-      seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte.
+      seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte. Ab der Freigabe braucht ein Prozess
+      mindestens eine <b>Kennzahl</b> (ISO 9001, 4.4) und einen bewerteten <b>Reifegrad</b> (ISO/IEC 33020).
     </div>
     <div class="view-toolbar">
       <select onchange="pbSetWerk(this.value)" style="max-width:200px" aria-label="Landkarte filtern">
@@ -150,6 +151,10 @@ function renderProzessBacklog() {
       ${kpi(kz.inArbeit, null, 'in Arbeit (SOLL bis freigegeben)')}
       ${kpi(kz.ausgerollt, null, 'ausgerollt')}
       ${kpi(kz.ueberfaellig + kz.ohneTermin, null, 'Überprüfung überfällig oder ohne Termin', kz.ueberfaellig + kz.ohneTermin > 0)}
+      ${kz.mitKennzahl !== undefined ? `
+      ${kpi(kz.mitKennzahl, kz.gesamt, 'mit Kennzahlen')}
+      ${kpi(kz.kennzahlVerfehlt, null, 'Kennzahl verfehlt', kz.kennzahlVerfehlt > 0)}
+      ${kpi(kz.reifegradBewertet, kz.gesamt, 'Reifegrad bewertet')}` : ''}
     </div>
     ${!werke.length
       ? (typeof emptyState === 'function' ? emptyState('Noch keine Landkarte angelegt.', '🗺') : '')
@@ -203,11 +208,28 @@ function _pbKarteHtml(e, schreiben) {
         ? `👤 ${esc(_pbPerson(e.eigner.upn))}${e.eigner.geerbt ? ' <span class="field-hint" title="Prozesseigner der Konzern-Landkarte">↑</span>' : ''}`
         : '<span style="color:#b45309">👤 kein Prozesseigner</span>'}</div>
       ${pruefText ? `<div class="pb-karte-pruefung"${pruefFarbe ? ` style="color:${pruefFarbe}"` : ''}>${esc(pruefText)}</div>` : ''}
+      ${_pbReifeHtml(e)}
       ${schreiben ? `<select class="pb-status" aria-label="Status von ${esc(k.name)}"
           onchange="${modell ? `pbModellStatusSetzen(${jsArg(k.id)},this.value)` : `pbStatusSetzen(${jsArg(e.werk)},${jsArg(k.id)},this.value)`}">
           ${PZ_STATUS.map(s => `<option value="${s.key}"${s.key === e.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>` : ''}
     </div>`;
+}
+
+/** Reifegrad, Kennzahlen und was einem freigegebenen Prozess davon noch fehlt. */
+function _pbReifeHtml(e) {
+  if (typeof pzLuecken !== 'function' || !e.kennzahlen) return '';
+  const rg = pzReifegradInfo(e.reifegrad.key);
+  const s = pzKpiStand(e.kennzahlen.liste);
+  const teile = [];
+  if (rg) teile.push(`<span title="Reifegrad nach ISO/IEC 33020${e.reifegrad.geerbt ? ' (von der Kachel)' : ''}: ${esc(rg.text)}">${esc(rg.kurz)}</span>`);
+  if (s.gesamt) {
+    const titel = e.kennzahlen.liste.map(pzKpiText).join('\n') + (e.kennzahlen.geerbt ? '\n(Vorgabe, hier noch nicht gemessen)' : '');
+    teile.push(`<span title="${esc(titel)}"${s.verfehlt ? ' style="color:#b91c1c"' : ''}>📊 ${s.erfuellt}/${s.gesamt} im Ziel${e.kennzahlen.geerbt ? ' ↑' : ''}</span>`);
+  }
+  const luecken = pzLuecken(e);
+  if (luecken.length) teile.push(`<span style="color:#b45309">⚠ ${esc(luecken.join(', '))}</span>`);
+  return teile.length ? `<div class="pb-karte-pruefung">${teile.join(' · ')}</div>` : '';
 }
 
 /* ── Bedienung ───────────────────────────────────────────────────────── */
