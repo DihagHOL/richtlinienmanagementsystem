@@ -1036,8 +1036,9 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pz-kpi { border: 1px solid var(--c-border); border-radius: 7px; padding: 6px 7px; margin-bottom: 6px; background: var(--c-surface, #fff); }
 .pz-kpi-reihe { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 .pz-kpi-reihe + .pz-kpi-reihe { margin-top: 5px; }
-.pz-kpi-reihe input, .pz-kpi-reihe select { font-size: .8rem; padding: 3px 5px; min-width: 0; }
-.pz-kpi-name { flex: 1; min-width: 9em; }
+.pz-kpi-reihe input, .pz-kpi-reihe select { font-size: .8rem; padding: 3px 5px; min-width: 0; width: auto; flex: 0 0 auto; }
+.pz-kpi-reihe input[type=text] { flex: 0 0 4.5em; }
+.pz-kpi-reihe .pz-kpi-name { flex: 1 1 9em; }
 .pz-kpi-ampel { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: middle; flex: none; }
 .pz-kpi-vorgabe { font-size: .8rem; color: var(--c-muted); padding: 1px 0; }
 

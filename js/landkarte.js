@@ -4100,8 +4100,8 @@ function lkKpiEditorHtml(ort, schreiben) {
   const vorgabe = liste.length ? [] : _lkKpiVorgabe(ort);
   const dis = schreiben ? '' : ' disabled';
   const o = jsArg(ort);
-  const feld = (i, f, x, ph, breite) => `<input type="text" value="${esc(x[f] || '')}" placeholder="${ph}" aria-label="${ph}"
-      style="width:${breite}"${dis} oninput="lkKpiFeld(${o},${i},${jsArg(f)},this.value)">`;
+  const feld = (i, f, x, ph) => `<input type="text" value="${esc(x[f] || '')}" placeholder="${ph}" aria-label="${ph}"${dis}
+      oninput="lkKpiFeld(${o},${i},${jsArg(f)},this.value)">`;
   const zeilen = liste.map((x, i) => `
     <div class="pz-kpi">
       <div class="pz-kpi-reihe">
@@ -4114,9 +4114,9 @@ function lkKpiEditorHtml(ort, schreiben) {
         <select aria-label="Richtung"${dis} onchange="lkKpiFeld(${o},${i},'richtung',this.value)">
           ${PZ_RICHTUNG.map(r => `<option value="${r.key}"${r.key === (x.richtung || 'hoch') ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}
         </select>
-        ${feld(i, 'ziel', x, 'Ziel', '4.5em')}
-        ${feld(i, 'einheit', x, 'Einheit', '4.5em')}
-        ${feld(i, 'ist', x, 'Ist', '4.5em')}
+        ${feld(i, 'ziel', x, 'Ziel')}
+        ${feld(i, 'einheit', x, 'Einheit')}
+        ${feld(i, 'ist', x, 'Ist')}
         <input type="date" id="pz-kpi-stand-${ort}-${i}" value="${esc(String(x.stand || '').slice(0, 10))}"
           title="Stand des Ist-Werts" aria-label="Stand des Ist-Werts"${dis} onchange="lkKpiFeld(${o},${i},'stand',this.value)">
       </div>
