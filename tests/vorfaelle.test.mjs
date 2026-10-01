@@ -26,7 +26,9 @@ ok(/<section id="view-vorfaelle" class="view">[\s\S]*?<div id="vorfaelle-mount">
 const access = lies('js/access.js');
 ok(/\{ view: 'vorfaelle',\s*label: 'Vorfälle & Ereignisse'/.test(access) && /show\('nav-vorfaelle',\s*v\.vorfaelle\)/.test(access) && /v\.notfall \|\| v\.vorfaelle \|\| v\.assets/.test(access), 'Reiter-Rechte, Sichtbarkeit, Gruppen-Überschrift');
 ok(/if \(view === 'vorfaelle'\s*&& typeof initVorfaelle === 'function'\)\s*initVorfaelle\(\);/.test(lies('js/app.js')) && /'notfall', 'vorfaelle', 'assets'\]\.includes\(ansicht\)/.test(lies('js/app.js')), 'switchView und Digest-Link ?ansicht=vorfaelle');
-ok(/'nav-notfall', 'nav-vorfaelle'/.test(lies('js/probelauf.js')), 'Im Probelauf ausgeblendet');
+// Der Probelauf legt fest, was bleibt – alles andere fällt weg.
+const plBleibt = (lies('js/probelauf.js').match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';
+ok(plBleibt && !/'vorfaelle'/.test(plBleibt), 'Im Probelauf ausgeblendet');
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;

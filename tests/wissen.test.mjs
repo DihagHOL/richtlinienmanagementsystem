@@ -276,7 +276,7 @@ ok(/_ckLoadWissen/.test(lies('js/cockpit.js')) && /'Wissen & Awareness'/.test(li
 ok(/ISO A\.6\.3/.test(lies('js/clevelreport.js')) && /m\.wissen = wiKennzahlen/.test(lies('js/clevelreport.js')), 'Der Audit Report hat eine Zeile (A.6.3)');
 ok(/sec\('wissen', 'Wissen – die Bibliothek'/.test(lies('js/dokumentation.js')) && /Für die Pflege/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Lesen und Pflegen');
 ok(/\.wi-karte\b/.test(lies('css/style.css')) && /\.wi-chip\.aktiv/.test(lies('css/style.css')) && /\.wi-artikel/.test(lies('css/style.css')), 'Stil für Karten, Filter und Artikel');
-ok(!/nav-wissen/.test(lies('js/probelauf.js')), 'Im Probelauf bleibt der Reiter sichtbar – ihn sieht ohnehin jede:r');
+ok(/PROBELAUF_NAV_BLEIBT = \[[^\]]*'wissen'/.test(lies('js/probelauf.js')), 'Im Probelauf bleibt der Reiter sichtbar – ihn sieht ohnehin jede:r');
 
 /* ── 5) Schulungen: das Modell ── */
 const K = M.wiNormalisieren({ beitraege: [M.WI_KURS_PHISHING] }).beitraege[0];

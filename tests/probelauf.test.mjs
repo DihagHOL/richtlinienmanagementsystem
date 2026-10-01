@@ -352,8 +352,29 @@ ok(/'nav-verwaltung'/.test(quelle) === false && /'nav-freigaben'/.test(quelle) =
   'Dashboard und Freigaben bleiben stehen – ohne sie liefe die Vorführung nicht');
 ok(/'nav-vorschlaege'/.test(quelle) === false,
   'Vorschläge ebenfalls – einen Änderungsvorschlag einzureichen tut jede:r, das gehört ins Video');
-ok(/'nav-einstellungen'/.test(quelle) && /'nav-risiken'/.test(quelle),
-  'Was im Video nur verwirrt, wird ausgeblendet');
+{
+  // Eine Leiste wie in der index.html: Gruppen-Überschriften und Reiter als Geschwister.
+  const leiste = [];
+  const knoten = (cls, view, sichtbar = true) => {
+    const el = { cls, view, style: { display: sichtbar ? '' : 'none' },
+      classList: { contains: (c) => c === cls }, getAttribute: (a) => (a === 'data-view' ? view : null) };
+    leiste.push(el); return el;
+  };
+  const sepRw = knoten('nav-sep'); const verw = knoten('nav-item', 'verwaltung'); const ein = knoten('nav-item', 'einstellungen');
+  const sepIsms = knoten('nav-sep'); const ris = knoten('nav-item', 'risiken'); const neu = knoten('nav-item', 'reiter-von-morgen');
+  const sepKi = knoten('nav-sep'); const ki = knoten('nav-item', null);
+  leiste.forEach((el, i) => { el.nextElementSibling = leiste[i + 1] || null; });
+  const qsa = ctx.document.querySelectorAll;
+  ctx.document.querySelectorAll = (sel) => (sel === '.nav-sep' ? leiste.filter(x => x.cls === 'nav-sep')
+    : sel === '.nav-item[data-view]' ? leiste.filter(x => x.cls === 'nav-item' && x.view) : []);
+  run('_plAn = true; probelaufNavFiltern();');
+  ctx.document.querySelectorAll = qsa;
+  ok(ein.style.display === 'none' && ris.style.display === 'none', 'Was im Video nur verwirrt, wird ausgeblendet');
+  ok(neu.style.display === 'none', 'Ein neuer Reiter bleibt von allein weg – festgelegt ist, was bleibt');
+  ok(verw.style.display === '' && sepRw.style.display === '', 'Das Regelwerk Dashboard und seine Überschrift bleiben');
+  ok(sepIsms.style.display === 'none', 'Eine Überschrift ohne sichtbaren Reiter fällt mit weg');
+  ok(ki.style.display === '' && sepKi.style.display === '', 'Links ohne eigene Ansicht (KI, Apps) bleiben stehen');
+}
 ok(/if \(!_plAn\) return;/.test(quelle), 'Und nur, solange wirklich ein Probelauf läuft');
 ok(/probelaufNavFiltern/.test(lies('js/access.js')),
   'initRoleNav ruft den Filter zuletzt auf – sonst überschreibt die Rollenlogik ihn wieder');
@@ -376,6 +397,67 @@ ok(/if \(!el && _freigabenScope !== 'alle'\)/.test(fg2),
 ok(/Konzeptfreigabe \(GL\)/.test(fg2), 'Die Konzeptfreigabe steht in „Bereits freigegeben"');
 ok(/Freigabe des Regelwerks \(GL\)/.test(fg2), 'Die spätere Freigabe heißt eindeutig anders');
 ok(/aktion === 'Konzept freigegeben'/.test(fg2), 'Quelle ist der Historien-Eintrag');
+
+/* ── 10d) Nachladen: Führung und Selbsttest brauchen mehr als probelauf.js ──
+   Der Start über ?probelauf=1 lädt nur probelauf.js. Ohne tour.js und den
+   Verwaltungsblock liefen „Geführte Vorführung" und „Selbsttest" ins Leere. */
+{
+  const geladen = [];
+  ctx.modulFuerAnsicht = async (v) => { geladen.push(v); };
+  run('_plModule = null;');
+  await vm.runInContext('probelaufModule()', ctx);
+  await vm.runInContext('probelaufModule()', ctx);
+  ok(geladen.length === 1 && geladen[0] === 'probelauf', 'Die Module des Probelaufs werden einmal nachgeladen');
+  ctx.modulFuerAnsicht = async () => { throw new Error('weg'); };
+  run('_plModule = null;');
+  const ergebnis = await vm.runInContext('_plMitModulen()', ctx);
+  ok(ergebnis === false && vm.runInContext('_plModule', ctx) === null, 'Scheitert das Laden, wird es beim nächsten Klick neu versucht');
+  delete ctx.modulFuerAnsicht;
+  run('_plModule = null;');
+}
+const modKarte = lies('js/module.js');
+const plGruppe = (modKarte.match(/probelauf:\s*MODUL_ADMIN\.concat\(\[([^\]]*)\]/) || [])[1] || '';
+ok(/'probelauf'/.test(plGruppe) && /'tour'/.test(plGruppe), 'Eigene Gruppe: Verwaltungsblock, probelauf.js und tour.js');
+ok(/probelaufModule\(\)\.then/.test(quelle), 'Beim Aktivieren wird im Hintergrund nachgeladen');
+ok(/onclick="probelaufTour\(\)"/.test(quelle) && /onclick="probelaufTour\(true\)"/.test(quelle),
+  'Die Knöpfe der Führung warten auf die Module');
+ok(!/onclick="tourStart\(\)"/.test(quelle), 'Kein Knopf ruft tour.js direkt auf');
+ok(/async function probelaufSelbsttest\(\) \{[\s\S]{0,200}_plMitModulen\(\)/.test(quelle), 'Der Selbsttest wartet ebenfalls');
+
+/* ── 10e) Selbsttest: Fortschritt, kein doppeltes Neuladen ── */
+const st = (quelle.match(/async function probelaufSelbsttest[\s\S]*?\n\}/) || [''])[0];
+ok(/Selbsttest \$\{n\}\/7/.test(st), 'Der Selbsttest zeigt, bei welchem Schritt er steht');
+for (const f of ['konzeptSubmitGF', 'konzeptDecide', 'setStatus', 'markKonform', 'markMitbestimmung', 'markFreigabe'])
+  ok(!new RegExp('await ' + f + '\\([^\\n]*\\n(\\s*//[^\\n]*\\n)*\\s*await reloadData').test(st), `Nach ${f} kein zweites Neuladen (lädt selbst)`);
+ok(!/await confirmRead\([^\n]*\n\s*await reloadAcks/.test(st), 'Nach confirmRead kein zweites Neuladen');
+ok(/uiConfirm/.test(st), 'Die Rückfrage ist der App-Dialog, nicht das Browser-Fenster');
+
+/* ── 10f) Reste früherer Probeläufe ── */
+{
+  echt.geloescht.length = 0; echt.dateiGeloescht.length = 0; echt.ackGeloescht.length = 0;
+  ctx.State.policiesAlle = [
+    { id: '501', title: '[Probelauf] Alt', typ: 'Konzept', dokumentName: '[Probelauf] Alt.docx', dokumentDriveId: 'd', dokumentItemId: 'f9' },
+    { id: '502', title: '[Probelauf] Alt', status: 'Veröffentlicht', dokumentName: '[Probelauf] Alt.docx', dokumentDriveId: 'd', dokumentItemId: 'f9' },
+    { id: '503', title: 'Echtes Regelwerk', status: 'Veröffentlicht', dokumentName: 'Echt.docx', dokumentDriveId: 'd', dokumentItemId: 'f1' },
+  ];
+  ctx.State.acks = [{ id: 'a77', richtlinieId: '502' }, { id: 'a78', richtlinieId: '503' }];
+  run('globalThis.__reste = _plReste().map(p => p.id).join(",");');
+  ok(ctx.__reste === '501,502', 'Reste werden am Titel erkannt, Echtes nicht');
+  const wahl = { checked: false };
+  const gid = ctx.document.getElementById;
+  ctx.document.getElementById = (id) => (id === 'pl-reste' ? wahl : gid(id));
+  run('probelaufLoeschen();');
+  await new Promise(r => setTimeout(r, 30));
+  ok(echt.geloescht.length === 0, 'Ohne Häkchen bleiben die Reste stehen');
+  wahl.checked = true;
+  run('probelaufLoeschen();');
+  await new Promise(r => setTimeout(r, 30));
+  ok(echt.geloescht.sort().join() === '501,502', 'Mit Häkchen gehen Konzept und Regelwerk der Reste');
+  ok(echt.dateiGeloescht.join() === 'f9', 'Die gemeinsame Datei geht einmal, die echte bleibt');
+  ok(echt.ackGeloescht.join() === 'a77', 'Die eigene Kenntnisnahme zum Rest geht mit, die zum echten Regelwerk nicht');
+  ctx.document.getElementById = gid;
+  delete ctx.State.policiesAlle; ctx.State.acks = [];
+}
 
 /* ── 11) Einbindung ── */
 const html = lies('index.html');

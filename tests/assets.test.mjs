@@ -25,7 +25,9 @@ ok(/<section id="view-assets" class="view">[\s\S]*?<div id="assets-mount">/.test
 const access = lies('js/access.js');
 ok(/\{ view: 'assets',\s*label: 'Assetregister'/.test(access) && /show\('nav-assets',\s*v\.assets\)/.test(access), 'Reiter-Rechte und Sichtbarkeit');
 ok(/if \(view === 'assets'\s*&& typeof initAssets === 'function'\)\s*initAssets\(\);/.test(lies('js/app.js')) && /'notfall', 'vorfaelle', 'assets'\]\.includes\(ansicht\)/.test(lies('js/app.js')), 'switchView und Digest-Link');
-ok(/'nav-risiken', 'nav-assets'/.test(lies('js/probelauf.js')), 'Im Probelauf ausgeblendet');
+// Der Probelauf legt fest, was bleibt – alles andere fällt weg.
+const plBleibt = (lies('js/probelauf.js').match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';
+ok(plBleibt && !/'assets'/.test(plBleibt), 'Im Probelauf ausgeblendet');
 
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 kctx.window = kctx; kctx.globalThis = kctx;

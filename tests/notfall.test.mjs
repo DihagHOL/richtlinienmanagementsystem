@@ -41,7 +41,9 @@ const app = lies('js/app.js');
 ok(/if \(view === 'notfall'\s*&& typeof initNotfall === 'function'\)\s*initNotfall\(\);/.test(app), 'switchView öffnet ihn');
 ok(/'wirksamkeit', 'notfall', 'vorfaelle', 'assets'\]\.includes\(ansicht\)/.test(app), 'Der Digest-Link ?ansicht=notfall landet dort');
 
-ok(/'nav-wirksamkeit', 'nav-notfall'/.test(lies('js/probelauf.js')), 'Im Probelauf ausgeblendet wie die anderen Verwaltungsreiter');
+// Der Probelauf legt fest, was bleibt – alles andere fällt weg.
+const plBleibt = (lies('js/probelauf.js').match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';
+ok(plBleibt && !/'notfall'/.test(plBleibt), 'Im Probelauf ausgeblendet wie die anderen Verwaltungsreiter');
 
 /* ── 2) Module ── */
 const kctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };

@@ -58,20 +58,58 @@ function probelaufGewuenscht() {
  * zu sehen bekommen. Beendet man den Probelauf, lädt die Seite neu – dann ist
  * wieder alles da.
  */
-/* Ausgeblendet wird, was in der Aufnahme nur ablenkt. „Vorschläge" gehört
-   ausdrücklich nicht dazu: Einen Änderungsvorschlag einzureichen ist etwas,
-   das jede:r tut – genau der Teil, den ein Lernvideo zeigen soll. Der Reiter
-   steht ohnehin in derselben Gruppe wie Dashboard und Freigaben. */
-const PROBELAUF_NAV_AUS = ['nav-cockpit', 'nav-ismsdocs', 'nav-governance', 'nav-govstruktur',
-  'nav-prozesse', 'nav-abdeckung', 'nav-faelligkeit', 'nav-risiken', 'nav-assets', 'nav-ausnahmen', 'nav-wirksamkeit', 'nav-notfall', 'nav-vorfaelle',
-  'nav-compliance', 'nav-einstellungen', 'nav-grp-governance', 'nav-grp-isms', 'nav-grp-verwaltung'];
+/* Festgelegt ist, was bleibt, nicht was weg muss. Mit einer Liste der
+   auszublendenden Reiter rutschte jeder neue Reiter durch, bis ihn jemand
+   nachtrug; so bleibt er von allein weg. „Vorschläge" bleibt ausdrücklich:
+   Einen Änderungsvorschlag einzureichen ist etwas, das jede:r tut – genau der
+   Teil, den ein Lernvideo zeigen soll. Links ohne eigene Ansicht (KI-Dashboard,
+   DIHAG-Apps) sieht ohnehin jede und jeder, sie bleiben stehen. */
+const PROBELAUF_NAV_BLEIBT = ['meine', 'wissen', 'anleitung', 'dokumentation', 'verwaltung', 'freigaben', 'vorschlaege'];
 
 function probelaufNavFiltern() {
   if (!_plAn) return;
-  PROBELAUF_NAV_AUS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
+  document.querySelectorAll('.nav-item[data-view]').forEach(el => {
+    if (!PROBELAUF_NAV_BLEIBT.includes(el.getAttribute('data-view'))) el.style.display = 'none';
   });
+  // Eine Gruppen-Überschrift ohne sichtbaren Reiter darunter fällt mit weg.
+  document.querySelectorAll('.nav-sep').forEach(sep => {
+    let el = sep.nextElementSibling, sichtbar = false;
+    while (el && !el.classList.contains('nav-sep')) {
+      if (el.classList.contains('nav-item') && el.style.display !== 'none') { sichtbar = true; break; }
+      el = el.nextElementSibling;
+    }
+    if (!sichtbar) sep.style.display = 'none';
+  });
+}
+
+/* ── Was der Probelauf außer sich selbst braucht ──
+   Der Selbsttest geht die ganze Kette durch (konzepte.js, freigaben.js …), die
+   Führung lebt in tour.js. Seit die Module erst beim Reiterwechsel kommen, war
+   davon beim Start über ?probelauf=1 nichts da: „Geführte Vorführung" und
+   „Selbsttest" liefen ins Leere. Geladen wird deshalb gleich beim Aktivieren,
+   im Hintergrund, und jeder Knopf im Streifen wartet darauf. */
+let _plModule = null;
+
+function probelaufModule() {
+  if (!_plModule) {
+    const laden = (typeof modulFuerAnsicht === 'function') ? modulFuerAnsicht('probelauf') : Promise.resolve();
+    _plModule = laden.catch(e => { _plModule = null; throw e; });   // beim nächsten Klick neu versuchen
+  }
+  return _plModule;
+}
+
+/** Auf die Module warten. → false, wenn sie nicht ladbar sind (dann mit Meldung). */
+async function _plMitModulen() {
+  try { await probelaufModule(); return true; } catch (e) {
+    toast('Der Probelauf konnte nicht alles laden (' + e.message + '). Bitte die Seite neu laden.', 'error');
+    return false;
+  }
+}
+
+/** „▶ Geführte Vorführung" und „↺" im Streifen. */
+async function probelaufTour(vonVorn) {
+  if (!(await _plMitModulen())) return;
+  if (vonVorn) tourNeu(); else tourStart();
 }
 
 /** Merken bzw. vergessen, dass gerade ein Probelauf läuft. */
@@ -141,12 +179,15 @@ function probelaufStart() {
     </div>`, true);
 }
 
-function probelaufBeenden() {
+async function probelaufBeenden() {
   const offen = probelaufAnzahl();
   const frage = offen
-    ? `Probelauf beenden?\n\nEs sind ${offen} Einträge entstanden, die noch in den Listen stehen.\nDu kannst sie vorher über „Aufräumen" löschen.`
-    : 'Probelauf beenden?';
-  if (!confirm(frage)) return;
+    ? `Es sind ${offen} Einträge entstanden, die noch in den Listen stehen. „Aufräumen" löscht sie vorher.`
+    : 'Die Seite lädt danach ohne Probelauf neu.';
+  const ja = (typeof uiConfirm === 'function')
+    ? await uiConfirm(frage, { title: 'Probelauf beenden', okLabel: 'Beenden' })
+    : confirm('Probelauf beenden?\n\n' + frage);
+  if (!ja) return;
   _plLaufMerken(false);
   if (typeof tourStandVergessen === 'function') tourStandVergessen();
   location.href = location.pathname;
@@ -191,9 +232,11 @@ async function probelaufAktivieren() {
   _plBanner();
   probelaufNavFiltern();
 
-  if (/[?&]tour=1(&|$)/.test(location.search) && typeof tourStart === 'function') {
-    setTimeout(() => tourStart(), 600);
-  }
+  // Die Anwendung startet derweil normal weiter; erst danach kommt die Führung.
+  probelaufModule().then(() => {
+    _plBannerAktualisieren();   // Knopftext der Führung kennt erst tour.js
+    if (/[?&]tour=1(&|$)/.test(location.search) && typeof tourStart === 'function') setTimeout(() => tourStart(), 600);
+  }).catch(e => toast('Der Probelauf konnte nicht alles laden (' + e.message + '). Bitte die Seite neu laden.', 'error'));
   return true;
 }
 
@@ -257,14 +300,26 @@ function probelaufAnzahl() { return _plSpur.policies.length + _plSpur.acks.lengt
    Aufräumen
 ═══════════════════════════════════════════════════ */
 
+/**
+ * Probelauf-Einträge, die nicht in der Spur dieses Browsers stehen: angelegt
+ * in einem anderen Browser, oder die Spur ging mit dem Browserspeicher
+ * verloren. Erkennbar sind sie trotzdem, denn die Kennzeichnung steht im Titel.
+ */
+function _plReste() {
+  const inSpur = new Set(_plSpur.policies.map(String));
+  const alle = (typeof State !== 'undefined') ? (State.policiesAlle || State.policies || []) : [];
+  return alle.filter(p => String(p.title || '').startsWith(PROBELAUF_PRAEFIX) && !inSpur.has(String(p.id)));
+}
+
 function probelaufAufraeumen() {
   // Die Spur haelt Regelwerke UND Konzepte, deshalb beide Helfer.
   const eintraege = _plSpur.policies
     .map(id => policyZuId(id) || konzeptZuId(id))
     .filter(Boolean);
   const verwaist = _plSpur.policies.length - eintraege.length;
+  const reste = _plReste();
 
-  if (!probelaufAnzahl()) { toast('Es ist nichts aufzuräumen.'); return; }
+  if (!probelaufAnzahl() && !reste.length) { toast('Es ist nichts aufzuräumen.'); return; }
 
   openModal(`
     <div class="modal-header">
@@ -282,6 +337,15 @@ function probelaufAufraeumen() {
         ${_plSpur.dateien.map(d => `<li>📄 ${esc(d.name)} <span class="field-hint">(Dokumentbibliothek)</span></li>`).join('')}
       </ul>` : ''}
       ${verwaist ? `<p class="field-hint" style="margin:0 0 12px">${verwaist} Eintrag/Einträge sind bereits nicht mehr vorhanden.</p>` : ''}
+      ${reste.length ? `<div style="border:1px solid var(--c-border);border-radius:8px;padding:9px 11px;margin:0 0 12px">
+        <label class="ack-check" style="font-weight:600"><input type="checkbox" id="pl-reste">
+          <span>Auch ${reste.length === 1 ? 'diesen Eintrag' : 'diese ' + reste.length + ' Einträge'} aus anderen Probeläufen löschen</span></label>
+        <ul style="margin:6px 0 4px;padding-left:19px;font-size:.84rem;line-height:1.6">
+          ${reste.map(p => `<li>${esc(p.title)} <span class="field-hint">(${esc(p.typ === 'Konzept' ? 'Konzept' : p.status)})</span></li>`).join('')}
+        </ul>
+        <div class="field-hint">Sie stammen aus einem anderen Browser oder einem früheren Probelauf. Läuft gerade
+          an anderer Stelle ein Probelauf, gehören sie dorthin: dann nicht ankreuzen.</div>
+      </div>` : ''}
       <div class="pl-warnung">Versendete E-Mails bleiben in den Postfächern – die lassen sich nicht zurückholen.</div>
     </div>
     <div class="modal-footer">
@@ -290,19 +354,46 @@ function probelaufAufraeumen() {
     </div>`, true);
 }
 
+/**
+ * Löschaufträge zu viert nebeneinander statt einzeln hintereinander. Mehr
+ * gleichzeitig bringt wenig und riskiert die Drosselung durch Graph.
+ * → { weg, fehler }
+ */
+async function _plAbarbeiten(auftraege) {
+  let weg = 0, fehler = 0;
+  for (let i = 0; i < auftraege.length; i += 4) {
+    const erg = await Promise.allSettled(auftraege.slice(i, i + 4).map(f => f()));
+    erg.forEach(r => { if (r.status === 'fulfilled') weg++; else { fehler++; console.warn('[probelauf]', r.reason && r.reason.message); } });
+  }
+  return { weg, fehler };
+}
+
 async function probelaufLoeschen() {
+  const mitResten = !!(document.getElementById('pl-reste') || {}).checked;
   closeModal();
   showSync(true, 'Räume auf …');
-  let weg = 0, fehler = 0;
-  for (const id of _plSpur.policies.slice()) {
-    try { await spDeletePolicy(id); weg++; } catch (e) { fehler++; console.warn('[probelauf]', e.message); }
+  const auftraege = [];
+  _plSpur.policies.forEach(id => auftraege.push(() => spDeletePolicy(id)));
+  _plSpur.acks.forEach(id => auftraege.push(() => spDeleteAcknowledgement(id)));
+  const dateien = new Set(_plSpur.dateien.map(d => String(d.itemId)));
+  _plSpur.dateien.forEach(d => auftraege.push(() => spDeleteDriveItem(d.driveId, d.itemId)));
+  if (mitResten) {
+    // Was zu den Resten gehört: der Eintrag, die eigenen Kenntnisnahmen dazu und
+    // das Dokument, sofern es ebenfalls als Probelauf gekennzeichnet ist. Konzept
+    // und Regelwerk teilen sich nach der Annahme eine Datei – sie geht nur einmal.
+    const reste = _plReste();
+    const ids = new Set(reste.map(p => String(p.id)));
+    reste.forEach(p => auftraege.push(() => spDeletePolicy(p.id)));
+    ((typeof State !== 'undefined' && State.acks) || []).filter(a => ids.has(String(a.richtlinieId)) && a.id)
+      .forEach(a => auftraege.push(() => spDeleteAcknowledgement(a.id)));
+    reste.filter(p => p.dokumentDriveId && p.dokumentItemId && String(p.dokumentName || '').includes(PROBELAUF_PRAEFIX.trim()))
+      .forEach(p => {
+        if (dateien.has(String(p.dokumentItemId))) return;
+        dateien.add(String(p.dokumentItemId));
+        auftraege.push(() => spDeleteDriveItem(p.dokumentDriveId, p.dokumentItemId));
+      });
   }
-  for (const id of _plSpur.acks.slice()) {
-    try { await spDeleteAcknowledgement(id); weg++; } catch (e) { fehler++; console.warn('[probelauf]', e.message); }
-  }
-  for (const d of _plSpur.dateien.slice()) {
-    try { await spDeleteDriveItem(d.driveId, d.itemId); weg++; } catch (e) { fehler++; console.warn('[probelauf]', e.message); }
-  }
+  const { weg, fehler } = await _plAbarbeiten(auftraege);
   _plSpurLeeren();
   if (typeof tourStandVergessen === 'function') tourStandVergessen();   // Vorgang ist weg
   try {
@@ -553,8 +644,8 @@ function _plBanner() {
     <span class="demo-banner-text">Echter Vorgang: echte Einträge, echte E-Mails.
       Alles trägt „${esc(PROBELAUF_PRAEFIX.trim())}" im Titel.</span>
     <span class="pl-zaehler" id="pl-zaehler" title="In diesem Probelauf angelegte Einträge">0 Einträge</span>
-    <button class="demo-banner-btn" id="pl-tour-btn" onclick="tourStart()">▶ Geführte Vorführung</button>
-    <button class="demo-banner-btn" id="pl-tour-neu" onclick="tourNeu()" title="Vorführung von vorn beginnen"
+    <button class="demo-banner-btn" id="pl-tour-btn" onclick="probelaufTour()">▶ Geführte Vorführung</button>
+    <button class="demo-banner-btn" id="pl-tour-neu" onclick="probelaufTour(true)" title="Vorführung von vorn beginnen"
       style="display:none">↺</button>
     <button class="demo-banner-btn" onclick="probelaufSelbsttest()">✓ Selbsttest</button>
     <button class="demo-banner-btn" onclick="probelaufAufraeumen()">🧹 Aufräumen</button>
@@ -590,6 +681,7 @@ function probelaufBannerAktualisieren() { _plBannerAktualisieren(); }
 ═══════════════════════════════════════════════════ */
 
 const _plPruef = [];
+let _plTestStart = 0;   // für die Dauer im Bericht
 
 function _plOk(name, bedingung, detail) {
   _plPruef.push({ name, ok: !!bedingung, detail: detail || '' });
@@ -605,14 +697,24 @@ function _plPolicy(id) { return policyZuId(id) || {}; }
  */
 async function probelaufSelbsttest() {
   if (!_plAn) { toast('Der Selbsttest läuft nur im Probelauf.', 'error'); return; }
-  if (!confirm('Der Selbsttest legt einen echten Vorgang an und versendet echte E-Mails.\n\nFortfahren?')) return;
+  if (!(await _plMitModulen())) return;
+  const frage = 'Der Selbsttest legt einen echten Vorgang an und versendet echte E-Mails an die hinterlegten Empfänger.';
+  const ja = (typeof uiConfirm === 'function')
+    ? await uiConfirm(frage, { title: 'Selbsttest starten', okLabel: 'Selbsttest starten' })
+    : confirm(frage + '\n\nFortfahren?');
+  if (!ja) return;
 
   _plPruef.length = 0;
   const titel = probelaufTitel('Selbsttest ' + new Date().toLocaleString('de-DE'));
-  showSync(true, 'Selbsttest läuft …');
+  _plTestStart = Date.now();
+  // Jeder Schritt sagt, wo der Test steht. Neu geladen wird nur, wo der
+  // aufgerufene Schritt es nicht selbst tut: Einreichen, Annehmen und alle
+  // Freigabe-Schritte laden nach dem Speichern ohnehin neu.
+  const schritt = (n, text) => showSync(true, `Selbsttest ${n}/7: ${text} …`);
   let rwId = '';
   try {
     // 1) Konzept anlegen und einreichen
+    schritt(1, 'Konzept anlegen und einreichen');
     const k = newKonzept();
     k.title = titel;
     k.regelwerkTyp = 'Konzernrichtlinie';
@@ -628,18 +730,19 @@ async function probelaufSelbsttest() {
     _plOk('Konzept steht in der Liste', !!kAngelegt);
     if (!kAngelegt) return _plBericht(titel);
 
-    await konzeptSubmitGF(kAngelegt.id);
-    await reloadData();
+    await konzeptSubmitGF(kAngelegt.id);   // lädt selbst neu
     const kEing = (State.konzepte || []).find(x => x.title === titel);
     _plOk('Konzept eingereicht', !!(kEing && kEing.konzept && kEing.konzept.eingereichtAm));
     _plOk('Mail zur Konzeptprüfung an die Geschäftsleitung',
       (typeof getGeschaeftsleitung === 'function') && getGeschaeftsleitung().length > 0,
       (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung().join(', ') : '');
 
+    if (!kEing) return _plBericht(titel);
+
     // 2) Annahme über den ECHTEN Weg – dieselbe Funktion, die die
     //    Geschäftsleitung auslöst, nur ohne die Rückfrage-Dialoge.
-    rwId = await konzeptDecide(kEing.id, 'angenommen', { ohneRueckfrage: true, ohneWeiche: true });
-    await reloadData();
+    schritt(2, 'Konzept annehmen');
+    rwId = await konzeptDecide(kEing.id, 'angenommen', { ohneRueckfrage: true, ohneWeiche: true });   // lädt selbst neu
     _plOk('Konzept angenommen (echter Weg)', !!rwId);
     if (!rwId) return _plBericht(titel);
 
@@ -654,37 +757,37 @@ async function probelaufSelbsttest() {
       (konzeptZuId(kEing.id) || {}).konzept?.regelwerkId === rwId);
 
     // Dokument und Mitbestimmung ergänzen – wie beim Ausarbeiten im Editor
+    schritt(3, 'Dokument ablegen');
     const entwurf = JSON.parse(JSON.stringify(entstanden));
     entwurf.kbrBetroffen = true;
     const mitDok = await probelaufDokument(entwurf);
     _plOk('Dokument in der Bibliothek abgelegt', mitDok, entwurf.dokumentName || '');
     await spSavePolicy(entwurf);
-    await reloadData();
+    await reloadData({ rendern: false });   // setStatus liest den Stand aus State
 
-    // 3) Konformitätsprüfung
+    // 3) Konformitätsprüfung (setStatus und mark… laden selbst neu)
+    schritt(4, 'Konformitätsprüfung');
     await setStatus(rwId, 'Konformitätsprüfung', 'Selbsttest (Probelauf)');
-    await reloadData();
     _plOk('Status Konformitätsprüfung', _plPolicy(rwId).status === 'Konformitätsprüfung');
 
     await markKonform(rwId, true);
-    await reloadData();
     _plOk('Konformität bestätigt', (_plPolicy(rwId).konformitaet || []).length > 0);
 
     // 4) Mitbestimmung
     if (mitbestimmungPflicht(_plPolicy(rwId))) {
+      schritt(5, 'Mitbestimmung');
       await markMitbestimmung(rwId, true);
-      await reloadData();
       _plOk('Mitbestimmung bestätigt', mitbestimmungBestaetigt(_plPolicy(rwId)));
     }
 
     // 5) Freigabe
+    schritt(6, 'Freigabe');
     await markFreigabe(rwId);
-    await reloadData();
     _plOk('Freigegeben und veröffentlicht', _plPolicy(rwId).status === 'Veröffentlicht');
 
     // 6) Kenntnisnahme
-    await confirmRead(rwId);
-    await reloadAcks();
+    schritt(7, 'Kenntnisnahme und Nachweis');
+    await confirmRead(rwId);   // lädt die Kenntnisnahmen selbst neu
     _plOk('Kenntnisnahme gespeichert',
       (State.acks || []).some(a => String(a.richtlinieId) === String(rwId)));
 
@@ -706,7 +809,9 @@ async function probelaufSelbsttest() {
 }
 
 function _plBericht(titel) {
+  showSync(false);
   const rot = _plPruef.filter(p => !p.ok).length;
+  const dauer = _plTestStart ? Math.max(1, Math.round((Date.now() - _plTestStart) / 1000)) : 0;
   const zeilen = _plPruef.map(p => `
     <div style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--c-border-2)">
       <span style="color:${p.ok ? 'var(--c-success)' : 'var(--c-danger)'};font-weight:700">${p.ok ? '✓' : '✗'}</span>
@@ -726,7 +831,7 @@ function _plBericht(titel) {
         background:${rot ? '#fef2f2' : '#f0fdf4'};border-left:3px solid ${rot ? 'var(--c-danger)' : 'var(--c-success)'}">
         <b>${rot ? 'Es gibt Abweichungen.' : 'Die Prozesskette trägt.'}</b>
         <div class="field-hint" style="margin-top:3px">Echter Durchlauf „${esc(titel)}" – Konzept, Prüfung,
-        Mitbestimmung, Freigabe, Kenntnisnahme und Nachweis in einem Zug. Die E-Mails liegen in den
+        Mitbestimmung, Freigabe, Kenntnisnahme und Nachweis in einem Zug${dauer ? ` (${dauer} s)` : ''}. Die E-Mails liegen in den
         Postfächern der hinterlegten Empfänger.</div>
       </div>
       ${zeilen}

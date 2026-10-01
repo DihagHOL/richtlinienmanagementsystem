@@ -451,7 +451,9 @@ ctx.document.getElementById = () => null;
    Aktenschrank. Gefunden wurden die Lücken mit der Frage: welche Datei nennt
    'risiken', aber nicht 'ausnahmen'? */
 
-const dateien = ['js/cockpit.js', 'js/clevelreport.js', 'js/dokumentation.js', 'js/probelauf.js'];
+// probelauf.js steht nicht mehr dabei: Es legt fest, was in der Leiste bleibt,
+// und muss das Register deshalb gar nicht kennen (Prüfung weiter unten).
+const dateien = ['js/cockpit.js', 'js/clevelreport.js', 'js/dokumentation.js'];
 for (const d of dateien) ok(/ausnahmen/i.test(lies(d)), `${d} kennt das Ausnahmeregister`);
 
 const cockpit = lies('js/cockpit.js');
@@ -469,7 +471,8 @@ ok(/a\.abgelaufen \|\| a\.ohneNachweis/.test(cl),
   'Eine abgelaufene ist dagegen eine Lücke – dann handeln Leute nach einer Erlaubnis, die es nicht mehr gibt');
 
 const pl = lies('js/probelauf.js');
-ok(/'nav-risiken', (?:'nav-[a-z]+', )*'nav-ausnahmen'/.test(pl),
+const plBleibt = (pl.match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';
+ok(plBleibt && !/'ausnahmen'/.test(plBleibt) && !/'risiken'/.test(plBleibt),
   'Im Lernvideo wird der Reiter ausgeblendet wie das Risiko-Register');
 
 /* Der Dokumentationsabschnitt – wirklich gerendert, nicht nur vorhanden.

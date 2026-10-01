@@ -69,6 +69,11 @@ const MODUL_ANSICHTEN = {
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),
   anleitung:     MODUL_ADMIN.concat(['probelauf', 'tour', 'anleitung']),
+  // Kein Reiter, aber eine eigene Lage: Ein laufender Probelauf (?probelauf=1)
+  // beginnt auf „Meine Regelwerke". Sein Streifen bietet trotzdem Führung und
+  // Selbsttest an, und die gehen die ganze Kette durch. probelauf.js lädt das
+  // beim Aktivieren nach (probelaufModule); der Test unten prüft die Hülle.
+  probelauf:     MODUL_ADMIN.concat(['probelauf', 'tour']),
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
   govstruktur:  ['govstruktur'],

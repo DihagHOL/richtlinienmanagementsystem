@@ -803,13 +803,19 @@ function _dokuSections() {
           Beim Aufräumen wird die Datei mitgelöscht. Wer lieber eine eigene Datei zeigt, hängt sie im
           Editor ganz normal an.</li>
         <li style="${li}"><b>Aufräumen:</b> Jeder angelegte Eintrag wird mitgeschrieben; „🧹 Aufräumen" im
-          Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.</li>
+          Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.
+          Stehen noch Einträge mit <code>[Probelauf]</code> aus einem anderen Browser oder einem früheren
+          Lauf in den Listen, nennt der Dialog sie gesondert; gelöscht werden sie nur mit Häkchen.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
           hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
           Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>
         <li style="${li}"><b>Selbsttest:</b> spielt Konzept → Entwurf → Konformitätsprüfung → Mitbestimmung →
           Freigabe → Kenntnisnahme → Historie in einem Zug durch und zeigt einen Bericht mit allen
-          Prüfpunkten. Sinnvoll nach jeder Aktualisierung.</li>
+          Prüfpunkten und der Dauer. Während des Laufs steht unten, bei welchem der sieben Schritte er ist.
+          Sinnvoll nach jeder Aktualisierung.</li>
+        <li style="${li}"><b>Beim Start:</b> Der Probelauf lädt Führung und Selbsttest im Hintergrund nach,
+          die Anwendung ist derweil schon bedienbar. Ein Klick auf „▶ Geführte Vorführung" oder „✓ Selbsttest"
+          wartet, bis alles da ist.</li>
         <li style="${li}"><b>Nur für Freigeschaltete:</b> Administratoren immer, weitere Personen über
           <b>Einstellungen → Probelauf</b>. Grund: echte Einträge und echter Mailversand.</li>
       </ul>`,
