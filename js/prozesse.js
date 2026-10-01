@@ -220,6 +220,20 @@ async function initProzesse() {
 
 async function refreshProzesse() { _processes = null; _procLinkCache = {}; await initProzesse(); }
 
+/**
+ * Deep-Link ?modell=<Datei-Kennung>: das Modell in der Ansicht öffnen. Erst
+ * wartet er, bis die Liste geladen ist – sonst zeichnet sie sich gleich über
+ * die Ansicht. Die Liste statt der Landkarte, damit „Zurück" dort landet,
+ * wo das Modell steht.
+ */
+async function procDeepLink(itemId, wartenMs = 10000) {
+  if (!itemId) return;
+  _prozModus = 'liste';
+  const ende = Date.now() + wartenMs;
+  while ((_processesLoading || !_processes) && Date.now() < ende) await new Promise(r => setTimeout(r, 150));
+  await openProcessAnsicht(String(itemId));
+}
+
 function renderProzesseList() {
   const mount = document.getElementById('prozesse-mount');
   if (!mount) return;

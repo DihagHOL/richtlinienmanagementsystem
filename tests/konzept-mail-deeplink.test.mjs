@@ -32,7 +32,7 @@ ok(/annehmen: 'angenommen'/.test(kjs) && /ablehnen: 'abgelehnt'/.test(kjs) && /z
 ok(/id="konzept-\$\{esc\(k\.id\)\}"/.test(kjs), 'Konzept-Karte hat id="konzept-<id>"');
 
 const appjs = fs.readFileSync(ROOT+'/js/app.js','utf8');
-ok(/\(richtlinie\|ansicht\|konzept\)/.test(appjs), 'Deeplink-Sniff erkennt konzept-Param');
+ok(/\(richtlinie\|ansicht\|konzept[|)]/.test(appjs), 'Deeplink-Sniff erkennt konzept-Param');
 ok(/params\.get\('konzept'\)/.test(appjs) && /handleKonzeptMailAction\(konzeptId, aktion, params\.get\('t'\) \|\| ''\)/.test(appjs), 'applyDeepLinkOrDefault behandelt konzept-Deeplink');
 
 console.log(`\n${fail?'✗':'✓'} ${pass} grün, ${fail} rot`); process.exit(fail?1:0);

@@ -62,7 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('%c[RMS] Build ' + APP_VERSION + ' geladen', 'color:#17509e;font-weight:700');
   _dbgOn = /[?&]debug/.test(location.search);  // Diagnose-Streifen nur mit ?debug
   // Deep-Link aus Mail (?richtlinie=… oder ?ansicht=…) vor dem evtl. Login-Redirect sichern (überlebt in sessionStorage).
-  if (/[?&](richtlinie|ansicht|konzept)=/.test(location.search)) {
+  // Auch Prozess (Landkarte) und Modell, sonst landet der Link nach der Anmeldung auf der Startseite.
+  if (/[?&](richtlinie|ansicht|konzept|prozess|modell)=/.test(location.search)) {
     try { sessionStorage.setItem('rms_deeplink', location.search); } catch (e) {}
   }
   document.querySelectorAll('.nav-item[data-view]').forEach(n =>
@@ -155,6 +156,21 @@ async function applyDeepLinkOrDefault() {
     await switchView('prozesse');
     const [werk, kachel] = String(prozessZiel).split(':');
     if (typeof lkDeepLink === 'function') await lkDeepLink(werk, kachel || '');
+    return;
+  }
+
+  // Deep-Link auf ein Modell (?modell=<Datei-Kennung>) – z. B. von der
+  // Prozessseite der E-Rechnung, die ihre Modelle von hier liest. Die Kennung
+  // übersteht Umbenennen und Umzug in ein anderes Werk.
+  const modellZiel = params.get('modell');
+  if (modellZiel) {
+    if (typeof canReadTab === 'function' && !canReadTab('prozesse')) {
+      await switchView('meine');
+      toast('Für die Prozesse fehlt Ihnen der Zugriff.');
+      return;
+    }
+    await switchView('prozesse');
+    if (typeof procDeepLink === 'function') await procDeepLink(modellZiel);
     return;
   }
 
