@@ -154,7 +154,7 @@ function _destroyModeler() {
 /* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
    die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
    Reiter mit Umschalter statt zweier Reiter. */
-let _prozModus = 'karte';   // 'karte' | 'netz' | 'matrix' | 'liste'
+let _prozModus = 'karte';   // 'karte' | 'netz' | 'matrix' | 'backlog' | 'liste'
 
 /** Umschalter, den beide Ansichten oben einblenden. */
 function prozessModusLeiste(aktiv) {
@@ -164,12 +164,13 @@ function prozessModusLeiste(aktiv) {
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
       ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran – Prozesse, Modelle, Regelwerke, Standorte')}
       ${knopf('matrix', '👤 Matrix', 'Wer ist für welchen Prozess zuständig – und wo fehlt noch etwas')}
+      ${knopf('backlog', '📌 Backlog', 'Woran gerade gearbeitet wird: Lebenszyklus, Priorität, Prozesseigner, Überprüfung')}
       ${knopf('liste', '📋 Modelle', 'Alle BPMN-Modelle als Liste')}
     </div>`;
 }
 
 function setProzessModus(m) {
-  _prozModus = ['liste', 'netz', 'matrix', 'karte'].includes(m) ? m : 'karte';
+  _prozModus = ['liste', 'netz', 'matrix', 'backlog', 'karte'].includes(m) ? m : 'karte';
   renderProzesseAktuell();
 }
 
@@ -178,6 +179,7 @@ function renderProzesseAktuell() {
   if (_prozModus === 'karte' && typeof initLandkarte === 'function') { initLandkarte(); return; }
   if (_prozModus === 'netz' && typeof initVerknuepfungen === 'function') { initVerknuepfungen(); return; }
   if (_prozModus === 'matrix' && typeof initProzessMatrix === 'function') { initProzessMatrix(); return; }
+  if (_prozModus === 'backlog' && typeof initProzessBacklog === 'function') { initProzessBacklog(); return; }
   renderProzesseList();
 }
 

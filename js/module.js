@@ -51,16 +51,16 @@ const MODUL_ANSICHTEN = {
   freigaben:     MODUL_ADMIN,
   einstellungen: MODUL_ADMIN,
   compliance:    MODUL_ADMIN,
-  faelligkeit:   MODUL_ADMIN.concat(['faelligkeit']),
+  faelligkeit:   MODUL_ADMIN.concat(['prozessmodell', 'faelligkeit']),
   ismsdocs:      MODUL_ADMIN.concat(['ismsdocs']),
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'prozessmatrix', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'prozessmodell', 'prozesse', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
-  notfall:       MODUL_ADMIN.concat(['prozessschema', 'prozesse', 'landkarte', 'notfall']),
+  notfall:       MODUL_ADMIN.concat(['prozessschema', 'prozessmodell', 'prozesse', 'landkarte', 'notfall']),
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
   // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.

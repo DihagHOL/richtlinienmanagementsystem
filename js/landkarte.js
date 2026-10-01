@@ -1883,6 +1883,7 @@ function _lkNachSpeichern() {
   const modus = (typeof _prozModus !== 'undefined') ? _prozModus : 'karte';
   if (modus === 'netz' && typeof vkNachLandkarte === 'function') { vkNachLandkarte(); return; }
   if (modus === 'matrix' && typeof renderProzessMatrix === 'function') { renderProzessMatrix(); return; }
+  if (modus === 'backlog' && typeof renderProzessBacklog === 'function') { renderProzessBacklog(); return; }
   renderLandkarte();
 }
 
@@ -2091,6 +2092,7 @@ function _lkKachelHtml(k, i, band, schreiben) {
             (typeof lkPersonName === 'function' ? lkPersonName(person) : person).split(' ')[0])}</span>` : ''}
           ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
           ${(typeof nfKachelMarker === 'function') ? nfKachelMarker(k) : ''}
+          ${_lkPzMarker(k)}
           ${_lkGliederungZeichen(_lkWerk, k)}
           ${typ && typ.key !== lkBandTyp(band) ? `<span class="lk-kachel-typ" style="color:${typ.farbe}" title="${esc(typ.label)}">${esc(typ.kurz)}</span>` : ''}
         </div>
@@ -2103,7 +2105,7 @@ function _lkPfeilHtml(k, i, schreiben) {
   const g = _lkGeltungKurz(k);
   return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}" style="--lk-c:${lkTypFarbe(k, 'kern')}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
       onclick="lkKachelOeffnen(${jsArg(k.id)})" aria-label="${esc(k.name + (k.unter ? ' – ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
-      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${lkNrText(k) ? `<span class="lk-pfeil-nr" title="Prozess-Nr.">${esc(lkNrText(k))}</span>` : ''}${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}
+      ${_lkStatusPunkt(k)}<b>${esc(k.name)}</b>${lkNrText(k) ? `<span class="lk-pfeil-nr" title="Prozess-Nr.">${esc(lkNrText(k))}</span>` : ''}${(typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}${_lkPzMarker(k)}
       ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
       ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
       <span class="lk-pfeil-gliederung">${_lkGliederungZeichen(_lkWerk, k)}</span>
@@ -3021,6 +3023,7 @@ function lkKachelOeffnen(id) {
               k.vertretung ? ` <span class="field-hint">· Vertretung: ${esc(lkPersonName(k.vertretung))}</span>` : ''}`
           : `<span style="color:#b45309">👤 Kein Prozessverantwortlicher gepflegt</span>`}
       </div>
+      ${_lkPzBlock(k)}
       ${(typeof nfKachelZeile === 'function') ? nfKachelZeile(k, _lkWerk) : ''}
 
       <div style="border-top:1px solid var(--c-border);padding-top:12px">
@@ -3698,7 +3701,7 @@ function lkKachelNeu(band) {
   const baender = lkBaender();
   const start = (band && baender.some(b => b.key === band)) ? band
     : (baender.some(b => b.key === 'unterstuetzung') ? 'unterstuetzung' : (baender[0] || {}).key || 'unterstuetzung');
-  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], neu: true };
+  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], status: 'ist', neu: true };
   renderLkEditor();
 }
 
@@ -3764,6 +3767,7 @@ function renderLkEditor() {
         </div>
         <datalist id="lk-people">${_lkPeopleOptions()}</datalist>
       </div>
+      ${_lkPzEditorHtml(k)}
       ${(typeof renderGeltungsbereichSection === 'function') ? renderGeltungsbereichSection(k.geltung, 'lgb') : ''}
     </div>
     <div class="modal-footer">
@@ -3814,6 +3818,7 @@ async function lkEditorSpeichern() {
       typ: String(k.typ || ''),
       verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
       prozesse: [], regelwerke: [] };
+    _lkPzUebernehmen(neu, k);
     lkKacheln().push(neu);
     lkNummernVergeben();
     closeModal();
@@ -3832,7 +3837,7 @@ async function lkEditorSpeichern() {
   ziel.geltung = geltung;
   ziel.verantwortlich = String(k.verantwortlich || '').trim();
   ziel.vertretung = String(k.vertretung || '').trim();
-  const teile = [];
+  const teile = _lkPzUebernehmen(ziel, k);
   if (alt.name !== name) teile.push(`Name: „${alt.name}" → „${name}"`);
   if (alt.band !== ziel.band) teile.push(`Band: ${_lkBandTitel(alt.band)} → ${_lkBandTitel(ziel.band)}`);
   if (alt.typ !== lkTypLabel(ziel, ziel.band)) teile.push(`Prozesstyp: ${alt.typ} → ${lkTypLabel(ziel, ziel.band)}`);
@@ -3861,6 +3866,164 @@ async function lkKachelLoeschen(id) {
   liste.splice(i, 1);
   closeModal();
   await lkSpeichern('Entfernt ✓', `Prozess „${k.name}" aus der Landkarte entfernt`);
+}
+
+/* ── Prozessmanagement an der Kachel ─────────────────────────────────
+   Lebenszyklus, Prozesseigner, Standardisierungsgrad, Priorität und
+   Überprüfung (Konzernfachregelung Prozessmanagement). Das Modell rechnet in
+   js/prozessmodell.js; hier stehen nur Anzeige und Eingabe. Fehlt das Modell,
+   fällt alles still weg – die Landkarte bleibt benutzbar. */
+
+function _lkPzBereit() { return typeof pzStatus === 'function'; }
+
+/** Kleine Marker auf der Kachel: Status (ab SOLL) und eine fällige Überprüfung. */
+function _lkPzMarker(k) {
+  if (!_lkPzBereit()) return '';
+  const s = pzStatus(k);
+  const teile = [];
+  if (s !== 'ist') {
+    const i = pzStatusInfo(s);
+    teile.push(`<span class="lk-pz" style="--pz-c:${i.farbe}" title="Status: ${esc(i.label)}">${esc(i.kurz)}</span>`);
+  }
+  const p = pzUeberpruefung(k);
+  if (p.stufe === 'ueberfaellig' || p.stufe === 'fehlt') {
+    teile.push(`<span class="lk-pz-alarm" title="${p.stufe === 'fehlt' ? 'Freigegeben, aber ohne Überprüfungstermin' : 'Überprüfung überfällig seit ' + esc(p.datum)}">⏰</span>`);
+  }
+  return teile.join('');
+}
+
+/** Block „Prozessmanagement" in der Kachel-Ansicht. */
+function _lkPzBlock(k) {
+  if (!_lkPzBereit()) return '';
+  const st = pzStatusInfo(pzStatus(k));
+  const eig = pzEigner(_lkDaten, _lkWerk, k);
+  const std = pzStandard(_lkDaten, _lkWerk, k);
+  const si = pzStandardInfo(std.key);
+  const prio = pzPrioInfo(k.prioritaet);
+  const p = pzUeberpruefung(k);
+  const geerbt = '<span class="field-hint" title="Gepflegt an der gleichnamigen Kachel der Konzern-Landkarte"> · von der Konzern-Landkarte</span>';
+  const zeile = (titel, wert) => `<div style="display:flex;gap:10px;padding:2px 0;flex-wrap:wrap"><span style="min-width:150px;color:var(--c-muted)">${titel}</span><span style="flex:1;min-width:160px">${wert}</span></div>`;
+  const pruef = p.datum
+    ? `${esc(p.datum.split('-').reverse().join('.'))}${p.stufe === 'ueberfaellig' ? ' <b style="color:#b91c1c">überfällig</b>' : (p.stufe === 'bald' ? ' <b style="color:#b45309">bald fällig</b>' : '')}`
+    : (p.stufe === 'fehlt' ? '<span style="color:#b91c1c">fehlt, freigegebene Prozesse brauchen einen Termin</span>' : '<span class="field-hint">noch keiner</span>');
+  return `<div style="margin:0 0 14px;font-size:.84rem;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px">
+      <div style="font-weight:700;font-size:.86rem;margin-bottom:4px">Prozessmanagement</div>
+      ${zeile('Status', `<span class="lk-pz" style="--pz-c:${st.farbe}">${esc(st.label)}</span> <span class="field-hint">${esc(st.text)}</span>`)}
+      ${zeile('Prozesseigner', eig.upn ? `<a href="mailto:${esc(eig.upn)}">${esc(lkPersonName(eig.upn))}</a>${eig.geerbt ? geerbt : ''}` : '<span style="color:#b45309">nicht benannt</span>')}
+      ${zeile('Standardisierung', si ? `${esc(si.label)}${std.geerbt ? geerbt : ''}` : '<span class="field-hint">noch nicht entschieden</span>')}
+      ${zeile('Priorität', prio ? `<span style="color:${prio.farbe};font-weight:600">${esc(prio.label)}</span>` : '<span class="field-hint">nicht priorisiert</span>')}
+      ${zeile('Nächste Überprüfung', pruef)}
+    </div>`;
+}
+
+/** Eingabefelder im Kachel-Editor. */
+function _lkPzEditorHtml(k) {
+  if (!_lkPzBereit()) return '';
+  const konzern = _lkWerk === 'KONZERN';
+  const erbe = konzern ? null : pzKonzernKachel(_lkDaten, _lkWerk, k);
+  const erbEigner = erbe ? (String(erbe.prozesseigner || '').trim() || String(erbe.verantwortlich || '').trim()) : '';
+  const erbStd = erbe ? pzStandardInfo(erbe.standardisierung) : null;
+  const sel = (a, b) => (a === b ? ' selected' : '');
+  const status = pzStatus(k);
+  return `<div style="border-top:1px solid var(--c-border);margin-top:6px;padding-top:10px">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozessmanagement</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Prozesseigner (E-Mail)</label>
+          <input type="text" list="lk-people" value="${esc(k.prozesseigner || '')}"
+            oninput="_lkEditing.prozesseigner=this.value"
+            placeholder="${esc(konzern ? 'leer = die verantwortliche Person' : (erbEigner ? 'leer = ' + lkPersonName(erbEigner) + ' (Konzern)' : 'name@dihag.com'))}">
+          <span class="field-hint">${konzern
+            ? 'Verantwortet den Prozess konzernweit. Bleibt es leer, ist es die verantwortliche Person oben.'
+            : 'Verantwortet den Prozess konzernweit. Bleibt es leer, gilt der Eigner der gleichnamigen Kachel auf der Konzern-Landkarte.'}</span>
+        </div>
+        <div class="form-group">
+          <label>Standardisierungsgrad</label>
+          <select onchange="_lkEditing.standardisierung=this.value;_lkPzHinweis()">
+            <option value=""${sel('', k.standardisierung || '')}>${erbStd ? 'wie Konzern-Landkarte: ' + esc(erbStd.label) : 'noch nicht entschieden'}</option>
+            ${PZ_STANDARD.map(s => `<option value="${s.key}"${sel(s.key, k.standardisierung)}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-std-hinweis">${esc((pzStandardInfo(k.standardisierung) || erbStd || { text: 'Entscheidet das Prozess-Board je Konzernprozess.' }).text)}</span>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select onchange="lkPzStatusWahl(this.value)">
+            ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-status-hinweis">${esc(pzStatusInfo(status).text)}</span>
+        </div>
+        <div class="form-group">
+          <label>Priorität</label>
+          <select onchange="_lkEditing.prioritaet=this.value">
+            <option value=""${sel('', k.prioritaet || '')}>nicht priorisiert</option>
+            ${PZ_PRIO.map(p => `<option value="${p.key}"${sel(p.key, k.prioritaet)}>${esc(p.label)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nächste Überprüfung</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="lk-pz-termin" value="${esc(String(k.naechsteUeberpruefung || '').slice(0, 10))}"
+              onchange="_lkEditing.naechsteUeberpruefung=this.value" style="flex:1">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="lkPzTerminVorschlagen()"
+              title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>
+          </div>
+          <span class="field-hint">Freigegebene Prozesse werden spätestens alle ${PZ_UEBERPRUEFUNG_MONATE} Monate überprüft. Der Termin erscheint unter „Fälligkeiten".</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _lkPzHinweis() {
+  const k = _lkEditing;
+  if (!k || !_lkPzBereit()) return;
+  const el = document.getElementById('lk-pz-std-hinweis');
+  const erbe = (_lkWerk === 'KONZERN') ? null : pzKonzernKachel(_lkDaten, _lkWerk, k);
+  const info = pzStandardInfo(k.standardisierung) || (erbe ? pzStandardInfo(erbe.standardisierung) : null);
+  if (el) el.textContent = info ? info.text : 'Entscheidet das Prozess-Board je Konzernprozess.';
+}
+
+/** Status im Editor: Wer freigibt, bekommt gleich einen Überprüfungstermin vorgeschlagen. */
+function lkPzStatusWahl(wert) {
+  const k = _lkEditing;
+  if (!k || !_lkPzBereit()) return;
+  pzStatusSetzen(k, wert);
+  const termin = document.getElementById('lk-pz-termin');
+  if (termin) termin.value = String(k.naechsteUeberpruefung || '').slice(0, 10);
+  const el = document.getElementById('lk-pz-status-hinweis');
+  if (el) el.textContent = pzStatusInfo(pzStatus(k)).text;
+}
+
+function lkPzTerminVorschlagen() {
+  if (!_lkEditing || !_lkPzBereit()) return;
+  _lkEditing.naechsteUeberpruefung = pzTerminVorschlag();
+  const termin = document.getElementById('lk-pz-termin');
+  if (termin) termin.value = _lkEditing.naechsteUeberpruefung;
+}
+
+/**
+ * Felder aus dem Editor an die Kachel übernehmen.
+ * → Änderungen als Text für den Versionsverlauf
+ */
+function _lkPzUebernehmen(ziel, k) {
+  const teile = [];
+  if (!_lkPzBereit()) return teile;
+  const text = (v) => String(v || '').trim();
+  const alt = { status: pzStatus(ziel), eigner: text(ziel.prozesseigner), std: text(ziel.standardisierung),
+    prio: text(ziel.prioritaet), termin: text(ziel.naechsteUeberpruefung).slice(0, 10) };
+  const neu = { status: pzStatus(k), eigner: text(k.prozesseigner), std: pzStandardInfo(k.standardisierung) ? k.standardisierung : '',
+    prio: pzPrioInfo(k.prioritaet) ? k.prioritaet : '', termin: text(k.naechsteUeberpruefung).slice(0, 10) };
+  ziel.status = neu.status;
+  ziel.prozesseigner = neu.eigner;
+  ziel.standardisierung = neu.std;
+  ziel.prioritaet = neu.prio;
+  ziel.naechsteUeberpruefung = /^\d{4}-\d{2}-\d{2}$/.test(neu.termin) ? neu.termin : '';
+  if (k.neu) return teile;
+  if (alt.status !== neu.status) teile.push(`Status: ${pzStatusInfo(alt.status).label} → ${pzStatusInfo(neu.status).label}`);
+  if (alt.eigner !== neu.eigner) teile.push(`Prozesseigner: ${alt.eigner || '(niemand)'} → ${neu.eigner || '(niemand)'}`);
+  if (alt.std !== neu.std) teile.push(`Standardisierung: ${(pzStandardInfo(alt.std) || { label: 'offen' }).label} → ${(pzStandardInfo(neu.std) || { label: 'offen' }).label}`);
+  if (alt.prio !== neu.prio) teile.push(`Priorität: ${alt.prio || 'keine'} → ${neu.prio || 'keine'}`);
+  if (alt.termin !== ziel.naechsteUeberpruefung) teile.push(`Überprüfung: ${ziel.naechsteUeberpruefung || 'kein Termin'}`);
+  return teile;
 }
 
 /* ── Ziehen und Ablegen: Reihenfolge und Band ────────────────────────── */

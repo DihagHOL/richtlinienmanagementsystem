@@ -49,6 +49,7 @@ const FEATURES = [
   { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
   { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },
   { name: 'Zuständigkeitsmatrix',    code: () => /function pmZeilen/.test(read('js/prozessmatrix.js')),     begriffe: ['Matrix', 'Abdeckung'] },
+  { name: 'Prozess-Backlog',         code: () => /function renderProzessBacklog/.test(read('js/prozessbacklog.js')), begriffe: ['Backlog', 'Prozesseigner', 'Standardisierungsgrad', 'nächste Überprüfung'] },
   { name: 'Mindmap als Baum',        code: () => /function vbBaum/.test(read('js/mindmapbaum.js')),          begriffe: ['Baum', 'Nahsicht'] },
   { name: 'Landkarten-Vorlagen',     code: () => /const LK_KONZERN/.test(read('js/landkarte.js')),           begriffe: ['Vorlage', 'Führungsholding'] },
   { name: 'Diagramm als Bild',       code: () => /function downloadProcessSvg/.test(prozesse),              begriffe: ['als Bild'] },

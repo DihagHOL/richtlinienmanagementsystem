@@ -1014,6 +1014,25 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pm-marke.an { background: #dcfce7; color: #15803d; }
 .pm-marke.aus { background: #f1f5f9; color: #cbd5e1; }
 
+/* ── Prozess-Backlog: eine Spalte je Stand im Lebenszyklus ── */
+.pb-brett { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.pb-spalte { background: #f8fafc; border: 1px solid var(--c-border); border-top: 3px solid var(--pb-c, var(--c-primary)); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; }
+.pb-spalte-kopf { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-weight: 700; font-size: .82rem; color: var(--c-navy, #1A2644); }
+.pb-spalte-kopf i { font-style: normal; font-weight: 600; font-size: .75rem; color: #fff; background: var(--pb-c, var(--c-primary)); border-radius: 10px; padding: 1px 8px; }
+.pb-spalte-inhalt { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; max-height: 70vh; overflow-y: auto; }
+.pb-karte { background: #fff; border: 1px solid var(--c-border); border-left: 4px solid var(--c-border); border-radius: 8px; padding: 8px 9px; font-size: .78rem; }
+.pb-karte-kopf { display: flex; gap: 6px; align-items: baseline; justify-content: space-between; }
+.pb-karte-kopf a { color: var(--c-navy, #1A2644); font-weight: 700; font-size: .84rem; text-decoration: none; overflow-wrap: anywhere; }
+.pb-karte-kopf a:hover { color: var(--c-primary); text-decoration: underline; }
+.pb-nr { font-size: .68rem; color: var(--c-faint); white-space: nowrap; }
+.pb-karte-meta { display: flex; gap: 4px; flex-wrap: wrap; margin: 5px 0 4px; }
+.pb-tag { border: 1px solid var(--c-border); border-radius: 5px; padding: 0 5px; font-size: .68rem; color: var(--c-muted); white-space: nowrap; }
+.pb-karte-person, .pb-karte-pruefung { color: var(--c-muted); margin-top: 2px; }
+.pb-status { width: 100%; margin-top: 6px; font-size: .74rem; padding: 3px 4px; }
+/* Stand an der Kachel der Landkarte */
+.lk-pz { display: inline-block; font-size: .64rem; font-weight: 700; color: #fff; background: var(--pz-c, var(--c-primary)); border-radius: 4px; padding: 0 5px; margin-left: 4px; line-height: 1.5; }
+.lk-pz-alarm { font-size: .72rem; margin-left: 3px; }
+
 /* ── Mindmap als Baum: Wurzel links, Äste nach rechts ── */
 .vb-rahmen {
   overflow: auto; border: 1px solid var(--c-border); border-radius: 12px;
