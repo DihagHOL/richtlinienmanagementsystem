@@ -185,6 +185,14 @@ async function applyDeepLinkOrDefault() {
         await switchView('wissen'); return;
       }
     }
+    // Ein Abschnitt der Dokumentation (?ansicht=dokumentation&abschnitt=bpmn),
+    // etwa aus der Hilfe im Modeler, die ihn in einem neuen Tab öffnet.
+    if (ansicht === 'dokumentation' && (typeof canReadTab !== 'function' || canReadTab('dokumentation'))) {
+      await switchView('dokumentation');
+      const abschnitt = String(params.get('abschnitt') || '').replace(/[^a-z]/g, '');
+      if (abschnitt && typeof dokuGoto === 'function') dokuGoto(abschnitt);
+      return;
+    }
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
     if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {

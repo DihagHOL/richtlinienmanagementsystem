@@ -163,6 +163,13 @@ function _destroyModeler() {
   if (_bpmnModeler) { try { _bpmnModeler.destroy(); } catch (e) { /* egal */ } _bpmnModeler = null; }
 }
 
+/** Kürzel nur, solange der Editor zu sehen ist und kein Dialog darüber liegt. */
+function _procTastaturAktiv() {
+  const view = document.getElementById('view-prozesse');
+  return !!(view && view.classList.contains('active') && document.getElementById('proc-editor')
+    && !document.querySelector('.modal-overlay'));
+}
+
 /* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
    die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
    Reiter mit Umschalter statt zweier Reiter. */
@@ -1202,6 +1209,7 @@ async function openProcessEditor(itemId, seed) {
       <button class="btn btn-outline btn-sm" id="proc-voll-btn" onclick="prozessVollbildUmschalten()"
         title="Ganzer Bildschirm – Esc beendet">⛶ Vollbild</button>
       <button class="btn btn-outline btn-sm" onclick="prozessSchemaPruefung()" title="Gegen das Hausschema prüfen">🔍 Schema</button>
+      <button class="btn btn-outline btn-sm" onclick="prozessHilfeOeffnen()" title="BPMN einfach erklärt: Zeichen, Schreibweise, Handgriffe und Kürzel">❓ Hilfe</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als Bild – lässt sich in Word, PowerPoint und Regelwerke einfügen">⬇ Bild</button>
       ${itemId && canWrite ? `<button class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="deleteProcess()">Löschen</button>` : ''}
@@ -1278,7 +1286,12 @@ async function openProcessEditor(itemId, seed) {
     return;
   }
   _destroyModeler();
-  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas' });
+  // Die Tastatur hängt am Dokument, denn die Zeichenfläche bekommt beim Klick
+  // keinen Fokus: An ihr gebunden wirkte kein einziges Kürzel, auch nicht
+  // Strg+Z. Der Modeler lebt beim Reiterwechsel weiter. Ohne die Sperre
+  // darunter löschte Entf dann unsichtbar im Diagramm.
+  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas', keyboard: { bindTo: document } });
+  _bpmnModeler.get('eventBus').on('keyboard.keydown', 5000, () => (_procTastaturAktiv() ? undefined : false));
   // Die Liste liefert Namen und Kennungen der anderen Modelle – ohne sie
   // wüsste der Kasten „Unterprozess" nicht, was es einzubinden gibt.
   if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { /* dann ohne */ } }

@@ -38,6 +38,7 @@ eigenen Prozess. Exit-Code ≠ 0 = mindestens eine Prüfung rot.
 | `regelwerk-typ` | Dokumentart (Handbuch, Richtlinie …) in beiden Editoren |
 | `sp-spaltennamen` | SharePoint-Spalten über internen **oder** Anzeigenamen auflösen |
 | `standard-prozesse` | Die 14 RMS-Standardprozesse erzeugen valides BPMN |
+| `bpmnhilfe` | „BPMN einfach erklärt": Beispiele bestehen die Hausschema-Prüfung, jeder genannte Knopf existiert, Tastenkürzel im Editor gebunden und gesperrt, wo sie stören würden |
 
 ## Neue Tests schreiben
 

@@ -54,6 +54,7 @@ const _DOKU_TOC = [
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
+  ['bpmn',          'BPMN einfach erklärt'],
   ['prozesse',      'Prozesse (BPMN 2.0)'],
   ['prozessschema', 'Prozesse niederschreiben (Hausschema)'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
@@ -623,6 +624,13 @@ function _dokuSections() {
         Konzernregelwerk zuzuordnen.</div>`,
       'ISO 27001 Klausel 5.1 (Führung), 5.3 (Rollen &amp; Verantwortlichkeiten), A.5.1 (Regelwerke); DCGK.'),
 
+    sec('bpmn', 'BPMN einfach erklärt', 'all', `
+      <div style="${hint};margin-top:0">Neu bei BPMN? <b>Stufe 1</b> reicht für den ersten eigenen Prozess. <b>Stufe 2</b> brauchen Sie erst, wenn Sie selbst zeichnen oder einen größeren Ablauf abbilden.</div>
+      ${typeof bpmnEinstiegHtml === 'function' ? bpmnEinstiegHtml() : ''}
+      ${typeof bpmnVertiefungHtml === 'function' ? bpmnVertiefungHtml() : ''}
+      <div style="${hint}">💡 Stufe 1 gibt es auch im Modeler: Knopf <b>„❓ Hilfe"</b> in der Leiste oben. Sie öffnet sich als Dialog, das Diagramm bleibt dahinter offen.</div>`,
+      'OMG BPMN 2.0 (ISO/IEC 19510); ISO 9001 Abschnitt 4.4 und ISO 27001 Klausel 4.4 verlangen, dass Prozesse und ihre Wechselwirkungen bestimmt und beschrieben sind.'),
+
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
       <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat drei Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🕸 Verknüpfungen</b> (wer hängt woran) und <b>📋 Modelle</b> (alle BPMN-Dateien als Liste).</p>
@@ -728,7 +736,7 @@ function _dokuSections() {
         <td>${esc(b.zweck)}<div style="color:var(--c-muted);font-size:.85em;margin-top:2px">Benennung: ${esc(b.benennung)}${b.beispiel ? ' · z. B. „' + esc(b.beispiel) + '"' : ''}</div></td>
       </tr>`).join('')}</tbody></table>
       <div style="${h3}">So wird ein Prozess aufgeschrieben</div>
-      <p style="margin:0 0 8px;line-height:1.55">Vor dem Doppelpunkt steht die <b>Bahn</b>, dahinter der Schritt. Mehr braucht es nicht – aus diesen Zeilen baut „✨ Aus Text erzeugen" ein vollständiges Modell mit Pool, Bahnen und richtigen Symbolen.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Vor dem Doppelpunkt steht die <b>Bahn</b>, dahinter der Schritt. Mehr braucht es nicht. Aus diesen Zeilen baut der Generator ein vollständiges Modell mit Pool, Bahnen und richtigen Symbolen: Reiter „Prozesse", Ansicht „📋 Modelle", <b>„✨ Aus Richtlinie"</b>. Den Weg Schritt für Schritt beschreibt „BPMN einfach erklärt".</p>
       <pre style="background:var(--c-bg,#f8fafc);border:1px solid var(--c-border);border-radius:8px;padding:10px;overflow:auto;font-size:.82rem;line-height:1.5">${esc(typeof PROZESS_VORLAGE_TEXT !== 'undefined' ? PROZESS_VORLAGE_TEXT : '')}</pre>
       ${tbl([
         ['<code>Rolle: Schritt</code>', 'Wird eine Aufgabe 👤 in der Bahn „Rolle".'],
