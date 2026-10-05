@@ -445,7 +445,7 @@ function _dokuSections() {
 
     sec('wirksamkeit', 'Wirksamkeit &amp; Verbesserung', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Wirksamkeit"</b> deckt drei Normkapitel ab, die das System bisher nur benennen konnte: <b>9.2</b> internes Audit, <b>9.3</b> Managementbewertung, <b>10.2</b> Nichtkonformität und Korrekturmaßnahmen. Eine Richtlinie beschreibt, wie etwas laufen <i>soll</i>; hier steht, <i>dass</i> es gelaufen ist.</p>
-      <p style="margin:0 0 8px;line-height:1.55"><b>Ein Register, drei Satzarten</b> – nicht drei Register mit derselben Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist eine; sie trägt nur ein Feld mehr, das sagt, woher sie stammt. Wer den Zusammenhang in drei Listen zerlegt, muss ihn danach von Hand wiederherstellen.</p>
+      <p style="margin:0 0 8px;line-height:1.55"><b>Ein Register, fünf Satzarten</b> (Abweichung, internes Audit, Managementbewertung, Notfallübung, Funktionsprüfung), nicht fünf Register mit derselben Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist eine; sie trägt nur ein Feld mehr, das sagt, woher sie stammt. Wer den Zusammenhang in drei Listen zerlegt, muss ihn danach von Hand wiederherstellen.</p>
       <div style="${h3}">Was zum Abschließen verlangt wird</div>
       ${tbl([
         ['⚠️ Abweichung<br><span style="font-weight:400;color:var(--c-muted)">ISO 10.2</span>',
@@ -454,6 +454,8 @@ function _dokuSections() {
          '<b>Umfang und Kriterien</b>, <b>Auditoren</b> und ein <b>Ergebnis</b>. Gefundene Abweichungen werden als eigene Einträge angelegt und tragen das Audit als Herkunft – dann hängen sie sichtbar zusammen, in beide Richtungen.'],
         ['⚖️ Managementbewertung<br><span style="font-weight:400;color:var(--c-muted)">ISO 9.3</span>',
          'Alle <b>acht Pflichteingaben</b> aus 9.3.2 als Haken, <b>Teilnehmende</b> und die <b>Entscheidungen</b>. Fehlt ein Haken, nennt das Register ihn beim Namen – im Audit fehlt er sonst auch, nur später.'],
+        ['🧪 Funktionsprüfung<br><span style="font-weight:400;color:var(--c-muted)">ISO A.8.29 · A.8.32</span>',
+         '<b>Was geprüft wurde</b> (welcher Ablauf, nach welcher Änderung) und ein <b>Ergebnis</b>. Der Selbsttest im Probelauf legt sie auf Knopfdruck selbst an. Was nicht funktioniert hat, wird als Abweichung mit der Prüfung als Herkunft angelegt.'],
       ])}
       <div style="${h3}">Maßnahmen und Fristen</div>
       <ul style="${ol}">
@@ -818,14 +820,35 @@ function _dokuSections() {
         <li style="${li}"><b>Aufräumen:</b> Jeder angelegte Eintrag wird mitgeschrieben; „🧹 Aufräumen" im
           Streifen löscht genau diese wieder – nichts anderes. Versendete E-Mails bleiben naturgemäß.
           Stehen noch Einträge mit <code>[Probelauf]</code> aus einem anderen Browser oder einem früheren
-          Lauf in den Listen, nennt der Dialog sie gesondert; gelöscht werden sie nur mit Häkchen.</li>
+          Lauf in den Listen, nennt der Dialog sie gesondert; gelöscht werden sie nur mit Häkchen.
+          „Beenden" bietet „Aufräumen und beenden" in einem Schritt an.</li>
+        <li style="${li}"><b>Die Belegschaft bekommt nichts mit:</b> Unter „Meine Regelwerke" sehen
+          Probelauf-Einträge nur Freigeschaltete. Bekanntgabe und Pflicht-Erinnerung eines Probelaufs gehen
+          nur an die Person, die ihn ausführt, ohne Rückfrage. Der tägliche Erinnerungslauf lässt
+          Probelauf-Einträge ganz aus und schreibt stattdessen einmal die Woche der Person, die sie angelegt
+          hat, dass noch aufzuräumen ist. Prüfer, Betriebsrat und Geschäftsleitung bekommen ihre Mails
+          weiter, denn sie entscheiden im Probelauf mit.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
           hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
           Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>
         <li style="${li}"><b>Selbsttest:</b> spielt Konzept → Entwurf → Konformitätsprüfung → Mitbestimmung →
           Freigabe → Kenntnisnahme → Historie in einem Zug durch und zeigt einen Bericht mit allen
-          Prüfpunkten und der Dauer. Während des Laufs steht unten, bei welchem der sieben Schritte er ist.
-          Sinnvoll nach jeder Aktualisierung.</li>
+          Prüfpunkten und der Dauer. Während des Laufs steht unten, bei welchem Schritt er ist.
+          Sinnvoll nach jeder Aktualisierung.
+          <ul style="margin:4px 0 0;padding-left:18px">
+            <li>Vor dem Start zeigt er die <b>Voraussetzungen</b>: ob Sie in der Geschäftsleitung stehen, ob Prüfer und
+              Betriebsrat hinterlegt sind und ob eine Freigabe zur Veröffentlichung genügt.</li>
+            <li>Er prüft die <b>Mails</b>, nicht nur die Empfängerlisten: jede Mail mit Betreff, Empfängern und ob
+              Microsoft Graph sie angenommen hat, auch die, die ein Schritt verschickt, ohne darauf zu warten.
+              Läuft eine Etappe über Power Automate, steht dort ein Hinweis.</li>
+            <li>Steht die Freigabe-Schwelle auf <b>„alle"</b>, kann der Test nicht veröffentlichen. Das steht als
+              <b>Hinweis</b> im Bericht („1 von 3 Freigaben"), nicht als Fehler.</li>
+            <li><b>„Danach aufräumen"</b> (voreingestellt) löscht genau den Vorgang des Tests, nicht den der Vorführung.</li>
+            <li><b>„Auch Ablehnungen prüfen"</b> geht zusätzlich die Wege, auf denen etwas abgelehnt wird: Konzept
+              abgelehnt, „nicht konform" in der Prüfung und in der Mitbestimmung.</li>
+            <li><b>„📋 Als Nachweis ablegen"</b> legt den Bericht als <b>Funktionsprüfung</b> im Register
+              „Wirksamkeit &amp; Verbesserung" ab, ohne Probelauf-Kennzeichnung, denn er soll bleiben.</li>
+          </ul></li>
         <li style="${li}"><b>Beim Start:</b> Der Probelauf lädt Führung und Selbsttest im Hintergrund nach,
           die Anwendung ist derweil schon bedienbar. Ein Klick auf „▶ Geführte Vorführung" oder „✓ Selbsttest"
           wartet, bis alles da ist.</li>

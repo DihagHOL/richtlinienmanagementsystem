@@ -136,6 +136,30 @@ function isDue(tage, erste, alle) {
 
 const lc = (s) => String(s || '').toLowerCase();
 const inDomain = (upn) => ALLOWED_DOMAIN && lc(upn).endsWith('@' + ALLOWED_DOMAIN);
+
+/** Stammt der Eintrag aus einem Probelauf? Die Kennzeichnung steht im Titel (js/probelauf.js). */
+const PROBELAUF_KENNUNG = '[Probelauf]';
+const istProbelauf = (f) => String((f && f.Title) || '').startsWith(PROBELAUF_KENNUNG);
+
+/**
+ * Probelauf-Reste je Person, die sie angelegt hat – für den wöchentlichen
+ * Hinweis aufzuräumen. Gezählt wird ab dem ältesten Eintrag: Wer heute einen
+ * Probelauf macht, hat eine Woche Zeit, bevor sich jemand meldet.
+ * → [{ upn, name, tage, titel: [] }]
+ */
+function probelaufNachPerson(eintraege) {
+  const je = new Map();
+  for (const it of eintraege) {
+    const u = (it.createdBy && it.createdBy.user) || {};
+    const upn = lc(u.email || '');
+    if (!upn) continue;
+    const x = je.get(upn) || { upn, name: u.displayName || upn, tage: -1, titel: [] };
+    x.tage = Math.max(x.tage, daysSince(it.createdDateTime || it.lastModifiedDateTime || ''));
+    x.titel.push(String((it.fields && it.fields.Title) || ''));
+    je.set(upn, x);
+  }
+  return [...je.values()];
+}
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 
@@ -609,8 +633,17 @@ function kenntnisEskalationHtml(posten) {
   const eskalationMail = cfg.eskalationMail || '';
   console.log(`Absender: ${SENDER} · Prüfer: ${pruefer.length} · GL: ${gl.length} · Taktung: erst nach ${erste}d, dann alle ${alle}d · Eskalation ab ${eskalationAb}d → ${eskalationMail || '–'}`);
 
-  const items = await loadPolicies(siteId, listId);
-  console.log(`Richtlinien gesamt: ${items.length}`);
+  // Einträge aus einem Probelauf (js/probelauf.js) erinnert dieser Lauf nicht:
+  // Ein liegen gebliebener Vorgang bekäme sonst Erinnerungen an Prüfer und
+  // Geschäftsleitung, ab 14 Tagen die Eskalation, und ein veröffentlichter die
+  // Kenntnisnahme-Mahnung an die ganze Belegschaft. Alle Abschnitte unten
+  // lesen deshalb nur `items`. Wer den Probelauf gemacht hat, bekommt
+  // stattdessen einmal die Woche den Hinweis aufzuräumen (am Ende).
+  const alleEintraege = await loadPolicies(siteId, listId);
+  const probelaufReste = alleEintraege.filter((it) => istProbelauf(it.fields || {}));
+  const items = alleEintraege.filter((it) => !istProbelauf(it.fields || {}));
+  console.log(`Richtlinien gesamt: ${alleEintraege.length}${probelaufReste.length
+    ? ` (davon ${probelaufReste.length} aus Probeläufen – werden nicht erinnert)` : ''}`);
 
   let sent = 0, checked = 0;
   for (const it of items) {
@@ -1244,6 +1277,22 @@ function kenntnisEskalationHtml(posten) {
       }
     }
   } catch (e) { console.log('Vorfall-Digest übersprungen:', e.message); }
+
+  // ── Probelauf-Reste: einmal die Woche an die Person, die sie angelegt hat ──
+  try {
+    for (const x of probelaufNachPerson(probelaufReste)) {
+      if (!isDue(x.tage, 7, 7)) { console.log(`Probelauf-Reste von ${x.upn}: ${x.titel.length}, ${x.tage}d – heute kein Hinweis`); continue; }
+      const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+        <p>Hallo ${esc(x.name)},</p>
+        <p>aus einem Probelauf stehen seit ${x.tage} Tagen noch ${x.titel.length} Einträge in den Listen des RMS:</p>
+        <ul>${x.titel.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+        <p>Erinnerungen an Prüfer, Geschäftsleitung und Belegschaft gehen dafür nicht raus. Bitte trotzdem aufräumen:
+          Probelauf starten, dann „🧹 Aufräumen“. Einträge aus einem anderen Browser stehen dort gesondert zum Ankreuzen.</p>
+        <p style="margin-top:16px"><a href="${esc(APP_URL)}?probelauf=1" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Probelauf öffnen →</a></p>
+        <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+      if (await sendMail([x.upn], `Probelauf: ${x.titel.length} Einträge noch nicht aufgeräumt`, html, [])) sent++;
+    }
+  } catch (e) { console.log('Probelauf-Hinweis übersprungen:', e.message); }
 
   console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
 

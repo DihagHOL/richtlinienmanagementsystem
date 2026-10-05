@@ -2749,7 +2749,7 @@ async function spDeleteException(id) {
 ═══════════════════════════════════════════════════ */
 
 const WIRK_COLUMNS = [
-  { name: 'Art',              typ: 'Einzelne Textzeile' },   // abweichung | audit | bewertung
+  { name: 'Art',              typ: 'Einzelne Textzeile' },   // abweichung | audit | bewertung | uebung | pruefung
   { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
   { name: 'WDatum',           typ: 'Datum und Uhrzeit' },
   { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },

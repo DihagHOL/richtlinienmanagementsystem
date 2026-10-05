@@ -297,13 +297,14 @@ function mitbestimmungBestaetigt(p) {
   return !!(p && p.mitbestimmung && p.mitbestimmung.bestaetigt);
 }
 
-async function markKonform(policyId, konform) {
+async function markKonform(policyId, konform, opts) {
   const src = policyZuId(policyId);
   if (!src) return;
   const p = JSON.parse(JSON.stringify(src));   // Arbeitskopie, damit State unberührt bleibt
-  // Anmerkung aus dem Karten-Textfeld (Fallback prompt, falls Karte nicht im DOM, z. B. Mail-Aktion)
+  // Anmerkung aus dem Karten-Textfeld (Fallback prompt, falls Karte nicht im DOM, z. B. Mail-Aktion).
+  // Der Selbsttest des Probelaufs bringt sie mit (opts.grund) – ohne Dialog, aber nicht ohne Begründung.
   const field = document.getElementById('fg-kom-' + policyId);
-  let anmerkung = (field ? field.value : '').trim();
+  let anmerkung = ((opts && opts.grund) || (field ? field.value : '')).trim();
   if (!konform && !anmerkung) {
     if (field) {
       toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
@@ -371,12 +372,12 @@ async function _ismsWriteback(p, kind) {
 
 /** Mitbestimmung (Betriebsverfassung) entscheiden – wie die Konformitätsprüfung:
  *  konform → weiter zur GL-Freigabe; nicht konform (mit Pflicht-Begründung) → zurück in die Prüfung. */
-async function markMitbestimmung(policyId, konform) {
+async function markMitbestimmung(policyId, konform, opts) {
   const src = policyZuId(policyId);
   if (!src) return;
   const p = JSON.parse(JSON.stringify(src));   // Arbeitskopie, damit State unberührt bleibt
   const field = document.getElementById('fg-kom-' + policyId);
-  let anmerkung = (field ? field.value : '').trim();
+  let anmerkung = ((opts && opts.grund) || (field ? field.value : '')).trim();   // opts.grund: Selbsttest
   if (!konform && !anmerkung) {
     if (field) {
       toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
@@ -452,8 +453,11 @@ async function markFreigabe(policyId) {
       _ismsWriteback(p, 'freigabe');   // Freigabe ans Ursprungs-ISMS-Dokument zurückschreiben
       // Bekanntgabe: bewusst mit Rückfrage. Eine reine Korrekturversion muss nicht
       // die halbe Belegschaft erreichen – die Entscheidung trifft, wer freigibt.
-      const ziel = (typeof mailsFuerZielgruppen === 'function') ? mailsFuerZielgruppen(p.zielgruppen) : { adressen: [], fehlend: [] };
-      if (ziel.adressen.length) {
+      const ziel = bekanntgabeZiel(p);
+      if (ziel.probelauf) {
+        // Probelauf: keine Rückfrage. Es gibt nichts zu entscheiden, die Mail geht nur an die ausführende Person.
+        if (await notifyZielgruppe(p, { still: true })) await zielgruppeBekanntgabeVermerken(p.id, ziel.adressen);
+      } else if (ziel.adressen.length) {
         const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
         if (await zielgruppeBekanntgabeDialog(p, ziel, { dokumentName: att ? att.name : '' })) {
           if (await notifyZielgruppe(p, { still: true })) {
@@ -589,10 +593,24 @@ function zielgruppeBekanntgabeDialog(p, ziel, opts) {
  * hinterlegten Verteiler, nicht über Einzeladressen.
  * @returns {Promise<boolean>} true, wenn eine Mail rausging
  */
+/**
+ * Wohin die Bekanntgabe geht. Ein Probelauf erreicht nie die Belegschaft: Seine
+ * Bekanntgabe geht an die Person, die ihn ausführt, sonst an niemanden. So zeigt
+ * die Vorführung trotzdem, was die Zielgruppe bekäme.
+ * → { adressen, fehlend, probelauf }
+ */
+function bekanntgabeZiel(p) {
+  if (typeof istProbelaufEintrag === 'function' && istProbelaufEintrag(p)) {
+    const ich = (State.user && State.user.upn) || '';
+    return { adressen: ich ? [ich] : [], fehlend: [], probelauf: true };
+  }
+  if (typeof mailsFuerZielgruppen !== 'function') return { adressen: [], fehlend: [], probelauf: false };
+  return Object.assign({ probelauf: false }, mailsFuerZielgruppen(p.zielgruppen));
+}
+
 async function notifyZielgruppe(p, opts) {
   const still = !!(opts && opts.still);
-  if (typeof mailsFuerZielgruppen !== 'function') return false;
-  const { adressen, fehlend } = mailsFuerZielgruppen(p.zielgruppen);
+  const { adressen, fehlend, probelauf } = bekanntgabeZiel(p);
   if (!adressen.length) {
     if (!still) {
       toast(`Für ${fehlend.length ? '„' + fehlend.join('", „') + '"' : 'diese Zielgruppe'} ist kein Verteiler hinterlegt `
@@ -604,7 +622,9 @@ async function notifyZielgruppe(p, opts) {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     await spSendMail(adressen, `Neues Regelwerk: ${p.title}`, _zielgruppeMailHtml(p),
       att ? [att] : [], null, (typeof zielgruppenDomains === 'function') ? zielgruppenDomains() : []);
-    if (fehlend.length) {
+    if (probelauf) {
+      toast(`Probelauf: Die Bekanntgabe ging nur an Sie (${adressen.join(', ')}), nicht an die Zielgruppe.`, 'success');
+    } else if (fehlend.length) {
       toast(`Verschickt an ${adressen.length} Verteiler. Ohne Verteiler blieb: „${fehlend.join('", „')}".`, 'error');
     } else if (!still) {
       toast(`Zielgruppe informiert (${adressen.join(', ')}) ✓`, 'success');
@@ -631,7 +651,7 @@ async function zielgruppeBekanntgabeVermerken(id, adressen) {
 async function zielgruppeInformieren(id) {
   const p = policyZuId(id);
   if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
-  const { adressen, fehlend } = mailsFuerZielgruppen(p.zielgruppen);
+  const { adressen, fehlend } = bekanntgabeZiel(p);
   if (!adressen.length) {
     toast(`Kein Verteiler hinterlegt für „${fehlend.join('", „')}" – Einstellungen → Verteiler je Zielgruppe.`, 'error');
     return;

@@ -471,7 +471,9 @@ async function konzeptDecide(id, decision, opts) {
   const ohneRueckfrage = !!(opts && opts.ohneRueckfrage);
 
   if (decision === 'abgelehnt') {
-    const res = await uiPrompt('Warum wird das Konzept abgelehnt? (Pflicht)', { title: 'Konzept ablehnen', okLabel: 'Ablehnen', danger: true });
+    // Der Selbsttest des Probelaufs bringt die Begründung mit (opts.grund), sonst wird gefragt.
+    const res = (opts && opts.grund) ? String(opts.grund)
+      : await uiPrompt('Warum wird das Konzept abgelehnt? (Pflicht)', { title: 'Konzept ablehnen', okLabel: 'Ablehnen', danger: true });
     if (res === null) return;
     const grund = res.trim();
     if (!grund) { toast('Ohne Begründung nicht möglich.', 'error'); return; }

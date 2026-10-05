@@ -426,11 +426,12 @@ ok(/async function probelaufSelbsttest\(\) \{[\s\S]{0,200}_plMitModulen\(\)/.tes
 
 /* ── 10e) Selbsttest: Fortschritt, kein doppeltes Neuladen ── */
 const st = (quelle.match(/async function probelaufSelbsttest[\s\S]*?\n\}/) || [''])[0];
-ok(/Selbsttest \$\{n\}\/7/.test(st), 'Der Selbsttest zeigt, bei welchem Schritt er steht');
+ok(/Selbsttest \$\{i\}\/\$\{n\}/.test(st), 'Der Selbsttest zeigt, bei welchem Schritt er steht');
+// Die Kette steht inzwischen in eigenen Bausteinen – geprüft wird deshalb die ganze Datei.
 for (const f of ['konzeptSubmitGF', 'konzeptDecide', 'setStatus', 'markKonform', 'markMitbestimmung', 'markFreigabe'])
-  ok(!new RegExp('await ' + f + '\\([^\\n]*\\n(\\s*//[^\\n]*\\n)*\\s*await reloadData').test(st), `Nach ${f} kein zweites Neuladen (lädt selbst)`);
-ok(!/await confirmRead\([^\n]*\n\s*await reloadAcks/.test(st), 'Nach confirmRead kein zweites Neuladen');
-ok(/uiConfirm/.test(st), 'Die Rückfrage ist der App-Dialog, nicht das Browser-Fenster');
+  ok(!new RegExp('await ' + f + '\\([^\\n]*\\n(\\s*//[^\\n]*\\n)*\\s*await reloadData').test(quelle), `Nach ${f} kein zweites Neuladen (lädt selbst)`);
+ok(!/await confirmRead\([^\n]*\n\s*await reloadAcks/.test(quelle), 'Nach confirmRead kein zweites Neuladen');
+ok(/await _plSelbsttestFragen\(\)/.test(st) && !/confirm\(/.test(st), 'Die Rückfrage ist der App-Dialog, nicht das Browser-Fenster');
 
 /* ── 10f) Reste früherer Probeläufe ── */
 {

@@ -14,11 +14,13 @@
  *        Korrekturmaßnahmen     die Prüfung, ob es geholfen hat
  *   9.3  Managementbewertung    sieht auf beide und entscheidet
  *
- * **Ein Register, vier Satzarten** – nicht vier Register mit derselben
+ * **Ein Register, fünf Satzarten** – nicht fünf Register mit derselben
  * Mechanik. Die vierte ist die Notfallübung: Sie prüft einen Notfallplan und
  * findet Abweichungen – dieselbe Kette wie ein Audit, nur der Prüfling ist ein
  * Plan statt eines Bereichs. Welcher Plan, steht im Feld `prozess`
- * (WERK:kachel, siehe js/notfallmodell.js). Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist
+ * (WERK:kachel, siehe js/notfallmodell.js). Die fünfte ist die Funktionsprüfung:
+ * Sie prüft ein System nach einer Änderung, etwa der Selbsttest des RMS.
+ * Eine Auditfeststellung ist keine Kopie einer Abweichung, sie ist
  * eine; sie trägt nur ein Feld mehr, das sagt, woher sie stammt. Wer den
  * Zusammenhang in drei Listen zerlegt, muss ihn danach von Hand wieder
  * herstellen.
@@ -41,13 +43,17 @@ const WIRK_ARTEN = {
   audit:      { label: 'Internes Audit',                 icon: '🔍', norm: 'ISO 27001 9.2'  },
   bewertung:  { label: 'Managementbewertung',            icon: '⚖️', norm: 'ISO 27001 9.3'  },
   uebung:     { label: 'Notfallübung',                   icon: '🚨', norm: 'ISO 27001 A.5.30 · ISO 22301 8.5 · BSI 200-4' },
+  // Die fünfte: Prüft, ob ein System nach einer Änderung noch tut, was es soll –
+  // zum Beispiel der Selbsttest des RMS im Probelauf. Wie Audit und Übung kann
+  // sie Abweichungen hervorbringen.
+  pruefung:   { label: 'Funktionsprüfung',               icon: '🧪', norm: 'ISO 27001 A.8.29 · A.8.32' },
 };
 
 const WIRK_STATUS = ['offen', 'in Umsetzung', 'abgeschlossen', 'verworfen'];
 const WIRK_MSTATUS = ['offen', 'in Umsetzung', 'erledigt'];
 
 /** Woher eine Abweichung kommt. „Wo ist das aufgefallen?" ist die erste Frage im Audit. */
-const WIRK_QUELLEN = ['internes Audit', 'externes Audit', 'Notfallübung', 'Sicherheitsvorfall', 'Hinweis',
+const WIRK_QUELLEN = ['internes Audit', 'externes Audit', 'Notfallübung', 'Funktionsprüfung', 'Sicherheitsvorfall', 'Hinweis',
   'abgelaufene Ausnahme', 'Kennzahl / Messung', 'Beobachtung im Betrieb'];
 
 /**
@@ -130,6 +136,11 @@ function wirkAbschlussfehler(w) {
     if (!String(w.umfang || '').trim()) f.push('Szenario fehlt – was wurde angenommen, was war Teil der Übung?');
     if (!(w.beteiligte || []).length) f.push('Keine Teilnehmenden eingetragen.');
     if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten – hat der Plan gehalten, wo hakte es?');
+  }
+
+  if (w.art === 'pruefung') {
+    if (!String(w.umfang || '').trim()) f.push('Was geprüft wurde, fehlt: welcher Ablauf, nach welcher Änderung?');
+    if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten.');
   }
 
   if (w.art === 'bewertung') {
@@ -328,6 +339,7 @@ function renderWirksamkeit() {
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'audit')">+ Audit</button>
         <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'bewertung')">+ Bewertung</button>
         <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'uebung')" title="Notfallübung – prüft einen Notfallplan">+ Übung</button>
+        <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'pruefung')" title="Funktionsprüfung: prüft ein System nach einer Änderung">+ Prüfung</button>
         <button class="btn btn-primary btn-sm" onclick="openWirkEditor(null,'abweichung')">+ Abweichung</button>` : ''}
     </div>
     ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf dieses Register.</div>'}
@@ -475,7 +487,7 @@ function renderWirkEditor() {
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('wirksamkeit');
   const werke = (typeof STANDORTE !== 'undefined') ? STANDORTE : [];
   const luecken = wirkAbschlussfehler(w);
-  const quellen = (_wirk || []).filter(x => x.art === 'audit' || x.art === 'bewertung' || x.art === 'uebung');
+  const quellen = (_wirk || []).filter(x => ['audit', 'bewertung', 'uebung', 'pruefung'].includes(x.art));
   const histRows = (w.historie || []).slice().reverse().slice(0, 20).map(h =>
     `<div style="font-size:.75rem;color:var(--c-muted);padding:2px 0">${fmtDateTime(h.datum)} · <b>${esc(h.wer || '')}</b> · ${esc(h.aktion || '')}</div>`).join('');
 
@@ -495,6 +507,7 @@ function renderWirkEditor() {
             placeholder="${w.art === 'audit' ? 'z. B. Internes Audit Zutrittskontrolle WGC'
               : w.art === 'bewertung' ? 'z. B. Managementbewertung 1. Halbjahr'
               : w.art === 'uebung' ? 'z. B. Übung: Ausfall SAP – Aufträge abwickeln'
+              : w.art === 'pruefung' ? 'z. B. Funktionsprüfung RMS nach dem Update'
               : 'z. B. Zugriffsrechte nach Austritt nicht entzogen'}"></div>
         <div class="form-group"><label>Datum <span class="req">*</span></label>
           <input type="date" value="${esc((w.datum || '').slice(0, 10))}"
@@ -503,7 +516,7 @@ function renderWirkEditor() {
           <input type="text" list="wirk-people" value="${esc(w.verantwortlich)}" oninput="_wirkEditing.verantwortlich=this.value">
           <datalist id="wirk-people">${(_wirkMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('')}</datalist></div>
         <div class="form-group full"><label>${w.art === 'bewertung' || w.art === 'uebung' ? 'Teilnehmende' : w.art === 'audit' ? 'Auditoren' : 'Beteiligte'}${
-          w.art !== 'abweichung' ? ' <span class="req">*</span>' : ''}</label>
+          !['abweichung', 'pruefung'].includes(w.art) ? ' <span class="req">*</span>' : ''}</label>
           <input type="text" value="${esc((w.beteiligte || []).join(', '))}" oninput="wirkBeteiligteSetzen(this.value)"
             placeholder="E-Mail-Adressen, durch Komma getrennt"></div>
         <div class="form-group full"><label>Beschreibung</label>
@@ -554,6 +567,18 @@ function renderWirkEditor() {
           <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Feststellungen, Bewertung, Empfehlungen.">${esc(w.ergebnis)}</textarea></div>
         ${w.id ? `<div class="field-hint">Gefundene Abweichungen als eigene Einträge anlegen und hier als Herkunft wählen –
           dann hängen sie sichtbar zusammen. ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
+          <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
+      </div>` : ''}
+
+      ${w.art === 'pruefung' ? `
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Funktionsprüfung (ISO 27001 A.8.29 · A.8.32)</div>
+        <div class="form-group full"><label>Was wurde geprüft? <span class="req">*</span></label>
+          <textarea oninput="_wirkEditing.umfang=this.value" placeholder="Welcher Ablauf, nach welcher Änderung, mit welchen Daten?">${esc(w.umfang)}</textarea></div>
+        <div class="form-group full"><label>Ergebnis <span class="req">*</span></label>
+          <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Was hat funktioniert, was nicht?">${esc(w.ergebnis)}</textarea></div>
+        ${w.id ? `<div class="field-hint">Was nicht funktioniert hat, als Abweichung anlegen. Sie hängt dann an dieser Prüfung.
+          ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
           <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
 
@@ -621,7 +646,7 @@ function wirkAbweichungAus(auditId) {
   const q = (_wirk || []).find(w => String(w.id) === String(auditId));
   _wirkEditing = _wirkNeu('abweichung');
   _wirkEditing.herkunftId = String(auditId || '');
-  _wirkEditing.quelle = (q && q.art === 'uebung') ? 'Notfallübung' : 'internes Audit';
+  _wirkEditing.quelle = (q && q.art === 'uebung') ? 'Notfallübung' : (q && q.art === 'pruefung') ? 'Funktionsprüfung' : 'internes Audit';
   if (q) _wirkEditing.werke = (q.werke || []).slice();
   renderWirkEditor();
 }

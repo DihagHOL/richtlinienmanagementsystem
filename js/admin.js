@@ -1923,9 +1923,14 @@ async function remindOpenForCurrent() {
   const p = AdminState.lastCompliancePolicy;
   const rows = AdminState.lastComplianceRows || [];
   if (!p) { toast('Keine Richtlinie gewählt.', 'error'); return; }
-  const offene = [...new Set(rows.filter(r => r.st !== 'abgeschlossen').map(r => r.upn))];
+  // Ein Probelauf erinnert nie die Belegschaft, nur die Person, die ihn ausführt.
+  const probelauf = typeof istProbelaufEintrag === 'function' && istProbelaufEintrag(p);
+  const offene = probelauf ? [State.user.upn]
+    : [...new Set(rows.filter(r => r.st !== 'abgeschlossen').map(r => r.upn))];
   if (!offene.length) { toast('Keine offenen Mitarbeiter – nichts zu erinnern.', 'success'); return; }
-  if (!await uiConfirm(`Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`, { title: 'Erinnerung senden', okLabel: 'Senden' })) return;
+  if (!await uiConfirm(probelauf
+    ? `Probelauf: Die Erinnerung zu „${p.title}" geht nur an Sie (${State.user.upn}), nicht an die Mitarbeitenden.`
+    : `Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`, { title: 'Erinnerung senden', okLabel: 'Senden' })) return;
   try {
     const ok = await spSendMail(offene, `Erinnerung: Pflicht-Richtlinie „${p.title}"`, reminderHtml(p));
     if (ok) toast(`Erinnerung an ${offene.length} Mitarbeiter gesendet ✓`, 'success');

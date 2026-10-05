@@ -496,7 +496,19 @@ async function switchView(view) {
 /** Für Mitarbeiter relevante Richtlinien: veröffentlicht UND zur eigenen Rolle passend. */
 function publishedPolicies() {
   return State.policies.filter(p =>
-    p.status === 'Veröffentlicht' && policyMatchesRoles(p.zielgruppen, State.myRoles));
+    p.status === 'Veröffentlicht' && policyMatchesRoles(p.zielgruppen, State.myRoles)
+    && (!istProbelaufEintrag(p) || (typeof darfProbelauf === 'function' && darfProbelauf())));
+}
+
+/**
+ * Stammt der Eintrag aus einem Probelauf (js/probelauf.js)? Die Kennzeichnung
+ * steht im Titel. Ein Probelauf arbeitet auf den echten Listen; die Belegschaft
+ * soll davon trotzdem nichts sehen und nichts zugeschickt bekommen. Prüfer,
+ * Betriebsrat und Geschäftsleitung dagegen schon: Sie entscheiden im Probelauf
+ * über ihre Mails mit, ohne dass sie ihn selbst starten dürfen.
+ */
+function istProbelaufEintrag(p) {
+  return String((p && p.title) || '').startsWith('[Probelauf]');
 }
 
 /** Lesbare Zielgruppe einer Richtlinie. */

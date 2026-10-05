@@ -105,7 +105,7 @@ const wsrc = lies('js/wirksamkeit.js');
 ok(/openWirkEditor\(null,'uebung'\)/.test(wsrc), 'Knopf „+ Übung"');
 ok(/function wirkUebungFuer\(ziel, name, werk, danach\)/.test(wsrc), 'Aus dem Notfall-Reiter heraus anlegbar');
 ok(/const danach = _wirkDanach; _wirkDanach = null;/.test(wsrc), 'Nach dem Speichern zurück in den Reiter, aus dem man kam');
-ok(/_wirkEditing\.quelle = \(q && q\.art === 'uebung'\) \? 'Notfallübung' : 'internes Audit'/.test(wsrc), 'Eine Abweichung aus einer Übung weiß, woher sie stammt');
+ok(/_wirkEditing\.quelle = \(q && q\.art === 'uebung'\) \? 'Notfallübung' :/.test(wsrc), 'Eine Abweichung aus einer Übung weiß, woher sie stammt');
 ok(/NF_UEBUNGSARTEN/.test(wsrc) && /typeof NF_UEBUNGSARTEN !== 'undefined'/.test(wsrc), 'Die Übungsarten kommen aus dem Modell – abgesichert');
 ok(/'Geübter Prozess', 'Übungsart'/.test(wsrc), 'Der CSV-Export führt beide Spalten');
 
