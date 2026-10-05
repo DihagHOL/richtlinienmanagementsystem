@@ -290,7 +290,7 @@ async function lkLinkKopieren(werk, id) {
     toast('Link kopiert ✓', 'success');
   } catch (e) {
     // Ohne Zwischenablage-Recht bleibt der Link wenigstens sichtbar.
-    if (typeof uiConfirm === 'function') uiConfirm(`<div style="word-break:break-all">${esc(url)}</div>`, { title: 'Link zum Prozess', okLabel: 'Schließen' });
+    if (typeof uiConfirm === 'function') uiConfirm(`<div style="word-break:break-all">${esc(url)}</div>`, { title: 'Link zum Prozess', okLabel: 'Schließen', html: true });
   }
 }
 

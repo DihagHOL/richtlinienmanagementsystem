@@ -41,7 +41,7 @@ eigenen Prozess. Exit-Code ≠ 0 = mindestens eine Prüfung rot.
 | `bpmnhilfe` | „BPMN einfach erklärt": Beispiele bestehen die Hausschema-Prüfung, jeder genannte Knopf existiert, Tastenkürzel im Editor gebunden und gesperrt, wo sie stören würden, kein englischer Modeler-Text mehr |
 | `bpmndeutsch` | Modeler auf Deutsch: jeder übersetzbare Text aus bpmn-js hat einen Eintrag, Bausteine heißen wie im Hausschema, Editor und Ansicht bekommen die Übersetzung |
 | `bpmnanleitung` | Word-Fassung für Kolleginnen und Kollegen ohne RMS: Spickzettel durch den echten Generator geprüft, jedes Zeichen mit Bild, ZIP vollständig, kein Emoji, gleiche Eingabe gleiche Bytes |
-| `prozess-pfeile` | Pfeile des Generators beginnen und enden am Rand und laufen durch keinen Kasten, auch nicht bei Ja-Zweig in eine andere Bahn |
+| `prozess-pfeile` | Pfeile des Generators beginnen und enden am Rand und laufen durch keinen Kasten, auch nicht bei Ja-Zweig in eine andere Bahn; Reparatur gespeicherter Modelle (nur kaputte Pfeile, Einrückung und Namensräume bleiben, zweiter Lauf leer) und „↪ Pfeile prüfen" mit Rückfrage |
 
 ## Neue Tests schreiben
 

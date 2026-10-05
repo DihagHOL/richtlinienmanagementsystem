@@ -369,19 +369,8 @@ ${knoten.filter(k => k.bahn === b).map(k => `        <bpmn:flowNodeRef>${k.id}</
   fluesse.forEach(f => {
     const a = beiId[f.von], b = beiId[f.nach];
     if (!a || !b) return;
-    const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
-    const tiefer = my(b) > my(a);
-    let wp;
-    // Der Nein-Zweig sitzt genau unter seiner Raute: senkrecht hinunter.
-    if (a.typ === 'exclusiveGateway' && b.y > a.y + 60 && Math.abs(mx(a) - mx(b)) < 5) wp = [[mx(a), a.y + a.h], [mx(a), b.y]];
-    // Von einer Raute in eine andere Bahn: rechts heraus und von oben oder unten
-    // hinein. Unten heraus führte der Pfeil durch den Nein-Zweig.
-    else if (a.typ === 'exclusiveGateway' && Math.abs(my(a) - my(b)) > 30) wp = [[a.x + a.w, my(a)], [mx(b), my(a)], [mx(b), tiefer ? b.y : b.y + b.h]];
-    // Sonst in die Richtung der Zielbahn heraus, sonst liefe er durch den eigenen Kasten.
-    else if (Math.abs(my(a) - my(b)) > 30) wp = [[mx(a), tiefer ? a.y + a.h : a.y], [mx(a), my(b)], [b.x, my(b)]];
-    else wp = [[a.x + a.w, my(a)], [b.x, my(b)]];
     di.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${
-      wp.map(p => `<di:waypoint x="${Math.round(p[0])}" y="${Math.round(p[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
+      _psPfeilWeg(a, b).map(p => `<di:waypoint x="${Math.round(p[0])}" y="${Math.round(p[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
   });
 
   const name = opt.name || 'Prozess';
@@ -410,6 +399,155 @@ ${di.join('\n')}
 </bpmn:definitions>`;
 
   return { name, xml, kennung, policyIds: (opt.policyIds || []).map(String), docs: opt.docs || [] };
+}
+
+/**
+ * Der Weg eines Pfeils von Form a zu Form b ({x, y, w, h, typ}), so wie der
+ * Generator ihn zieht.
+ */
+function _psPfeilWeg(a, b) {
+  const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
+  const tiefer = my(b) > my(a);
+  // Der Nein-Zweig sitzt genau unter seiner Raute: senkrecht hinunter.
+  if (a.typ === 'exclusiveGateway' && b.y > a.y + 60 && Math.abs(mx(a) - mx(b)) < 5) return [[mx(a), a.y + a.h], [mx(a), b.y]];
+  // Von einer Raute in eine andere Bahn: rechts heraus und von oben oder unten
+  // hinein. Unten heraus führte der Pfeil durch den Nein-Zweig.
+  if (a.typ === 'exclusiveGateway' && Math.abs(my(a) - my(b)) > 30) return [[a.x + a.w, my(a)], [mx(b), my(a)], [mx(b), tiefer ? b.y : b.y + b.h]];
+  // Sonst in die Richtung der Zielbahn heraus, sonst liefe er durch den eigenen Kasten.
+  if (Math.abs(my(a) - my(b)) > 30) return [[mx(a), tiefer ? a.y + a.h : a.y], [mx(a), my(b)], [b.x, my(b)]];
+  return [[a.x + a.w, my(a)], [b.x, my(b)]];
+}
+
+/* ── 4b) Alte Pfeile in gespeicherten Modellen ─────────────────────────────
+   Bis Oktober 2026 zog der Generator zwei Arten von Pfeilen falsch: den
+   Ja-Pfeil einer Raute, wenn der nächste Schritt eine Bahn tiefer lag (er lief
+   senkrecht durch den Nein-Zweig und endete im Leeren), und jeden Pfeil in eine
+   höhere Bahn (er begann an der Unterkante und lief durch den eigenen Kasten).
+   Gespeicherte Modelle tragen das weiter.
+
+   Die Reparatur erkennt genau diese Fehlerbilder: Ein Pfeil endet außerhalb
+   seines Ziels, beginnt außerhalb seiner Quelle oder läuft durch die Mitte der
+   eigenen Quelle oder des eigenen Ziels. Nur solche Pfeile werden neu geführt.
+   Was jemand von Hand gezogen hat, bleibt, wie es ist, auch wenn es schief
+   aussieht. Gelesen wird wie in der Prüfung mit regulären Ausdrücken, damit
+   das auch im Test ohne DOM läuft. */
+
+/** Alle Attribute eines Start-Tags; Namensräume vor dem Namen fallen weg. */
+function _psAttribute(tag) {
+  const a = {};
+  for (const m of String(tag || '').matchAll(/([\w:.-]+)="([^"]*)"/g)) a[m[1].replace(/^\w+:/, '')] = m[2];
+  return a;
+}
+
+/* Formen, durch die kein Pfeil laufen soll: alles, was im Ablauf steht. */
+const PS_KNOTEN_TYP = /^(\w*Task|task|\w*Event|\w*Gateway|callActivity|subProcess|adHocSubProcess|transaction)$/;
+
+/** Formen (bpmnElement → Lage und Typ) und Pfeile (Kennung → Quelle, Ziel) eines Modells. */
+function _psLageLesen(xml) {
+  const s = String(xml || '');
+  const typ = {};
+  for (const m of s.matchAll(/<(?:\w+:)?(\w+)\s([^>]*?)\/?>/g)) {
+    const id = _psAttribute(m[2]).id;
+    if (id && !typ[id]) typ[id] = m[1];
+  }
+  const formen = {};
+  for (const m of s.matchAll(/<(?:\w+:)?BPMNShape\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?BPMNShape>/g)) {
+    const el = _psAttribute(m[1]).bpmnElement;
+    const b = /<(?:\w+:)?Bounds\b([^>]*)>/.exec(m[2]);
+    if (!el || !b) continue;
+    const a = _psAttribute(b[1]);
+    formen[el] = { id: el, typ: typ[el] || '', x: +a.x, y: +a.y, w: +a.width, h: +a.height };
+  }
+  const fluesse = {};
+  for (const m of s.matchAll(/<(?:\w+:)?sequenceFlow\b([^>]*?)\/?>/g)) {
+    const a = _psAttribute(m[1]);
+    if (a.id) fluesse[a.id] = { von: a.sourceRef, nach: a.targetRef };
+  }
+  return { formen, fluesse };
+}
+
+const _psMitte = (f) => [f.x + f.w / 2, f.y + f.h / 2];
+const _psInnen = (p, f, rand) => p[0] >= f.x - rand && p[0] <= f.x + f.w + rand && p[1] >= f.y - rand && p[1] <= f.y + f.h + rand;
+/* Liegt Punkt p auf der Strecke a→b (auf einen Punkt genau)? */
+function _psAufStrecke(a, b, p) {
+  const laenge = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!laenge) return Math.hypot(p[0] - a[0], p[1] - a[1]) <= 1;
+  const abstand = Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / laenge;
+  return abstand <= 1 && p[0] >= Math.min(a[0], b[0]) - 1 && p[0] <= Math.max(a[0], b[0]) + 1
+    && p[1] >= Math.min(a[1], b[1]) - 1 && p[1] <= Math.max(a[1], b[1]) + 1;
+}
+/* Kreuzt die waagerechte oder senkrechte Strecke a→b das Innere der Form? */
+const _psDurch = (a, b, f) => Math.max(a[0], b[0]) > f.x + 1 && Math.min(a[0], b[0]) < f.x + f.w - 1
+  && Math.max(a[1], b[1]) > f.y + 1 && Math.min(a[1], b[1]) < f.y + f.h - 1;
+
+/** Was an einem Pfeil kaputt ist; leer, wenn nichts. */
+function _psPfeilFehler(wp, von, nach) {
+  const g = [];
+  if (!wp || wp.length < 2) return ['ohne Verlauf'];
+  const letzter = wp[wp.length - 1];
+  if (!_psInnen(wp[0], von, 2)) g.push('beginnt neben der Quelle');
+  if (!_psInnen(letzter, nach, 2)) g.push('endet im Leeren');
+  if (_psAufStrecke(wp[0], wp[1], _psMitte(von))) g.push('läuft durch die eigene Quelle');
+  if (_psAufStrecke(wp[wp.length - 2], letzter, _psMitte(nach))) g.push('läuft durch das Ziel');
+  return g;
+}
+
+/* Wege, die für einen kaputten Pfeil in Frage kommen; der des Generators zuerst. */
+function _psPfeilWege(a, b) {
+  const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
+  const tiefer = my(b) > my(a), rechts = mx(b) > mx(a), anders = Math.abs(my(a) - my(b)) > 30;
+  const wege = [_psPfeilWeg(a, b)];
+  if (anders && b.x > a.x + a.w) wege.push([[a.x + a.w, my(a)], [mx(b), my(a)], [mx(b), tiefer ? b.y : b.y + b.h]]);
+  if (anders) wege.push([[mx(a), tiefer ? a.y + a.h : a.y], [mx(a), my(b)], [rechts ? b.x : b.x + b.w, my(b)]]);
+  if (b.x > a.x + a.w + 20) {
+    const xm = Math.round((a.x + a.w + b.x) / 2);
+    wege.push([[a.x + a.w, my(a)], [xm, my(a)], [xm, my(b)], [b.x, my(b)]]);
+  }
+  return wege.map(w => w.map(p => [Math.round(p[0]), Math.round(p[1])])
+    .filter((p, i, alle) => !i || p[0] !== alle[i - 1][0] || p[1] !== alle[i - 1][1]));
+}
+
+/**
+ * Kaputte Pfeile eines gespeicherten Modells neu führen.
+ *
+ * Gewählt wird der erste Weg, der an Quelle und Ziel sauber an- und absetzt
+ * und durch keinen anderen Kasten läuft. Gibt es keinen solchen, nimmt die
+ * Reparatur den Weg des Generators und vermerkt die Überschneidung: Ein Pfeil,
+ * der sein Ziel erreicht und einen Kasten streift, ist besser als einer, der im
+ * Leeren endet. Die Beschriftungslage eines neu geführten Pfeils fällt weg;
+ * bpmn-js setzt „ja" oder „nein" dann an die Mitte des neuen Wegs.
+ *
+ * @param {string} xml
+ * @returns {{xml:string, repariert:Array<{fluss:string, grund:string[], ueberschneidung:boolean}>}}
+ */
+function prozessPfeileReparieren(xml) {
+  const s = String(xml || '');
+  const { formen, fluesse } = _psLageLesen(s);
+  const knoten = Object.values(formen).filter(f => PS_KNOTEN_TYP.test(f.typ));
+  const repariert = [];
+  const neu = s.replace(/<((?:\w+:)?)BPMNEdge\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?BPMNEdge>/g, (ganz, praefix, attr, innen) => {
+    const id = _psAttribute(attr).bpmnElement;
+    const f = id && fluesse[id];
+    const von = f && formen[f.von], nach = f && formen[f.nach];
+    if (!von || !nach || f.von === f.nach) return ganz;
+    const wp = [...innen.matchAll(/<(?:\w+:)?waypoint\b([^>]*)>/g)].map(m => { const a = _psAttribute(m[1]); return [+a.x, +a.y]; });
+    const grund = _psPfeilFehler(wp, von, nach);
+    if (!grund.length) return ganz;
+    const sauber = (w) => !_psPfeilFehler(w, von, nach).length
+      && w.every((p, i) => !i || knoten.every(k => k.id === f.von || k.id === f.nach || !_psDurch(w[i - 1], p, k)));
+    const wege = _psPfeilWege(von, nach);
+    const weg = wege.find(sauber) || wege[0];
+    repariert.push({ fluss: id, grund, ueberschneidung: !sauber(weg) });
+    // Form der Datei beibehalten: derselbe Namensraum, dieselbe Einrückung.
+    const wpPraefix = (/<(\w+:)?waypoint\b/.exec(innen) || [])[1] || 'di:';
+    const einzug = (/\n([ \t]*)<(?:\w+:)?waypoint\b/.exec(innen) || [])[1];
+    const trenner = einzug != null ? '\n' + einzug : '';
+    const schluss = (/\s*$/.exec(innen) || [''])[0];
+    return `<${praefix}BPMNEdge${attr}>` + trenner
+      + weg.map(p => `<${wpPraefix}waypoint x="${p[0]}" y="${p[1]}" />`).join(trenner)
+      + schluss + `</${praefix}BPMNEdge>`;
+  });
+  return { xml: repariert.length ? neu : s, repariert };
 }
 
 /** Kurzweg: Text → Modell. */
@@ -736,6 +874,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PROZESS_BAUSTEINE, PROZESS_REGELN, PROZESS_VORLAGE_TEXT, PROZESS_KENNUNG_GENERISCH, PROZESS_ARTEN,
     prozessTextLesen, prozessXmlBauen, prozessXmlAusText, prozessSchemaPruefen, prozessVorlageXml,
-    prozessKennungNeu, prozessKennungGueltig, prozessArt, prozessAblauf,
+    prozessKennungNeu, prozessKennungGueltig, prozessArt, prozessAblauf, prozessPfeileReparieren,
   };
 }

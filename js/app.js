@@ -1013,7 +1013,10 @@ function uiConfirm(message, opts = {}) {
     openModal(`
       <div class="modal-header"><h3>${esc(opts.title || 'Bestätigen')}</h3>
         <button class="modal-close" onclick="uiConfirmResolve(false)">×</button></div>
-      <div class="modal-body"><p style="line-height:1.55;margin:0">${esc(message)}</p></div>
+      <div class="modal-body">${opts.html === true
+        // Fertiges HTML (Listen, Hinweise); wer es übergibt, hat die Inhalte schon maskiert.
+        ? `<div style="line-height:1.55;margin:0">${message}</div>`
+        : `<p style="line-height:1.55;margin:0">${esc(message)}</p>`}</div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="uiConfirmResolve(false)">${esc(cancel)}</button>
         <button class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}" onclick="uiConfirmResolve(true)">${esc(ok)}</button>

@@ -77,6 +77,8 @@ const FEATURES = [
   { name: 'BPMN einfach erklärt',    code: () => /function prozessHilfeOeffnen/.test(read('js/bpmnhilfe.js')),  begriffe: ['BPMN einfach erklärt', 'Stufe 1', 'Stufe 2', '❓ Hilfe'] },
   { name: 'Modeler auf Deutsch',     code: () => /additionalModules: _procSprachmodule\(\)/.test(prozesse) && /const BPMN_DEUTSCH\b/.test(read('js/bpmndeutsch.js')),
     begriffe: ['Der Modeler spricht Deutsch', 'Art ändern', 'Aufgabe (Mensch)'] },
+  { name: 'Alte Pfeile korrigieren',  code: () => /function prozessPfeilePruefen/.test(prozesse) && /function prozessPfeileReparieren/.test(read('js/prozessschema.js')),
+    begriffe: ['↪ Pfeile prüfen', 'Versionsverlauf', 'durch den eigenen Kasten'] },
   { name: 'BPMN-Anleitung als Word', code: () => /function bpmnAnleitungHerunterladen/.test(read('js/bpmnanleitung.js')),
     begriffe: ['Für Kolleginnen und Kollegen ohne RMS', 'Word-Datei', 'Spickzettel', 'Vorlage zum Ausfüllen', 'Ansprechpartner'] },
 ];

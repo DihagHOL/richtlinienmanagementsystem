@@ -263,6 +263,7 @@ function renderProzesseList() {
       </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${canWrite && (_processes || []).length ? `<button class="btn btn-outline btn-sm" onclick="prozessPfeilePruefen()" title="Alle Modelle auf Pfeile prüfen, die ins Leere oder durch den eigenen Kasten laufen, und sie korrigieren. Erst nach Rückfrage wird gespeichert.">↪ Pfeile prüfen</button>` : ''}
       ${canWrite && (_processes || []).some(p => !(p.ordner || '')) ? `<button class="btn btn-outline btn-sm" onclick="prozessAblageAufraeumen()" title="Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks verschieben">🗂 Ablage aufräumen</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
@@ -370,7 +371,7 @@ async function prozessAblageAufraeumen() {
   const ok = await uiConfirm(
     `${plan.length} Modell(e) in den Ordner ihres Werks verschieben?<br><span class="field-hint">Die Kennung der Dateien bleibt erhalten – Landkarte, Mindmap und Regelwerks-Verknüpfungen überstehen den Umzug.${
       rest ? ` ${rest} weitere(s) bleibt liegen${mehrdeutig.length ? `, davon ${mehrdeutig.length} von mehreren Werken verknüpft` : ''}.` : ''}</span>`,
-    { title: 'Ablage aufräumen', okLabel: `${plan.length} verschieben` });
+    { title: 'Ablage aufräumen', okLabel: `${plan.length} verschieben`, html: true });
   if (!ok) return;
   let done = 0, fail = 0;
   for (const e of plan) {
@@ -379,6 +380,68 @@ async function prozessAblageAufraeumen() {
   }
   await refreshProzesse();
   toast(`${done} Modell(e) einsortiert${fail ? `, ${fail} fehlgeschlagen` : ''} ✓`, fail ? 'error' : 'success');
+}
+
+/* ── Pfeile aus dem alten Generator ──
+   Die Reparatur selbst steht in js/prozessschema.js (prozessPfeileReparieren):
+   Sie führt nur Pfeile neu, die ins Leere oder durch den eigenen Kasten laufen. */
+function _procPfeileRichten(xml) {
+  return typeof prozessPfeileReparieren === 'function' ? prozessPfeileReparieren(xml) : { xml, repariert: [] };
+}
+
+function _procPfeileSatz(n) {
+  return n === 1 ? 'Ein Pfeil lief ins Leere oder durch den eigenen Kasten und ist jetzt richtig gezogen.'
+    : `${n} Pfeile liefen ins Leere oder durch den eigenen Kasten und sind jetzt richtig gezogen.`;
+}
+
+/**
+ * Alle Modelle auf solche Pfeile prüfen und sie in der Datei korrigieren.
+ * Erst wird nur gelesen und gezählt, gespeichert wird nach Rückfrage.
+ * SharePoint legt je Modell eine neue Version an, die alte bleibt im
+ * Versionsverlauf und lässt sich dort wiederherstellen.
+ */
+async function prozessPfeilePruefen() {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { toast('Modelle nicht lesbar: ' + e.message, 'error'); return; } }
+  const alle = (_processes || []).slice();
+  if (!alle.length) { toast('Es gibt noch keine Modelle.', 'error'); return; }
+  toast(`${alle.length} Modelle werden gelesen …`);
+  const plan = [], unlesbar = [];
+  let naechstes = 0;
+  // Zu viert lesen: schnell genug für hundert Modelle, ohne Graph zu drosseln.
+  await Promise.all([0, 1, 2, 3].map(async () => {
+    while (naechstes < alle.length) {
+      const p = alle[naechstes++];
+      try {
+        const r = _procPfeileRichten(await spGetProcessXml(p.itemId));
+        if (r.repariert.length) plan.push({ p, xml: r.xml, n: r.repariert.length, quer: r.repariert.filter(x => x.ueberschneidung).length });
+      } catch (e) { unlesbar.push(p.title); }
+    }
+  }));
+  const nichtGelesen = unlesbar.length ? ` ${unlesbar.length} Modell(e) waren nicht lesbar: ${unlesbar.join(', ')}.` : '';
+  if (!plan.length) {
+    toast(`Alle ${alle.length - unlesbar.length} gelesenen Modelle sind in Ordnung.${nichtGelesen}`, unlesbar.length ? 'error' : 'success');
+    return;
+  }
+  plan.sort((a, b) => String(a.p.title).localeCompare(String(b.p.title), 'de'));
+  const pfeile = plan.reduce((s, e) => s + e.n, 0);
+  const ok = await uiConfirm(
+    `In ${plan.length} von ${alle.length} Modellen laufen ${pfeile} Pfeil(e) ins Leere oder durch den eigenen Kasten:
+     <ul style="margin:8px 0 8px 18px;padding:0;max-height:240px;overflow:auto">${plan.map(e =>
+       `<li>${esc(e.p.title)}${e.p.ordner ? ` <span class="field-hint">(${esc(e.p.ordner)})</span>` : ''}: ${e.n} Pfeil${e.n > 1 ? 'e' : ''}${
+         e.quer ? ` <span class="field-hint">, davon ${e.quer} mit Überschneidung</span>` : ''}</li>`).join('')}</ul>
+     <span class="field-hint">Nur diese Pfeile werden neu gezogen, alles andere bleibt, wie es ist. SharePoint legt je Modell eine neue Version an, die alte bleibt im Versionsverlauf.${esc(nichtGelesen)}</span>`,
+    { title: '↪ Pfeile prüfen', okLabel: `${plan.length} Modell${plan.length > 1 ? 'e' : ''} korrigieren`, html: true });
+  if (!ok) return;
+  let fertig = 0;
+  const fehlgeschlagen = [];
+  for (const e of plan) {
+    try { await spSaveProcess(e.p.title, e.xml, e.p.ordner || ''); fertig++; }
+    catch (err) { console.warn('Pfeile speichern fehlgeschlagen:', e.p.title, err.message); fehlgeschlagen.push(e.p.title); }
+  }
+  await refreshProzesse();
+  toast(`${fertig} Modell(e) korrigiert ✓${fehlgeschlagen.length ? ` Nicht gespeichert: ${fehlgeschlagen.join(', ')}` : ''}`,
+    fehlgeschlagen.length ? 'error' : 'success');
 }
 
 /** Die Zeile unter einer Karte: Richtlinien, Anlagen, Unterprozesse – aus dem Cache-Eintrag. */
@@ -1317,6 +1380,10 @@ async function openProcessEditor(itemId, seed) {
   if (!/<(bpmn:)?definitions[\s>]/i.test(String(xml || ''))) {
     unbrauchbar = true; xml = procLeeresBpmn(); ids = []; _procDocs = [];
   }
+  // Ein Pfeil, der ins Leere oder durch den eigenen Kasten läuft (Generator vor
+  // Oktober 2026), wird beim Öffnen neu gezogen; Speichern übernimmt das.
+  const pfeile = itemId && !unbrauchbar ? _procPfeileRichten(xml) : { xml, repariert: [] };
+  xml = pfeile.xml;
   try {
     await _bpmnModeler.importXML(xml);
     _bpmnModeler.get('canvas').zoom('fit-viewport');
@@ -1324,7 +1391,9 @@ async function openProcessEditor(itemId, seed) {
     if (st) st.innerHTML = unbrauchbar
       ? `<span style="color:#b45309">Die Datei enthielt kein BPMN – ein leeres Diagramm wurde geladen.
          <b>Speichern</b> repariert sie; Kennung und Verknüpfungen bleiben erhalten.</span>`
-      : ((proc || (seed && seed.xml)) ? '' : 'Neues Diagramm – ziehe Elemente aus der Palette links.');
+      : pfeile.repariert.length ? `<span style="color:#b45309">${esc(_procPfeileSatz(pfeile.repariert.length))}${
+          canWrite ? ' <b>Speichern</b> übernimmt die Korrektur in die Datei.' : ' In der Datei steht noch der alte Verlauf.'}</span>`
+      : ((proc || (seed && seed.xml)) ? '' : 'Neues Diagramm. Ziehen Sie Elemente aus der Palette links hinein.');
   } catch (e) {
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = `<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`;
@@ -1345,7 +1414,8 @@ async function openProcessEditor(itemId, seed) {
     // folgen dem Modell, ohne dass jemand „🔍 Schema" drücken muss.
     bus.on('commandStack.changed', () => { _procDirty = true; _procNachpruefenBald(); });
   } catch (e) { console.warn('Sprung-Ereignisse nicht verbunden:', e.message); }
-  _procDirty = false;
+  // Neu gezogene Pfeile sind eine Änderung, die noch nicht in der Datei steht.
+  _procDirty = !!(pfeile.repariert.length && canWrite);
   _procFarbStil();
   _procFaerben();
   procSprungMarker();
@@ -1381,7 +1451,7 @@ async function openProcessEditor(itemId, seed) {
    und „✎ Bearbeiten" ist nur ein Wechsel, kein zweites Werkzeug. */
 
 let _procAnsicht = false;     // Ist das offene Modell die Ansicht (lesen) statt der Editor?
-let _procAnsichtXml = '';     // die Datei, wie sie geladen wurde: der Download gibt genau sie heraus
+let _procAnsichtXml = '';     // die Datei, wie sie geladen wurde (Pfeile gerichtet): der Download gibt genau sie heraus
 let _procAblauf = null;       // Schrittliste des offenen Modells (prozessAblauf)
 let _procBefunde = null;      // letzte Hausschema-Prüfung des offenen Modells
 let _procPruefTimer = null;   // Editor: nachprüfen, sobald eine Weile nichts geändert wurde
@@ -1466,6 +1536,9 @@ async function openProcessAnsicht(itemId) {
     lead('Die Datei enthält kein BPMN. „✎ Bearbeiten" lädt ein leeres Diagramm, Speichern repariert die Datei.');
     return;
   }
+  // Pfeile, die der Generator vor Oktober 2026 falsch zog, zeigt die Ansicht
+  // schon richtig. In der Datei korrigiert sie „↪ Pfeile prüfen" in der Liste.
+  xml = _procPfeileRichten(xml).xml;
   _procAnsichtXml = xml;
   _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas', additionalModules: _procSprachmodule() });
   _procLesemodus(_bpmnModeler);
