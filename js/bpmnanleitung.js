@@ -516,21 +516,22 @@ function _baZeichenXml() {
     const z = BPMN_ZEICHEN.concat(BPMN_ZEICHEN_MEHR).find(x => x.art === art);
     return z && z.beispiel ? z.beispiel : '';
   };
+  const ereignis = { b: 36, h: 36 }, kasten = { b: 100, h: 80 }, raute = { b: 50, h: 50 };
   const elemente = [
-    ['start', 'startEvent', '', 36, 36],
-    ['mensch', 'userTask', beispiel('mensch'), 100, 80],
-    ['automatik', 'serviceTask', beispiel('automatik'), 100, 80],
-    ['frage', 'exclusiveGateway', '', 50, 50],
-    ['ende', 'endEvent', '', 36, 36],
-    ['handgriff', 'manualTask', 'Probe entnehmen', 100, 80],
-    ['warten', 'intermediateCatchEvent', '', 36, 36],
-    ['parallel', 'parallelGateway', '', 50, 50],
-    ['unter', 'callActivity', 'Ursache analysieren', 100, 80],
+    { art: 'start', typ: 'startEvent', name: '', ...ereignis },
+    { art: 'mensch', typ: 'userTask', name: beispiel('mensch'), ...kasten },
+    { art: 'automatik', typ: 'serviceTask', name: beispiel('automatik'), ...kasten },
+    { art: 'frage', typ: 'exclusiveGateway', name: '', ...raute },
+    { art: 'ende', typ: 'endEvent', name: '', ...ereignis },
+    { art: 'handgriff', typ: 'manualTask', name: 'Probe entnehmen', ...kasten },
+    { art: 'warten', typ: 'intermediateCatchEvent', name: '', ...ereignis },
+    { art: 'parallel', typ: 'parallelGateway', name: '', ...raute },
+    { art: 'unter', typ: 'callActivity', name: 'Ursache analysieren', ...kasten },
   ];
   let x = 20;
   const lage = {};
   const knoten = [], formen = [];
-  for (const [art, typ, name, b, h] of elemente) {
+  for (const { art, typ, name, b, h } of elemente) {
     const id = 'Zeichen_' + art;
     lage[art] = { x, y: 100 - h / 2, b, h };
     const innen = typ === 'intermediateCatchEvent' ? '<bpmn:timerEventDefinition id="' + id + '_frist"/>' : '';
