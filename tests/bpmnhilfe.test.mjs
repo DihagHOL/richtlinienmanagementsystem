@@ -25,8 +25,10 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
 const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
-/* Im Browser kommt esc aus dem Kern. */
+/* Im Browser kommt esc aus dem Kern und die Übersetzung aus js/bpmndeutsch.js. */
 globalThis.esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const D = require(ROOT + '/js/bpmndeutsch.js');
+globalThis.bpmnUebersetzen = D.bpmnUebersetzen;
 const S = require(ROOT + '/js/prozessschema.js');
 const H = require(ROOT + '/js/bpmnhilfe.js');
 
@@ -68,9 +70,20 @@ for (const k of knoepfe) {
 ok(ui.includes('onclick="prozessHilfeOeffnen()"') && ui.includes('❓ Hilfe'),
   'Der Modeler trägt den Knopf „❓ Hilfe", der die Anleitung öffnet');
 
+/* ── 3b) Der Modeler spricht Deutsch, die Anleitung auch ──
+   Sie nennt seine Texte aus derselben Tabelle. Ein englischer Begriff in der
+   Anleitung hieße: Sie beschreibt einen Modeler, den es nicht mehr gibt. */
+const beide = einstiegHtml + tiefeHtml;
+const englisch = Object.keys(D.BPMN_DEUTSCH).filter(en => en.length > 6 && D.BPMN_DEUTSCH[en] !== en && beide.includes(en));
+ok(englisch.length === 0, 'Kein englischer Text des Modelers steht mehr in der Anleitung' + (englisch.length ? ' (' + englisch.join(', ') + ')' : ''));
+ok(!/englisch/i.test(beide), 'und sie erklärt keine englischen Wörter mehr');
+for (const en of ['Manual task', 'Parallel gateway', 'Timer intermediate catch event', 'Create task', 'Add lane above']) {
+  ok(beide.includes('„' + D.BPMN_DEUTSCH[en] + '"'), `Sie nennt „${D.BPMN_DEUTSCH[en]}", wie es im Modeler steht`);
+}
+
 /* ── 4) Die Kürzel gibt es wirklich ── */
 const proz = lies('js/prozesse.js');
-const erzeugt = [...proz.matchAll(/new BpmnJS\(([^)]*)\)/g)].map(m => m[1]);
+const erzeugt = [...proz.matchAll(/new BpmnJS\((\{.*?\})\);/g)].map(m => m[1]);
 ok(erzeugt.filter(a => /keyboard:\s*\{\s*bindTo:\s*document\s*\}/.test(a)).length === 1,
   'Der Editor bindet die Tastatur, sonst wirkte nicht einmal Strg+Z');
 ok(erzeugt.length === 2 && erzeugt.filter(a => !/keyboard/.test(a)).length === 1,

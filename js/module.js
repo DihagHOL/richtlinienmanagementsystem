@@ -56,11 +56,11 @@ const MODUL_ANSICHTEN = {
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'bpmnhilfe', 'prozessmodell', 'prozesse', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
-  notfall:       MODUL_ADMIN.concat(['prozessschema', 'bpmnhilfe', 'prozessmodell', 'prozesse', 'landkarte', 'notfall']),
+  notfall:       MODUL_ADMIN.concat(['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'landkarte', 'notfall']),
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
   // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.
@@ -87,8 +87,9 @@ const MODUL_ANSICHTEN = {
   // seine Tabellen AUS dessen Daten baut. Ohne das Modul blieben sie leer –
   // die Wächter fangen den Fehler ab, aber eine leere Tabelle ist auch keine
   // Auskunft. bpmnhilfe liefert den Abschnitt „BPMN einfach erklärt", den auch
-  // der Modeler als Hilfe zeigt.
-  dokumentation: ['prozessschema', 'bpmnhilfe', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'dokumentation'],
+  // der Modeler als Hilfe zeigt. bpmndeutsch nennt ihr die deutschen Texte des
+  // Modelers, bpmnanleitung baut daraus die Word-Fassung zum Weitergeben.
+  dokumentation: ['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'dokumentation'],
 };
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)

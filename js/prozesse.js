@@ -170,6 +170,11 @@ function _procTastaturAktiv() {
     && !document.querySelector('.modal-overlay'));
 }
 
+/** Editor und Ansicht sprechen Deutsch, sobald die Tabelle aus js/bpmndeutsch.js da ist. */
+function _procSprachmodule() {
+  return typeof BPMN_DEUTSCH_MODUL !== 'undefined' ? [BPMN_DEUTSCH_MODUL] : [];
+}
+
 /* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
    die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
    Reiter mit Umschalter statt zweier Reiter. */
@@ -1290,7 +1295,7 @@ async function openProcessEditor(itemId, seed) {
   // keinen Fokus: An ihr gebunden wirkte kein einziges Kürzel, auch nicht
   // Strg+Z. Der Modeler lebt beim Reiterwechsel weiter. Ohne die Sperre
   // darunter löschte Entf dann unsichtbar im Diagramm.
-  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas', keyboard: { bindTo: document } });
+  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas', keyboard: { bindTo: document }, additionalModules: _procSprachmodule() });
   _bpmnModeler.get('eventBus').on('keyboard.keydown', 5000, () => (_procTastaturAktiv() ? undefined : false));
   // Die Liste liefert Namen und Kennungen der anderen Modelle – ohne sie
   // wüsste der Kasten „Unterprozess" nicht, was es einzubinden gibt.
@@ -1462,7 +1467,7 @@ async function openProcessAnsicht(itemId) {
     return;
   }
   _procAnsichtXml = xml;
-  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas' });
+  _bpmnModeler = new BpmnJS({ container: '#bpmn-canvas', additionalModules: _procSprachmodule() });
   _procLesemodus(_bpmnModeler);
   try { await _bpmnModeler.importXML(xml); }
   catch (e) { lead(`<span style="color:#b91c1c">Diagramm konnte nicht geladen werden: ${esc(e.message)}</span>`); return; }

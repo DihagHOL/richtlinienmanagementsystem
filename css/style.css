@@ -1126,6 +1126,11 @@ body.demo-mode .main { padding-bottom: 64px; }
 
 @media print { .proc-voll { position: static; height: auto; } }
 
+/* Das Menü „Art ändern" setzt bpmn-js auf 300 Punkte Breite. Die deutschen
+   Namen (js/bpmndeutsch.js) sind länger als die englischen, und
+   „Unterprozess (eingebundenes Modell)" würde abgeschnitten. */
+.djs-popup.bpmn-replace { width: 340px !important; }
+
 /* ── Prozessansicht: lesen statt bauen ─────────────────────────────────────
    Aufbau wie die Prozessseite der E-Rechnung: Kopf mit Aktionen, farbiges
    Diagramm, darunter links die Schritte, rechts was auffällt. Die Farben der

@@ -626,9 +626,13 @@ function _dokuSections() {
 
     sec('bpmn', 'BPMN einfach erklärt', 'all', `
       <div style="${hint};margin-top:0">Neu bei BPMN? <b>Stufe 1</b> reicht für den ersten eigenen Prozess. <b>Stufe 2</b> brauchen Sie erst, wenn Sie selbst zeichnen oder einen größeren Ablauf abbilden.</div>
+      ${typeof bpmnAnleitungHerunterladen === 'function' && typeof BPMN_ANLEITUNG_KNOPF !== 'undefined' ? `<div style="${hint}">
+        <b>Für Kolleginnen und Kollegen ohne RMS:</b> Beide Stufen gibt es als Word-Datei zum Weitergeben, ohne die Klickwege im RMS. Darin stehen Bilder der Zeichen, die Beispiele als Diagramm, ein Spickzettel und eine Vorlage zum Ausfüllen. Als Ansprechpartner steht Ihr Name darin, die ausgefüllte Datei kommt also zu Ihnen zurück.
+        <div style="margin-top:8px"><button class="btn btn-outline btn-sm" onclick="bpmnAnleitungHerunterladen()" title="${esc(BPMN_ANLEITUNG_KNOPF_TITEL)}">${esc(BPMN_ANLEITUNG_KNOPF)}</button></div>
+      </div>` : ''}
       ${typeof bpmnEinstiegHtml === 'function' ? bpmnEinstiegHtml() : ''}
       ${typeof bpmnVertiefungHtml === 'function' ? bpmnVertiefungHtml() : ''}
-      <div style="${hint}">💡 Stufe 1 gibt es auch im Modeler: Knopf <b>„❓ Hilfe"</b> in der Leiste oben. Sie öffnet sich als Dialog, das Diagramm bleibt dahinter offen.</div>`,
+      <div style="${hint}">💡 Stufe 1 gibt es auch im Modeler: Knopf <b>„❓ Hilfe"</b> in der Leiste oben. Sie öffnet sich als Dialog, das Diagramm bleibt dahinter offen. Der Modeler spricht Deutsch: Palette, Symbole am Element und das Menü „Art ändern" nennen die Bausteine so wie das Hausschema, etwa „Aufgabe (Mensch)" oder „Handgriff (ohne System)".</div>`,
       'OMG BPMN 2.0 (ISO/IEC 19510); ISO 9001 Abschnitt 4.4 und ISO 27001 Klausel 4.4 verlangen, dass Prozesse und ihre Wechselwirkungen bestimmt und beschrieben sind.'),
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `

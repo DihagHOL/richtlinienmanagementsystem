@@ -53,17 +53,36 @@ const BPMN_KUERZEL = [
   ['Mausrad', 'Fläche schieben, mit gedrückter Strg-Taste zoomen'],
 ];
 
-/* Die Erklärtexte des Modelers sind englisch. */
-const BPMN_WOERTER = [
-  ['Create …', 'neu setzen (Palette links)'],
-  ['Append …', 'anhängen: den nächsten Schritt direkt dahinter setzen'],
-  ['Connect to other element', 'mit einem anderen Element verbinden'],
-  ['Change element', 'Art ändern (🔧)'],
-  ['Delete', 'löschen'],
-  ['Task, Gateway, Event', 'Aufgabe, Entscheidung, Ereignis'],
-  ['User task, Service task, Manual task', '👤 Mensch, ⚙ System, ✋ Handgriff'],
-  ['Pool, Lane', 'Rahmen um den Prozess, Bahn'],
+/* Die Word-Fassung für alle ohne RMS (js/bpmnanleitung.js). Ihr Knopf steht im
+   Modeler-Dialog und in der Dokumentation, mit demselben Wortlaut. */
+const BPMN_ANLEITUNG_KNOPF = '📄 Word-Anleitung zum Weitergeben';
+const BPMN_ANLEITUNG_KNOPF_TITEL = 'Beide Stufen als Word-Datei, ohne die Schritte im RMS. Für Kolleginnen und Kollegen, die einen Ablauf beschreiben sollen, aber nicht im RMS arbeiten.';
+
+/* Die sechs Zeichen des Einstiegs. `art` ist der Schlüssel aus PROZESS_ARTEN;
+   danach zeichnet die Word-Fassung (js/bpmnanleitung.js) ihr Bild. */
+const BPMN_ZEICHEN = [
+  { art: 'start',     zeichen: '○ Auslöser',     bedeutung: 'Womit es losgeht. Ein Ereignis, kein Tun. Dünner Kreis.', beispiel: 'Antrag geht ein' },
+  { art: 'mensch',    zeichen: '👤 Aufgabe',     bedeutung: 'Ein Mensch tut etwas.', beispiel: 'Antrag prüfen' },
+  { art: 'automatik', zeichen: '⚙ Automatik',    bedeutung: 'Das System tut etwas von selbst: Mail, Workflow, Schnittstelle.', beispiel: 'Bestätigung versenden' },
+  { art: 'frage',     zeichen: '◇ Entscheidung', bedeutung: 'Eine Frage. Genau ein Weg geht weiter. Raute.', beispiel: 'Betrag über 5.000 €?' },
+  { art: 'ende',      zeichen: '◎ Ergebnis',     bedeutung: 'Wie die Sache ausgeht. Mehrere Ergebnisse sind normal. Dicker Kreis.', beispiel: 'Antrag genehmigt' },
+  { art: 'bahn',      zeichen: '▭ Bahn',         bedeutung: 'Wer zuständig ist. Immer eine Rolle, nie ein Name.', beispiel: 'Einkauf' },
 ];
+
+/* Die vier Bausteine der Vertiefung. `text` ist die Schreibweise im Text,
+   leer, wo es keine gibt. */
+const BPMN_ZEICHEN_MEHR = [
+  { art: 'handgriff', zeichen: '✋ Handgriff',    wofuer: 'Arbeit außerhalb jeder Anwendung: Werkstatt, Papier, Telefon.', text: '… (manuell)' },
+  { art: 'warten',    zeichen: '⏱ Warten',       wofuer: 'Der Prozess ruht, bis eine Frist abläuft oder eine Nachricht kommt.', text: 'Warten: …' },
+  { art: 'parallel',  zeichen: '✛ Aufteilung',   wofuer: 'Zwei Wege laufen gleichzeitig und treffen sich wieder.', text: '' },
+  { art: 'unter',     zeichen: '⊞ Unterprozess', wofuer: 'Ein eigener Prozess, der hier im Ganzen läuft. Einmal modelliert, überall eingebunden.', text: '… (Unterprozess)' },
+];
+
+/* Ein Text des Modelers, so wie er ihn zeigt. Er kommt aus derselben Tabelle
+   wie die Oberfläche (js/bpmndeutsch.js), die Anleitung kann ihn also nicht
+   anders nennen als der Modeler. */
+const _bpmnUi = (englisch) =>
+  '„' + esc(typeof bpmnUebersetzen === 'function' ? bpmnUebersetzen(englisch) : englisch) + '"';
 
 function _bpmnStil() {
   return {
@@ -105,14 +124,8 @@ function bpmnEinstiegHtml() {
     <div style="${s.h3}">Stufe 1: In fünf Minuten zum ersten Prozess</div>
 
     <div style="${s.h4}">Die sechs Zeichen</div>
-    ${_bpmnTabelle(['Zeichen', 'Bedeutung', 'Beispiel'], [
-      ['○ Auslöser', 'Womit es losgeht. Ein Ereignis, kein Tun. Dünner Kreis.', '„Antrag geht ein"'],
-      ['👤 Aufgabe', 'Ein Mensch tut etwas.', '„Antrag prüfen"'],
-      ['⚙ Automatik', 'Das System tut etwas von selbst: Mail, Workflow, Schnittstelle.', '„Bestätigung versenden"'],
-      ['◇ Entscheidung', 'Eine Frage. Genau ein Weg geht weiter. Raute.', '„Betrag über 5.000 €?"'],
-      ['◎ Ergebnis', 'Wie die Sache ausgeht. Mehrere Ergebnisse sind normal. Dicker Kreis.', '„Antrag genehmigt"'],
-      ['▭ Bahn', 'Wer zuständig ist. Immer eine Rolle, nie ein Name.', '„Einkauf"'],
-    ])}
+    ${_bpmnTabelle(['Zeichen', 'Bedeutung', 'Beispiel'],
+      BPMN_ZEICHEN.map(z => [esc(z.zeichen), esc(z.bedeutung), '„' + esc(z.beispiel) + '"']))}
     <p style="${s.p}"><b>So liest man ein Diagramm:</b> Von links nach rechts läuft die Zeit, von oben nach unten stehen die Zuständigen. Die Pfeile geben die Reihenfolge vor. Wo ein Pfeil die Bahn wechselt, wird Arbeit übergeben, und an genau diesen Stellen bleibt im Alltag am meisten liegen. In der Ansicht eines Modells sind die Zeichen farbig: orange tut ein Mensch, blau läuft automatisch, gold ist eine Entscheidung, grün sind Anfang und gutes Ende.</p>
 
     <div style="${s.h4}">Schreiben statt zeichnen</div>
@@ -141,11 +154,11 @@ function bpmnEinstiegHtml() {
     ${_bpmnTabelle(null, [
       ['Element anklicken', 'Daneben erscheinen kleine Symbole. Damit hängen Sie den nächsten Schritt direkt an oder verbinden zwei Elemente.'],
       ['Doppelklick oder E', 'Beschriftung ändern.'],
-      ['🔧 oder R', 'Die Art ändern. Aus einem leeren Kasten wird so ein 👤 (<i>User task</i>), ⚙ (<i>Service task</i>) oder ✋ (<i>Manual task</i>).'],
+      ['🔧 oder R', `Die Art ändern. Aus einem leeren Kasten wird so 👤 ${_bpmnUi('User task')}, ⚙ ${_bpmnUi('Service task')} oder ✋ ${_bpmnUi('Manual task')}.`],
       ['🗑 oder Entf', 'Löschen.'],
       ['Strg+Z', 'Rückgängig. Strg+Y stellt wieder her.'],
     ])}
-    <div style="${s.hint}">Die Erklärtexte im Modeler sind englisch. Die wichtigsten Wörter: <i>Append</i> heißt anhängen, <i>Change element</i> Art ändern, <i>Delete</i> löschen, <i>Gateway</i> Entscheidung, <i>Lane</i> Bahn.</div>
+    <div style="${s.hint}">💡 Bleiben Sie mit der Maus kurz über einem Symbol stehen, dann sagt der Modeler, was es tut.</div>
 
     <div style="${s.h4}">Fertig ist ein Prozess, wenn</div>
     <ul style="${s.ol}">
@@ -170,28 +183,30 @@ function bpmnVertiefungHtml() {
     <p style="${s.p}">Wer selbst zeichnet oder einen größeren Ablauf abbildet, braucht vier weitere Bausteine, die Palette und ein paar Muster. Alle zehn Bausteine mit ihren Regeln stehen im Abschnitt „Prozesse niederschreiben (Hausschema)".</p>
 
     <div style="${s.h4}">Die vier weiteren Bausteine</div>
-    ${_bpmnTabelle(['Baustein', 'Wofür', 'Im Text', 'Im Modeler'], [
-      ['✋ Handgriff', 'Arbeit außerhalb jeder Anwendung: Werkstatt, Papier, Telefon.', _bpmnCode('… (manuell)'), '🔧 und <i>Manual task</i>'],
-      ['⏱ Warten', 'Der Prozess ruht, bis eine Frist abläuft oder eine Nachricht kommt.', _bpmnCode('Warten: …'), 'Palette <i>Create intermediate/boundary event</i>, dann 🔧 und <i>Timer intermediate catch event</i> (Frist) oder <i>Message intermediate catch event</i> (Nachricht)'],
-      ['✛ Aufteilung', 'Zwei Wege laufen gleichzeitig und treffen sich wieder.', 'geht nur im Modeler', 'Raute setzen, dann 🔧 und <i>Parallel gateway</i>'],
-      ['⊞ Unterprozess', 'Ein eigener Prozess, der hier im Ganzen läuft. Einmal modelliert, überall eingebunden.', _bpmnCode('… (Unterprozess)'), 'Aufgabe anklicken, rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen'],
-    ])}
+    ${_bpmnTabelle(['Baustein', 'Wofür', 'Im Text', 'Im Modeler'], BPMN_ZEICHEN_MEHR.map(z => [
+      esc(z.zeichen), esc(z.wofuer), z.text ? _bpmnCode(z.text) : 'geht nur im Modeler', {
+        handgriff: `🔧 und ${_bpmnUi('Manual task')}`,
+        warten:    `Palette ${_bpmnUi('Create intermediate/boundary event')}, dann 🔧 und ${_bpmnUi('Timer intermediate catch event')} oder ${_bpmnUi('Message intermediate catch event')}`,
+        parallel:  `Raute setzen, dann 🔧 und ${_bpmnUi('Parallel gateway')}`,
+        unter:     'Aufgabe anklicken, rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen',
+      }[z.art]]))}
     <p style="${s.p}">Ein Text, der alles zeigt, was ein Text zeigen kann:</p>
     <pre style="${s.pre}">${esc(BPMN_BEISPIEL_VERTIEFUNG)}</pre>
     <p style="${s.p}">Bahnen namens <b>System</b>, <b>Automatik</b>, <b>Workflow</b> oder <b>Cron</b> gelten ohnehin als ⚙. Nach dem Erzeugen meldet die Prüfung genau einen Befund, <b>R10</b>: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie rechts unter „Unterprozess – ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf <b>„+ … als neues Modell anlegen"</b> ihn an.</p>
 
     <div style="${s.h4}">Die Palette links</div>
-    ${_bpmnTabelle(['Erklärtext', 'Im Hausschema'], [
-      ['<i>Create start event</i>', '○ Auslöser'],
-      ['<i>Create intermediate/boundary event</i>', '⏱ Warten, nach dem Setzen mit 🔧 als Timer oder Message catch event'],
-      ['<i>Create end event</i>', '◎ Ergebnis'],
-      ['<i>Create gateway</i>', '◇ Entscheidung. Mit 🔧 und <i>Parallel gateway</i> wird daraus ✛.'],
-      ['<i>Create task</i>', 'ein leerer Kasten. Gleich mit 🔧 zu 👤, ⚙ oder ✋ machen, sonst meldet die Prüfung R3.'],
-      ['<i>Create pool/participant</i>', 'der Rahmen um den Prozess. Darin liegen die Bahnen.'],
+    ${_bpmnTabelle(['In der Palette', 'Im Hausschema'], [
+      [_bpmnUi('Create start event'), '○ Auslöser'],
+      [_bpmnUi('Create intermediate/boundary event'), `⏱ Warten, nach dem Setzen mit 🔧 als ${_bpmnUi('Timer intermediate catch event')} oder ${_bpmnUi('Message intermediate catch event')}`],
+      [_bpmnUi('Create end event'), '◎ Ergebnis'],
+      [_bpmnUi('Create gateway'), `◇ Entscheidung. Mit 🔧 und ${_bpmnUi('Parallel gateway')} wird daraus ✛.`],
+      [_bpmnUi('Create task'), 'ein leerer Kasten. Gleich mit 🔧 zu 👤, ⚙ oder ✋ machen, sonst meldet die Prüfung R3.'],
+      [_bpmnUi('Create pool/participant'), 'der Rahmen um den Prozess. Darin liegen die Bahnen.'],
       ['Hand, Lasso, Platz, Verbinden', 'die vier Werkzeuge ganz oben: Fläche schieben, mehrere Elemente markieren, Platz schaffen, Verbindungen ziehen'],
-      ['<i>Sub-process, data object, data store, group</i>', 'nicht verwenden, das Hausschema kennt sie nicht. Statt eines Unterprozesses im Bild wird ein Modell als ⊞ eingebunden, statt eines Datenobjekts hängt das Dokument per 📎 am Schritt.'],
+      [['Create expanded sub-process', 'Create data object reference', 'Create data store reference', 'Create group'].map(_bpmnUi).join(', '),
+        'nicht verwenden, das Hausschema kennt sie nicht. Statt eines Teilprozesses im Bild wird ein Modell als ⊞ eingebunden, statt eines Datenobjekts hängt das Dokument per 📎 am Schritt.'],
     ])}
-    <p style="${s.p}"><b>Bahnen anlegen:</b> Den Pool anklicken, dann <i>Add lane above</i>, <i>Add lane below</i> oder <i>Divide into two lanes</i>. Eine Bahn per Doppelklick mit der Rolle beschriften und die Elemente in die richtige Bahn ziehen. Jedes Element gehört in genau eine.</p>
+    <p style="${s.p}"><b>Bahnen anlegen:</b> Den Pool anklicken, dann ${_bpmnUi('Add lane above')}, ${_bpmnUi('Add lane below')} oder ${_bpmnUi('Divide into two lanes')}. Eine Bahn per Doppelklick mit der Rolle beschriften und die Elemente in die richtige Bahn ziehen. Jedes Element gehört in genau eine.</p>
 
     <div style="${s.h4}">Muster, die immer wieder vorkommen</div>
     ${_bpmnTabelle(['Muster', 'So geht es'], [
@@ -209,7 +224,7 @@ function bpmnVertiefungHtml() {
     ${_bpmnTabelle(['Regel', 'Was gemeint ist', 'So beheben'], [
       ['R1', 'Mehr als ein Auslöser. Das sind zwei Prozesse.', 'In zwei Modelle aufteilen und bei Bedarf per ⊞ verbinden.'],
       ['R2', 'Ein Ergebnis ohne Namen.', 'Den Zustand eintragen: „Antrag genehmigt".'],
-      ['R3', 'Ein leerer Kasten.', '🔧 oder R, dann <i>User task</i>, <i>Service task</i> oder <i>Manual task</i>.'],
+      ['R3', 'Ein leerer Kasten.', `🔧 oder R, dann ${_bpmnUi('User task')}, ${_bpmnUi('Service task')} oder ${_bpmnUi('Manual task')}.`],
       ['R4', 'Ein Element liegt in keiner Bahn.', 'In die zuständige Bahn ziehen.'],
       ['R5', 'Eine Bahn heißt wie eine Person.', 'Die Rolle eintragen: „Einkauf" statt eines Namens. Personen wechseln, Rollen bleiben.'],
       ['R6', 'Ein Ausgang einer Raute ist nicht beschriftet.', 'Den Pfeil doppelklicken und die Bedingung eintragen.'],
@@ -221,10 +236,7 @@ function bpmnVertiefungHtml() {
 
     <div style="${s.h4}">Tastenkürzel</div>
     ${_bpmnTabelle(null, BPMN_KUERZEL)}
-    <div style="${s.hint}">Die Kürzel wirken im Modeler, solange kein Eingabefeld den Cursor hat und kein Dialog offen ist. Wer gerade den Prozessnamen tippt, löscht mit Entf also nur Buchstaben.</div>
-
-    <div style="${s.h4}">Die englischen Erklärtexte</div>
-    ${_bpmnTabelle(null, BPMN_WOERTER.map(([en, de]) => [`<i>${esc(en)}</i>`, de]))}`;
+    <div style="${s.hint}">Die Kürzel wirken im Modeler, solange kein Eingabefeld den Cursor hat und kein Dialog offen ist. Wer gerade den Prozessnamen tippt, löscht mit Entf also nur Buchstaben.</div>`;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -241,11 +253,14 @@ function prozessHilfeOeffnen() {
     <div class="modal-footer">
       ${doku ? `<a class="btn btn-outline" href="?ansicht=dokumentation&amp;abschnitt=bpmn" target="_blank" rel="noopener"
         title="Öffnet in einem neuen Tab, das Diagramm hier bleibt offen">Stufe 2 in der Dokumentation ↗</a>` : ''}
+      ${typeof bpmnAnleitungHerunterladen === 'function' ? `<button class="btn btn-outline" onclick="bpmnAnleitungHerunterladen()"
+        title="${esc(BPMN_ANLEITUNG_KNOPF_TITEL)}">${esc(BPMN_ANLEITUNG_KNOPF)}</button>` : ''}
       <div style="flex:1"></div>
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`, true, { label: 'BPMN einfach erklärt' });
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { BPMN_BEISPIEL_EINSTIEG, BPMN_BEISPIEL_VERTIEFUNG, BPMN_KUERZEL, bpmnEinstiegHtml, bpmnVertiefungHtml };
+  module.exports = { BPMN_BEISPIEL_EINSTIEG, BPMN_BEISPIEL_VERTIEFUNG, BPMN_KUERZEL, BPMN_ZEICHEN, BPMN_ZEICHEN_MEHR,
+    BPMN_ANLEITUNG_KNOPF, bpmnEinstiegHtml, bpmnVertiefungHtml };
 }

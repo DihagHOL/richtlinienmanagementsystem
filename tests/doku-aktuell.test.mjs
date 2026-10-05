@@ -75,6 +75,10 @@ const FEATURES = [
   { name: 'Abhängigkeiten-Ansicht',  code: () => /function vkHerkunftWege/.test(read('js/verknuepfungen.js')),  begriffe: ['Abhängigkeiten', 'Herkunft', 'geteilter'] },
   { name: 'Wissen (Bibliothek)',     code: () => /function initWissen/.test(read('js/wissen.js')),             begriffe: ['Wissen – die Bibliothek', 'Ich habe das angesehen', 'Startbestand', 'Für die Pflege'] },
   { name: 'BPMN einfach erklärt',    code: () => /function prozessHilfeOeffnen/.test(read('js/bpmnhilfe.js')),  begriffe: ['BPMN einfach erklärt', 'Stufe 1', 'Stufe 2', '❓ Hilfe'] },
+  { name: 'Modeler auf Deutsch',     code: () => /additionalModules: _procSprachmodule\(\)/.test(prozesse) && /const BPMN_DEUTSCH\b/.test(read('js/bpmndeutsch.js')),
+    begriffe: ['Der Modeler spricht Deutsch', 'Art ändern', 'Aufgabe (Mensch)'] },
+  { name: 'BPMN-Anleitung als Word', code: () => /function bpmnAnleitungHerunterladen/.test(read('js/bpmnanleitung.js')),
+    begriffe: ['Für Kolleginnen und Kollegen ohne RMS', 'Word-Datei', 'Spickzettel', 'Vorlage zum Ausfüllen', 'Ansprechpartner'] },
 ];
 
 for (const f of FEATURES) {

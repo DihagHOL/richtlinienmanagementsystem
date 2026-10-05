@@ -250,7 +250,9 @@ function prozessXmlBauen(o) {
   };
 
   // Der Auslöser: entweder ausdrücklich geschrieben oder stillschweigend davor.
-  let x = PS_POOL_X + PS_KOPF_B + 40;
+  // 60 Punkte Luft zum Bahnkopf: Die Beschriftung des Auslösers ist breiter als
+  // der Kreis und läge sonst auf dem Namen der Bahn.
+  let x = PS_POOL_X + PS_KOPF_B + 60;
   const ersteBahn = (schritte.find(s => s.bahn) || {}).bahn || standardBahn;
   let startName = 'Start';
   const startIdx = schritte.findIndex(s => s.kind === 'start');
@@ -368,9 +370,15 @@ ${knoten.filter(k => k.bahn === b).map(k => `        <bpmn:flowNodeRef>${k.id}</
     const a = beiId[f.von], b = beiId[f.nach];
     if (!a || !b) return;
     const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
+    const tiefer = my(b) > my(a);
     let wp;
-    if (a.typ === 'exclusiveGateway' && b.y > a.y + 60) wp = [[mx(a), a.y + a.h], [mx(a), b.y]];
-    else if (Math.abs(my(a) - my(b)) > 30) wp = [[mx(a), a.y + a.h], [mx(a), my(b)], [b.x, my(b)]];
+    // Der Nein-Zweig sitzt genau unter seiner Raute: senkrecht hinunter.
+    if (a.typ === 'exclusiveGateway' && b.y > a.y + 60 && Math.abs(mx(a) - mx(b)) < 5) wp = [[mx(a), a.y + a.h], [mx(a), b.y]];
+    // Von einer Raute in eine andere Bahn: rechts heraus und von oben oder unten
+    // hinein. Unten heraus führte der Pfeil durch den Nein-Zweig.
+    else if (a.typ === 'exclusiveGateway' && Math.abs(my(a) - my(b)) > 30) wp = [[a.x + a.w, my(a)], [mx(b), my(a)], [mx(b), tiefer ? b.y : b.y + b.h]];
+    // Sonst in die Richtung der Zielbahn heraus, sonst liefe er durch den eigenen Kasten.
+    else if (Math.abs(my(a) - my(b)) > 30) wp = [[mx(a), tiefer ? a.y + a.h : a.y], [mx(a), my(b)], [b.x, my(b)]];
     else wp = [[a.x + a.w, my(a)], [b.x, my(b)]];
     di.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${
       wp.map(p => `<di:waypoint x="${Math.round(p[0])}" y="${Math.round(p[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
