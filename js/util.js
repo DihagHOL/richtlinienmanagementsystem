@@ -65,16 +65,18 @@ function sichereUrl(u) {
  * Seit die Modelle einander als Unterprozess einbinden, stehen zwei Felder
  * mehr darin: `i` – die Kennung des Prozesses (das `id` von <bpmn:process>),
  * und `u` – die Kennungen der eingebundenen Modelle ([[rms:modell=…]]).
+ * Für die Gliederung der Modell-Liste kam `g` dazu: die zugeordneten
+ * Unterprozesse (`g.u`, [[rms:unter=…]]) und Nebenprozesse (`g.n`, [[rms:neben=…]]).
  *
  * `alt: true` heißt „unvollständig für die Kartenansicht" – dort fehlen
- * Anlagenzahl, Diagramm-Warnung oder die Unterprozesse. Die Richtlinien-
- * Kennungen selbst stehen in allen Formen vollständig drin.
+ * Anlagenzahl, Diagramm-Warnung, die Unterprozesse oder die Gliederung. Die
+ * Richtlinien-Kennungen selbst stehen in allen Formen vollständig drin.
  *
- * @returns {{p: string[], d: number, k: boolean, i: string, u: string[], alt: boolean}|null}
+ * @returns {{p: string[], d: number, k: boolean, i: string, u: string[], g: {u: string[], n: string[]}, alt: boolean}|null}
  */
 function procLinkEintrag(e) {
   if (!e) return null;
-  if (Array.isArray(e)) return { p: e, d: 0, k: false, i: '', u: [], alt: true };
+  if (Array.isArray(e)) return { p: e, d: 0, k: false, i: '', u: [], g: { u: [], n: [] }, alt: true };
   return {
     p: Array.isArray(e.p) ? e.p : [],
     d: Number(e.d) || 0,
@@ -82,7 +84,12 @@ function procLinkEintrag(e) {
     i: String(e.i || ''),
     u: Array.isArray(e.u) ? e.u.map(String) : [],
     m: (e.m && typeof e.m === 'object') ? e.m : null,   // Prozessmanagement am Modell (js/prozessmodell.js)
-    alt: !('k' in e) || !('u' in e) || !('m' in e),
+    // Zugeordnete Unter- (u) und Nebenprozesse (n) – die Gliederung der Modell-Liste.
+    g: {
+      u: (e.g && Array.isArray(e.g.u)) ? e.g.u.map(String) : [],
+      n: (e.g && Array.isArray(e.g.n)) ? e.g.n.map(String) : [],
+    },
+    alt: !('k' in e) || !('u' in e) || !('m' in e) || !('g' in e),
   };
 }
 

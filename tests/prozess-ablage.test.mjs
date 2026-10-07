@@ -187,7 +187,7 @@ ok(gruppen.join('|') === 'KONZERN|HOL|SHB|Sonstiges|',
 ok(p("_procGruppen(_processes).find(g => g.key === '').titel") === 'Ohne Zuordnung',
   'Die letzte Gruppe heißt „Ohne Zuordnung" – nicht leer und nicht kryptisch');
 ok(p('_procGruppen(_processes).reduce((n, g) => n + g.rows.length, 0)') === 5, 'Kein Modell geht beim Gruppieren verloren');
-p('_renderProcCards();');
+p('_procKacheln = true; _renderProcCards();');
 ok(/Ohne Zuordnung/.test(mount.innerHTML) && (mount.innerHTML.match(/item-cards/g) || []).length === 5,
   'Die Liste zeigt je Werk einen Block');
 

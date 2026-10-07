@@ -89,7 +89,7 @@ function _procDocMarker(d) {
  * Der Text, der Verknüpfungen und Anlagen im Modell festhält: erst im Klartext
  * (damit auch ein fremder Modeler sie zeigt), dann als Marker.
  */
-function _procDokuText(ids, docs, pm) {
+function _procDokuText(ids, docs, pm, gl) {
   ids = (ids || []).map(String);
   docs = (docs || []).filter(d => d && (d.name || d.url));
   const zeilen = [];
@@ -110,14 +110,16 @@ function _procDokuText(ids, docs, pm) {
     zeilen.push(`Hinterlegte Dokumente: ${docs.map(d => _docFeld(d.name)).join('; ')}`);
     docs.forEach(d => zeilen.push(_procDocMarker(d)));
   }
+  // Zugeordnete Unter- und Nebenprozesse (Gliederung der Modelle, siehe unten).
+  zeilen.push(..._procGliederungZeilen(gl));
   return zeilen.join('\n');
 }
 
 /** Gehört die Zeile zu dem, was _procDokuText schreibt? Alles andere ist Beschreibung und bleibt stehen. */
 function _procIstDokuZeile(z) {
   const t = String(z || '').trim();
-  return /^\[\[rms:(policies|doc|pm|kpi)=/.test(t)
-    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen):/.test(t);
+  return /^\[\[rms:(policies|doc|pm|kpi|unter|neben)=/.test(t)
+    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|Unterprozesse|Nebenprozesse):/.test(t);
 }
 
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
@@ -261,6 +263,12 @@ function renderProzesseList() {
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
         <input type="text" id="search-proc" placeholder="Prozess suchen …" oninput="_renderProcCards()">
       </div>
+      <div class="pg-form" role="group" aria-label="Darstellung der Modelle">
+        <button class="btn btn-sm ${_procListeAlsKacheln() ? 'btn-ghost' : 'btn-primary'}" onclick="procListFormSetzen('baum')"
+          title="Nach Gesamtprozess gegliedert, darunter Unter- und Nebenprozesse">🌳 Gliederung</button>
+        <button class="btn btn-sm ${_procListeAlsKacheln() ? 'btn-primary' : 'btn-ghost'}" onclick="procListFormSetzen('kacheln')"
+          title="Alle Modelle als Kacheln, nach Werk">▦ Kacheln</button>
+      </div>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
       ${canWrite && (_processes || []).length ? `<button class="btn btn-outline btn-sm" onclick="prozessPfeilePruefen()" title="Alle Modelle auf Pfeile prüfen, die ins Leere oder durch den eigenen Kasten laufen, und sie korrigieren. Erst nach Rückfrage wird gespeichert.">↪ Pfeile prüfen</button>` : ''}
@@ -280,6 +288,7 @@ function _renderProcCards() {
   const host = document.getElementById('proc-cards');
   if (!host) return;
   const all = _processes || [];
+  if (all.length && !_procListeAlsKacheln()) { _renderProcBaum(host); return; }
   const q = (document.getElementById('search-proc')?.value || '').toLowerCase().trim();
   const rows = q ? all.filter(p => (p.title || '').toLowerCase().includes(q)) : all;
   if (!rows.length) {
@@ -339,6 +348,518 @@ function _procGruppen(rows) {
   return [...new Set(rows.map(p => p.ordner || ''))]
     .sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, 'de'))
     .map(k => ({ key: k, titel: label(k), rows: rows.filter(p => (p.ordner || '') === k) }));
+}
+
+/* ═══════════════════════════════════════════════════
+   Gliederung der Modelle: Gesamtprozess → Unter- und Nebenprozesse
+   ═══════════════════════════════════════════════════
+   Die Liste zeigt die Modelle eines Werks als Baum. Oben stehen die
+   Gesamtprozesse: Modelle, die in keinem anderen Modell desselben Werks
+   stehen. Darunter, beliebig tief:
+     ⊞ Unterprozess, im Ablauf eingebunden: ein Schritt im Diagramm ruft ihn auf
+     ↳ Unterprozess, zugeordnet: gehört dazu, ohne dass ein Schritt ihn aufruft
+     ⇢ Nebenprozess: läuft neben dem übergeordneten her, mit eigenem Ablauf
+   Die Zuordnung steht wie die Regelwerke in der Dokumentation des Prozesses,
+   und zwar beim übergeordneten Modell:
+     Unterprozesse: Angebot; Auftrag
+     [[rms:unter=<Datei-Kennung>,…]]
+     Nebenprozesse: Reklamation
+     [[rms:neben=<Datei-Kennung>,…]]
+   Das untergeordnete Modell weiß davon nichts und muss nichts davon wissen.
+   So kann ein Modell in mehreren Gesamtprozessen stehen und wird trotzdem
+   einmal gepflegt, dieselbe Regel wie bei den Unterprozessen der Landkarte. */
+
+const PROC_GL_MARKER = { u: /\[\[rms:unter=([^\]]*)\]\]/, n: /\[\[rms:neben=([^\]]*)\]\]/ };
+const PROC_GL_ARTEN = {
+  unter: { zeichen: '↳', label: 'Unterprozess', mehrzahl: 'Unterprozesse', titel: 'Teil des übergeordneten Prozesses' },
+  neben: { zeichen: '⇢', label: 'Nebenprozess', mehrzahl: 'Nebenprozesse', titel: 'läuft neben dem übergeordneten Prozess her, mit eigenem Ablauf' },
+};
+const PROC_KACHELN_SPEICHER = 'rms_proc_kacheln';
+let _procKacheln = null;             // Liste als Kacheln statt als Gliederung? (null = noch nicht gelesen)
+let _procBaumOffen = new Set();      // aufgeklappte Zeilen, als Weg der Kennungen „A/B/C"
+let _procBaumZeigen = new Set();     // Modelle, die überall aufgeklappt stehen sollen (gerade etwas zugeordnet)
+let _procBaumVersucht = new Set();   // schon angefragte Dateien (Kennung|Stand): eine unlesbare wird nicht endlos nachgefragt
+let _procBaumLaden = 0;              // laufende Lesevorgänge der Gliederung
+let _procBaumTimer = null;
+let _procGlDialog = null;            // { elternId, art } des offenen Zuordnen-Dialogs
+
+function _procGlIds(text, re) {
+  const m = String(text || '').match(re);
+  return m ? [...new Set(m[1].split(',').map(s => s.trim()).filter(Boolean))] : [];
+}
+
+/** Die zugeordneten Unter- (u) und Nebenprozesse (n) aus der Dokumentation oder dem ganzen XML. */
+function procGliederungAusText(text) {
+  const u = _procGlIds(text, PROC_GL_MARKER.u);
+  return { u, n: _procGlIds(text, PROC_GL_MARKER.n).filter(id => !u.includes(id)) };
+}
+
+/** Klartext und Marker für die Dokumentation: erst lesbar für Menschen, dann für die App. */
+function _procGliederungZeilen(gl) {
+  const zeilen = [];
+  [['u', 'unter'], ['n', 'neben']].forEach(([k, art]) => {
+    const ids = [...new Set(((gl && Array.isArray(gl[k])) ? gl[k] : []).map(x => String(x).trim()).filter(Boolean))];
+    if (!ids.length) return;
+    const namen = ids.map(id => { const m = procModellVon(id); return _docFeld(m ? m.title : id); });
+    zeilen.push(`${PROC_GL_ARTEN[art].mehrzahl}: ${namen.join('; ')}`);
+    zeilen.push(`[[rms:${art}=${ids.join(',')}]]`);
+  });
+  return zeilen;
+}
+
+/**
+ * Die Kinder eines Modells aus seinem Cache-Eintrag: erst die im Ablauf
+ * eingebundenen (⊞), dann die zugeordneten Unter- und die Nebenprozesse.
+ * Jedes Modell steht nur einmal da, eingebunden geht vor zugeordnet.
+ * @returns {{id: string, art: string, quelle: string}[]} art 'unter' | 'neben', quelle 'ablauf' | 'zuordnung'
+ */
+function procGliederungAusEintrag(itemId, e) {
+  const out = [];
+  if (!e) return out;
+  const eigen = String(itemId);
+  const dazu = (id, art, quelle) => {
+    id = String(id || '').trim();
+    if (id && id !== eigen && !out.some(k => k.id === id)) out.push({ id, art, quelle });
+  };
+  (e.u || []).forEach(id => dazu(id, 'unter', 'ablauf'));
+  ((e.g && e.g.u) || []).forEach(id => dazu(id, 'unter', 'zuordnung'));
+  ((e.g && e.g.n) || []).forEach(id => dazu(id, 'neben', 'zuordnung'));
+  return out;
+}
+
+/** Die Kinder eines Modells der Liste (leer, solange seine Datei ungelesen ist). */
+function procGliederungKinder(itemId) {
+  return procGliederungAusEintrag(itemId, procEintragVon(procModellVon(itemId)));
+}
+
+/** In welchen Modellen dieses als Unter- oder Nebenprozess steht. */
+function procGliederungEltern(itemId) {
+  const id = String(itemId);
+  const out = [];
+  (_processes || []).forEach(p => {
+    const k = String(p.itemId) !== id && procGliederungKinder(p.itemId).find(x => x.id === id);
+    if (k) out.push({ modell: p, art: k.art, quelle: k.quelle });
+  });
+  return out;
+}
+
+/** Steht `ziel` über beliebig viele Stufen unterhalb von `start`? Die Kreisprüfung. */
+function procGliederungUnterhalb(start, ziel, gesehen) {
+  const g = gesehen || new Set();
+  for (const k of procGliederungKinder(start)) {
+    if (k.id === String(ziel)) return true;
+    if (g.has(k.id)) continue;
+    g.add(k.id);
+    if (procGliederungUnterhalb(k.id, ziel, g)) return true;
+  }
+  return false;
+}
+
+/**
+ * Die Gesamtprozesse einer Gruppe (eines Werks): die Modelle, die in keinem
+ * anderen Modell derselben Gruppe stehen. Steht ein Modell nur unter einem
+ * Modell eines anderen Werks, bleibt es in seinem eigenen Werk oben, sonst
+ * fände man es dort nicht mehr. Was nur über einen Kreis erreichbar wäre
+ * (A in B, B in A), rückt ebenfalls nach oben: Verschwinden darf kein Modell.
+ * @param {object[]} rows die Modelle der Gruppe, in der Reihenfolge der Liste
+ * @param {(id: string) => {id: string}[]} kinderVon
+ * @returns {string[]} Datei-Kennungen der obersten Modelle
+ */
+function procGliederungWurzeln(rows, kinderVon) {
+  const ids = rows.map(p => String(p.itemId));
+  const hier = new Set(ids);
+  const kinder = (id) => kinderVon(id).map(k => String(k.id)).filter(k => hier.has(k) && k !== id);
+  const unten = new Set();
+  ids.forEach(id => kinder(id).forEach(k => unten.add(k)));
+  const wurzeln = ids.filter(id => !unten.has(id));
+  const erreicht = new Set();
+  const lauf = (id) => { if (erreicht.has(id)) return; erreicht.add(id); kinder(id).forEach(lauf); };
+  wurzeln.forEach(lauf);
+  ids.forEach(id => { if (!erreicht.has(id)) { wurzeln.push(id); lauf(id); } });
+  return wurzeln;
+}
+
+/* ── Die Liste als Gliederung ── */
+
+function _procListeAlsKacheln() {
+  if (_procKacheln === null) _procKacheln = _procGemerkt(PROC_KACHELN_SPEICHER, false);
+  return _procKacheln;
+}
+
+function procListFormSetzen(form) {
+  _procKacheln = form === 'kacheln';
+  _procMerken(PROC_KACHELN_SPEICHER, _procKacheln);
+  renderProzesseList();
+}
+
+/** Was eine Zeichnung der Gliederung braucht: Suche, Recht, sichtbare Modelle, wer wie oft eingeordnet ist. */
+function _procBaumCtx(q) {
+  const gruppen = _procGruppen(_processes || []);   // berücksichtigt die Trennung nach Gesellschaft
+  const sichtbar = new Set();
+  gruppen.forEach(g => g.rows.forEach(p => sichtbar.add(String(p.itemId))));
+  const elternZahl = new Map();
+  sichtbar.forEach(id => procGliederungKinder(id).forEach(k => {
+    if (sichtbar.has(k.id)) elternZahl.set(k.id, (elternZahl.get(k.id) || 0) + 1);
+  }));
+  return { q: String(q || '').toLowerCase().trim(), gruppen, sichtbar, elternZahl, treffer: new Map(),
+    canWrite: typeof canWriteTab !== 'function' || canWriteTab('prozesse') };
+}
+
+function _procTitelVon(id) { const p = procModellVon(id); return p ? String(p.title || '') : ''; }
+
+/** Die Kinder, die in dieser Sicht erscheinen: sichtbare Modelle, dazu Zuordnungen auf gelöschte. */
+function _procBaumKinder(id, ctx) {
+  return procGliederungKinder(id)
+    .filter(k => ctx.sichtbar.has(k.id) || (k.quelle === 'zuordnung' && !procModellVon(k.id)))
+    .sort((a, b) => (a.art === b.art ? 0 : (a.art === 'unter' ? -1 : 1))
+      || _procTitelVon(a.id).localeCompare(_procTitelVon(b.id), 'de'));
+}
+
+/** Trifft die Suche dieses Modell oder eines darunter? Dann steht es da, aufgeklappt bis zum Treffer. */
+function _procBaumTrifft(id, ctx, pfad) {
+  if (ctx.treffer.has(id)) return ctx.treffer.get(id);
+  let ja = _procTitelVon(id).toLowerCase().includes(ctx.q);
+  if (!ja && !pfad.includes(id)) ja = _procBaumKinder(id, ctx).some(k => _procBaumTrifft(k.id, ctx, pfad.concat(id)));
+  ctx.treffer.set(id, ja);
+  return ja;
+}
+
+/** Eine Zeile der Gliederung und, wenn sie aufgeklappt ist, alles darunter. */
+function _procBaumKnoten(id, pfad, kante, gruppe, ctx) {
+  const tiefe = pfad.length;
+  const eltern = tiefe ? pfad[tiefe - 1] : '';
+  const art = kante ? PROC_GL_ARTEN[kante.art] : null;
+  const kanteHtml = kante
+    ? `<span class="pg-art pg-art-${kante.art}" title="${esc(kante.quelle === 'ablauf'
+        ? 'Unterprozess, im Ablauf eingebunden: Ein Schritt im Diagramm ruft dieses Modell auf. Lösen lässt es sich dort.'
+        : art.label + ': ' + art.titel)}">${kante.quelle === 'ablauf' ? '⊞' : art.zeichen} ${art.label}</span>` : '';
+  const loesen = (kante && kante.quelle === 'zuordnung' && ctx.canWrite)
+    ? `<button type="button" class="pg-knopf" onclick="procGliederungLoesen(${jsArg(eltern)}, ${jsArg(id)})"
+        title="Zuordnung lösen, das Modell selbst bleibt">✕</button>` : '';
+  const p = procModellVon(id);
+  if (!p) {
+    return `<div class="pg-zeile pg-fehlt" style="--pg-tiefe:${tiefe}">
+      <span class="pg-auf"></span>${kanteHtml}
+      <div class="pg-haupt"><span class="pg-titel">Modell fehlt</span>
+        <div class="pg-info">Zugeordnet, aber nicht mehr vorhanden, vielleicht gelöscht. ✕ entfernt die Zuordnung.</div></div>
+      <div class="pg-aktionen">${loesen}</div></div>`;
+  }
+  const kreis = pfad.includes(id);
+  const kinder = kreis ? [] : _procBaumKinder(id, ctx)
+    .filter(k => !ctx.q || _procBaumTrifft(k.id, ctx, pfad.concat(id)));
+  const schluessel = pfad.concat(id).join('/');
+  const offen = !!kinder.length && (!!ctx.q || _procBaumOffen.has(schluessel) || _procBaumZeigen.has(id));
+  const nU = kinder.filter(k => k.art === 'unter').length, nN = kinder.length - nU;
+  const zahl = [nU ? `${nU} ${nU === 1 ? 'Unterprozess' : 'Unterprozesse'}` : '',
+    nN ? `${nN} ${nN === 1 ? 'Nebenprozess' : 'Nebenprozesse'}` : ''].filter(Boolean).join(' · ');
+  const fremd = (p.ordner || '') !== (gruppe || '')
+    ? `<span class="ic-tag" title="liegt im Ordner eines anderen Werks">🏭 ${esc(_procWerkLabel(p) || 'ohne Werk')}</span>` : '';
+  const geteilt = ctx.elternZahl.get(String(id)) || 0;
+  const zeile = `<div class="pg-zeile${tiefe ? '' : ' pg-oben'}" style="--pg-tiefe:${tiefe}">
+      <button type="button" class="pg-auf" ${kinder.length
+        ? `onclick="procBaumUmschalten(${jsArg(schluessel)}, ${jsArg(id)})" aria-expanded="${offen}" title="${offen ? 'Zuklappen' : 'Aufklappen'}"`
+        : 'disabled tabindex="-1"'}>${kinder.length ? (offen ? '▾' : '▸') : ''}</button>
+      ${kanteHtml}
+      <div class="pg-haupt">
+        <button type="button" class="pg-titel" onclick="openProcessAnsicht(${jsArg(id)})" title="Ansehen: Diagramm, Schritte und Befunde">🔀 ${esc(p.title)}</button>
+        ${zahl ? `<span class="pg-zahl">${zahl}</span>` : ''}
+        ${fremd}${geteilt > 1 ? `<span class="ic-tag" title="steht in ${geteilt} Prozessen, einmal gepflegt, gilt für alle">⇄ ${geteilt}</span>` : ''}
+        ${kreis ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e" title="Dieses Modell steht in diesem Zweig schon weiter oben">↻ Kreis</span>' : ''}
+        <div class="pg-info" data-proc-link="${esc(id)}"></div>
+      </div>
+      <div class="pg-aktionen">
+        ${ctx.canWrite && !kreis ? `<button type="button" class="pg-knopf" onclick="procGliederungDialog(${jsArg(id)})"
+          title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}
+        ${loesen}
+      </div>
+    </div>`;
+  return zeile + (offen ? kinder.map(k => _procBaumKnoten(k.id, pfad.concat(id), k, gruppe, ctx)).join('') : '');
+}
+
+/** Die Gliederung zeichnen: je Werk erst die Gesamtprozesse, dann die Modelle, die noch für sich stehen. */
+function _renderProcBaum(host) {
+  const q = (document.getElementById('search-proc')?.value || '');
+  // Erst lesen, was fehlt: Die Gliederung steht in den Dateien. Danach baut
+  // sie sich neu auf (siehe _procBaumBald).
+  const zuLesen = (_processes || []).filter(p => {
+    const e = procEintragVon(p);
+    return (!e || e.alt) && !_procBaumVersucht.has(p.itemId + '|' + p.modified);
+  });
+  if (zuLesen.length) {
+    zuLesen.forEach(p => _procBaumVersucht.add(p.itemId + '|' + p.modified));
+    _procBaumLaden++;
+    procEintraegeLaden(zuLesen, () => _procBaumBald())
+      .catch(() => {})
+      .finally(() => { _procBaumLaden--; _procBaumBald(); });
+  }
+  const ctx = _procBaumCtx(q);
+  const block = (titel, ids, gruppe) => ids.length ? `
+      ${titel ? `<div class="pg-unterkopf">${titel}</div>` : ''}
+      <div class="pg-baum">${ids.map(id => _procBaumKnoten(id, [], null, gruppe, ctx)).join('')}</div>` : '';
+  const gruppenHtml = ctx.gruppen.map(g => {
+    const wurzeln = procGliederungWurzeln(g.rows, procGliederungKinder)
+      .filter(id => !ctx.q || _procBaumTrifft(id, ctx, []));
+    if (!wurzeln.length) return '';
+    const gesamt = wurzeln.filter(id => _procBaumKinder(id, ctx).length);
+    const einzeln = wurzeln.filter(id => !gesamt.includes(id));
+    return `<div class="pg-gruppe">
+      <div class="pg-gruppe-kopf">
+        <span>${g.key ? '🏭' : '📄'} ${esc(g.titel)}</span>
+        <span class="field-hint">${g.rows.length} Modell${g.rows.length === 1 ? '' : 'e'}${
+          gesamt.length ? ` · ${gesamt.length} Gesamtprozess${gesamt.length === 1 ? '' : 'e'}` : ''}</span>
+      </div>
+      ${block(gesamt.length ? 'Gesamtprozesse' : '', gesamt, g.key)}
+      ${block(gesamt.length ? 'Weitere Modelle, noch ohne Unter- oder Nebenprozess' : '', einzeln, g.key)}
+    </div>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="pg-kopf">
+      <span class="field-hint">Oben die Gesamtprozesse, darunter ⊞ eingebundene und ↳ zugeordnete Unterprozesse sowie ⇢ Nebenprozesse, beliebig tief.${
+        _procBaumLaden ? ' <b>Die Gliederung wird noch aus den Modellen gelesen …</b>' : ''}</span>
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="procBaumAlle(true)">Alle aufklappen</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="procBaumAlle(false)">Alle zuklappen</button>
+    </div>
+    ${gruppenHtml || (typeof emptyState === 'function' ? emptyState('Keine Treffer.', '🔍') : '<div class="field-hint">Keine Treffer.</div>')}`;
+  (_processes || []).forEach(p => { const e = procEintragVon(p); if (e && !e.alt) _renderCardLink(p.itemId, e); });
+}
+
+/** Neu zeichnen, sobald weitere Dateien gelesen sind – gebündelt, nicht je Datei. */
+function _procBaumBald() {
+  clearTimeout(_procBaumTimer);
+  _procBaumTimer = setTimeout(() => {
+    if (_prozModus === 'liste' && !_procListeAlsKacheln() && document.getElementById('proc-cards')) _renderProcCards();
+  }, 300);
+}
+
+function procBaumUmschalten(schluessel, id) {
+  const offen = _procBaumOffen.has(schluessel) || _procBaumZeigen.has(String(id));
+  _procBaumZeigen.delete(String(id));
+  if (offen) _procBaumOffen.delete(schluessel); else _procBaumOffen.add(schluessel);
+  _renderProcCards();
+}
+
+function procBaumAlle(auf) {
+  _procBaumOffen = new Set();
+  _procBaumZeigen = new Set();
+  if (auf) {
+    const ctx = _procBaumCtx('');
+    const sammeln = (id, pfad) => {
+      if (pfad.includes(id)) return;
+      const kinder = _procBaumKinder(id, ctx);
+      if (!kinder.length) return;
+      const weg = pfad.concat(id);
+      _procBaumOffen.add(weg.join('/'));
+      kinder.forEach(k => sammeln(k.id, weg));
+    };
+    ctx.gruppen.forEach(g => procGliederungWurzeln(g.rows, procGliederungKinder).forEach(id => sammeln(id, [])));
+  }
+  _renderProcCards();
+}
+
+/* ── Zuordnen, lösen, neu anlegen ── */
+
+/**
+ * Ein Modell einem anderen als Unter- oder Nebenprozess zuordnen oder die
+ * Zuordnung lösen (art leer). Geschrieben wird nur die Datei des
+ * übergeordneten Modells, und dort nur die Dokumentation des Prozesses:
+ * Diagramm, Regelwerke, Anlagen und Beschreibung bleiben, wie sie sind.
+ * @returns {Promise<boolean>} gespeichert?
+ */
+async function procGliederungSetzen(elternId, kindId, art) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return false; }
+  const eltern = procModellVon(elternId);
+  const kind = String(kindId || '');
+  if (!eltern || !kind) { toast('Modell nicht gefunden, bitte neu laden.', 'error'); return false; }
+  if (art && (kind === String(elternId) || procGliederungUnterhalb(kind, elternId))) {
+    toast('Das ergäbe einen Kreis: Dieses Modell steht bereits über dem gewählten.', 'error');
+    return false;
+  }
+  try {
+    const xml = await spGetProcessXml(eltern.itemId);
+    if (!/<(\w+:)?definitions[\s>]/i.test(String(xml || ''))) throw new Error('Die Datei enthält kein Diagramm. Erst öffnen und speichern.');
+    const gl = procGliederungAusText(xml);
+    gl.u = gl.u.filter(x => x !== kind);
+    gl.n = gl.n.filter(x => x !== kind);
+    if (art === 'unter') gl.u.push(kind);
+    if (art === 'neben') gl.n.push(kind);
+    const neu = procXmlDokuNeu(xml, { gl });
+    await spSaveProcess(eltern.title, neu, eltern.ordner || '');
+    try { _processes = await spListProcesses(); } catch (e) { /* dann mit der alten Liste */ }
+    const q = procModellVon(eltern.itemId);
+    if (q) procLinksMerken(q.itemId + '|' + q.modified, procEintragAusXml(neu));
+    // Zeigt die Ansicht gerade dieses Modell, gibt ihr Download die neue Datei heraus.
+    if (_procAnsicht && _procEditing && String(_procEditing.itemId) === String(eltern.itemId)) _procAnsichtXml = _procPfeileRichten(neu).xml;
+    return true;
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message, 'error');
+    return false;
+  }
+}
+
+/** Nach einer Änderung die Sicht auffrischen, aus der sie kam: Liste oder Ansicht. */
+function _procGliederungNachher() {
+  if (_procAnsicht && document.getElementById('proc-ansicht') && _procEditing) {
+    _procAnsichtenLeiste(_procEditing.itemId, _procPfad.length ? procModellVon(_procPfad[_procPfad.length - 1]) : null);
+    return;
+  }
+  if (document.getElementById('proc-cards')) _renderProcCards();
+}
+
+async function procGliederungLoesen(elternId, kindId) {
+  const e = procModellVon(elternId), k = procModellVon(kindId);
+  if (!e) { toast('Modell nicht gefunden, bitte neu laden.', 'error'); return; }
+  const ok = await uiConfirm(
+    `${k ? '„' + esc(k.title) + '"' : 'Die Zuordnung auf das fehlende Modell'} nicht mehr unter „${esc(e.title)}" führen?<br>
+     <span class="field-hint">Das Modell selbst bleibt, wie es ist. Nur die Zuordnung in „${esc(e.title)}" fällt weg.</span>`,
+    { title: 'Zuordnung lösen', okLabel: 'Lösen', html: true });
+  if (!ok) return;
+  if (await procGliederungSetzen(elternId, kindId, '')) {
+    toast('Zuordnung gelöst ✓', 'success');
+    _procGliederungNachher();
+  }
+}
+
+/** Modelle, die sich zuordnen lassen: nicht das eigene, nicht schon darunter, kein Kreis. Das eigene Werk zuerst. */
+function procGlKandidaten(elternId, filter) {
+  const eigen = String(elternId);
+  const eltern = procModellVon(eigen);
+  const schon = new Set(procGliederungKinder(eigen).map(k => k.id));
+  const f = String(filter || '').trim().toLowerCase();
+  const werke = (typeof lkWerkeSichtbar === 'function') ? lkWerkeSichtbar() : [];
+  const getrennt = typeof trennungGreift === 'function' && trennungGreift();
+  const hier = (p) => Number((p.ordner || '') === ((eltern && eltern.ordner) || ''));
+  return (_processes || [])
+    .filter(p => String(p.itemId) !== eigen && !schon.has(String(p.itemId)))
+    .filter(p => !getrennt || !p.ordner || werke.includes(p.ordner))
+    .filter(p => !procGliederungUnterhalb(p.itemId, eigen))
+    .filter(p => !f || [p.title, p.ordner, _procWerkLabel(p)].join(' ').toLowerCase().includes(f))
+    .sort((a, b) => (hier(b) - hier(a)) || String(a.title).localeCompare(String(b.title), 'de'));
+}
+
+async function procGliederungDialog(elternId) {
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const eltern = procModellVon(elternId);
+  if (!eltern) { toast('Dieses Modell gibt es nicht mehr, bitte neu laden.', 'error'); return; }
+  _procGlDialog = { elternId: String(elternId), art: 'unter' };
+  const name = esc(eltern.title);
+  openModal(`
+    <div class="modal-header"><h3>Unter- oder Nebenprozess zu „${name}"</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="pg-arten">
+        <label class="pg-artwahl"><input type="radio" name="pg-art" value="unter" checked onchange="procGlArtWahl(this.value)">
+          <span><b>↳ Unterprozess</b><br><span class="field-hint">ein Teil von „${name}". Soll ein bestimmter Schritt ihn aufrufen, binden Sie ihn im Modeler an diesem Schritt als ⊞ ein.</span></span></label>
+        <label class="pg-artwahl"><input type="radio" name="pg-art" value="neben" onchange="procGlArtWahl(this.value)">
+          <span><b>⇢ Nebenprozess</b><br><span class="field-hint">läuft neben „${name}" her, mit eigenem Ablauf, etwa die Reklamation neben der Auftragsabwicklung.</span></span></label>
+      </div>
+      <div class="form-group full"><label for="pg-suche">Vorhandenes Modell zuordnen</label>
+        <input type="text" id="pg-suche" class="form-control" placeholder="Name oder Werk …" autocomplete="off"
+          oninput="procGlListe()" onkeydown="procGlTaste(event)"></div>
+      <div id="pg-liste" class="pg-liste"><div class="field-hint">Die Modelle werden gelesen …</div></div>
+      <div class="form-group full" style="margin-top:14px"><label for="pg-neu">Oder neu anlegen</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="pg-neu" class="form-control" placeholder="Name des neuen Modells" onkeydown="procGlNeuTaste(event)">
+          <button type="button" class="btn btn-outline btn-sm" onclick="procGlNeu()">+ Anlegen</button>
+        </div>
+        <div class="field-hint">Ein Grundgerüst im Ordner ${eltern.ordner ? 'von ' + esc(_procWerkLabel(eltern)) : 'ohne Werk'}, gleich zugeordnet. Modelliert wird es danach im Modeler.</div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">Schließen</button></div>`);
+  setTimeout(() => { const f = document.getElementById('pg-suche'); if (f) f.focus(); }, 30);
+  // Die Kreisprüfung braucht die Gliederung aller Modelle.
+  try { await procEintraegeLaden(); } catch (e) { /* dann mit dem, was da ist */ }
+  procGlListe();
+}
+
+function procGlArtWahl(art) {
+  if (!_procGlDialog) return;
+  _procGlDialog.art = art === 'neben' ? 'neben' : 'unter';
+  procGlListe();
+}
+
+function procGlListe() {
+  const host = document.getElementById('pg-liste');
+  const d = _procGlDialog;
+  if (!host || !d) return;
+  const f = (document.getElementById('pg-suche') || {}).value || '';
+  const liste = procGlKandidaten(d.elternId, f);
+  const art = PROC_GL_ARTEN[d.art];
+  if (!liste.length) {
+    host.innerHTML = `<div class="field-hint">${f ? 'Kein passendes Modell. Unten lässt es sich neu anlegen.' : 'Kein weiteres Modell steht zur Wahl.'}</div>`;
+    return;
+  }
+  host.innerHTML = liste.slice(0, 40).map(p => {
+    const schonIn = procGliederungEltern(p.itemId);
+    return `<button type="button" class="pg-wahl" onclick="procGlZuordnen(${jsArg(p.itemId)})" title="Als ${art.label} zuordnen">
+      <span class="pg-wahl-name">🔀 ${esc(p.title)}</span>
+      <span class="field-hint">${esc(_procWerkLabel(p) || 'ohne Werk')}${schonIn.length ? ' · steht schon unter ' + esc(schonIn.map(x => x.modell.title).join(', ')) : ''}</span>
+      <span class="pg-wahl-art">${art.zeichen} als ${art.label}</span>
+    </button>`;
+  }).join('') + (liste.length > 40 ? `<div class="field-hint">… und ${liste.length - 40} weitere. Die Suche grenzt ein.</div>` : '');
+}
+
+/** Eingabetaste in der Suche: Bleibt genau ein Treffer, wird er zugeordnet. */
+function procGlTaste(ev) {
+  if (!ev || ev.key !== 'Enter' || !_procGlDialog) return;
+  ev.preventDefault();
+  const liste = procGlKandidaten(_procGlDialog.elternId, (document.getElementById('pg-suche') || {}).value || '');
+  if (liste.length === 1) procGlZuordnen(liste[0].itemId);
+}
+
+function procGlNeuTaste(ev) {
+  if (!ev || ev.key !== 'Enter') return;
+  ev.preventDefault();
+  procGlNeu();
+}
+
+async function procGlZuordnen(kindId) {
+  const d = _procGlDialog;
+  if (!d) return;
+  const k = procModellVon(kindId), e = procModellVon(d.elternId);
+  if (!(await procGliederungSetzen(d.elternId, kindId, d.art))) return;
+  closeModal();
+  _procBaumZeigen.add(String(d.elternId));
+  toast(`„${k ? k.title : 'Modell'}" steht jetzt als ${PROC_GL_ARTEN[d.art].label} unter „${e ? e.title : ''}" ✓`, 'success');
+  _procGliederungNachher();
+}
+
+/** Ein neues Modell anlegen (Grundgerüst nach Hausschema, im Ordner des übergeordneten) und gleich zuordnen. */
+async function procGlNeu() {
+  const d = _procGlDialog;
+  if (!d) return;
+  if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const name = String((document.getElementById('pg-neu') || {}).value || '').trim();
+  if (!name) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const eltern = procModellVon(d.elternId);
+  if (!eltern) { toast('Modell nicht gefunden, bitte neu laden.', 'error'); return; }
+  const werk = eltern.ordner || '';
+  const doppel = procNamensDoppel(name).find(p => (p.ordner || '') === werk);
+  if (doppel) {
+    toast(`Ein Modell „${doppel.title}" gibt es hier schon. Es steht oben in der Liste zum Zuordnen.`, 'error');
+    const f = document.getElementById('pg-suche');
+    if (f) { f.value = doppel.title; procGlListe(); }
+    return;
+  }
+  try {
+    const erzeugt = _bpmnFromText('', name, []);
+    const item = await spSaveProcess(name, erzeugt.xml, werk);
+    if (!item || !item.id) throw new Error('keine Kennung erhalten');
+    try { _processes = await spListProcesses(); } catch (e) { /* unten nachgetragen */ }
+    if (!procModellVon(item.id)) {
+      (_processes = _processes || []).push({ itemId: String(item.id), name: name + '.bpmn', title: name, ordner: werk,
+        modified: item.lastModifiedDateTime || '', modifiedBy: '' });
+    }
+    const m = procModellVon(item.id);
+    procLinksMerken(m.itemId + '|' + (m.modified || ''), procEintragAusXml(erzeugt.xml));
+    if (!(await procGliederungSetzen(d.elternId, item.id, d.art))) return;
+    closeModal();
+    _procBaumZeigen.add(String(d.elternId));
+    toast(`„${name}" angelegt und als ${PROC_GL_ARTEN[d.art].label} zugeordnet ✓`, 'success');
+    _procGliederungNachher();
+  } catch (e) {
+    toast('Anlegen fehlgeschlagen: ' + e.message, 'error');
+  }
 }
 
 /**
@@ -446,8 +967,16 @@ async function prozessPfeilePruefen() {
 
 /** Die Zeile unter einer Karte: Richtlinien, Anlagen, Unterprozesse – aus dem Cache-Eintrag. */
 function _renderCardLink(itemId, e) {
-  const el = document.getElementById('proc-link-' + itemId);
-  if (!el) return;
+  // Eine Karte (Kacheln) oder jede Zeile der Gliederung, in der das Modell
+  // steht – ein geteiltes Modell steht dort unter mehreren Gesamtprozessen.
+  const ziele = [document.getElementById('proc-link-' + itemId),
+    ...document.querySelectorAll('[data-proc-link="' + String(itemId).replace(/"/g, '') + '"]')].filter(Boolean);
+  if (!ziele.length) return;
+  const html = _procKarteZeileHtml(itemId, e);
+  ziele.forEach(z => { z.innerHTML = html; });
+}
+
+function _procKarteZeileHtml(itemId, e) {
   const ids = e.p, docs = e.d, kaputt = e.k;
   const anlagen = docs ? `<span class="ic-tag" title="hinterlegte Dokumente">📎 ${docs}</span>` : '';
   // ⊞ n: bindet n Modelle ein · ↰ n: ist in n Modellen eingebunden – wer das
@@ -461,15 +990,11 @@ function _renderCardLink(itemId, e) {
   const status = pmInfo ? `<span class="ic-tag" style="background:${pmInfo.farbe};color:#fff" title="Status im Prozessmanagement">${esc(pmInfo.label)}</span>` : '';
   const extra = [status, anlagen, unter, drin].filter(Boolean).join(' ');
   if (kaputt) {
-    el.innerHTML = `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
+    return `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
       title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${extra}`;
-    return;
   }
-  if (!ids || !ids.length) {
-    el.innerHTML = `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${extra}`;
-    return;
-  }
-  el.innerHTML = '🔗 ' + ids.map(id => {
+  if (!ids || !ids.length) return `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${extra}`;
+  return '🔗 ' + ids.map(id => {
     const pol = policyZuId(id);
     return `<span class="ic-tag" style="background:#eef2ff;color:#3730a3">${esc(pol ? pol.title : 'Richtlinie ' + id)}</span>`;
   }).join(' ') + (extra ? ' ' + extra : '');
@@ -494,6 +1019,7 @@ function procEintragAusXml(xml) {
     i: procKennungAusXml(s),
     u: procUnterAusXml(s),
     m: (typeof pzPmAusText === 'function') ? pzPmAusText(_xmlUnesc(s)) : null,
+    g: procGliederungAusText(s),
   };
 }
 
@@ -533,10 +1059,12 @@ function procXmlDokuNeu(xml, teile) {
   const ids = Array.isArray(t.ids) ? t.ids : _parsePolicyIds(xml);
   const docs = Array.isArray(t.docs) ? t.docs : _parseProcessDocs(xml);
   const pm = ('pm' in t) ? t.pm : procPmAusXml(xml);
+  const gl = ('gl' in t) ? t.gl : procGliederungAusText(xml);
   // Den freien Text (Beschreibung) erhalten – nur Marker und ihre Klartextzeilen werden neu geschrieben.
   const m = String(xml || '').match(/<(\w+:)?process\b[^>]*>\s*<(\w+:)?documentation\b[^>]*>([\s\S]*?)<\/(\w+:)?documentation>/);
   const frei = m ? _xmlUnesc(m[3]).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z)) : [];
-  const text = frei.concat(_procDokuText(ids, docs, pm) ? [_procDokuText(ids, docs, pm)] : []).join('\n');
+  const marker = _procDokuText(ids, docs, pm, gl);
+  const text = frei.concat(marker ? [marker] : []).join('\n');
   return procXmlDokuErsetzen(xml, text);
 }
 
@@ -1771,7 +2299,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|Dokument):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -1825,17 +2353,30 @@ function _procAnsichtenLeiste(itemId, herkunft) {
   let unter = [];
   try { unter = procUnterElemente().map(el => ({ el, id: String(procElementModell(el)) })); } catch (e) { /* ohne */ }
   const eindeutig = [...new Map(unter.map(x => [x.id, x])).values()];
-  if (!herkunft && !eindeutig.length) { host.innerHTML = ''; return; }
+  // Aus der Gliederung der Liste: worunter das Modell steht und was ihm
+  // zugeordnet ist, ohne dass ein Schritt es aufruft.
+  const eltern = procGliederungEltern(itemId)
+    .filter(x => !herkunft || String(x.modell.itemId) !== String(herkunft.itemId));
+  const zugeordnet = procGliederungKinder(itemId)
+    .filter(k => k.quelle === 'zuordnung' && procModellVon(k.id) && !eindeutig.some(x => x.id === k.id));
+  const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
+  if (!herkunft && !eindeutig.length && !eltern.length && !zugeordnet.length && !canWrite) { host.innerHTML = ''; return; }
   const eigen = procModellVon(itemId);
   host.innerHTML = `<span>Ansicht:</span>
     ${herkunft ? `<button type="button" onclick="procZurueck()" title="Zurück in das einbindende Modell">↰ ${esc(herkunft.title)}</button>` : ''}
+    ${eltern.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.modell.itemId)})"
+        title="${esc(PROC_GL_ARTEN[x.art].label)} von ${esc(x.modell.title)}">↰ ${esc(x.modell.title)}</button>`).join('')}
     <button type="button" class="active">${esc(eigen ? eigen.title : 'Dieses Modell')}</button>
     ${eindeutig.map(x => {
       const m = procModellVon(x.id);
       const name = m ? m.title : ((x.el.businessObject && x.el.businessObject.name) || 'Unterprozess');
       return `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.id)})"
         title="${m ? 'Unterprozess öffnen' : 'Das eingebundene Modell gibt es nicht mehr'}">↳ ${esc(name)}</button>`;
-    }).join('')}`;
+    }).join('')}
+    ${zugeordnet.map(k => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(k.id)})"
+        title="${esc(PROC_GL_ARTEN[k.art].label)} öffnen">${PROC_GL_ARTEN[k.art].zeichen} ${esc(_procTitelVon(k.id))}</button>`).join('')}
+    ${canWrite ? `<button type="button" onclick="procGliederungDialog(${jsArg(itemId)})"
+        title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}`;
 }
 
 function _procLegendeHtml() {
@@ -2685,7 +3226,8 @@ function _setProcessDoku(ids, docs, pm) {
     // Freier Text (Beschreibung) bleibt stehen – neu geschrieben werden nur die Marker.
     const vorher = (Array.isArray(bo.documentation) && bo.documentation[0] && bo.documentation[0].text) || '';
     const frei = String(vorher).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z));
-    const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm);
+    // Die Gliederung pflegt die Modell-Liste, nicht der Editor: Sie bleibt, wie sie in der Datei steht.
+    const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm, procGliederungAusText(vorher));
     const text = frei.concat(marker ? [marker] : []).join('\n');
     if (!text) { bo.documentation = undefined; return; }
     bo.documentation = [moddle.create('bpmn:Documentation', { text })];
@@ -3077,5 +3619,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
     procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
-    procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden };
+    procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden,
+    procGliederungAusText, procGliederungAusEintrag, procGliederungWurzeln, _procGliederungZeilen };
 }

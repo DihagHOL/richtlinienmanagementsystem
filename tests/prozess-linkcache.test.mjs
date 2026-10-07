@@ -43,7 +43,8 @@ const run = (s) => vm.runInContext(s, ctx);
 
 /* ── 1) Ein Leser, der beide Formen versteht ── */
 run(`_procLinkCache = {
-  neu:  { p: ['7', '9'], d: 2, k: false, i: 'Process_m1abc', u: ['01B'], m: null },
+  neu:  { p: ['7', '9'], d: 2, k: false, i: 'Process_m1abc', u: ['01B'], m: null, g: { u: [], n: ['01C'] } },
+  vorGliederung: { p: ['7'], d: 0, k: false, i: 'Process_m1abc', u: [], m: null },
   mittel: { p: ['7', '9'], d: 2, k: false },
   alt:  ['7', '9'],
   leer: { p: [], d: 0, k: true, i: '', u: [] },
@@ -56,6 +57,9 @@ ok(Array.isArray(neu.p) && neu.p.length === 2 && neu.d === 2 && neu.k === false,
   'Die heutige Form kommt unverändert zurück');
 ok(neu.i === 'Process_m1abc' && neu.u.length === 1 && neu.u[0] === '01B', 'Samt Prozess-Kennung und eingebundenen Modellen');
 ok(neu.alt === false, 'Und gilt als vollständig');
+ok(neu.g.n.length === 1 && neu.g.n[0] === '01C' && neu.g.u.length === 0, 'Samt zugeordneten Unter- und Nebenprozessen');
+ok(run(`procLinksVon('vorGliederung')`).alt === true && run(`procLinksVon('vorGliederung')`).g.u.length === 0,
+  'Ein Eintrag von vor der Gliederung wird einmal nachgelesen und hat bis dahin keine Kinder');
 
 const mittel = run(`procLinksVon('mittel')`);
 ok(mittel.alt === true && mittel.i === '' && mittel.u.length === 0,
