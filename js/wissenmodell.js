@@ -914,15 +914,28 @@ function wiZertifikatHtml(o) {
 </body></html>`;
 }
 
-/** Den Startbestand ergänzen – nur, was (nach Kennung) noch fehlt. @returns Zahl der neuen Beiträge */
-function wiStartbestandErgaenzen(daten, wer, jetzt) {
+/** Was vom Startbestand in dieser Bibliothek fehlt (nach Kennung). */
+function wiStartbestandFehlend(daten) {
+  return WI_STARTBESTAND.beitraege.filter(b => !wiBeitrag(daten, b.id));
+}
+
+/**
+ * Den Startbestand ergänzen – nur, was (nach Kennung) noch fehlt. Mit `nur`
+ * (Kennungen) nur diese Beiträge und die Themen, die sie brauchen: Was jemand
+ * bewusst gelöscht hat, kommt so nicht ungefragt zurück.
+ * @returns Zahl der neuen Beiträge
+ */
+function wiStartbestandErgaenzen(daten, wer, jetzt, nur) {
+  const wahl = nur ? new Set([...nur].map(String)) : null;
+  const beitraege = WI_STARTBESTAND.beitraege.filter(b => !wahl || wahl.has(b.id));
+  const themenNoetig = wahl ? new Set(beitraege.map(b => b.thema)) : null;
   let n = 0;
   WI_STARTBESTAND.themen.forEach(t => {
     const da = wiThema(daten, t.id);
-    if (!da) daten.themen.push(Object.assign({}, t));
+    if (!da) { if (!themenNoetig || themenNoetig.has(t.id)) daten.themen.push(Object.assign({}, t)); }
     else if (!da.bereich && t.bereich) da.bereich = t.bereich;   // ein Thema von früher bekommt seinen Bereich, sonst bleibt es, wie es ist
   });
-  WI_STARTBESTAND.beitraege.forEach(b => {
+  beitraege.forEach(b => {
     if (wiBeitrag(daten, b.id)) return;
     const neu = wiNormalisieren({ beitraege: [Object.assign({ erstelltAm: jetzt || new Date().toISOString(), erstelltVon: wer || '' }, b)] }).beitraege[0];
     daten.beitraege.push(neu); n++;
@@ -933,6 +946,6 @@ function wiStartbestandErgaenzen(daten, wer, jetzt) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN,
     wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
-    wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiTag,
+    wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiStartbestandFehlend, wiTag,
     wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };
 }

@@ -129,7 +129,7 @@ function renderWissen() {
         <button class="btn btn-primary btn-sm" onclick="wiBeitragDialog('')">+ Beitrag</button>
         <button class="btn btn-outline btn-sm" onclick="wiThemaDialog('')">+ Thema</button>
         <button class="btn btn-outline btn-sm" onclick="wiAuswertungOeffnen()" title="Wer hat was angesehen, welche Tests wurden bestanden">📊 Auswertung</button>
-        <button class="btn btn-outline btn-sm" onclick="wiStartbestand()" title="Themen mit Artikeln und Wissenstests, dazu die Schulungen Phishing und BPMN. Ergänzt nur, was fehlt, als Vorschlag zum Anpassen">📋 Startbestand</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="wiStartbestand()" title="Themen mit Artikeln und Wissenstests, dazu die Schulungen Phishing und BPMN. Zeigt, was davon fehlt; angelegt wird nur, was Sie ankreuzen">📋 Startbestand</button>` : ''}
       ${pflege ? `<button class="btn btn-sm ${_wiPflege ? 'btn-primary' : 'btn-ghost'}" onclick="wiPflegeUmschalten()"
         title="Beiträge und Themen anlegen, ändern, sortieren">${_wiPflege ? '✓ Fertig' : '✎ Pflegen'}</button>` : ''}
       <button class="btn btn-sm btn-ghost" onclick="refreshWissen()" title="Aktualisieren">↻</button>
@@ -883,11 +883,52 @@ async function wiBeitragVerschieben(id, richtung) {
   if (await wiSpeichern()) renderWissen();
 }
 
-async function wiStartbestand() {
+/* Der Startbestand als Auswahl: Was fehlt, steht im Dialog, angelegt wird nur,
+   was angekreuzt ist. Fehlen kann ein Beitrag, weil er neu dazugekommen ist,
+   oder weil ihn jemand bewusst gelöscht hat; das weiß nur die Person, die pflegt. */
+let _wiStartWahl = new Set();
+
+function wiStartbestand() {
   if (!wiDarfPflegen()) return;
-  const n = wiStartbestandErgaenzen(_wi.daten, _wiWer(), _wiJetzt());
-  if (!n) { toast('Der Startbestand ist schon vollständig da.', 'info'); return; }
-  if (await wiSpeichern(`${n} Beiträge in ${WI_STARTBESTAND.themen.length} Themen angelegt ✓ – ein Vorschlag zum Anpassen.`)) renderWissen();
+  const fehlend = wiStartbestandFehlend(_wi.daten);
+  if (!fehlend.length) { toast('Der Startbestand ist schon vollständig da.', 'info'); return; }
+  _wiStartWahl = new Set();
+  const themaVon = (b) => wiThema(_wi.daten, b.thema) || WI_STARTBESTAND.themen.find(t => t.id === b.thema) || null;
+  openModal(`
+    <div class="modal-header"><h3>📋 Startbestand ergänzen</h3>
+      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px">Diese ${fehlend.length} Beiträge des Startbestands fehlen in der Bibliothek. Manche sind neu dazugekommen, andere wurden vielleicht bewusst gelöscht. Angelegt wird nur, was Sie ankreuzen, als Vorschlag zum Anpassen.</div>
+      ${fehlend.map(b => {
+        const art = wiArt(b.art), th = themaVon(b);
+        return `<label class="ack-check" style="align-items:flex-start;margin-bottom:8px">
+          <input type="checkbox" onchange="wiStartbestandWahl(${jsArg(b.id)}, this.checked)">
+          <span>${art.symbol} <b>${esc(b.titel)}</b><br><span class="field-hint">${esc(art.label)}${th ? ' · ' + esc(th.titel) : ''}${b.art === 'kurs' ? (b.pflicht ? ' · Pflicht' : ' · freiwillig') : ''}</span></span>
+        </label>`;
+      }).join('')}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="wiStartbestandAnlegen()">Angekreuzte anlegen</button>
+    </div>`);
+}
+
+function wiStartbestandWahl(id, an) {
+  if (an) _wiStartWahl.add(String(id)); else _wiStartWahl.delete(String(id));
+}
+
+async function wiStartbestandAnlegen() {
+  if (!wiDarfPflegen()) return;
+  if (!_wiStartWahl.size) { toast('Bitte mindestens einen Beitrag ankreuzen.', 'error'); return; }
+  // Auf einer Kopie ergänzen: Scheitert das Speichern, bleibt die Bibliothek, wie sie war.
+  const vorher = _wi.daten;
+  const kopie = JSON.parse(JSON.stringify(vorher));
+  const n = wiStartbestandErgaenzen(kopie, _wiWer(), _wiJetzt(), _wiStartWahl);
+  closeModal();
+  if (!n) { toast('Nichts zu ergänzen, die Beiträge sind schon da.', 'info'); return; }
+  _wi.daten = kopie;
+  if (await wiSpeichern(`${n} ${n === 1 ? 'Beitrag' : 'Beiträge'} aus dem Startbestand angelegt ✓`)) renderWissen();
+  else if (_wi.daten === kopie) _wi.daten = vorher;
 }
 
 /* ── Auswertung (Pflege): wer hat was angesehen, welche Tests bestanden ── */

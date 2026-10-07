@@ -249,7 +249,14 @@ run('closeModal()');
 
 // Startbestand, Auswertung
 gespeichert.length = 0;
-await run('wiStartbestand()');
+run('wiStartbestand()');
+ok(/Startbestand ergänzen/.test(modal) && (modal.match(/wiStartbestandWahl\(/g) || []).length === 18 && !/type="checkbox" checked/.test(modal),
+  'Der Startbestand als Auswahl: alles, was fehlt, nichts vorab angekreuzt');
+gemeldet.length = 0;
+await run('wiStartbestandAnlegen()');
+ok(gespeichert.length === 0 && gemeldet.some(x => /mindestens einen/.test(x)), 'Ohne Kreuz wird nichts angelegt');
+run('wiStartbestandFehlend(_wi.daten).forEach(b => wiStartbestandWahl(b.id, true))');
+await run('wiStartbestandAnlegen()');
 // „Datenschutz" gibt es schon (gleiche Kennung) – das Thema bleibt, wie es ist; nur fünf Themen kommen dazu.
 ok(run('_wi.daten.beitraege.length') === 6 + 18 && run('_wi.daten.themen.length') === 1 + 8 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
 await run('wiAuswertungOeffnen()');

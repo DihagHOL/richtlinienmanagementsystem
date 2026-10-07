@@ -48,6 +48,16 @@ ok(M.wiStartbestandErgaenzen(vorhanden, 'Max Muster', '2026-10-07T12:00:00Z') ==
   'Wer den Startbestand schon hat, bekommt mit „📋 Startbestand" genau die neue Schulung dazu');
 ok(M.wiBeitrag(vorhanden, 'start-bpmn-kurs').pflicht === false && M.wiBeitrag(vorhanden, 'start-bpmn-kurs').erstelltVon === 'Max Muster', '… freiwillig, mit dem Namen dessen, der sie angelegt hat');
 
+/* Eine Bibliothek, aus der Beiträge des Startbestands bewusst gelöscht wurden:
+   Angelegt wird nur, was angekreuzt ist, samt dem Thema, das es braucht. */
+const ausgeduennt = M.wiNormalisieren({ themen: [{ id: 'phishing', titel: 'Phishing' }], beitraege: [M.WI_KURS_PHISHING] });
+const fehlend = M.wiStartbestandFehlend(ausgeduennt).map(b => b.id);
+ok(fehlend.length === M.WI_STARTBESTAND.beitraege.length - 1 && fehlend.includes('start-bpmn-kurs') && !fehlend.includes('start-phishing-kurs'),
+  'Fehlend ist, was es nach Kennung nicht gibt');
+ok(M.wiStartbestandErgaenzen(ausgeduennt, 'Max Muster', '2026-10-07T12:00:00Z', ['start-bpmn-kurs']) === 1
+  && ausgeduennt.beitraege.length === 2 && ausgeduennt.themen.map(t => t.id).sort().join() === 'phishing,prozesse',
+  'Nur die angekreuzte Schulung kommt dazu, mit ihrem Thema; Gelöschtes und fremde Themen bleiben draußen');
+
 /* ── 3) Gleich mit der Doku: Beispiele, Zeichen, Regeln ── */
 const code = (txt) => [...txt.matchAll(/:::code\n([\s\S]*?)\n:::/g)].map(m => m[1]);
 ok(code(K.module[2].text)[0] === H.BPMN_BEISPIEL_EINSTIEG, 'Das Beispiel „Urlaubsantrag" gleicht dem geprüften aus „BPMN einfach erklärt"');
