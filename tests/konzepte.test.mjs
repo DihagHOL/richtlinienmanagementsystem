@@ -137,8 +137,11 @@ ok(/ansicht=entwurf[`"]/.test(kq), 'Ebenso das Bearbeiten');
 ok(/async function konzeptDirektZurPruefung/.test(kq), 'Der direkte Weg ist umgesetzt');
 ok(/setStatus\(rwId, 'Konformitätsprüfung'/.test(kq), 'Er setzt den Status');
 ok(/notifyPruefer/.test(kq), 'Und benachrichtigt die Prüfer');
-ok(/mitbestimmungPflicht/.test(kq) && /notifyMitbestimmung/.test(kq),
-  'Bei betroffener Mitbestimmung auch den Betriebsrat');
+// Der Betriebsrat ist erst nach der Prüfung dran (markKonform). Eine Mail schon
+// beim Einreichen kam doppelt, und ihre Knöpfe zeigten nur „Schon erledigt".
+const _direkt = kq.slice(kq.indexOf('async function konzeptDirektZurPruefung'), kq.indexOf('async function notifyKonzeptErsteller'));
+ok(!/notifyMitbestimmung\(/.test(_direkt),
+  'Der Betriebsrat bekommt beim direkten Einreichen noch keine Mail');
 
 ok(/async function notifyKonzeptErsteller/.test(kq), 'Die einreichende Person wird informiert');
 for (const fall of ['angenommen', 'zurueckgestellt', 'abgelehnt'])

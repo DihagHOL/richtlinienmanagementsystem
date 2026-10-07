@@ -87,7 +87,7 @@ function _ckErr(id, msg) {
 /* ── Sofort-Kacheln (aus dem State) ── */
 
 function _ckRenderPolicies() {
-  const pols = State.policies || [];
+  const pols = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || []));
   const by = s => pols.filter(p => p.status === s).length;
   const pruef = pols.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview').length;
   _ckSet('policies',
@@ -98,7 +98,7 @@ function _ckRenderPolicies() {
 }
 
 function _ckRenderWorkflow() {
-  const pols = State.policies || [];
+  const pols = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || []));
   const pruef = pols.filter(p => p.status === 'Konformitätsprüfung' || p.status === 'InReview');
   const frei = pols.filter(p => p.status === 'Freigabe' || p.status === 'Mitbestimmung');
   const oldest = [...pruef, ...frei]
@@ -288,7 +288,7 @@ async function _ckLoadCompliance(seq) {
     if (!AdminState.members) AdminState.members = await spGetMembers();
     if (!AdminState.allAcks) AdminState.allAcks = await spGetAcknowledgements();
     if (seq !== _cockpitSeq) return;
-    const pubs = (State.policies || []).filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+    const pubs = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || [])).filter(p => p.status === 'Veröffentlicht' && p.pflicht);
     let soll = 0, done = 0;
     for (const p of pubs) {
       const rows = _complianceRowsFor(p);

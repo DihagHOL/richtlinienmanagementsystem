@@ -176,7 +176,6 @@ function umgebung(opt) {
     const p = liste.get(String(id)); p.status = 'Konformitätsprüfung'; p.historie.push({ aktion: 'Status geändert' });
     await ctx.reloadData();
     await send(['pruefer@dihag.com'], 'Neues Regelwerk zur Sichtung: ' + p.title);
-    if (p.kbrBetroffen) await send(['kbr@dihag.com'], 'Mitbestimmung – Richtlinie zur Prüfung: ' + p.title);
   };
   ctx.markKonform = async (id, konform, o) => {
     const p = liste.get(String(id));
@@ -235,7 +234,7 @@ console.log('Selbsttest: Normalfall, groß, mit Aufräumen');
     ok(finde(u.ctx, name) && finde(u.ctx, name).ok && !finde(u.ctx, name).hinweis, `Geprüft: ${name}`);
   ok(/an chef@dihag\.com/.test(finde(u.ctx, 'Mail zur Freigabe an die Geschäftsleitung').detail),
     'Auch die Mail, auf die niemand wartet, ist erfasst (notifyGL nach der Mitbestimmung)');
-  ok(/2 Mails/.test(finde(u.ctx, 'Mail an den Betriebsrat').detail), 'Der Betriebsrat bekommt zwei Mails – der Bericht zeigt es');
+  ok(/^1 Mail an kbr@dihag\.com/.test(finde(u.ctx, 'Mail an den Betriebsrat').detail), 'Der Betriebsrat bekommt eine Mail, erst nach der Prüfung');
   for (const name of ['Ablehnung: Konzept abgelehnt', 'Ablehnung: Begründung festgehalten', 'Ablehnung: Mail an die einreichende Person',
     'Rückwege: „Nicht konform" hält den Entwurf in der Prüfung', 'Rückwege: Die Begründung steht im Prüfvotum',
     'Rückwege: Danach konform: weiter zur Mitbestimmung', 'Rückwege: Mitbestimmung „nicht konform": zurück in die Prüfung',

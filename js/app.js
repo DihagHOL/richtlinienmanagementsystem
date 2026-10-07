@@ -36,6 +36,9 @@ const PAGE_TITLES = {
 ═══════════════════════════════════════════════════ */
 
 const APP_VERSION = 'v-ac27658f';
+/* Tag dieses Builds. Setzt die Action cache-bust.yml wie die Version. Die
+   Fälligkeiten erinnern damit an eine Funktionsprüfung nach dem Update. */
+const APP_STAND = '2026-10-07';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
@@ -509,6 +512,15 @@ function publishedPolicies() {
  */
 function istProbelaufEintrag(p) {
   return String((p && p.title) || '').startsWith('[Probelauf]');
+}
+
+/**
+ * Die Regelwerke, die in Berichte und Kennzahlen eingehen: alle außer denen
+ * eines Probelaufs. Solange sie in den Listen stehen, verfälschten sie sonst
+ * Audit Report, Cockpit und Fälligkeiten, etwa die Quote der Kenntnisnahmen.
+ */
+function berichtsPolicies() {
+  return (State.policies || []).filter(p => !istProbelaufEintrag(p));
 }
 
 /** Lesbare Zielgruppe einer Richtlinie. */

@@ -42,7 +42,7 @@ async function _clevelGather() {
   const m = { stamp: new Date(), fehler: [] };
 
   // Richtlinien (aus dem State – immer vorhanden)
-  const pols = State.policies || [];
+  const pols = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || []));
   const by = s => pols.filter(p => p.status === s).length;
   const workflow = pols.filter(p => ['Konformitätsprüfung', 'InReview', 'Mitbestimmung', 'Freigabe'].includes(p.status)).length;
   m.policies = {

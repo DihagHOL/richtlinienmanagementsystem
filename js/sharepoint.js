@@ -708,6 +708,58 @@ async function spSetPolicyReview(id, iso) {
   );
 }
 
+/**
+ * Einträge an die Historie eines Regelwerks oder Konzepts anhängen, ohne den
+ * Rest anzufassen.
+ *
+ * Für das Versandprotokoll der Workflow-Mails. Die Mails gehen oft raus, während
+ * schon die nächste Entscheidung gespeichert wird. Ein ganzer spSavePolicy aus
+ * einem älteren Stand könnte dabei Status, Prüfvoten oder das Ein-Klick-Token
+ * zurückdrehen. Hier wird nur die Historie geschrieben (Sammelfeld und
+ * Einzelspalte), frisch gelesen und mit If-Match: Hat jemand dazwischen
+ * gespeichert, antwortet SharePoint mit 412 und es wird neu gelesen.
+ * @returns {Promise<{vorher: string, nachher: string}|null>} Änderungsstand davor und danach
+ */
+async function spPolicyHistorieAnhaengen(id, eintraege) {
+  if (!id || !Array.isArray(eintraege) || !eintraege.length) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  await _spSpalten();
+  const fDaten = _policyFieldName('DatenJson'), fHist = _policyFieldName('HistorieJson');
+  const mitDaten = _sp.policyFields.has(fDaten), mitHist = _sp.policyFields.has(fHist);
+  if (!mitDaten && !mitHist) return null;
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}`;
+  const auswahl = [mitDaten ? fDaten : '', mitHist ? fHist : ''].filter(Boolean).join(',');
+  for (let versuch = 0; versuch < 3; versuch++) {
+    const it = await _get(`${basis}?$select=id,lastModifiedDateTime&$expand=fields($select=${auswahl})`, token);
+    const f = it.fields || {};
+    const etag = f['@odata.etag'] || it['@odata.etag'] || '';
+    let daten = {};
+    if (mitDaten && String(f[fDaten] || '').trim()) {
+      try { daten = JSON.parse(f[fDaten]); } catch (e) { daten = null; }
+      // Ein unlesbares Sammelfeld wird nicht überschrieben, es trägt mehr als die Historie.
+      if (!daten || typeof daten !== 'object' || Array.isArray(daten)) return null;
+    }
+    const bisher = Array.isArray(daten.historie) ? daten.historie : _readExtFields(f).historie;
+    const historie = bisher.concat(eintraege).slice(-HISTORIE_MAX);
+    const felder = {};
+    if (mitDaten) felder[fDaten] = JSON.stringify(Object.assign({}, daten, { historie }));
+    if (mitHist) felder[fHist] = JSON.stringify(historie);
+    const resp = await _fetchRetry(`${basis}/fields`, {
+      method: 'PATCH',
+      headers: Object.assign({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, etag ? { 'If-Match': etag } : {}),
+      body: JSON.stringify(felder),
+    });
+    if (resp.ok) {
+      const nach = await spGetPolicyMeta(id);
+      return { vorher: it.lastModifiedDateTime || '', nachher: (nach && nach.modifiedAt) || '' };
+    }
+    if (resp.status !== 412) throw new Error(`Graph PATCH (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════
    Richtlinien-Import: Dokument hochladen (App-Bibliothek)
 ═══════════════════════════════════════════════════ */

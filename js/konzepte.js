@@ -617,7 +617,11 @@ function handleKonzeptMailAction(id, aktion, token) {
 
 async function notifyKonzeptGF(k) {
   const gl = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
-  if (!gl.length) { toast('Keine Geschäftsleitung hinterlegt – bitte in den Einstellungen ergänzen.', 'error'); return; }
+  if (!gl.length) {
+    toast('Keine Geschäftsleitung hinterlegt – bitte in den Einstellungen ergänzen.', 'error');
+    (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Konzept an die Geschäftsleitung', [], ['Keine Geschäftsleitung hinterlegt']);
+    return;
+  }
   const hasDoc = !!(k.dokumentDriveId && k.dokumentItemId);
   let att = null;
   if (hasDoc && typeof spGetDocAttachment === 'function') {
@@ -627,9 +631,11 @@ async function notifyKonzeptGF(k) {
     await spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k, !!att, hasDoc), att ? [att] : []);
     // hasDoc && !att = Datei vorhanden, aber zu groß / nicht ladbar → nur im Konzept hinterlegt
     toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : (hasDoc ? ' (Anhang zu groß – im Konzept hinterlegt)' : '')), 'success');
+    (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Konzept an die Geschäftsleitung', gl, []);
   } catch (e) {
     console.warn('Konzept-GF-Mail:', e.message);
     toast('Mail an GL fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error');
+    (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Konzept an die Geschäftsleitung', [], [e.message]);
   }
 }
 
@@ -706,7 +712,13 @@ function konzeptWeiche(k, rwId) {
     </div>`);
 }
 
-/** Den frisch entstandenen Entwurf ohne Umweg in die Konformitätsprüfung schicken. */
+/**
+ * Den frisch entstandenen Entwurf ohne Umweg in die Konformitätsprüfung schicken.
+ * Benachrichtigt werden die Prüfer, wie beim Einreichen aus dem Editor. Der
+ * Betriebsrat bekommt seine Mail erst, wenn die Prüfung konform ist
+ * (markKonform). Eine Mail schon jetzt käme doppelt, und ihre Knöpfe zeigten
+ * nur „Schon erledigt", weil die Mitbestimmung noch gar nicht dran ist.
+ */
 async function konzeptDirektZurPruefung(rwId) {
   const p = policyZuId(rwId);
   if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
@@ -715,8 +727,6 @@ async function konzeptDirektZurPruefung(rwId) {
     await reloadData();
     const frisch = policyZuId(rwId);
     if (typeof notifyPruefer === 'function') await notifyPruefer(frisch || p);
-    if (typeof mitbestimmungPflicht === 'function' && mitbestimmungPflicht(frisch || p)
-        && typeof notifyMitbestimmung === 'function') await notifyMitbestimmung(frisch || p);
     _adminMode = 'regelwerke';
     renderAdminList();
     toast('In der Konformitätsprüfung – Prüfer benachrichtigt ✓', 'success');
@@ -764,5 +774,9 @@ async function notifyKonzeptErsteller(k, entscheidung) {
   `);
   try {
     await spSendMail([an], `${titel}: ${k.title}`, html);
-  } catch (err) { console.warn('Ersteller-Info:', err.message); }
+    (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Rückmeldung an die einreichende Person', [an], []);
+  } catch (err) {
+    console.warn('Ersteller-Info:', err.message);
+    (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Rückmeldung an die einreichende Person', [], [`${an} (${err.message})`]);
+  }
 }

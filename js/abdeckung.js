@@ -31,7 +31,7 @@ function abdeckungSetMode(mode) {
 
 /** Relevante (nicht archivierte) Richtlinien, optional nur veröffentlichte. */
 function _abdeckungPolicies() {
-  return (State.policies || []).filter(p =>
+  return (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || [])).filter(p =>
     p.status !== 'Archiviert' && (!_abdeckungPublishedOnly || p.status === 'Veröffentlicht'));
 }
 

@@ -24,6 +24,7 @@ jobs:
           SHA="${GITHUB_SHA::8}"
           sed -i -E "s/\?v=[A-Za-z0-9]+/?v=${SHA}/g" index.html ki/index.html
           sed -i -E "s/const APP_VERSION = '[^']*';/const APP_VERSION = 'v-${SHA}';/" js/app.js
+          sed -i -E "s/const APP_STAND = '[^']*';/const APP_STAND = '$(date -u +%F)';/" js/app.js
 
       - name: Commit & Push (nur bei Änderung)
         run: |

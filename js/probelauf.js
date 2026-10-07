@@ -225,6 +225,10 @@ async function probelaufAufraeumenUndBeenden() {
 }
 
 function probelaufKeinZugriff() {
+  // Wen man fragen kann, steht gleich dabei. Die Namen kommen aus der
+  // Mitarbeiterliste, sobald sie da ist; bis dahin stehen die Adressen.
+  const admins = (typeof adminListe === 'function') ? adminListe() : [];
+  const zeile = (upn, name) => `<li style="margin:3px 0">${name ? esc(name) + ' · ' : ''}<a href="mailto:${esc(upn)}">${esc(upn)}</a></li>`;
   openModal(`
     <div class="modal-header">
       <h3>Probelauf nicht freigeschaltet</h3>
@@ -234,11 +238,19 @@ function probelaufKeinZugriff() {
       <p style="margin:0 0 12px;line-height:1.6">Der Probelauf legt echte Einträge an und versendet echte
       E-Mails. Er ist deshalb nur für ausdrücklich freigeschaltete Personen nutzbar.</p>
       <p style="margin:0;line-height:1.6">Freischaltung über <b>Einstellungen → Probelauf</b>
-      (durch eine Administratorin oder einen Administrator).</p>
+      durch eine Administratorin oder einen Administrator${admins.length ? ':' : '.'}</p>
+      ${admins.length ? `<ul id="pl-admins" style="margin:8px 0 0 18px;padding:0">${admins.map(u => zeile(u, '')).join('')}</ul>` : ''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="closeModal()">Verstanden</button>
     </div>`);
+  if (!admins.length || typeof spGetMembers !== 'function') return;
+  spGetMembers().then(liste => {
+    const ul = document.getElementById('pl-admins');
+    if (!ul || !Array.isArray(liste)) return;
+    const name = (u) => (liste.find(m => String(m.upn || '').toLowerCase() === u.toLowerCase()) || {}).name || '';
+    ul.innerHTML = admins.map(u => zeile(u, name(u))).join('');
+  }).catch(() => { /* dann bleiben die Adressen */ });
 }
 
 /* ═══════════════════════════════════════════════════
@@ -902,7 +914,8 @@ async function _plEntwurfAusarbeiten(rwId, pruefen) {
 
 /**
  * In die Konformitätsprüfung – auf dem Weg, den die Weiche nach der Annahme
- * anbietet: Status setzen, Prüfer und Betriebsrat benachrichtigen.
+ * anbietet: Status setzen, Prüfer benachrichtigen. Der Betriebsrat ist erst nach
+ * der Prüfung dran.
  */
 async function _plZurPruefung(rwId) {
   if (typeof konzeptDirektZurPruefung === 'function') { await konzeptDirektZurPruefung(rwId); return; }

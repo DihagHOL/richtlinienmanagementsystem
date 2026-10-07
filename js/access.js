@@ -420,6 +420,8 @@ function _has(list, upn) {
 }
 
 function isAdmin(upn)      { return _has(_cfg().admins, upn); }
+/** Die hinterlegten Administratoren, für Hinweise, wen man fragen kann. */
+function adminListe() { return (_cfg().admins || []).map(x => String(x).trim()).filter(Boolean); }
 function isGenehmiger(upn) { return _has(_cfg().genehmiger, upn) || isAdmin(upn); }
 
 function darfProbelauf(upn)  { const u = upn || _currentUpn(); return isAdmin(u) || _has(_cfg().probelaufUser, u); }

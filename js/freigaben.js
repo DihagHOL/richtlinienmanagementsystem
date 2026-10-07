@@ -608,6 +608,62 @@ function bekanntgabeZiel(p) {
   return Object.assign({ probelauf: false }, mailsFuerZielgruppen(p.zielgruppen));
 }
 
+/* ── Versandprotokoll: jede Workflow-Mail in die Historie des Vorgangs ──
+   Die Mails nach Konformität und Mitbestimmung gehen raus, ohne dass jemand
+   auf sie wartet. Scheiterte eine, sah man das nur an einer kurzen Meldung am
+   Bildschirm. Jetzt steht jede mit Empfängern und Ergebnis in der Historie,
+   zugleich der Beleg im Audit, dass die Beteiligten informiert wurden. */
+
+/** Der Historien-Eintrag zu einer Mail. Ohne SharePoint, deshalb prüfbar. */
+function wfMailEintrag(art, an, fehler, wer) {
+  const ok = (an || []).filter(Boolean), fehl = (fehler || []).filter(Boolean);
+  const u = wer || {};
+  // Lange Verteiler (Erinnerungen an alle Offenen) nicht vollständig ausschreiben.
+  const liste = ok.length > 12 ? `${ok.slice(0, 10).join(', ')} und ${ok.length - 10} weitere` : ok.join(', ');
+  const zeilen = [];
+  if (ok.length) zeilen.push('An: ' + liste);
+  if (fehl.length) zeilen.push((ok.length ? 'Nicht erreicht: ' : 'Grund: ') + fehl.join('; '));
+  return {
+    datum: new Date().toISOString(), upn: u.upn || '', name: u.name || u.upn || '',
+    aktion: (ok.length ? 'Mail versendet: ' : 'Mail nicht versendet: ') + art,
+    text: zeilen.join('\n'),
+  };
+}
+
+let _wfMailKette = Promise.resolve();
+
+/**
+ * Eine Workflow-Mail protokollieren. Nacheinander, nie gleichzeitig, und nur
+ * die Historie (spPolicyHistorieAnhaengen). Der Vorgang selbst bleibt unberührt.
+ * @returns {Promise<void>} erfüllt sich, wenn der Eintrag geschrieben ist (oder nicht ging)
+ */
+function wfMailProtokoll(id, art, an, fehler) {
+  if (!id || typeof spPolicyHistorieAnhaengen !== 'function') return Promise.resolve();
+  const e = wfMailEintrag(art, an, fehler, (typeof State !== 'undefined' && State.user) || {});
+  _wfMailKette = _wfMailKette.then(async () => {
+    try {
+      const stand = await spPolicyHistorieAnhaengen(id, [e]);
+      if (stand) _wfMailLokal(id, e, stand);
+    } catch (err) { console.warn('[wf] Versandprotokoll nicht geschrieben:', err.message); }
+  });
+  return _wfMailKette;
+}
+
+/**
+ * Den Eintrag auch in den geladenen Stand übernehmen. War der aktuell, rückt
+ * auch sein Änderungsstand nach. Sonst meldete der Gleichzeitigkeits-Schutz
+ * beim nächsten Klick die eigene Protokollzeile als fremde Änderung.
+ */
+function _wfMailLokal(id, e, stand) {
+  const gesehen = new Set();
+  ['policies', 'konzepte', 'policiesAlle'].forEach(k => (State[k] || []).forEach(p => {
+    if (String(p.id) !== String(id) || gesehen.has(p)) return;
+    gesehen.add(p);
+    (p.historie = Array.isArray(p.historie) ? p.historie : []).push(e);
+    if (stand.nachher && p.modifiedAt === stand.vorher) p.modifiedAt = stand.nachher;
+  }));
+}
+
 async function notifyZielgruppe(p, opts) {
   const still = !!(opts && opts.still);
   const { adressen, fehlend, probelauf } = bekanntgabeZiel(p);
@@ -616,6 +672,8 @@ async function notifyZielgruppe(p, opts) {
       toast(`Für ${fehlend.length ? '„' + fehlend.join('", „') + '"' : 'diese Zielgruppe'} ist kein Verteiler hinterlegt `
         + '– Einstellungen → Verteiler je Zielgruppe.', 'error');
     }
+    wfMailProtokoll(p.id, 'Bekanntgabe an die Zielgruppe', [],
+      [`Kein Verteiler hinterlegt${fehlend.length ? ' für ' + fehlend.join(', ') : ''}`]);
     return false;
   }
   try {
@@ -632,6 +690,8 @@ async function notifyZielgruppe(p, opts) {
     return true;
   } catch (e) {
     toast('Bekanntgabe fehlgeschlagen: ' + e.message, 'error');
+    // Der Erfolg steht über zielgruppeBekanntgabeVermerken in der Historie, der Fehlschlag hier.
+    wfMailProtokoll(p.id, 'Bekanntgabe an die Zielgruppe', [], [e.message]);
     return false;
   }
 }
@@ -673,7 +733,12 @@ async function notifyPruefer(p) {
   const zustaendig = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
   // Wer gerade vertreten wird, bekommt die Mail trotzdem – die Vertretung zusätzlich.
   const pruefer = (typeof mitVertretern === 'function') ? mitVertretern(zustaendig) : zustaendig;
-  if (!pruefer.length) { toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error'); return; }
+  if (!pruefer.length) {
+    toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error');
+    wfMailProtokoll(p.id, 'Prüfer (Konformitätsprüfung)', [], ['Keine Prüfer hinterlegt']);
+    return;
+  }
+  const erreicht = [], fehl = [];
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     // Einzelversand: Nur so trägt der Link die Adresse des Empfängers – und nur dann
@@ -686,12 +751,16 @@ async function notifyPruefer(p) {
             'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
             att ? att.name : '', 'pruefung', empf),
           att ? [att] : []);
-        sent++;
-      } catch (e) { letzterFehler = e.message; console.warn('Prüfer-Mail an', empf, e.message); }
+        sent++; erreicht.push(empf);
+      } catch (e) { letzterFehler = e.message; fehl.push(`${empf} (${e.message})`); console.warn('Prüfer-Mail an', empf, e.message); }
     }
     if (!sent) throw new Error(letzterFehler || 'kein Empfänger erreicht');
     toast(`Prüfer benachrichtigt (${sent}) ✓` + (att ? ' (mit Dokument)' : ''), 'success');
-  } catch (e) { console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error'); }
+  } catch (e) {
+    console.warn('Prüfer-Mail:', e.message); toast('Mail an Prüfer fehlgeschlagen (Mail.Send nötig): ' + e.message, 'error');
+    if (!fehl.length) fehl.push(e.message);
+  }
+  wfMailProtokoll(p.id, 'Prüfer (Konformitätsprüfung)', erreicht, fehl);
 }
 async function notifyGL(p) {
   if (typeof isPAFreigabe === 'function' && isPAFreigabe()) {
@@ -700,7 +769,8 @@ async function notifyGL(p) {
   }
   const zustaendig = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
   const gl = (typeof mitVertretern === 'function') ? mitVertretern(zustaendig) : zustaendig;
-  if (!gl.length) return;
+  if (!gl.length) { wfMailProtokoll(p.id, 'Geschäftsleitung (Freigabe)', [], ['Keine Geschäftsleitung hinterlegt']); return; }
+  const erreicht = [], fehl = [];
   try {
     const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
     // Einzelversand – jede Freigeberin bekommt ihren eigenen Ein-Klick-Link.
@@ -711,9 +781,13 @@ async function notifyGL(p) {
             'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
             att ? att.name : '', 'freigabe', empf),
           att ? [att] : []);
-      } catch (e) { console.warn('GL-Mail an', empf, e.message); }
+        erreicht.push(empf);
+      } catch (e) { fehl.push(`${empf} (${e.message})`); console.warn('GL-Mail an', empf, e.message); }
     }
-  } catch (e) { console.warn('GL-Mail:', e.message); }
+  } catch (e) { fehl.push(e.message); console.warn('GL-Mail:', e.message); }
+  // Auf diese Mail wartet niemand. Scheitert sie, steht es wenigstens in der Historie.
+  if (fehl.length) toast('Mail an die Geschäftsleitung nicht vollständig zugestellt. Die Einzelheiten stehen in der Historie des Regelwerks.', 'error');
+  wfMailProtokoll(p.id, 'Geschäftsleitung (Freigabe)', erreicht, fehl);
 }
 
 /* ── Mitbestimmung: KBR + Betriebsräte der betroffenen Werke benachrichtigen ──
@@ -738,7 +812,8 @@ async function notifyMitbestimmung(p) {
   if (fehlt.length) {
     toast('Mitbestimmung: keine Mail hinterlegt für ' + fehlt.join(', ') + ' – bitte in den Einstellungen ergänzen.', 'error');
   }
-  if (!recipients.length) return;
+  const erreicht = [], fehl = fehlt.map(x => `${x === 'KBR' ? 'Konzernbetriebsrat' : 'Betriebsrat ' + x}: keine Adresse hinterlegt`);
+  if (!recipients.length) { wfMailProtokoll(p.id, 'Mitbestimmung (Betriebsrat)', [], fehl); return; }
 
   // Dokument einmal laden und an jede Council-Mail anhängen
   let att = null;
@@ -752,10 +827,12 @@ async function notifyMitbestimmung(p) {
       await spSendMail([r.mail], `Mitbestimmung – Richtlinie zur Prüfung: ${p.title}`,
         _mitMailHtml(p, r.label, att ? att.name : ''),
         att ? [att] : [], null, dom ? [dom] : []);
-      sent++;
-    } catch (e) { console.warn('Mitbestimmungs-Mail an', r.mail, e.message); }
+      sent++; erreicht.push(r.mail);
+    } catch (e) { fehl.push(`${r.mail} (${e.message})`); console.warn('Mitbestimmungs-Mail an', r.mail, e.message); }
   }
   if (sent) toast(`Mitbestimmung: ${sent} Empfänger (KBR/Betriebsrat) benachrichtigt ✓`, 'success');
+  if (!sent) toast('Mail an den Betriebsrat nicht zugestellt. Die Einzelheiten stehen in der Historie des Regelwerks.', 'error');
+  wfMailProtokoll(p.id, 'Mitbestimmung (Betriebsrat)', erreicht, fehl);
 }
 /** „Bereits freigegeben"-Block für Workflow-Mails – zeigt dem nächsten Prüfer/Freigeber,
  *  wer bereits zugestimmt hat (Konformitätsprüfung, Mitbestimmung, Freigabe). */
@@ -1139,7 +1216,8 @@ async function reaktivierePolicy(id) {
 /** Alle Konformitäts-/Freigabe-Ereignisse aller Richtlinien als flache, chronologische Liste. */
 function _freigabeAuditRows() {
   const out = [];
-  for (const p of (State.policies || [])) {
+  // Ohne Probelauf: Seine Prüfungen und Freigaben sind gespielt, kein Nachweis.
+  for (const p of (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || []))) {
     for (const v of (p.konformitaet || [])) {
       out.push({
         datum: v.datum || '', policy: p.title, version: p.version,

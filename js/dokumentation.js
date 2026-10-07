@@ -240,6 +240,7 @@ function _dokuSections() {
       <div style="${hint}">🔒 <b>Pro-Regelwerk-Prüfer/-Freigeber ersetzen</b> die globalen für genau dieses Regelwerk (nicht additiv). Karten-Tags „👤 eigene Prüfer" / „👤 eigene Freigeber" zeigen an, wo das gesetzt ist.</div>
       <div style="${h3}">Änderungshistorie (Nachweis)</div>
       <p style="margin:0 0 8px;line-height:1.55">Jede Änderung wird automatisch mit <b>Zeitpunkt, Person und Inhalt</b> festgehalten – inhaltliche Bearbeitungen im Klartext (z. B. <i>Version: „1.0" → „2.0"</i>), dazu Einreichen, Prüf- und Mitbestimmungsentscheidungen samt Begründung, Freigaben, Veröffentlichung und Archivierung. Die jüngsten 200 Einträge bleiben erhalten.</p>
+      <p style="margin:0 0 8px;line-height:1.55"><b>Versandprotokoll:</b> Auch jede Workflow-Mail steht in der Historie, mit Empfängern und Ergebnis: an die Prüfer, an den Betriebsrat, zur Freigabe an die Geschäftsleitung, die Bekanntgabe, die Erinnerung zur Kenntnisnahme und bei Konzepten die Mails an Geschäftsleitung und einreichende Person. <b>„Mail nicht versendet"</b> steht rot da, mit Grund, etwa wenn keine Adresse hinterlegt ist. Das ist zugleich der Beleg im Audit, dass die Beteiligten informiert wurden. Geschrieben wird dabei nur die Historie, damit eine Mail, die im Hintergrund rausgeht, keine gleichzeitige Entscheidung überschreibt.</p>
       <div style="${h3}">Außer Kraft setzen</div>
       <p style="margin:0 0 8px;line-height:1.55">Bei einem veröffentlichten Regelwerk gibt es im Editor <b>„📦 Archivieren"</b> (optional mit Grund, z. B. „abgelöst durch …"). Es verschwindet dann aus „Meine Regelwerke", bleibt aber mit allen Bestätigungen und der Historie für Audits erhalten. <b>„↩ Reaktivieren"</b> holt es zurück in den Entwurf – der Freigabeprozess läuft dann erneut.</p>
       <div style="${hint}">👥 Bearbeiten zwei Personen dasselbe Regelwerk, warnt die App beim Speichern („zwischenzeitlich geändert von …") und bietet an, abzubrechen und die aktuelle Fassung zu laden.</div>
@@ -370,6 +371,7 @@ function _dokuSections() {
         <li style="${li}">Gruppen: <b>überfällig</b> · <b>fällig in ≤ 30 Tagen</b> · <b>später terminiert</b> · <b>ohne Termin</b>, mit Kennzahl-Kacheln.</li>
         <li style="${li}"><b>„🔁 +12 Monate"</b> setzt den nächsten Überprüfungstermin sofort auf heute + 12 Monate.</li>
         <li style="${li}"><b>„✏ Bearbeiten"</b> öffnet das Regelwerk im Editor (z. B. um den Termin frei zu wählen).</li>
+        <li style="${li}"><b>Funktionsprüfung des RMS:</b> Nach Änderungen am System ein Nachweis, dass es noch tut, was es soll (<b>ISO 27001 A.8.29, A.8.32</b>). Der Selbsttest im Probelauf legt ihn im Register „Wirksamkeit" ab, mit der geprüften Version. Ist die laufende Version noch nicht geprüft, wird die nächste Prüfung spätestens 30 Tage nach der letzten fällig. Hat die letzte Prüfung Fehler gefunden, steht das hier, bis sie abgeschlossen ist.</li>
         <li style="${li}"><b>Prozesse:</b> Darunter stehen die Prozesse der Landkarten mit ihrer <b>nächsten Überprüfung</b>: überfällig, freigegeben ohne Termin, bald fällig, später. „Prozess öffnen" führt zur Kachel, der Termin wird dort unter „Bearbeiten" gepflegt.</li>
       </ul>
       <div style="${hint}">📧 Der Erinnerungs-Cron schickt zusätzlich einen <b>Fälligkeits-Digest</b> an die Admins: alle überfälligen und in den nächsten Tagen fälligen Überprüfungen, mit Direktlink in diesen Reiter.</div>`,
@@ -827,7 +829,8 @@ function _dokuSections() {
           nur an die Person, die ihn ausführt, ohne Rückfrage. Der tägliche Erinnerungslauf lässt
           Probelauf-Einträge ganz aus und schreibt stattdessen einmal die Woche der Person, die sie angelegt
           hat, dass noch aufzuräumen ist. Prüfer, Betriebsrat und Geschäftsleitung bekommen ihre Mails
-          weiter, denn sie entscheiden im Probelauf mit.</li>
+          weiter, denn sie entscheiden im Probelauf mit. Audit Report, Cockpit, Fälligkeiten, IMS-Abdeckung
+          und Freigabe-Audit zählen Probelauf-Einträge nicht mit.</li>
         <li style="${li}"><b>Geführte Vorführung:</b> hebt Schritt für Schritt das nächste Bedienelement
           hervor und wartet, bis der Schritt <i>wirklich</i> ausgeführt wurde. „Vormachen" erledigt einen
           Schritt automatisch – praktisch, wenn es in einer Präsentation schnell gehen muss.</li>

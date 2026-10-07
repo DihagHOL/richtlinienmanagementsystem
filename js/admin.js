@@ -158,7 +158,7 @@ function renderHistorieSection(p) {
     ? '<div class="field-hint">Noch keine Änderungen protokolliert. Ab jetzt wird jede Änderung mit Zeitpunkt und Person festgehalten.</div>'
     : `<div style="max-height:280px;overflow:auto">${h.slice().reverse().map(e => `
         <div style="padding:7px 0;border-bottom:1px solid var(--c-border-2)">
-          <div style="font-size:.83rem"><b>${esc(e.aktion || 'Änderung')}</b>
+          <div style="font-size:.83rem"><b${/^Mail nicht versendet/.test(e.aktion || '') ? ' style="color:#b91c1c"' : ''}>${esc(e.aktion || 'Änderung')}</b>
             <span style="color:var(--c-muted)"> · ${esc(e.name || e.upn || 'unbekannt')} · ${typeof fmtDateTime === 'function' ? fmtDateTime(e.datum) : esc(e.datum || '')}</span></div>
           ${e.text ? `<div style="font-size:.8rem;color:var(--c-muted);line-height:1.5;margin-top:2px;white-space:pre-wrap">${esc(e.text)}</div>` : ''}
         </div>`).join('')}</div>
@@ -1764,7 +1764,7 @@ function exportFreigabeAuditCsv() {
 function fillPolicySelect() {
   const sel = document.getElementById('compliance-policy');
   if (!sel) return;
-  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  const pubs = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || [])).filter(p => p.status === 'Veröffentlicht' && p.pflicht);
   sel.innerHTML = pubs.length
     ? pubs.map(p => `<option value="${p.id}">${esc(p.title)} (v${esc(p.version)})</option>`).join('')
     : '<option value="">— keine —</option>';
@@ -1794,7 +1794,7 @@ function _complianceRowsFor(p) {
 function renderComplianceOverview() {
   const body = document.getElementById('compliance-body');
   if (!body) return;
-  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  const pubs = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || [])).filter(p => p.status === 'Veröffentlicht' && p.pflicht);
   if (!pubs.length) { body.innerHTML = emptyState('Keine veröffentlichten Pflicht-Richtlinien.'); return; }
 
   const perPolicy = pubs.map(p => {
@@ -1931,11 +1931,13 @@ async function remindOpenForCurrent() {
   if (!await uiConfirm(probelauf
     ? `Probelauf: Die Erinnerung zu „${p.title}" geht nur an Sie (${State.user.upn}), nicht an die Mitarbeitenden.`
     : `Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`, { title: 'Erinnerung senden', okLabel: 'Senden' })) return;
+  const protokoll = (an, fehl) => { if (typeof wfMailProtokoll === 'function') wfMailProtokoll(p.id, 'Erinnerung zur Kenntnisnahme', an, fehl); };
   try {
     const ok = await spSendMail(offene, `Erinnerung: Pflicht-Richtlinie „${p.title}"`, reminderHtml(p));
-    if (ok) toast(`Erinnerung an ${offene.length} Mitarbeiter gesendet ✓`, 'success');
+    if (ok) { toast(`Erinnerung an ${offene.length} Mitarbeiter gesendet ✓`, 'success'); protokoll(offene, []); }
   } catch (e) {
     toast('Mail-Versand fehlgeschlagen: ' + e.message, 'error');
+    protokoll([], [e.message]);
   }
 }
 
@@ -1971,7 +1973,7 @@ function exportComplianceCsv() {
 }
 
 function exportOverviewCsv() {
-  const pubs = State.policies.filter(p => p.status === 'Veröffentlicht' && p.pflicht);
+  const pubs = (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || [])).filter(p => p.status === 'Veröffentlicht' && p.pflicht);
   if (!pubs.length) { toast('Nichts zu exportieren.', 'error'); return; }
   const lines = ['Richtlinie;Version;Zielgruppe;Soll;Erledigt;Offen;Quote'];
   pubs.forEach(p => {

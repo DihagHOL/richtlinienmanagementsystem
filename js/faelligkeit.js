@@ -25,7 +25,7 @@ function _faelligDays(p) {
 /** Alle relevanten Richtlinien in Kategorien einsortieren. */
 function _faelligBuckets() {
   const b = { overdue: [], soon: [], later: [], none: [] };
-  for (const p of (State.policies || [])) {
+  for (const p of (typeof berichtsPolicies === 'function' ? berichtsPolicies() : (State.policies || []))) {
     if (p.status === 'Archiviert') continue;
     const d = _faelligDays(p);
     if (d === null) b.none.push({ p, d });
@@ -98,8 +98,105 @@ function renderFaelligkeit() {
     ${section(`Fällig in ≤ ${FAELLIG_SOON_DAYS} Tagen`, b.soon, '#f59e0b', 'Nichts in den nächsten Wochen fällig.')}
     ${b.none.length ? section('Ohne Überprüfungstermin', b.none, '#9ca3af', '') : ''}
     ${b.later.length ? section('Später terminiert', b.later, '#22c55e', '') : ''}
+    <div id="fael-funktion" style="margin-top:28px"></div>
     <div id="fael-prozesse" style="margin-top:28px"></div>`;
+  _faelligFunktionZeigen();
   _faelligProzesseZeigen();
+}
+
+/* ── Funktionsprüfung des RMS nach einem Update (ISO 27001 A.8.29 · A.8.32) ──
+   Eine Änderung am System soll geprüft werden, bevor man sich auf sie verlässt.
+   Der Selbsttest im Probelauf legt dafür einen Nachweis im Register
+   „Wirksamkeit" ab (Satzart Funktionsprüfung, mit der Version im Umfang). Das
+   RMS wird oft aktualisiert. Nicht jedes Update braucht einen eigenen Test,
+   aber spätestens FP_FRIST_TAGE nach der letzten Prüfung ist der nächste fällig. */
+
+const FP_FRIST_TAGE = 30;
+
+let _faelligWirk = null;   // Wirksamkeits-Register (leise gelesen, Cache bis „Aktualisieren")
+
+/**
+ * Steht eine Funktionsprüfung des RMS aus?
+ * @param {Array} wirk      Einträge des Registers „Wirksamkeit"
+ * @param {string} version  laufende Version (APP_VERSION)
+ * @param {string} stand    Tag des Builds (APP_STAND, YYYY-MM-DD)
+ * @param {Date} [heute]
+ * @returns {{ stufe: 'nie'|'aktuell'|'faellig'|'ueberfaellig'|'fehler', letzte: object|null, version: string, tage: number|null, frist: string }}
+ */
+function faelligFunktionspruefung(wirk, version, stand, heute) {
+  const jetzt = heute ? new Date(heute) : new Date();
+  const tag = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const rms = (Array.isArray(wirk) ? wirk : []).filter(w => w && w.art === 'pruefung'
+    && /\bRMS\b/.test(String(w.titel || '') + ' ' + String(w.umfang || '')) && w.status !== 'verworfen' && w.datum);
+  rms.sort((a, b) => String(b.datum).localeCompare(String(a.datum)));
+  const letzte = rms[0] || null;
+  if (!letzte) return { stufe: 'nie', letzte: null, version: '', tage: null, frist: '' };
+  const m = /Version (v-[0-9a-f]+)/.exec(String(letzte.umfang || ''));
+  const geprueft = m ? m[1] : '';
+  const datum = String(letzte.datum).slice(0, 10);
+  const fristD = new Date(datum + 'T00:00:00Z'); fristD.setUTCDate(fristD.getUTCDate() + FP_FRIST_TAGE);
+  const frist = fristD.toISOString().slice(0, 10);
+  const tage = Math.round((fristD.getTime() - tag(jetzt)) / 86400000);
+  // Hat die letzte Prüfung Fehler gefunden, ist das die Nachricht, nicht ihr Alter.
+  if (letzte.status !== 'abgeschlossen') return { stufe: 'fehler', letzte, version: geprueft, tage, frist };
+  const aktuell = geprueft ? geprueft === version : (!!stand && datum >= stand);
+  if (aktuell) return { stufe: 'aktuell', letzte, version: geprueft, tage, frist };
+  return { stufe: tage < 0 ? 'ueberfaellig' : 'faellig', letzte, version: geprueft, tage, frist };
+}
+
+async function _faelligFunktionZeigen(neu) {
+  const host = document.getElementById('fael-funktion');
+  if (!host) return;
+  if (!_faelligWirk || neu) {
+    host.innerHTML = '<div class="doc-loading">Funktionsprüfungen werden gelesen …</div>';
+    try { _faelligWirk = (typeof spGetWirkLeise === 'function') ? (await spGetWirkLeise()) || [] : []; }
+    catch (e) { _faelligWirk = []; }
+  }
+  const ziel = document.getElementById('fael-funktion');
+  if (!ziel) return;
+  const version = (typeof APP_VERSION !== 'undefined') ? APP_VERSION : '';
+  const stand = (typeof APP_STAND !== 'undefined') ? APP_STAND : '';
+  ziel.innerHTML = _faelligFunktionHtml(faelligFunktionspruefung(_faelligWirk, version, stand), version, stand);
+}
+
+function _faelligFunktionHtml(f, version, stand) {
+  const datum = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join('.');
+  const farbe = { nie: '#ef4444', ueberfaellig: '#ef4444', fehler: '#ef4444', faellig: '#f59e0b', aktuell: '#22c55e' }[f.stufe];
+  const l = f.letzte;
+  const text = {
+    nie: 'Für das RMS ist noch keine Funktionsprüfung abgelegt.',
+    fehler: `Die letzte Funktionsprüfung vom ${l ? datum(l.datum) : ''} hat Fehler gefunden und ist nicht abgeschlossen.`,
+    aktuell: `Die laufende Version ist geprüft (${l ? datum(l.datum) : ''}). Bis zum nächsten Update ist nichts zu tun.`,
+    faellig: `Seit der letzten Funktionsprüfung vom ${l ? datum(l.datum) : ''}${f.version ? ` (${f.version})` : ''} wurde das RMS aktualisiert. Nächste Prüfung bis ${datum(f.frist)}.`,
+    ueberfaellig: `Seit der letzten Funktionsprüfung vom ${l ? datum(l.datum) : ''}${f.version ? ` (${f.version})` : ''} wurde das RMS aktualisiert. Die Prüfung war bis ${datum(f.frist)} fällig.`,
+  }[f.stufe];
+  const darfTest = typeof darfProbelauf === 'function' && darfProbelauf();
+  return `
+    <h3 style="margin:0 0 6px;font-size:1.05rem">Funktionsprüfung des RMS</h3>
+    <div class="view-desc" style="margin:0 0 10px">
+      Nach Änderungen am System ein Nachweis, dass es noch tut, was es soll (<b>ISO 27001 A.8.29 · A.8.32</b>).
+      Der Selbsttest im Probelauf legt ihn im Register „Wirksamkeit" ab; spätestens ${FP_FRIST_TAGE} Tage nach der letzten Prüfung ist die nächste fällig.
+      <button class="btn btn-ghost btn-sm" onclick="_faelligFunktionZeigen(true)" title="Register neu lesen">↻ Aktualisieren</button>
+    </div>
+    <div class="item-card" style="cursor:default;border-left:4px solid ${farbe}">
+      <div class="ic-top"><div class="ic-title">🧪 ${esc(text)}</div></div>
+      <div class="ic-tags">
+        <span class="ic-tag">laufende Version ${esc(version || '–')}${stand ? ' vom ' + esc(datum(stand)) : ''}</span>
+        ${l ? `<span class="ic-tag">zuletzt geprüft: ${esc(datum(l.datum))}${f.version ? ' · ' + esc(f.version) : ''}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:7px;margin-top:10px;justify-content:flex-end;flex-wrap:wrap">
+        ${l ? `<button class="btn btn-ghost btn-sm" onclick="faelligPruefungOeffnen(${jsArg(l.id)})">Letzte Prüfung öffnen</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="faelligPruefungOeffnen('')">Prüfung von Hand erfassen</button>
+        ${darfTest && f.stufe !== 'aktuell' ? `<button class="btn btn-primary btn-sm" onclick="switchView('anleitung')" title="Der Selbsttest startet aus dem Probelauf (Anleitung)">🧪 Zum Selbsttest</button>` : ''}
+      </div>
+    </div>`;
+}
+
+/** Aus den Fälligkeiten ins Register „Wirksamkeit": eine Prüfung öffnen oder neu erfassen. */
+async function faelligPruefungOeffnen(id) {
+  if (typeof switchView === 'function') await switchView('wirksamkeit');
+  if (typeof initWirksamkeit === 'function') await initWirksamkeit();
+  if (typeof openWirkEditor === 'function') await openWirkEditor(id || null, 'pruefung');
 }
 
 /* ── Prozesse: die Überprüfung aus der Konzernfachregelung Prozessmanagement ──
@@ -248,5 +345,5 @@ async function _faelligApplyReview(id, iso, okMsg) {
 
 /* Node-Export nur für Tests (im Browser wirkungslos). */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { _faelligDays, _faelligBuckets, _faelligDueLabel, _faelligProzesseHtml };
+  module.exports = { _faelligDays, _faelligBuckets, _faelligDueLabel, _faelligProzesseHtml, faelligFunktionspruefung, _faelligFunktionHtml, FP_FRIST_TAGE };
 }
