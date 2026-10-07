@@ -285,7 +285,7 @@ async function _ckLoadZieleMassnahmenKennzahlen(seq) {
     _ckSet('massnahmen',
       _ckBig(n.offen + n.inUmsetzung, 'offen', (n.offen + n.inUmsetzung) ? '#b45309' : '#15803d') +
       _ckBig(n.ueberfaellig, 'überfällig', n.ueberfaellig ? '#b91c1c' : '#15803d') +
-      _ckBig(n.quote + ' %', 'erledigt', '#17509e'));
+      _ckBig(n.quote + ' %', 'abgeschlossen', '#17509e'));
     if (Array.isArray(ziele)) {
       const z = zlKennzahlen(ziele, eigene || []);
       _ckSet('ziele',
