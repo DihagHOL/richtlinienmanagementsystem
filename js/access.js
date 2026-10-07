@@ -713,6 +713,9 @@ const GOVERNABLE_TABS = [
   { view: 'faelligkeit', label: 'Fälligkeiten' , kurz: 'Fälligkeit' },
   { view: 'risiken',     label: 'Risiko-Register' , kurz: 'Risiken' },
   { view: 'assets',      label: 'Assetregister' , kurz: 'Assets' },
+  { view: 'ziele',       label: 'Ziele' , kurz: 'Ziele' },
+  { view: 'massnahmen',  label: 'Maßnahmen' , kurz: 'Maßnahmen' },
+  { view: 'kennzahlen',  label: 'Kennzahlen' , kurz: 'Kennzahlen' },
   { view: 'vorschlaege', label: 'Vorschläge' , kurz: 'Vorschläge' },
   { view: 'freigaben',   label: 'Freigaben' , kurz: 'Freigaben' },
   { view: 'ausnahmen',   label: 'Ausnahmeregister' , kurz: 'Ausnahmen' },
@@ -844,7 +847,7 @@ function initRoleNav() {
   const v = {};
   ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
    'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance', 'ausnahmen',
-   'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].forEach(t => { v[t] = canReadTab(t); });
+   'wirksamkeit', 'notfall', 'vorfaelle', 'assets', 'ziele', 'massnahmen', 'kennzahlen'].forEach(t => { v[t] = canReadTab(t); });
 
   // Die früher offenen Reiter – jetzt nur mit Freigabe. „Wissen" bleibt.
   show('nav-meine',         canReadTab('meine'));
@@ -871,6 +874,9 @@ function initRoleNav() {
   show('nav-faelligkeit',   v.faelligkeit);
   show('nav-risiken',       v.risiken);
   show('nav-assets',        v.assets);
+  show('nav-ziele',         v.ziele);
+  show('nav-massnahmen',    v.massnahmen);
+  show('nav-kennzahlen',    v.kennzahlen);
   show('nav-wirksamkeit',   v.wirksamkeit);
   show('nav-notfall',       v.notfall);
   show('nav-vorfaelle',     v.vorfaelle);
@@ -886,7 +892,7 @@ function initRoleNav() {
   // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
   show('nav-grp-governance',  v.governance || v.govstruktur);
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
-  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.prozesse || v.wirksamkeit || v.notfall || v.vorfaelle || v.assets);
+  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.ziele || v.massnahmen || v.kennzahlen || v.prozesse || v.wirksamkeit || v.notfall || v.vorfaelle || v.assets);
   show('nav-grp-verwaltung',  v.compliance || admin);
 
   // Zuletzt: Läuft gerade ein Probelauf, bleibt die Leiste auf das Nötige

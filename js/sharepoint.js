@@ -3017,6 +3017,305 @@ async function spDeleteWirk(id) {
 }
 
 /* ═══════════════════════════════════════════════════
+   Maßnahmen, Ziele, Kennzahlen: drei weitere Listen auf der ISMS-Site
+   Dieselbe Mechanik wie bei Risiken, Ausnahmen und Wirksamkeit: Die Liste
+   entsteht beim ersten Zugriff, fehlende Spalten werden nachgezogen, und
+   geschrieben wird nur, was es in der Liste gibt. Weil es drei auf einmal
+   sind, steht die Mechanik hier einmal statt dreimal.
+═══════════════════════════════════════════════════ */
+
+const MASSNAHMEN_COLUMNS = [
+  { name: 'Nr',               typ: 'Einzelne Textzeile' },
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
+  { name: 'Quelle',           typ: 'Einzelne Textzeile' },
+  { name: 'Bewertung',        typ: 'Einzelne Textzeile' },
+  { name: 'Massnahmenart',    typ: 'Einzelne Textzeile' },
+  { name: 'Kategorie',        typ: 'Einzelne Textzeile' },
+  { name: 'Prioritaet',       typ: 'Einzelne Textzeile' },
+  { name: 'Normbezug',        typ: 'Einzelne Textzeile' },
+  { name: 'ZielDerMassnahme', typ: 'Mehrere Zeilen Text' },
+  { name: 'Ursache',          typ: 'Mehrere Zeilen Text' },
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'MTermin',          typ: 'Datum und Uhrzeit' },
+  { name: 'MStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'StatusGeprueftAm', typ: 'Datum und Uhrzeit' },
+  { name: 'KostenPlan',       typ: 'Zahl' },
+  { name: 'KostenIst',        typ: 'Zahl' },
+  { name: 'Messung',          typ: 'Mehrere Zeilen Text' },
+  { name: 'Ressourcen',       typ: 'Mehrere Zeilen Text' },
+  { name: 'Wirksamkeit',      typ: 'Mehrere Zeilen Text' },
+  { name: 'WirksamAm',        typ: 'Datum und Uhrzeit' },
+  { name: 'Nachweis',         typ: 'Einzelne Textzeile' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },
+  { name: 'ZielId',           typ: 'Einzelne Textzeile' },
+  { name: 'HerkunftId',       typ: 'Einzelne Textzeile' },
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+];
+
+const ZIELE_COLUMNS = [
+  { name: 'Nr',               typ: 'Einzelne Textzeile' },
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
+  { name: 'Unternehmensziel', typ: 'Mehrere Zeilen Text' },
+  { name: 'Jahr',             typ: 'Einzelne Textzeile' },
+  { name: 'ZTermin',          typ: 'Datum und Uhrzeit' },
+  { name: 'Messung',          typ: 'Mehrere Zeilen Text' },
+  { name: 'KennzahlIds',      typ: 'Einzelne Textzeile' },
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'Ressourcen',       typ: 'Mehrere Zeilen Text' },
+  { name: 'ZStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'VerabschiedetAm',  typ: 'Datum und Uhrzeit' },
+  { name: 'VerabschiedetVon', typ: 'Einzelne Textzeile' },
+  { name: 'BewertungJson',    typ: 'Mehrere Zeilen Text' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+];
+
+const KENNZAHLEN_COLUMNS = [
+  { name: 'Nr',               typ: 'Einzelne Textzeile' },
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
+  { name: 'Einheit',          typ: 'Einzelne Textzeile' },
+  { name: 'Richtung',         typ: 'Einzelne Textzeile' },
+  { name: 'Sollwert',         typ: 'Einzelne Textzeile' },
+  { name: 'Intervall',        typ: 'Einzelne Textzeile' },
+  { name: 'Datenquelle',      typ: 'Einzelne Textzeile' },
+  { name: 'Methode',          typ: 'Mehrere Zeilen Text' },
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'Verwendung',       typ: 'Einzelne Textzeile' },
+  { name: 'Automatik',        typ: 'Einzelne Textzeile' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },
+  { name: 'KStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'WerteJson',        typ: 'Mehrere Zeilen Text' },
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+];
+
+/** Ein Datum für eine Datumsspalte: mittags UTC, damit kein Tag durch die Zeitzone kippt. */
+function _regDatum(s) {
+  const t = String(s || '').slice(0, 10);
+  return /^\d{4}-\d\d-\d\d$/.test(t) ? t + 'T12:00:00Z' : '';
+}
+function _regTag(s) { return String(s || '').slice(0, 10); }
+function _regListe(s) { return String(s || '').split(',').map(x => x.trim()).filter(Boolean); }
+function _regZahl(v) { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? null : n; }
+
+/**
+ * Eine Registerliste auf der ISMS-Site.
+ * @param {string} name       Anzeigename der Liste
+ * @param {Array} spalten     [{ name, typ }]
+ * @param {Function} abbilden SharePoint-Felder → Objekt
+ * @param {Function} felder   Objekt → SharePoint-Felder (Datumsspalten als '' wenn leer)
+ */
+function _ismsRegister(name, spalten, abbilden, felder) {
+  const r = { name, spalten, listId: null, cols: null };
+  const datumsSpalten = new Set(spalten.filter(c => c.typ === 'Datum und Uhrzeit').map(c => c.name));
+
+  async function spaltenLesen(token, siteId) {
+    try {
+      const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${r.listId}/columns?$select=name`, token);
+      r.cols = new Set((cols.value || []).map(c => c.name));
+    } catch (e) { r.cols = null; }
+  }
+  async function spaltenErgaenzen(token, siteId) {
+    if (!r.cols) return;
+    const fehlend = spalten.filter(c => !r.cols.has(c.name));
+    let neu = 0;
+    for (const c of fehlend) {
+      try { await _post(`${SP.graphBase}/sites/${siteId}/lists/${r.listId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) }); neu++; }
+      catch (e) { console.warn(`[${name}] Spalte nicht anlegbar:`, c.name, e.message); }
+    }
+    if (neu) await spaltenLesen(token, siteId);
+  }
+
+  /** Liste finden – oder anlegen (create). */
+  r.finden = async (create = true) => {
+    if (r.listId) return r.listId;
+    const token = await acquireToken(SP.scopes);
+    if (!token) throw new Error('Nicht angemeldet');
+    const siteId = await _ismsSiteId(token);
+    const ziel = _normName(name);
+    let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+    try {
+      while (url) {
+        const res = await _get(url, token);
+        const hit = (res.value || []).find(l => _normName(l.displayName) === ziel || _normName(l.name) === ziel);
+        if (hit) {
+          r.listId = hit.id;
+          await spaltenLesen(token, siteId);
+          if (create) await spaltenErgaenzen(token, siteId);
+          return r.listId;
+        }
+        url = res['@odata.nextLink'] || null;
+      }
+    } catch (e) { /* weiter → ggf. anlegen */ }
+    if (!create) return null;
+    const angelegt = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, {
+      displayName: name, list: { template: 'genericList' },
+      columns: spalten.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+    });
+    r.listId = angelegt.id;
+    await spaltenLesen(token, siteId);
+    return r.listId;
+  };
+
+  /** Spalten, die in der Liste fehlen (nur bekannt, wenn sie gelesen wurde). */
+  r.fehlend = () => (r.cols ? spalten.map(c => c.name).filter(n => !r.cols.has(n)) : []);
+
+  /** Nur senden, was es gibt. Leere Datumsangaben: beim Anlegen weglassen, beim Ändern leeren. */
+  function zuFeldern(o, aendern) {
+    const alle = felder(o);
+    const out = {};
+    for (const [k, v] of Object.entries(alle)) {
+      if (k !== 'Title' && r.cols && !r.cols.has(k)) continue;
+      if (datumsSpalten.has(k) && !v) { if (aendern) out[k] = null; continue; }
+      if (v === null && !aendern) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
+  /** Alle Einträge. anlegen=false liest nur, wenn die Liste schon existiert (null sonst). */
+  r.alle = async (anlegen = true) => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) return anlegen ? [] : null;
+    const listId = await r.finden(anlegen);
+    if (!listId) return null;
+    const siteId = await _ismsSiteId(token);
+    const out = [];
+    let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+    while (url) {
+      const res = await _get(url, token);
+      for (const it of (res.value || [])) out.push(Object.assign(abbilden(it.fields || {}), {
+        id: String(it.id), created: it.createdDateTime || '', modified: it.lastModifiedDateTime || '',
+      }));
+      url = res['@odata.nextLink'] || null;
+    }
+    return out;
+  };
+  r.neu = async (o) => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) throw new Error('Nicht angemeldet');
+    const listId = await r.finden(true);
+    const siteId = await _ismsSiteId(token);
+    const res = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: zuFeldern(o, false) });
+    return res && String(res.id);
+  };
+  r.aendern = async (id, o) => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) throw new Error('Nicht angemeldet');
+    const listId = await r.finden(false);
+    if (!listId) throw new Error(`Liste „${name}" nicht verfügbar.`);
+    const siteId = await _ismsSiteId(token);
+    return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, zuFeldern(o, true));
+  };
+  r.loeschen = async (id) => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) throw new Error('Nicht angemeldet');
+    const listId = await r.finden(false);
+    if (!listId) throw new Error(`Liste „${name}" nicht verfügbar.`);
+    const siteId = await _ismsSiteId(token);
+    await _del(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, token);
+  };
+  r._felder = zuFeldern;   // für Tests
+  return r;
+}
+
+const _regMassnahmen = _ismsRegister('Massnahmen', MASSNAHMEN_COLUMNS, (f) => ({
+  titel: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '',
+  bereich: f.Bereich || '', quelle: f.Quelle || '', bewertung: f.Bewertung || '', art: f.Massnahmenart || '',
+  kategorie: f.Kategorie || '', prioritaet: f.Prioritaet || '', normbezug: f.Normbezug || '',
+  zielDerMassnahme: f.ZielDerMassnahme || '', ursache: f.Ursache || '', verantwortlich: f.Verantwortlich || '',
+  termin: _regTag(f.MTermin), status: f.MStatus || 'offen', statusGeprueftAm: _regTag(f.StatusGeprueftAm),
+  kostenPlan: f.KostenPlan == null ? '' : f.KostenPlan, kostenIst: f.KostenIst == null ? '' : f.KostenIst,
+  messung: f.Messung || '', ressourcen: f.Ressourcen || '', wirksamkeit: f.Wirksamkeit || '', wirksamAm: _regTag(f.WirksamAm),
+  nachweis: f.Nachweis || '', werke: _regListe(f.Werke), zielId: f.ZielId || '', herkunftId: f.HerkunftId || '',
+  historie: _riskParseJson(f.HistorieJson, []),
+}), (m) => ({
+  Title: String(m.titel || '(ohne Titel)').slice(0, 255), Nr: String(m.nr || '').slice(0, 40),
+  Beschreibung: m.beschreibung || '', Bereich: String(m.bereich || '').slice(0, 40), Quelle: String(m.quelle || '').slice(0, 40),
+  Bewertung: String(m.bewertung || '').slice(0, 10), Massnahmenart: String(m.art || '').slice(0, 40),
+  Kategorie: String(m.kategorie || '').slice(0, 40), Prioritaet: String(m.prioritaet || '').slice(0, 20),
+  Normbezug: String(m.normbezug || '').slice(0, 255), ZielDerMassnahme: m.zielDerMassnahme || '', Ursache: m.ursache || '',
+  Verantwortlich: String(m.verantwortlich || '').slice(0, 255), MTermin: _regDatum(m.termin), MStatus: String(m.status || 'offen').slice(0, 40),
+  StatusGeprueftAm: _regDatum(m.statusGeprueftAm), KostenPlan: _regZahl(m.kostenPlan), KostenIst: _regZahl(m.kostenIst),
+  Messung: m.messung || '', Ressourcen: m.ressourcen || '', Wirksamkeit: m.wirksamkeit || '', WirksamAm: _regDatum(m.wirksamAm),
+  Nachweis: String(m.nachweis || '').slice(0, 255), Werke: (m.werke || []).join(','), ZielId: String(m.zielId || '').slice(0, 40),
+  HerkunftId: String(m.herkunftId || '').slice(0, 100), HistorieJson: JSON.stringify((m.historie || []).slice(-100)),
+}));
+
+const _regZiele = _ismsRegister('Ziele', ZIELE_COLUMNS, (f) => ({
+  titel: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '', bereich: f.Bereich || '',
+  unternehmensziel: f.Unternehmensziel || '', jahr: f.Jahr || '', termin: _regTag(f.ZTermin), messung: f.Messung || '',
+  kennzahlIds: _regListe(f.KennzahlIds), verantwortlich: f.Verantwortlich || '', ressourcen: f.Ressourcen || '',
+  status: f.ZStatus || 'entwurf', verabschiedetAm: _regTag(f.VerabschiedetAm), verabschiedetVon: f.VerabschiedetVon || '',
+  bewertung: _riskParseJson(f.BewertungJson, null), werke: _regListe(f.Werke), historie: _riskParseJson(f.HistorieJson, []),
+}), (z) => ({
+  Title: String(z.titel || '(ohne Titel)').slice(0, 255), Nr: String(z.nr || '').slice(0, 40), Beschreibung: z.beschreibung || '',
+  Bereich: String(z.bereich || '').slice(0, 40), Unternehmensziel: z.unternehmensziel || '', Jahr: String(z.jahr || '').slice(0, 10),
+  ZTermin: _regDatum(z.termin), Messung: z.messung || '', KennzahlIds: (z.kennzahlIds || []).join(','),
+  Verantwortlich: String(z.verantwortlich || '').slice(0, 255), Ressourcen: z.ressourcen || '', ZStatus: String(z.status || 'entwurf').slice(0, 40),
+  VerabschiedetAm: _regDatum(z.verabschiedetAm), VerabschiedetVon: String(z.verabschiedetVon || '').slice(0, 255),
+  BewertungJson: z.bewertung ? JSON.stringify(z.bewertung) : '', Werke: (z.werke || []).join(','),
+  HistorieJson: JSON.stringify((z.historie || []).slice(-100)),
+}));
+
+const _regKennzahlen = _ismsRegister('Kennzahlen', KENNZAHLEN_COLUMNS, (f) => ({
+  name: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '', bereich: f.Bereich || '', einheit: f.Einheit || '',
+  richtung: f.Richtung || 'hoch', ziel: f.Sollwert || '', intervall: f.Intervall || '', datenquelle: f.Datenquelle || '',
+  methode: f.Methode || '', verantwortlich: f.Verantwortlich || '', verwendung: f.Verwendung || '', automatik: f.Automatik || '',
+  werke: _regListe(f.Werke), status: f.KStatus || 'aktiv', werte: _riskParseJson(f.WerteJson, []), historie: _riskParseJson(f.HistorieJson, []),
+}), (k) => ({
+  Title: String(k.name || '(ohne Namen)').slice(0, 255), Nr: String(k.nr || '').slice(0, 40), Beschreibung: k.beschreibung || '',
+  Bereich: String(k.bereich || '').slice(0, 40), Einheit: String(k.einheit || '').slice(0, 60), Richtung: String(k.richtung || 'hoch').slice(0, 20),
+  Sollwert: String(k.ziel || '').slice(0, 60), Intervall: String(k.intervall || '').slice(0, 20), Datenquelle: String(k.datenquelle || '').slice(0, 255),
+  Methode: k.methode || '', Verantwortlich: String(k.verantwortlich || '').slice(0, 255), Verwendung: String(k.verwendung || '').slice(0, 255),
+  Automatik: String(k.automatik || '').slice(0, 60), Werke: (k.werke || []).join(','), KStatus: String(k.status || 'aktiv').slice(0, 20),
+  WerteJson: JSON.stringify(k.werte || []), HistorieJson: JSON.stringify((k.historie || []).slice(-100)),
+}));
+
+/* Die Zugriffe, wie die Ansichten sie rufen. „Leise" legt die Liste nicht an
+   (für Cockpit, Audit Report und die anderen Register, die nur mitlesen). */
+async function spGetMassnahmen()          { return _regMassnahmen.alle(true); }
+async function spGetMassnahmenLeise()     { return _regMassnahmen.alle(false); }
+async function spAddMassnahme(m)          { return _regMassnahmen.neu(m); }
+async function spUpdateMassnahme(id, m)   { return _regMassnahmen.aendern(id, m); }
+async function spDeleteMassnahme(id)      { return _regMassnahmen.loeschen(id); }
+function spMissingMassnahmenColumns()     { return _regMassnahmen.fehlend(); }
+
+async function spGetZiele()               { return _regZiele.alle(true); }
+async function spGetZieleLeise()          { return _regZiele.alle(false); }
+async function spAddZiel(z)               { return _regZiele.neu(z); }
+async function spUpdateZiel(id, z)        { return _regZiele.aendern(id, z); }
+async function spDeleteZiel(id)           { return _regZiele.loeschen(id); }
+function spMissingZieleColumns()          { return _regZiele.fehlend(); }
+
+async function spGetKennzahlen()          { return _regKennzahlen.alle(true); }
+async function spGetKennzahlenLeise()     { return _regKennzahlen.alle(false); }
+async function spAddKennzahl(k)           { return _regKennzahlen.neu(k); }
+async function spUpdateKennzahl(id, k)    { return _regKennzahlen.aendern(id, k); }
+async function spDeleteKennzahl(id)       { return _regKennzahlen.loeschen(id); }
+function spMissingKennzahlenColumns()     { return _regKennzahlen.fehlend(); }
+
+/**
+ * Eine Datei in der ISMS-Bibliothek über die Suche finden (z. B. die Vorlage
+ * zur Zieleplanung). Die Bibliothek ganz zu lesen dauert bei 1.700 Dateien
+ * lange; die Suche antwortet in einer Anfrage.
+ * @returns {Promise<Array<{driveId, itemId, name, webUrl, pfad}>>}
+ */
+async function spSucheIsmsDatei(begriff) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  const q = encodeURIComponent(String(begriff || '').replace(/'/g, "''"));
+  const res = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/search(q='${q}')?$select=id,name,webUrl,parentReference,file&$top=25`, token);
+  return (res.value || []).filter(x => x.file).map(x => ({
+    driveId: _sp.ismsDriveId, itemId: x.id, name: x.name || '', webUrl: x.webUrl || '',
+    pfad: ((x.parentReference && x.parentReference.path) || '').replace(/^.*root:\/?/, ''),
+  }));
+}
+
+/* ═══════════════════════════════════════════════════
    Assets / Werte (ISMS-Liste „Assets", nur lesen) – zum Verknüpfen mit Risiken
 ═══════════════════════════════════════════════════ */
 

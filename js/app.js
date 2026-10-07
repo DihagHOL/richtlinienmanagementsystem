@@ -28,6 +28,7 @@ const DATA_TTL = 5 * 60 * 1000;
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', wissen: 'Wissen – Themen, Videos, Awareness',
   cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
+  ziele: 'Ziele', massnahmen: 'Maßnahmen', kennzahlen: 'Kennzahlen',
   freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
 
@@ -197,7 +198,7 @@ async function applyDeepLinkOrDefault() {
       return;
     }
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
-    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
+    if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'ziele', 'massnahmen', 'kennzahlen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
       await switchView(ansicht);
       await _ansichtZielOeffnen(ansicht, params);
@@ -384,6 +385,7 @@ function showSync(on, text) {
  *   ?ansicht=risiken&risiko=ID           öffnet das Risiko
  *   ?ansicht=wirksamkeit&eintrag=ID      öffnet Abweichung/Audit/Bewertung
  *   ?ansicht=abdeckung&modus=soa&control=A.8.12   SoA, auf das Control gefiltert
+ *   ?ansicht=massnahmen&massnahme=ID     ?ansicht=ziele&ziel=ID     ?ansicht=kennzahlen&kennzahl=ID
  * Die Module laden erst mit dem Reiter und ihre Daten danach; deshalb wird kurz
  * gewartet, bis die Liste da ist. Alles ist abgesichert: Fehlt etwas, bleibt
  * es bei der Ansicht.
@@ -408,6 +410,12 @@ async function _ansichtZielOeffnen(ansicht, params) {
     if (!da || typeof openWirkEditor !== 'function') return;
     if (!_wirk.some(w => String(w.id) === String(eintrag))) { toast('Den Eintrag aus dem Link gibt es nicht mehr.'); return; }
     openWirkEditor(eintrag);
+  } else if (ansicht === 'massnahmen' && params.get('massnahme')) {
+    if (typeof mnDeepLink === 'function') await mnDeepLink(params.get('massnahme'));
+  } else if (ansicht === 'ziele' && params.get('ziel')) {
+    if (typeof zlDeepLink === 'function') await zlDeepLink(params.get('ziel'));
+  } else if (ansicht === 'kennzahlen' && params.get('kennzahl')) {
+    if (typeof kzDeepLink === 'function') await kzDeepLink(params.get('kennzahl'));
   } else if (ansicht === 'abdeckung' && modus) {
     if (control && typeof _soaFilter !== 'undefined') _soaFilter.q = control;
     if (typeof abdeckungSetMode === 'function') abdeckungSetMode(modus);
@@ -483,6 +491,9 @@ async function switchView(view) {
   if (view === 'vorfaelle'    && typeof initVorfaelle === 'function')     initVorfaelle();
   if (view === 'wissen'       && typeof initWissen === 'function')        initWissen();
   if (view === 'assets'       && typeof initAssets === 'function')        initAssets();
+  if (view === 'ziele'        && typeof initZiele === 'function')         initZiele();
+  if (view === 'massnahmen'   && typeof initMassnahmen === 'function')    initMassnahmen();
+  if (view === 'kennzahlen'   && typeof initKennzahlen === 'function')    initKennzahlen();
   if (view === 'vorschlaege'  && typeof initProposals === 'function')     initProposals();
   if (view === 'prozesse'     && typeof initProzesse === 'function')      initProzesse();
   if (view === 'freigaben'    && typeof renderFreigaben === 'function')   renderFreigaben();

@@ -37,7 +37,9 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
-  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'wissenmodell', 'clevelreport'];
+  'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'wissenmodell',
+  // Die Modelle von Maßnahmen, Zielen und Kennzahlen: Audit Report und Cockpit rechnen damit.
+  'massnahmenmodell', 'zielmodell', 'kennzahlmodell', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -68,6 +70,12 @@ const MODUL_ANSICHTEN = {
   // Das Assetregister: Modell im Verwaltungsblock (Report, Notfall, Risiken
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),
+  // Ziele, Maßnahmen, Kennzahlen. Am Ziel legt man Maßnahmen an (massnahmen.js),
+  // die Kennzahlen messen mit dem Audit Report (_clevelGather) und lesen die
+  // Prozesskennzahlen über das Prozessmodell.
+  massnahmen:    MODUL_ADMIN.concat(['massnahmen']),
+  ziele:         MODUL_ADMIN.concat(['massnahmen', 'ziele']),
+  kennzahlen:    MODUL_ADMIN.concat(['prozessmodell', 'kennzahlen']),
   anleitung:     MODUL_ADMIN.concat(['probelauf', 'tour', 'anleitung']),
   // Kein Reiter, aber eine eigene Lage: Ein laufender Probelauf (?probelauf=1)
   // beginnt auf „Meine Regelwerke". Sein Streifen bietet trotzdem Führung und

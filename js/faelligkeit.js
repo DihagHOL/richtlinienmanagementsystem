@@ -98,10 +98,75 @@ function renderFaelligkeit() {
     ${section(`Fällig in ≤ ${FAELLIG_SOON_DAYS} Tagen`, b.soon, '#f59e0b', 'Nichts in den nächsten Wochen fällig.')}
     ${b.none.length ? section('Ohne Überprüfungstermin', b.none, '#9ca3af', '') : ''}
     ${b.later.length ? section('Später terminiert', b.later, '#22c55e', '') : ''}
+    <div id="fael-register" style="margin-top:28px"></div>
     <div id="fael-funktion" style="margin-top:28px"></div>
     <div id="fael-prozesse" style="margin-top:28px"></div>`;
+  _faelligRegisterZeigen();
   _faelligFunktionZeigen();
   _faelligProzesseZeigen();
+}
+
+/* ── Maßnahmen, Ziele, Kennzahlen: was dort ansteht ──
+   Eine überfällige Maßnahme, ein Ziel über dem Termin, eine fällige Messung
+   sind dieselbe Art Wiedervorlage wie ein Regelwerk, das überprüft werden muss.
+   Gelesen wird leise: Fehlt eine Liste, fehlt nur ihr Teil. */
+
+let _faelligReg = null;   // { mass, ziele, kpi } (Cache bis „Aktualisieren")
+
+async function _faelligRegisterZeigen(neu) {
+  const host = document.getElementById('fael-register');
+  if (!host || typeof mnAlle !== 'function') return;
+  if (!_faelligReg || neu) {
+    host.innerHTML = '<div class="doc-loading">Maßnahmen, Ziele und Kennzahlen werden gelesen …</div>';
+    const leise = async (fn) => { try { return (typeof fn === 'function') ? await fn() : null; } catch (e) { return null; } };
+    const [eigene, ziele, kpi, risiken, wirk] = await Promise.all([
+      leise(typeof spGetMassnahmenLeise === 'function' ? spGetMassnahmenLeise : null),
+      leise(typeof spGetZieleLeise === 'function' ? spGetZieleLeise : null),
+      leise(typeof spGetKennzahlenLeise === 'function' ? spGetKennzahlenLeise : null),
+      leise(typeof spGetRisks === 'function' ? spGetRisks : null),
+      leise(typeof spGetWirkLeise === 'function' ? spGetWirkLeise : null),
+    ]);
+    _faelligReg = { eigene: eigene || [], ziele: ziele || [], kpi: kpi || [],
+      mass: mnAlle(eigene || [], risiken || [], wirk || []) };
+  }
+  const ziel = document.getElementById('fael-register');
+  if (ziel) ziel.innerHTML = _faelligRegisterHtml(_faelligReg);
+}
+
+function _faelligRegisterHtml(r) {
+  const datum = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join('.');
+  const ueber = r.mass.filter(e => mnUeberfaellig(e)).sort((a, b) => String(a.termin).localeCompare(String(b.termin)));
+  const ziele = (typeof zlTerminUeberschritten === 'function') ? r.ziele.filter(z => zlTerminUeberschritten(z)) : [];
+  const kpi = (typeof kzNaechsteMessung === 'function') ? r.kpi.filter(k => { const n = kzNaechsteMessung(k); return n && n.faellig; }) : [];
+  const zeile = (icon, titel, info, ansicht, art, id) => `<div class="item-card" style="cursor:pointer;border-left:4px solid #ef4444;padding:9px 13px"
+      onclick="faelligRegisterOeffnen(${jsArg(ansicht)},${jsArg(art)},${jsArg(id)})">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span>${icon}</span><b>${esc(titel)}</b>
+        <span class="field-hint" style="margin-left:auto">${esc(info)}</span></div></div>`;
+  const liste = (titel, l, html) => l.length ? `
+    <div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 2px 8px">${esc(titel)} (${l.length})</div>
+    ${l.slice(0, 12).map(html).join('')}${l.length > 12 ? `<div class="field-hint">und ${l.length - 12} weitere</div>` : ''}` : '';
+  const summe = ueber.length + ziele.length + kpi.length;
+  return `
+    <h3 style="margin:0 0 6px;font-size:1.05rem">Maßnahmen, Ziele und Kennzahlen</h3>
+    <div class="view-desc" style="margin:0 0 10px">
+      Überfällige Maßnahmen aus allen Registern, Ziele über ihrem Termin (die Bewertung gehört ins Management Review)
+      und Kennzahlen, deren Messung fällig ist.
+      <button class="btn btn-ghost btn-sm" onclick="_faelligRegisterZeigen(true)" title="Neu lesen">↻ Aktualisieren</button>
+    </div>
+    ${summe ? '' : '<div class="field-hint">Nichts überfällig.</div>'}
+    ${liste('Maßnahmen überfällig', ueber, e => zeile('🛠', e.titel, `fällig seit ${datum(e.termin)}${e.verantwortlich ? ' · ' + e.verantwortlich : ''}`,
+      e.herkunft === 'risiko' ? 'risiken' : e.herkunft === 'wirksamkeit' ? 'wirksamkeit' : 'massnahmen', e.herkunft, e.bezugId))}
+    ${liste('Ziele über dem Termin', ziele, z => zeile('🎯', `${z.nr ? z.nr + ' ' : ''}${z.titel}`, `Termin ${datum(z.termin)}${z.verantwortlich ? ' · ' + z.verantwortlich : ''}`, 'ziele', 'ziel', z.id))}
+    ${liste('Messung fällig', kpi, k => zeile('📊', `${k.nr ? k.nr + ' ' : ''}${k.name}`, k.verantwortlich || '', 'kennzahlen', 'kennzahl', k.id))}`;
+}
+
+/** Aus den Fälligkeiten zum Eintrag – im Register, in dem er gepflegt wird. */
+async function faelligRegisterOeffnen(ansicht, art, id) {
+  if (typeof switchView !== 'function') return;
+  await switchView(ansicht);
+  if (typeof _ansichtZielOeffnen !== 'function') return;
+  const p = { risiken: { risiko: id }, wirksamkeit: { eintrag: id }, massnahmen: { massnahme: id }, ziele: { ziel: id }, kennzahlen: { kennzahl: id } }[ansicht];
+  if (p) await _ansichtZielOeffnen(ansicht, new URLSearchParams(p));
 }
 
 /* ── Funktionsprüfung des RMS nach einem Update (ISO 27001 A.8.29 · A.8.32) ──

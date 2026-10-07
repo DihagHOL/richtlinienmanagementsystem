@@ -268,7 +268,7 @@ ok(/data-view="wissen" id="nav-wissen"/.test(idx) && idx.indexOf('data-view="wis
   'Der Reiter steht direkt unter „Meine Regelwerke" – neben den Richtlinien');
 ok(/if \(view === 'wissen'\) return true;/.test(acc) && /view: 'wissen'/.test(acc) && /show\('nav-wissen',\s+canReadTab\('wissen'\)\)/.test(acc),
   'Lesen dürfen alle; Pflegen vergibt die Reiter-Berechtigung („S")');
-ok(/wissen:\s*\['wissenmodell', 'wissen'\]/.test(mod) && /'wissenmodell', 'clevelreport'/.test(mod), 'Der Reiter lädt nur Modell und Ansicht; das Modell steht im Verwaltungsblock für Cockpit und Report');
+ok(/wissen:\s*\['wissenmodell', 'wissen'\]/.test(mod) && /'wissenmodell',[^\]]*'clevelreport'\]/.test(mod),'Der Reiter lädt nur Modell und Ansicht; das Modell steht im Verwaltungsblock für Cockpit und Report');
 ok(/if \(view === 'wissen'\s+&& typeof initWissen === 'function'\)\s+initWissen\(\);/.test(app) && /ansicht === 'wissen'/.test(app) && /wissen: 'Wissen – Themen, Videos, Awareness'/.test(app),
   'Ansicht, Titel und Link ?ansicht=wissen&beitrag=… sind angeschlossen');
 ok(/async function spLoadWissen/.test(lies('js/sharepoint.js')) && /zwischenzeitlich geändert/.test(lies('js/sharepoint.js')), 'wissen.json wird gelesen und mit Änderungsstempel geschrieben');

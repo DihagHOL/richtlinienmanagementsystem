@@ -117,6 +117,18 @@
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h4l2 2h6a2 2 0 012 2v1H2V5z"/><path fill-rule="evenodd" d="M2 9h16v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9zm4 2a1 1 0 100 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
         Assetregister
       </a>
+      <a class="nav-item" data-view="ziele" id="nav-ziele" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a5 5 0 100 10 5 5 0 000-10zm0 3a2 2 0 100 4 2 2 0 000-4z" clip-rule="evenodd"/></svg>
+        Ziele
+      </a>
+      <a class="nav-item" data-view="massnahmen" id="nav-massnahmen" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm1 5a1 1 0 100 2h7a1 1 0 100-2H4z" clip-rule="evenodd"/><path d="M14.3 14.3l1.2 1.2 2.4-2.9 1 .8-3.3 4-2.2-2.2z"/></svg>
+        Ma&szlig;nahmen
+      </a>
+      <a class="nav-item" data-view="kennzahlen" id="nav-kennzahlen" style="display:none">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+        Kennzahlen
+      </a>
       <a class="nav-item" data-view="wirksamkeit" id="nav-wirksamkeit" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011 1v11h12a1 1 0 110 2H4a2 2 0 01-2-2V4a1 1 0 011-1zm14.7 3.7a1 1 0 00-1.4-1.4L12 9.6 9.7 7.3a1 1 0 00-1.4 0L5.3 10.3a1 1 0 101.4 1.4L9 9.4l2.3 2.3a1 1 0 001.4 0l5-5z" clip-rule="evenodd"/></svg>
         Wirksamkeit
@@ -343,6 +355,36 @@
           <button class="btn btn-sm btn-ghost" onclick="refreshAusnahmen()" title="Aktualisieren">↻ Aktualisieren</button>
         </div>
         <div id="ausnahmen-mount"></div>
+      </section>
+
+      <!-- ── VIEW: Ziele (ISO 27001 6.2) ── -->
+      <section id="view-ziele" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Ziele (ISO 27001 6.2)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshZiele()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="ziele-mount"></div>
+      </section>
+
+      <!-- ── VIEW: Maßnahmen – Gesamtliste aller Register ── -->
+      <section id="view-massnahmen" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Ma&szlig;nahmen (alle Register)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshMassnahmen()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="massnahmen-mount"></div>
+      </section>
+
+      <!-- ── VIEW: Kennzahlen (ISO 27001 9.1) ── -->
+      <section id="view-kennzahlen" class="view">
+        <div class="view-toolbar">
+          <div style="font-weight:700">Kennzahlen (ISO 27001 9.1)</div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshKennzahlen()" title="Aktualisieren">↻ Aktualisieren</button>
+        </div>
+        <div id="kennzahlen-mount"></div>
       </section>
 
       <!-- ── VIEW: Wirksamkeit & Verbesserung (ISO 9.2 / 9.3 / 10.2) ── -->

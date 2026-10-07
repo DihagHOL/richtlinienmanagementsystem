@@ -81,6 +81,16 @@ const FEATURES = [
     begriffe: ['↪ Pfeile prüfen', 'Versionsverlauf', 'durch den eigenen Kasten'] },
   { name: 'BPMN-Anleitung als Word', code: () => /function bpmnAnleitungHerunterladen/.test(read('js/bpmnanleitung.js')),
     begriffe: ['Für Kolleginnen und Kollegen ohne RMS', 'Word-Datei', 'Spickzettel', 'Vorlage zum Ausfüllen', 'Ansprechpartner'] },
+  { name: 'Ziele (6.2)',             code: () => /function zlAusVorlageText/.test(read('js/zielmodell.js')),
+    begriffe: ['Zieleplanung und -erreichung', 'Aus der Vorlage übernehmen', 'Ergebnis übernehmen'] },
+  { name: 'Maßnahmen (Gesamtliste)', code: () => /function mnAlle/.test(read('js/massnahmenmodell.js')),
+    begriffe: ['Kategorisieren nach', 'Maßnahmenplan IMS', 'Zwei Orte für dieselbe Maßnahme'] },
+  { name: 'Kennzahlen (9.1)',        code: () => /const KZ_AUTOMATIK/.test(read('js/kennzahlmodell.js')),
+    begriffe: ['Vom RMS gemessen', 'Als Kennzahl führen', 'Prozesskennzahlen'] },
+  { name: 'Versandprotokoll',        code: () => /function wfMailProtokoll/.test(read('js/freigaben.js')),
+    begriffe: ['Versandprotokoll', 'Mail nicht versendet'] },
+  { name: 'Funktionsprüfung fällig', code: () => /function faelligFunktionspruefung/.test(read('js/faelligkeit.js')),
+    begriffe: ['Funktionsprüfung des RMS'] },
 ];
 
 for (const f of FEATURES) {

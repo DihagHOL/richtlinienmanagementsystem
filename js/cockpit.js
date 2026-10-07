@@ -40,6 +40,9 @@ function initCockpit() {
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
       ${tile('assets',    '🗂', 'Assetregister',            'assets')}
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
+      ${tile('ziele',     '🎯', 'Ziele',                    'ziele')}
+      ${tile('massnahmen','🛠', 'Maßnahmen (alle Register)', 'massnahmen')}
+      ${tile('kennzahlen','📊', 'Kennzahlen',               'kennzahlen')}
       ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
       ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
       ${tile('vorfaelle', '🎫', 'Vorfälle & Ereignisse',    'vorfaelle')}
@@ -57,6 +60,7 @@ function initCockpit() {
   _ckLoadAssets(seq);
   _ckLoadAusnahmen(seq);
   _ckLoadWirksamkeit(seq);
+  _ckLoadZieleMassnahmenKennzahlen(seq);
   _ckLoadNotfall(seq);
   _ckLoadVorfaelle(seq);
   _ckLoadWissen(seq);
@@ -263,6 +267,40 @@ async function _ckLoadWirksamkeit(seq) {
       _ckBig(ueber, 'Maßnahmen überfällig', ueber ? '#b91c1c' : '#15803d') +
       _ckBig(bew ? fmtDate(bew.datum) : '–', 'letzte Bewertung', bew ? '#17509e' : '#b91c1c'));
   } catch (e) { if (seq === _cockpitSeq) _ckErr('wirksamkeit', 'Nicht ladbar (Liste fehlt noch?).'); }
+}
+
+/** Ziele, Maßnahmen (alle Register) und Kennzahlen: still gelesen, ohne die Listen anzulegen. */
+async function _ckLoadZieleMassnahmenKennzahlen(seq) {
+  const ids = ['ziele', 'massnahmen', 'kennzahlen'];
+  try {
+    if (typeof mnAlle !== 'function' || typeof spGetMassnahmenLeise !== 'function') { ids.forEach(id => _ckErr(id, 'Modul nicht geladen.')); return; }
+    const [eigene, ziele, kpi] = await Promise.all([
+      spGetMassnahmenLeise().catch(() => null), spGetZieleLeise().catch(() => null), spGetKennzahlenLeise().catch(() => null)]);
+    let risiken = (typeof _risks !== 'undefined' && Array.isArray(_risks)) ? _risks : null;
+    if (!risiken && typeof spGetRisks === 'function') { try { risiken = await spGetRisks(); } catch (e) { risiken = []; } }
+    let wirk = (typeof _wirk !== 'undefined' && Array.isArray(_wirk)) ? _wirk : null;
+    if (!wirk && typeof spGetWirkLeise === 'function') { try { wirk = (await spGetWirkLeise()) || []; } catch (e) { wirk = []; } }
+    if (seq !== _cockpitSeq) return;
+    const n = mnKennzahlen(mnAlle(eigene || [], risiken || [], wirk || []));
+    _ckSet('massnahmen',
+      _ckBig(n.offen + n.inUmsetzung, 'offen', (n.offen + n.inUmsetzung) ? '#b45309' : '#15803d') +
+      _ckBig(n.ueberfaellig, 'überfällig', n.ueberfaellig ? '#b91c1c' : '#15803d') +
+      _ckBig(n.quote + ' %', 'erledigt', '#17509e'));
+    if (Array.isArray(ziele)) {
+      const z = zlKennzahlen(ziele, eigene || []);
+      _ckSet('ziele',
+        _ckBig(z.laufend, 'laufend', '#17509e') +
+        _ckBig(z.erreicht, 'erreicht', '#15803d') +
+        _ckBig(z.ueberschritten, 'Termin überschritten', z.ueberschritten ? '#b91c1c' : '#15803d'));
+    } else _ckErr('ziele', 'Noch keine Ziele. Der Reiter legt die Liste beim ersten Öffnen an.');
+    if (Array.isArray(kpi)) {
+      const k = kzKennzahlen(kpi);
+      _ckSet('kennzahlen',
+        _ckBig(`${k.erfuellt}/${k.gesamt}`, 'im Ziel', k.verfehlt ? '#b45309' : '#15803d') +
+        _ckBig(k.verfehlt, 'verfehlt', k.verfehlt ? '#b91c1c' : '#15803d') +
+        _ckBig(k.messungFaellig, 'Messung fällig', k.messungFaellig ? '#b45309' : '#15803d'));
+    } else _ckErr('kennzahlen', 'Noch keine Kennzahlen. Der Reiter legt die Liste beim ersten Öffnen an.');
+  } catch (e) { if (seq === _cockpitSeq) ids.forEach(id => _ckErr(id, 'Nicht ladbar.')); }
 }
 
 /** Kritische Prozesse, Pläne, Übungen – aus der Landkarte, still gelesen. */
