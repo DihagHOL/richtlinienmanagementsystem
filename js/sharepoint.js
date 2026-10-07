@@ -3143,21 +3143,18 @@ function _ismsRegister(name, spalten, abbilden, felder) {
         if (hit) {
           r.listId = hit.id;
           await spaltenLesen(token, siteId);
-          if (create) await spaltenErgaenzen(token, siteId);
+          // Gesperrt: Auf der ISMS-Site stehen Listen gleichen Namens, die zum
+          // bestehenden ISMS des Hauses gehören. An ihnen ändert das RMS keine
+          // Spalten (spaltenErgaenzen bleibt ungenutzt).
           return r.listId;
         }
         url = res['@odata.nextLink'] || null;
       }
-    } catch (e) { /* weiter → ggf. anlegen */ }
-    if (!create) return null;
-    const angelegt = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, {
-      displayName: name, list: { template: 'genericList' },
-      columns: spalten.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
-    });
-    r.listId = angelegt.id;
-    await spaltenLesen(token, siteId);
-    return r.listId;
+    } catch (e) { /* nicht gefunden */ }
+    // Auch keine neue Liste: Die Register lesen die bestehenden Listen des Hauses.
+    return null;
   };
+  r.gesperrt = true;   // bis das RMS die Spalten der bestehenden Listen kennt: nur lesen
 
   /** Spalten, die in der Liste fehlen (nur bekannt, wenn sie gelesen wurde). */
   r.fehlend = () => (r.cols ? spalten.map(c => c.name).filter(n => !r.cols.has(n)) : []);
@@ -3193,7 +3190,9 @@ function _ismsRegister(name, spalten, abbilden, felder) {
     }
     return out;
   };
+  const _sperre = () => { if (r.gesperrt) throw new Error(`In die Liste „${name}" auf der ISMS-Site schreibt das RMS noch nicht. Sie gehört zum bestehenden ISMS.`); };
   r.neu = async (o) => {
+    _sperre();
     const token = await acquireToken(SP.scopes);
     if (!token) throw new Error('Nicht angemeldet');
     const listId = await r.finden(true);
@@ -3202,6 +3201,7 @@ function _ismsRegister(name, spalten, abbilden, felder) {
     return res && String(res.id);
   };
   r.aendern = async (id, o) => {
+    _sperre();
     const token = await acquireToken(SP.scopes);
     if (!token) throw new Error('Nicht angemeldet');
     const listId = await r.finden(false);
@@ -3210,6 +3210,7 @@ function _ismsRegister(name, spalten, abbilden, felder) {
     return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, zuFeldern(o, true));
   };
   r.loeschen = async (id) => {
+    _sperre();
     const token = await acquireToken(SP.scopes);
     if (!token) throw new Error('Nicht angemeldet');
     const listId = await r.finden(false);
