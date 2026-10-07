@@ -3017,304 +3017,284 @@ async function spDeleteWirk(id) {
 }
 
 /* ═══════════════════════════════════════════════════
-   Maßnahmen, Ziele, Kennzahlen: drei weitere Listen auf der ISMS-Site
-   Dieselbe Mechanik wie bei Risiken, Ausnahmen und Wirksamkeit: Die Liste
-   entsteht beim ersten Zugriff, fehlende Spalten werden nachgezogen, und
-   geschrieben wird nur, was es in der Liste gibt. Weil es drei auf einmal
-   sind, steht die Mechanik hier einmal statt dreimal.
+   Maßnahmen, Ziele, Kennzahlen: die bestehenden Listen des ISMS
+   Auf der ISMS-Site führt das Haus dafür seit 2025 eigene Listen:
+   „Maßnahmen", „ISMS Ziele", „Kennzahlen" und „Kennzahlen Tracking" (die
+   Messwerte), dazu die Nachschlagelisten „Teams", „Standorte" und
+   „ISO/IEC 27001:2022". Das RMS arbeitet mit ihnen, wie sie sind: Es liest
+   und schreibt Einträge, legt aber keine Liste an und ändert keine Spalte.
+   Spalten werden über ihren Anzeigenamen gefunden; was fehlt, bleibt leer.
 ═══════════════════════════════════════════════════ */
 
-const MASSNAHMEN_COLUMNS = [
-  { name: 'Nr',               typ: 'Einzelne Textzeile' },
-  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
-  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
-  { name: 'Quelle',           typ: 'Einzelne Textzeile' },
-  { name: 'Bewertung',        typ: 'Einzelne Textzeile' },
-  { name: 'Massnahmenart',    typ: 'Einzelne Textzeile' },
-  { name: 'Kategorie',        typ: 'Einzelne Textzeile' },
-  { name: 'Prioritaet',       typ: 'Einzelne Textzeile' },
-  { name: 'Normbezug',        typ: 'Einzelne Textzeile' },
-  { name: 'ZielDerMassnahme', typ: 'Mehrere Zeilen Text' },
-  { name: 'Ursache',          typ: 'Mehrere Zeilen Text' },
-  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
-  { name: 'MTermin',          typ: 'Datum und Uhrzeit' },
-  { name: 'MStatus',          typ: 'Einzelne Textzeile' },
-  { name: 'StatusGeprueftAm', typ: 'Datum und Uhrzeit' },
-  { name: 'KostenPlan',       typ: 'Zahl' },
-  { name: 'KostenIst',        typ: 'Zahl' },
-  { name: 'Messung',          typ: 'Mehrere Zeilen Text' },
-  { name: 'Ressourcen',       typ: 'Mehrere Zeilen Text' },
-  { name: 'Wirksamkeit',      typ: 'Mehrere Zeilen Text' },
-  { name: 'WirksamAm',        typ: 'Datum und Uhrzeit' },
-  { name: 'Nachweis',         typ: 'Einzelne Textzeile' },
-  { name: 'Werke',            typ: 'Einzelne Textzeile' },
-  { name: 'ZielId',           typ: 'Einzelne Textzeile' },
-  { name: 'HerkunftId',       typ: 'Einzelne Textzeile' },
-  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
-];
+const HAUS_LISTEN = {
+  massnahmen: 'Maßnahmen', ziele: 'ISMS Ziele', kennzahlen: 'Kennzahlen', tracking: 'Kennzahlen Tracking',
+  teams: 'Teams', standorte: 'Standorte', iso2022: 'ISO/IEC 27001:2022',
+};
 
-const ZIELE_COLUMNS = [
-  { name: 'Nr',               typ: 'Einzelne Textzeile' },
-  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
-  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
-  { name: 'Unternehmensziel', typ: 'Mehrere Zeilen Text' },
-  { name: 'Jahr',             typ: 'Einzelne Textzeile' },
-  { name: 'ZTermin',          typ: 'Datum und Uhrzeit' },
-  { name: 'Messung',          typ: 'Mehrere Zeilen Text' },
-  { name: 'KennzahlIds',      typ: 'Einzelne Textzeile' },
-  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
-  { name: 'Ressourcen',       typ: 'Mehrere Zeilen Text' },
-  { name: 'ZStatus',          typ: 'Einzelne Textzeile' },
-  { name: 'VerabschiedetAm',  typ: 'Datum und Uhrzeit' },
-  { name: 'VerabschiedetVon', typ: 'Einzelne Textzeile' },
-  { name: 'BewertungJson',    typ: 'Mehrere Zeilen Text' },
-  { name: 'Werke',            typ: 'Einzelne Textzeile' },
-  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
-];
+/** Die Spalten je Liste: Feld im RMS → Anzeigename (oder interner Name) in SharePoint. */
+const HAUS_SPALTEN = {
+  massnahmen: {
+    titel: 'Title', beschreibung: 'Detailbeschreibung', durchfuehrung: 'Durchführung', status: 'Status',
+    quellen: 'Entspringt aus', bericht: 'Quelle / Bericht',
+    auswirkungEintritt: 'Auswirkung auf die Eintrittswahrscheinlichkeit', auswirkungSchaden: 'Auswirkung auf die Schadenshöhe',
+    teams: 'Team', verantwortlich: 'Verantwortlich zur Umsetzung', iso: 'ISO/IEC 27001:2022',
+    termin: 'Geplante Umsetzung', umgesetztAm: 'Umsetzungsdatum', ressourcen: 'Ressourcen', archiv: 'Archiv',
+    dokumente: 'Zugehörige Dokumente',
+  },
+  ziele: {
+    titel: 'Title', beschreibung: 'Beschreibung', termin: 'Umsetzung bis', messung: 'Messung', erreicht: 'Zielerreichung',
+    archiv: 'Archiv', bemerkung: 'Bemerkung', zieltyp: 'Zieltyp', status: 'Status', teams: 'Verantwortlich',
+    massnahmen: 'Maßnahmen', standort: 'Standort', prioritaet: 'Priorität',
+  },
+  kennzahlen: {
+    name: 'Title', typ: 'Kennzahl-Typ', turnus: 'Turnus', beschreibung: 'Beschreibung', einheit: 'Einheit',
+    team: 'Verantwortlich', umfang: 'Umfang', zweck: 'Zweck', normalwert: 'Normalwert', bereiche: 'Betroffener Bereich',
+    archiv: 'Archiv', messung: 'Messung', standorte: 'Standort',
+  },
+  tracking: {
+    wert: 'Title', kennzahl: 'Kennzahl', datum: 'Datum der Erhebung', von: 'Erhoben durch', massnahmen: 'Maßnahme',
+    bemerkung: 'Bemerkung', standorte: 'Standorte',
+  },
+};
 
-const KENNZAHLEN_COLUMNS = [
-  { name: 'Nr',               typ: 'Einzelne Textzeile' },
-  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
-  { name: 'Bereich',          typ: 'Einzelne Textzeile' },
-  { name: 'Einheit',          typ: 'Einzelne Textzeile' },
-  { name: 'Richtung',         typ: 'Einzelne Textzeile' },
-  { name: 'Sollwert',         typ: 'Einzelne Textzeile' },
-  { name: 'Intervall',        typ: 'Einzelne Textzeile' },
-  { name: 'Datenquelle',      typ: 'Einzelne Textzeile' },
-  { name: 'Methode',          typ: 'Mehrere Zeilen Text' },
-  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
-  { name: 'Verwendung',       typ: 'Einzelne Textzeile' },
-  { name: 'Automatik',        typ: 'Einzelne Textzeile' },
-  { name: 'Werke',            typ: 'Einzelne Textzeile' },
-  { name: 'KStatus',          typ: 'Einzelne Textzeile' },
-  { name: 'WerteJson',        typ: 'Mehrere Zeilen Text' },
-  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
-];
+const _haus = { ids: null, spalten: {}, nachschlagen: {}, personen: null };
 
-/** Ein Datum für eine Datumsspalte: mittags UTC, damit kein Tag durch die Zeitzone kippt. */
-function _regDatum(s) {
-  const t = String(s || '').slice(0, 10);
-  return /^\d{4}-\d\d-\d\d$/.test(t) ? t + 'T12:00:00Z' : '';
+/** Die Listen der ISMS-Site einmal auflösen (Anzeigename → ID). */
+async function _hausListenIds(token) {
+  if (_haus.ids) return _haus.ids;
+  const siteId = await _ismsSiteId(token);
+  const alle = await _getAll(`${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`, token);
+  const ids = {};
+  for (const [key, anzeige] of Object.entries(HAUS_LISTEN)) {
+    const ziel = _normName(anzeige);
+    const hit = alle.find(l => _normName(l.displayName) === ziel) || alle.find(l => _normName(l.name) === ziel);
+    ids[key] = hit ? hit.id : null;
+  }
+  _haus.ids = ids;
+  return ids;
 }
-function _regTag(s) { return String(s || '').slice(0, 10); }
-function _regListe(s) { return String(s || '').split(',').map(x => x.trim()).filter(Boolean); }
-function _regZahl(v) { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? null : n; }
 
-/**
- * Eine Registerliste auf der ISMS-Site.
- * @param {string} name       Anzeigename der Liste
- * @param {Array} spalten     [{ name, typ }]
- * @param {Function} abbilden SharePoint-Felder → Objekt
- * @param {Function} felder   Objekt → SharePoint-Felder (Datumsspalten als '' wenn leer)
- */
-function _ismsRegister(name, spalten, abbilden, felder) {
-  const r = { name, spalten, listId: null, cols: null };
-  const datumsSpalten = new Set(spalten.filter(c => c.typ === 'Datum und Uhrzeit').map(c => c.name));
+/** Art einer Spalte aus ihrer Definition. */
+function _hausArt(c) {
+  if (c.lookup) return c.lookup.allowMultipleValues ? 'multilookup' : 'lookup';
+  if (c.personOrGroup) return c.personOrGroup.allowMultipleSelection ? 'multiperson' : 'person';
+  if (c.choice) return c.choice.displayAs === 'checkBoxes' ? 'multichoice' : 'choice';
+  if (c.dateTime) return 'date';
+  if (c.number) return 'num';
+  if (c.boolean) return 'bool';
+  if (c.text) return c.text.allowMultipleLines ? 'mtext' : 'text';
+  return 'text';
+}
 
-  async function spaltenLesen(token, siteId) {
-    try {
-      const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${r.listId}/columns?$select=name`, token);
-      r.cols = new Set((cols.value || []).map(c => c.name));
-    } catch (e) { r.cols = null; }
+/** Spalten einer Liste: Feld → { name, art, auswahl, nurLesen } (fehlende Felder fehlen). */
+async function _hausSpaltenVon(key, token) {
+  if (_haus.spalten[key]) return _haus.spalten[key];
+  const ids = await _hausListenIds(token);
+  if (!ids[key]) throw new Error(`Die Liste „${HAUS_LISTEN[key]}" gibt es auf der ISMS-Site nicht.`);
+  const siteId = await _ismsSiteId(token);
+  const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/columns?$select=name,displayName,readOnly,hidden,text,choice,dateTime,number,lookup,personOrGroup,boolean`, token);
+  const out = {};
+  for (const [feld, anzeige] of Object.entries(HAUS_SPALTEN[key] || {})) {
+    const c = (cols.value || []).find(x => x.name === anzeige) || (cols.value || []).find(x => x.displayName === anzeige);
+    if (c) out[feld] = { name: c.name, art: _hausArt(c), auswahl: (c.choice && c.choice.choices) || [], nurLesen: !!c.readOnly };
   }
-  async function spaltenErgaenzen(token, siteId) {
-    if (!r.cols) return;
-    const fehlend = spalten.filter(c => !r.cols.has(c.name));
-    let neu = 0;
-    for (const c of fehlend) {
-      try { await _post(`${SP.graphBase}/sites/${siteId}/lists/${r.listId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) }); neu++; }
-      catch (e) { console.warn(`[${name}] Spalte nicht anlegbar:`, c.name, e.message); }
-    }
-    if (neu) await spaltenLesen(token, siteId);
-  }
+  _haus.spalten[key] = out;
+  return out;
+}
 
-  /** Liste finden – oder anlegen (create). */
-  r.finden = async (create = true) => {
-    if (r.listId) return r.listId;
-    const token = await acquireToken(SP.scopes);
-    if (!token) throw new Error('Nicht angemeldet');
-    const siteId = await _ismsSiteId(token);
-    const ziel = _normName(name);
-    let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+/** Felder, die in der Liste fehlen (Anzeigenamen), nach dem ersten Lesen. */
+function spHausFehlendeSpalten(key) {
+  const s = _haus.spalten[key];
+  if (!s) return [];
+  return Object.entries(HAUS_SPALTEN[key] || {}).filter(([feld]) => !s[feld]).map(([, anzeige]) => anzeige);
+}
+
+/** Personen der ISMS-Site (Benutzerinformationsliste): LookupId → { name, email }. */
+async function _hausPersonen(token) {
+  if (_haus.personen) return _haus.personen;
+  const siteId = await _ismsSiteId(token);
+  const listId = await _ismsUserInfoListId(siteId, token);
+  const map = {};
+  if (listId) {
     try {
-      while (url) {
-        const res = await _get(url, token);
-        const hit = (res.value || []).find(l => _normName(l.displayName) === ziel || _normName(l.name) === ziel);
-        if (hit) {
-          r.listId = hit.id;
-          await spaltenLesen(token, siteId);
-          // Gesperrt: Auf der ISMS-Site stehen Listen gleichen Namens, die zum
-          // bestehenden ISMS des Hauses gehören. An ihnen ändert das RMS keine
-          // Spalten (spaltenErgaenzen bleibt ungenutzt).
-          return r.listId;
-        }
-        url = res['@odata.nextLink'] || null;
+      const items = await _getAll(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title,EMail,UserName)&$top=500`, token);
+      for (const it of items) {
+        const f = it.fields || {};
+        const email = String(f.EMail || (/@/.test(f.UserName || '') ? f.UserName : '') || '').toLowerCase();
+        map[String(it.id)] = { name: f.Title || email, email };
+        if (email) _ismsUserLookup[email] = parseInt(it.id, 10) || it.id;
       }
-    } catch (e) { /* nicht gefunden */ }
-    // Auch keine neue Liste: Die Register lesen die bestehenden Listen des Hauses.
-    return null;
-  };
-  r.gesperrt = true;   // bis das RMS die Spalten der bestehenden Listen kennt: nur lesen
-
-  /** Spalten, die in der Liste fehlen (nur bekannt, wenn sie gelesen wurde). */
-  r.fehlend = () => (r.cols ? spalten.map(c => c.name).filter(n => !r.cols.has(n)) : []);
-
-  /** Nur senden, was es gibt. Leere Datumsangaben: beim Anlegen weglassen, beim Ändern leeren. */
-  function zuFeldern(o, aendern) {
-    const alle = felder(o);
-    const out = {};
-    for (const [k, v] of Object.entries(alle)) {
-      if (k !== 'Title' && r.cols && !r.cols.has(k)) continue;
-      if (datumsSpalten.has(k) && !v) { if (aendern) out[k] = null; continue; }
-      if (v === null && !aendern) continue;
-      out[k] = v;
-    }
-    return out;
+    } catch (e) { /* ohne Namen: dann steht die ID da */ }
   }
-
-  /** Alle Einträge. anlegen=false liest nur, wenn die Liste schon existiert (null sonst). */
-  r.alle = async (anlegen = true) => {
-    const token = await acquireToken(SP.scopes);
-    if (!token) return anlegen ? [] : null;
-    const listId = await r.finden(anlegen);
-    if (!listId) return null;
-    const siteId = await _ismsSiteId(token);
-    const out = [];
-    let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
-    while (url) {
-      const res = await _get(url, token);
-      for (const it of (res.value || [])) out.push(Object.assign(abbilden(it.fields || {}), {
-        id: String(it.id), created: it.createdDateTime || '', modified: it.lastModifiedDateTime || '',
-      }));
-      url = res['@odata.nextLink'] || null;
-    }
-    return out;
-  };
-  const _sperre = () => { if (r.gesperrt) throw new Error(`In die Liste „${name}" auf der ISMS-Site schreibt das RMS noch nicht. Sie gehört zum bestehenden ISMS.`); };
-  r.neu = async (o) => {
-    _sperre();
-    const token = await acquireToken(SP.scopes);
-    if (!token) throw new Error('Nicht angemeldet');
-    const listId = await r.finden(true);
-    const siteId = await _ismsSiteId(token);
-    const res = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: zuFeldern(o, false) });
-    return res && String(res.id);
-  };
-  r.aendern = async (id, o) => {
-    _sperre();
-    const token = await acquireToken(SP.scopes);
-    if (!token) throw new Error('Nicht angemeldet');
-    const listId = await r.finden(false);
-    if (!listId) throw new Error(`Liste „${name}" nicht verfügbar.`);
-    const siteId = await _ismsSiteId(token);
-    return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, zuFeldern(o, true));
-  };
-  r.loeschen = async (id) => {
-    _sperre();
-    const token = await acquireToken(SP.scopes);
-    if (!token) throw new Error('Nicht angemeldet');
-    const listId = await r.finden(false);
-    if (!listId) throw new Error(`Liste „${name}" nicht verfügbar.`);
-    const siteId = await _ismsSiteId(token);
-    await _del(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, token);
-  };
-  r._felder = zuFeldern;   // für Tests
-  return r;
+  _haus.personen = map;
+  return map;
 }
 
-const _regMassnahmen = _ismsRegister('Massnahmen', MASSNAHMEN_COLUMNS, (f) => ({
-  titel: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '',
-  bereich: f.Bereich || '', quelle: f.Quelle || '', bewertung: f.Bewertung || '', art: f.Massnahmenart || '',
-  kategorie: f.Kategorie || '', prioritaet: f.Prioritaet || '', normbezug: f.Normbezug || '',
-  zielDerMassnahme: f.ZielDerMassnahme || '', ursache: f.Ursache || '', verantwortlich: f.Verantwortlich || '',
-  termin: _regTag(f.MTermin), status: f.MStatus || 'offen', statusGeprueftAm: _regTag(f.StatusGeprueftAm),
-  kostenPlan: f.KostenPlan == null ? '' : f.KostenPlan, kostenIst: f.KostenIst == null ? '' : f.KostenIst,
-  messung: f.Messung || '', ressourcen: f.Ressourcen || '', wirksamkeit: f.Wirksamkeit || '', wirksamAm: _regTag(f.WirksamAm),
-  nachweis: f.Nachweis || '', werke: _regListe(f.Werke), zielId: f.ZielId || '', herkunftId: f.HerkunftId || '',
-  historie: _riskParseJson(f.HistorieJson, []),
-}), (m) => ({
-  Title: String(m.titel || '(ohne Titel)').slice(0, 255), Nr: String(m.nr || '').slice(0, 40),
-  Beschreibung: m.beschreibung || '', Bereich: String(m.bereich || '').slice(0, 40), Quelle: String(m.quelle || '').slice(0, 40),
-  Bewertung: String(m.bewertung || '').slice(0, 10), Massnahmenart: String(m.art || '').slice(0, 40),
-  Kategorie: String(m.kategorie || '').slice(0, 40), Prioritaet: String(m.prioritaet || '').slice(0, 20),
-  Normbezug: String(m.normbezug || '').slice(0, 255), ZielDerMassnahme: m.zielDerMassnahme || '', Ursache: m.ursache || '',
-  Verantwortlich: String(m.verantwortlich || '').slice(0, 255), MTermin: _regDatum(m.termin), MStatus: String(m.status || 'offen').slice(0, 40),
-  StatusGeprueftAm: _regDatum(m.statusGeprueftAm), KostenPlan: _regZahl(m.kostenPlan), KostenIst: _regZahl(m.kostenIst),
-  Messung: m.messung || '', Ressourcen: m.ressourcen || '', Wirksamkeit: m.wirksamkeit || '', WirksamAm: _regDatum(m.wirksamAm),
-  Nachweis: String(m.nachweis || '').slice(0, 255), Werke: (m.werke || []).join(','), ZielId: String(m.zielId || '').slice(0, 40),
-  HerkunftId: String(m.herkunftId || '').slice(0, 100), HistorieJson: JSON.stringify((m.historie || []).slice(-100)),
-}));
-
-const _regZiele = _ismsRegister('Ziele', ZIELE_COLUMNS, (f) => ({
-  titel: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '', bereich: f.Bereich || '',
-  unternehmensziel: f.Unternehmensziel || '', jahr: f.Jahr || '', termin: _regTag(f.ZTermin), messung: f.Messung || '',
-  kennzahlIds: _regListe(f.KennzahlIds), verantwortlich: f.Verantwortlich || '', ressourcen: f.Ressourcen || '',
-  status: f.ZStatus || 'entwurf', verabschiedetAm: _regTag(f.VerabschiedetAm), verabschiedetVon: f.VerabschiedetVon || '',
-  bewertung: _riskParseJson(f.BewertungJson, null), werke: _regListe(f.Werke), historie: _riskParseJson(f.HistorieJson, []),
-}), (z) => ({
-  Title: String(z.titel || '(ohne Titel)').slice(0, 255), Nr: String(z.nr || '').slice(0, 40), Beschreibung: z.beschreibung || '',
-  Bereich: String(z.bereich || '').slice(0, 40), Unternehmensziel: z.unternehmensziel || '', Jahr: String(z.jahr || '').slice(0, 10),
-  ZTermin: _regDatum(z.termin), Messung: z.messung || '', KennzahlIds: (z.kennzahlIds || []).join(','),
-  Verantwortlich: String(z.verantwortlich || '').slice(0, 255), Ressourcen: z.ressourcen || '', ZStatus: String(z.status || 'entwurf').slice(0, 40),
-  VerabschiedetAm: _regDatum(z.verabschiedetAm), VerabschiedetVon: String(z.verabschiedetVon || '').slice(0, 255),
-  BewertungJson: z.bewertung ? JSON.stringify(z.bewertung) : '', Werke: (z.werke || []).join(','),
-  HistorieJson: JSON.stringify((z.historie || []).slice(-100)),
-}));
-
-const _regKennzahlen = _ismsRegister('Kennzahlen', KENNZAHLEN_COLUMNS, (f) => ({
-  name: f.Title || '', nr: f.Nr || '', beschreibung: f.Beschreibung || '', bereich: f.Bereich || '', einheit: f.Einheit || '',
-  richtung: f.Richtung || 'hoch', ziel: f.Sollwert || '', intervall: f.Intervall || '', datenquelle: f.Datenquelle || '',
-  methode: f.Methode || '', verantwortlich: f.Verantwortlich || '', verwendung: f.Verwendung || '', automatik: f.Automatik || '',
-  werke: _regListe(f.Werke), status: f.KStatus || 'aktiv', werte: _riskParseJson(f.WerteJson, []), historie: _riskParseJson(f.HistorieJson, []),
-}), (k) => ({
-  Title: String(k.name || '(ohne Namen)').slice(0, 255), Nr: String(k.nr || '').slice(0, 40), Beschreibung: k.beschreibung || '',
-  Bereich: String(k.bereich || '').slice(0, 40), Einheit: String(k.einheit || '').slice(0, 60), Richtung: String(k.richtung || 'hoch').slice(0, 20),
-  Sollwert: String(k.ziel || '').slice(0, 60), Intervall: String(k.intervall || '').slice(0, 20), Datenquelle: String(k.datenquelle || '').slice(0, 255),
-  Methode: k.methode || '', Verantwortlich: String(k.verantwortlich || '').slice(0, 255), Verwendung: String(k.verwendung || '').slice(0, 255),
-  Automatik: String(k.automatik || '').slice(0, 60), Werke: (k.werke || []).join(','), KStatus: String(k.status || 'aktiv').slice(0, 20),
-  WerteJson: JSON.stringify(k.werte || []), HistorieJson: JSON.stringify((k.historie || []).slice(-100)),
-}));
-
-/* Die Zugriffe, wie die Ansichten sie rufen. „Leise" legt die Liste nicht an
-   (für Cockpit, Audit Report und die anderen Register, die nur mitlesen). */
-async function spGetMassnahmen()          { return _regMassnahmen.alle(true); }
-async function spGetMassnahmenLeise()     { return _regMassnahmen.alle(false); }
-async function spAddMassnahme(m)          { return _regMassnahmen.neu(m); }
-async function spUpdateMassnahme(id, m)   { return _regMassnahmen.aendern(id, m); }
-async function spDeleteMassnahme(id)      { return _regMassnahmen.loeschen(id); }
-function spMissingMassnahmenColumns()     { return _regMassnahmen.fehlend(); }
-
-async function spGetZiele()               { return _regZiele.alle(true); }
-async function spGetZieleLeise()          { return _regZiele.alle(false); }
-async function spAddZiel(z)               { return _regZiele.neu(z); }
-async function spUpdateZiel(id, z)        { return _regZiele.aendern(id, z); }
-async function spDeleteZiel(id)           { return _regZiele.loeschen(id); }
-function spMissingZieleColumns()          { return _regZiele.fehlend(); }
-
-async function spGetKennzahlen()          { return _regKennzahlen.alle(true); }
-async function spGetKennzahlenLeise()     { return _regKennzahlen.alle(false); }
-async function spAddKennzahl(k)           { return _regKennzahlen.neu(k); }
-async function spUpdateKennzahl(id, k)    { return _regKennzahlen.aendern(id, k); }
-async function spDeleteKennzahl(id)       { return _regKennzahlen.loeschen(id); }
-function spMissingKennzahlenColumns()     { return _regKennzahlen.fehlend(); }
-
-/**
- * Eine Datei in der ISMS-Bibliothek über die Suche finden (z. B. die Vorlage
- * zur Zieleplanung). Die Bibliothek ganz zu lesen dauert bei 1.700 Dateien
- * lange; die Suche antwortet in einer Anfrage.
- * @returns {Promise<Array<{driveId, itemId, name, webUrl, pfad}>>}
- */
-async function spSucheIsmsDatei(begriff) {
+/** Einträge einer Nachschlageliste (Teams, Standorte, ISO 27001:2022) als [{ id, wert }]. */
+async function spHausNachschlagen(key) {
+  if (_haus.nachschlagen[key]) return _haus.nachschlagen[key];
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
-  await _ismsLib(token);
-  const q = encodeURIComponent(String(begriff || '').replace(/'/g, "''"));
-  const res = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/search(q='${q}')?$select=id,name,webUrl,parentReference,file&$top=25`, token);
-  return (res.value || []).filter(x => x.file).map(x => ({
-    driveId: _sp.ismsDriveId, itemId: x.id, name: x.name || '', webUrl: x.webUrl || '',
-    pfad: ((x.parentReference && x.parentReference.path) || '').replace(/^.*root:\/?/, ''),
-  }));
+  const ids = await _hausListenIds(token);
+  if (!ids[key]) return [];
+  const siteId = await _ismsSiteId(token);
+  const items = await _getAll(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items?$expand=fields($select=Title)&$top=500`, token);
+  const out = items.map(it => ({ id: String(it.id), wert: (it.fields && it.fields.Title) || '' }))
+    .sort((a, b) => a.wert.localeCompare(b.wert, 'de', { numeric: true }));
+  _haus.nachschlagen[key] = out;
+  return out;
 }
+
+/** Ein Datum aus SharePoint als Kalendertag. Datumsspalten speichern Mitternacht
+ *  Ortszeit in UTC (2027-02-27T23:00:00Z ist der 28.02.); +12 Stunden trifft den Tag. */
+function _hausTag(iso) {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t + 12 * 3600 * 1000).toISOString().slice(0, 10) : '';
+}
+/** Und zurück: Kalendertag → Mitternacht Ortszeit, so wie SharePoint selbst speichert. */
+function _hausDatum(tag) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(String(tag || ''));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toISOString() : null;
+}
+
+/** Einen Eintrag lesen: je Feld nach Spaltenart. */
+function _hausFeldLesen(f, c, nachschlagen, personen) {
+  const v = f[c.name];
+  switch (c.art) {
+    case 'multichoice': return Array.isArray(v) ? v.map(String) : (v ? String(v).split(/;#|,/).map(s => s.trim()).filter(Boolean) : []);
+    case 'date': return _hausTag(v);
+    case 'bool': return v === true || v === 'true' || v === 1;
+    case 'num': return (v === null || v === undefined || v === '') ? '' : Number(v);
+    case 'multilookup': return Array.isArray(v) ? v.map(x => ({ id: String(x.LookupId), wert: String(x.LookupValue || '') })) : [];
+    case 'lookup': {
+      const id = f[c.name + 'LookupId'];
+      if (!id) return null;
+      const hit = (nachschlagen || []).find(x => x.id === String(id));
+      return { id: String(id), wert: hit ? hit.wert : (typeof v === 'string' ? v : '') };
+    }
+    case 'person': {
+      const id = f[c.name + 'LookupId'];
+      if (!id) return null;
+      const p = (personen || {})[String(id)] || {};
+      return { id: String(id), name: p.name || '', email: p.email || '' };
+    }
+    default: return (v === null || v === undefined) ? '' : String(v);
+  }
+}
+
+/** Alle Einträge einer Liste, Felder nach HAUS_SPALTEN. → [{ id, created, modified, …felder }] */
+async function _hausLesen(key) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const spalten = await _hausSpaltenVon(key, token);
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  // Einzel-Nachschlagewerte kommen nur als ID; ihre Texte aus der Nachschlageliste.
+  const brauchtTeams = Object.values(spalten).some(c => c.art === 'lookup');
+  const [items, personen, teams, standorte] = await Promise.all([
+    _getAll(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items?$expand=fields&$top=500`, token),
+    Object.values(spalten).some(c => c.art === 'person') ? _hausPersonen(token) : Promise.resolve({}),
+    brauchtTeams ? spHausNachschlagen('teams') : Promise.resolve([]),
+    brauchtTeams ? spHausNachschlagen('standorte') : Promise.resolve([]),
+  ]);
+  const quelleFuer = (feld) => (/standort/i.test(feld) ? standorte : /kennzahl/i.test(feld) ? [] : teams);
+  return items.map(it => {
+    const f = it.fields || {};
+    const o = { id: String(it.id), created: it.createdDateTime || '', modified: it.lastModifiedDateTime || '' };
+    for (const [feld, c] of Object.entries(spalten)) o[feld] = _hausFeldLesen(f, c, quelleFuer(feld), personen);
+    return o;
+  });
+}
+
+/**
+ * Einen Eintrag schreiben (neu, wenn id leer). Gesendet werden nur Felder, die
+ * im Objekt stehen und die es in der Liste gibt. Nachschlagewerte als IDs,
+ * Personen als E-Mail (aufgelöst über die Benutzerinformationsliste).
+ * @returns {Promise<string>} die ID des Eintrags
+ */
+async function _hausSchreiben(key, id, obj) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const spalten = await _hausSpaltenVon(key, token);
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  const felder = {};
+  for (const [feld, wert] of Object.entries(obj || {})) {
+    const c = spalten[feld];
+    if (!c || c.nurLesen || wert === undefined) continue;
+    switch (c.art) {
+      case 'multichoice':
+        felder[c.name + '@odata.type'] = 'Collection(Edm.String)';
+        felder[c.name] = (Array.isArray(wert) ? wert : []).map(String);
+        break;
+      case 'date': felder[c.name] = _hausDatum(wert); break;
+      case 'bool': felder[c.name] = !!wert; break;
+      case 'num': felder[c.name] = (wert === '' || wert === null) ? null : Number(wert); break;
+      case 'multilookup':
+        felder[c.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
+        felder[c.name + 'LookupId'] = (Array.isArray(wert) ? wert : []).map(x => parseInt(x, 10)).filter(Number.isFinite);
+        break;
+      case 'lookup': felder[c.name + 'LookupId'] = wert ? String(wert) : null; break;
+      case 'person': {
+        if (!wert) { felder[c.name + 'LookupId'] = null; break; }
+        const lid = await spEnsureIsmsUserLookupId(String(wert));
+        if (!lid) throw new Error(`${wert} ist auf der ISMS-Site noch nicht bekannt. Die Person muss die Site einmal geöffnet haben.`);
+        felder[c.name + 'LookupId'] = String(lid);
+        break;
+      }
+      case 'multiperson': break;   // kommt in diesen Listen nicht vor
+      case 'choice': felder[c.name] = wert ? String(wert) : null; break;   // leer = keine Auswahl
+      default: felder[c.name] = (wert === null) ? '' : String(wert);
+    }
+  }
+  const basis = `${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items`;
+  if (id) { await _patch(`${basis}/${id}/fields`, token, felder); return String(id); }
+  const neu = await _post(basis, token, { fields: felder });
+  return String(neu && neu.id);
+}
+
+async function _hausLoeschen(key, id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  await _del(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items/${id}`, token);
+}
+
+/* Die Zugriffe, wie die Ansichten sie rufen. Abgebildet aufs RMS-Modell wird
+   in den Modellen (mnAusHaus, zlAusHaus, kzAusHaus), wenn sie geladen sind.
+   „Leise" gibt null statt eines Fehlers (Cockpit, Audit Report, Fälligkeiten). */
+const _hausLeise = (fn) => async () => { try { return await fn(); } catch (e) { console.warn('[isms-listen]', e.message); return null; } };
+
+async function spGetMassnahmen() {
+  const roh = await _hausLesen('massnahmen');
+  return (typeof mnAusHaus === 'function') ? roh.map(mnAusHaus) : roh;
+}
+async function spGetZiele() {
+  const roh = await _hausLesen('ziele');
+  return (typeof zlAusHaus === 'function') ? roh.map(zlAusHaus) : roh;
+}
+async function spGetKennzahlen() {
+  const [kpi, werte] = await Promise.all([_hausLesen('kennzahlen'), _hausLesen('tracking')]);
+  return (typeof kzAusHaus === 'function') ? kzAusHaus(kpi, werte) : kpi;
+}
+const spGetMassnahmenLeise = _hausLeise(spGetMassnahmen);
+const spGetZieleLeise = _hausLeise(spGetZiele);
+const spGetKennzahlenLeise = _hausLeise(spGetKennzahlen);
+
+async function spSaveMassnahme(m) { return _hausSchreiben('massnahmen', m.id, (typeof mnZuHaus === 'function') ? mnZuHaus(m) : m); }
+async function spDeleteMassnahme(id) { return _hausLoeschen('massnahmen', id); }
+async function spSaveZiel(z) { return _hausSchreiben('ziele', z.id, (typeof zlZuHaus === 'function') ? zlZuHaus(z) : z); }
+async function spDeleteZiel(id) { return _hausLoeschen('ziele', id); }
+async function spSaveKennzahl(k) { return _hausSchreiben('kennzahlen', k.id, (typeof kzZuHaus === 'function') ? kzZuHaus(k) : k); }
+async function spDeleteKennzahl(id) { return _hausLoeschen('kennzahlen', id); }
+/** Ein Messwert ist ein Eintrag in „Kennzahlen Tracking". */
+async function spAddKennzahlWert(w) { return _hausSchreiben('tracking', null, (typeof kzWertZuHaus === 'function') ? kzWertZuHaus(w) : w); }
+async function spDeleteKennzahlWert(id) { return _hausLoeschen('tracking', id); }
+
+/** Nach dem Speichern frisch lesen; die Nachschlagelisten bleiben im Speicher. */
+function spHausNeuLesen() { _haus.personen = null; }
 
 /* ═══════════════════════════════════════════════════
    Assets / Werte (ISMS-Liste „Assets", nur lesen) – zum Verknüpfen mit Risiken

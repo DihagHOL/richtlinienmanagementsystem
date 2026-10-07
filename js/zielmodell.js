@@ -3,216 +3,154 @@
 /**
  * Ziele: das Modell (ohne DOM, ohne SharePoint)
  * =============================================
- * ISO 27001 6.2 verlangt Informationssicherheitsziele, die zur Leitlinie
- * passen, messbar sind (soweit machbar), überwacht, vermittelt und
- * aktualisiert werden. Zur Planung gehört, was getan wird, mit welchen
- * Ressourcen, wer verantwortlich ist, bis wann und wie das Ergebnis bewertet
- * wird. Die Konzernrichtlinie „Zieleplanung und -erreichung" sagt dasselbe für
- * alle Managementsysteme und legt fest: Die Ziele werden im Management Review
- * festgelegt und dort jährlich bewertet; ein verfehltes Ziel wird ebenso
- * dokumentiert.
+ * ISO 27001 6.2 verlangt Informationssicherheitsziele, die messbar sind (soweit
+ * machbar), überwacht und aktualisiert werden. Zur Planung gehört, was getan
+ * wird, mit welchen Ressourcen, wer verantwortlich ist, bis wann und wie das
+ * Ergebnis bewertet wird. Die Konzernrichtlinie „Zieleplanung und -erreichung"
+ * sagt dasselbe und ergänzt: Bewertet wird im Management Review, ein nicht
+ * erreichtes Ziel wird ebenso dokumentiert.
  *
- * Bisher standen die Ziele in einem Word-Dokument (Vorlage zur Zieleplanung).
- * Ob die Maßnahmen dazu laufen und was die Kennzahl gerade sagt, stand nirgends
- * daneben. Hier hängen die Maßnahmen aus der Maßnahmenliste und die Kennzahlen
- * aus dem Kennzahlen-Register am Ziel, und was die Richtlinie verlangt, wird
- * beim Namen genannt, solange es fehlt.
+ * Die Ziele stehen in der Liste „ISMS Ziele" auf der ISMS-Site: Ziel,
+ * Beschreibung, Umsetzung bis, Messung, Zielerreichung (Ja/Nein), Zieltyp,
+ * Status, Verantwortlich (Teams), Maßnahmen (aus der Liste „Maßnahmen"),
+ * Standort, Priorität, Bemerkung. Ressourcen führt die Liste an den
+ * Maßnahmen; daraus wird hier gelesen, ob sie für ein Ziel festgehalten sind.
  */
 
+/** Status der Liste. laufend = in Arbeit; warn = Termin in Gefahr. */
 const ZL_STATUS = [
-  { key: 'entwurf',       label: 'Entwurf',            offen: true },
-  { key: 'verabschiedet', label: 'Verabschiedet',      offen: true },
-  { key: 'umsetzung',     label: 'In Umsetzung',       offen: true },
-  { key: 'erreicht',      label: 'Erreicht',           offen: false, ende: true },
-  { key: 'teilweise',     label: 'Teilweise erreicht', offen: false, ende: true },
-  { key: 'verfehlt',      label: 'Nicht erreicht',     offen: false, ende: true },
-  { key: 'verworfen',     label: 'Verworfen',          offen: false },
+  { key: 'Nicht begonnen', laufend: true },
+  { key: 'Wie geplant',    laufend: true },
+  { key: 'Verzögert',      laufend: true, warn: true },
+  { key: 'Gefährdet',      laufend: true, warn: true },
+  { key: 'Verschoben',     laufend: true, warn: true },
+  { key: 'Abgeschlossen',  ende: true },
+  { key: 'Gestoppt',       gestoppt: true },
 ];
+const ZL_TYPEN = ['Operativ', 'Strategisch', 'Operativ und strategisch'];
+const ZL_PRIO = ['sehr hoch', 'hoch', 'mittel', 'niedrig'];
 
 function zlStatusInfo(k) { return ZL_STATUS.find(x => x.key === k) || ZL_STATUS[0]; }
 function zlHeute(d) { return (d ? new Date(d) : new Date()).toISOString().slice(0, 10); }
 const _zlText = (v) => String(v == null ? '' : v).trim();
 const _zlTag = (v) => { const t = _zlText(v).slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(t) ? t : ''; };
+const _zlListe = (v) => (Array.isArray(v) ? v.filter(x => x && (x.id || x.wert)).map(x => ({ id: String(x.id || ''), wert: _zlText(x.wert) })) : []);
 
-function zlNormal(z) {
-  const x = z || {};
-  const b = (x.bewertung && typeof x.bewertung === 'object') ? x.bewertung : null;
+/** Rich-Text der Bemerkung als schlichter Text. */
+function zlOhneHtml(s) {
+  return _zlText(String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#58;/g, ':')
+    .replace(/\n{3,}/g, '\n\n'));
+}
+
+/** Ein Eintrag der Liste „ISMS Ziele" (aus _hausLesen) → RMS-Ziel. */
+function zlAusHaus(roh) {
+  const r = roh || {};
+  const massnahmen = _zlListe(r.massnahmen);
   return {
-    id: x.id ? String(x.id) : null,
-    nr: _zlText(x.nr), titel: _zlText(x.titel), beschreibung: _zlText(x.beschreibung),
-    bereich: _zlText(x.bereich) || 'isms', unternehmensziel: _zlText(x.unternehmensziel),
-    jahr: _zlText(x.jahr), termin: _zlTag(x.termin), messung: _zlText(x.messung),
-    kennzahlIds: Array.isArray(x.kennzahlIds) ? x.kennzahlIds.map(String).filter(Boolean) : [],
-    verantwortlich: _zlText(x.verantwortlich), ressourcen: _zlText(x.ressourcen),
-    status: ZL_STATUS.some(s => s.key === x.status) ? x.status : 'entwurf',
-    verabschiedetAm: _zlTag(x.verabschiedetAm), verabschiedetVon: _zlText(x.verabschiedetVon),
-    bewertung: b ? { ergebnis: _zlText(b.ergebnis), text: _zlText(b.text), am: _zlTag(b.am), von: _zlText(b.von), wirkId: _zlText(b.wirkId) } : null,
-    werke: Array.isArray(x.werke) ? x.werke.map(_zlText).filter(Boolean) : [],
-    historie: Array.isArray(x.historie) ? x.historie : [],
+    id: r.id ? String(r.id) : null,
+    titel: _zlText(r.titel), beschreibung: _zlText(r.beschreibung), termin: _zlTag(r.termin), messung: _zlText(r.messung),
+    erreicht: ['Ja', 'Nein'].includes(r.erreicht) ? r.erreicht : '', archiv: !!r.archiv, bemerkung: zlOhneHtml(r.bemerkung),
+    zieltyp: ZL_TYPEN.includes(r.zieltyp) ? r.zieltyp : '', status: ZL_STATUS.some(s => s.key === r.status) ? r.status : 'Nicht begonnen',
+    teams: _zlListe(r.teams), massnahmenIds: massnahmen.map(m => m.id), massnahmenNamen: massnahmen.map(m => m.wert),
+    standort: r.standort && r.standort.id ? { id: String(r.standort.id), wert: _zlText(r.standort.wert) } : null,
+    prioritaet: ZL_PRIO.includes(r.prioritaet) ? r.prioritaet : '',
+    modified: r.modified || '',
   };
 }
 
-/** Nächste Nummer mit Präfix: S01, S02 … (S wie im Haus: Sicherheitsziel). */
-function zlNaechsteNr(ziele, praefix) {
-  const p = _zlText(praefix) || 'S';
-  const re = new RegExp('^' + p.replace(/[^A-Za-z]/g, '') + '(\\d+)$');
-  const max = (ziele || []).reduce((n, z) => { const t = re.exec(_zlText(z && z.nr)); return t ? Math.max(n, Number(t[1])) : n; }, 0);
-  return p + String(max + 1).padStart(2, '0');
+/** RMS-Ziel → Felder der Liste (für _hausSchreiben). */
+function zlZuHaus(z) {
+  const x = z || {};
+  const ids = (l) => (Array.isArray(l) ? l.map(e => (e && typeof e === 'object') ? e.id : e).filter(Boolean).map(String) : []);
+  return {
+    titel: _zlText(x.titel) || '(ohne Titel)', beschreibung: _zlText(x.beschreibung), termin: _zlTag(x.termin), messung: _zlText(x.messung),
+    erreicht: ['Ja', 'Nein'].includes(x.erreicht) ? x.erreicht : '', archiv: !!x.archiv,
+    // Die Bemerkung ist Rich-Text. Geschrieben wird sie nur, wenn sie im Editor geändert wurde,
+    // damit ein bloßes Speichern die Formatierung in SharePoint nicht glättet.
+    bemerkung: !x.bemerkungGeaendert ? undefined : _zlText(x.bemerkung).split('\n').map(z2 => z2.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('<br>'),
+    zieltyp: ZL_TYPEN.includes(x.zieltyp) ? x.zieltyp : '', status: zlStatusInfo(x.status).key,
+    teams: ids(x.teams), massnahmen: ids(x.massnahmenIds), standort: x.standort ? String(x.standort.id || x.standort) : '',
+    prioritaet: ZL_PRIO.includes(x.prioritaet) ? x.prioritaet : '',
+  };
 }
 
-/** Die Maßnahmen eines Ziels aus der Maßnahmenliste. */
+/** erreicht · verfehlt · laufend · gestoppt */
+function zlErgebnis(z) {
+  const s = zlStatusInfo(z && z.status);
+  if (s.gestoppt) return 'gestoppt';
+  if (s.ende) return z.erreicht === 'Ja' ? 'erreicht' : z.erreicht === 'Nein' ? 'verfehlt' : 'abgeschlossen';
+  return 'laufend';
+}
+
+/** Die Maßnahmen eines Ziels (die Liste verknüpft sie am Ziel). */
 function zlMassnahmenVon(ziel, massnahmen) {
-  const id = ziel && ziel.id ? String(ziel.id) : '';
-  return id ? (massnahmen || []).filter(m => String(m.zielId || '') === id && m.status !== 'verworfen') : [];
+  const ids = new Set(((ziel && ziel.massnahmenIds) || []).map(String));
+  return (massnahmen || []).filter(m => m.id && ids.has(String(m.id)));
 }
 
-/** Fortschritt der Maßnahmen: { gesamt, erledigt, pct }; pct ist null ohne Maßnahmen. */
+/** Fortschritt: { gesamt, erledigt, pct } – pct ist null ohne Maßnahmen. */
 function zlFortschritt(ziel, massnahmen) {
-  const l = zlMassnahmenVon(ziel, massnahmen);
+  const l = zlMassnahmenVon(ziel, massnahmen).filter(m => !m.archiv);
   const erledigt = l.filter(m => m.status === 'erledigt').length;
   return { gesamt: l.length, erledigt, pct: l.length ? Math.round(erledigt / l.length * 100) : null };
 }
 
 function zlTerminUeberschritten(z, heute) {
-  const x = zlNormal(z);
-  return !!(x.termin && zlStatusInfo(x.status).offen && x.termin < (heute || zlHeute()));
+  return !!(z && !z.archiv && z.termin && zlStatusInfo(z.status).laufend && z.termin < (heute || zlHeute()));
 }
 
 /**
- * Was dem Ziel fehlt – gemessen an dem, was ISO 27001 6.2 und die
- * Konzernrichtlinie verlangen. Ein Entwurf darf unvollständig sein; ab
- * „verabschiedet" muss die Planung stehen; ein beendetes Ziel braucht seine
- * Bewertung.
+ * Was dem Ziel fehlt – gemessen an ISO 27001 6.2 und der Konzernrichtlinie.
+ * `massnahmen` sind die Einträge der Liste „Maßnahmen" (für Ressourcen und Anzahl).
  */
 function zlLuecken(z, massnahmen, heute) {
-  const x = zlNormal(z);
   const f = [];
-  if (!x.titel) f.push('Bezeichnung fehlt.');
-  if (x.status === 'verworfen') return f;
-  const geplant = x.status !== 'entwurf';
-  if (geplant) {
-    if (!x.verantwortlich) f.push('Niemand ist verantwortlich.');
-    if (!x.termin) f.push('Kein Termin für die Zielerreichung.');
-    if (!x.messung && !x.kennzahlIds.length) f.push('Nicht festgelegt, wie die Zielerreichung gemessen wird (Messung oder Kennzahl).');
-    if (!x.ressourcen) f.push('Die benötigten Ressourcen sind nicht festgehalten.');
-    if (zlStatusInfo(x.status).offen && !zlMassnahmenVon(x, massnahmen).length) f.push('Keine Maßnahme zur Zielerreichung geplant.');
+  if (!z || !_zlText(z.titel)) f.push('Bezeichnung fehlt.');
+  if (!z || z.archiv) return f;
+  const s = zlStatusInfo(z.status);
+  if (s.gestoppt) { if (!z.bemerkung) f.push('Gestoppt ohne Begründung (Bemerkung).'); return f; }
+  if (!(z.teams || []).length) f.push('Niemand ist verantwortlich.');
+  if (!z.termin) f.push('Kein Termin („Umsetzung bis").');
+  if (!z.messung) f.push('Nicht festgelegt, wie die Zielerreichung gemessen wird.');
+  const mass = zlMassnahmenVon(z, massnahmen);
+  if (s.laufend) {
+    if (!(z.massnahmenIds || []).length) f.push('Keine Maßnahme zur Zielerreichung verknüpft.');
+    else if (!mass.some(m => _zlText(m.ressourcen))) f.push('An keiner Maßnahme sind die benötigten Ressourcen festgehalten.');
   }
-  if (zlTerminUeberschritten(x, heute)) f.push('Der Termin ist überschritten. Das Ergebnis gehört in die Bewertung (Management Review), auch wenn das Ziel verfehlt ist.');
-  if (zlStatusInfo(x.status).ende && !(x.bewertung && x.bewertung.text)) f.push('Die Bewertung der Zielerreichung fehlt.');
+  if (zlTerminUeberschritten(z, heute)) f.push('Der Termin ist überschritten. Das Ergebnis gehört in die Bewertung im Management Review, auch wenn das Ziel nicht erreicht ist.');
+  if (s.ende && !z.erreicht) f.push('Abgeschlossen, aber nicht angegeben, ob das Ziel erreicht wurde.');
+  if (s.ende && z.erreicht === 'Nein' && !z.bemerkung) f.push('Nicht erreicht, aber ohne Begründung (Bemerkung). Die Richtlinie verlangt, auch das zu dokumentieren.');
   return f;
 }
 
-/** Ein Ergebnis setzen (erreicht, teilweise, verfehlt) geht nur mit Bewertung. */
-function zlAbschlussfehler(z, ergebnis, bewertungText) {
+/** Abschließen geht nur mit Angabe zur Zielerreichung, bei „Nein" mit Bemerkung. */
+function zlAbschlussfehler(z) {
   const f = [];
-  if (!zlStatusInfo(ergebnis).ende) f.push('Unbekanntes Ergebnis.');
-  if (!_zlText(bewertungText)) f.push('Ohne Bewertung kein Ergebnis: Was wurde erreicht, woran ist es zu sehen?');
+  if (!['Ja', 'Nein'].includes(z && z.erreicht)) f.push('Bitte angeben, ob das Ziel erreicht wurde.');
+  if (z && z.erreicht === 'Nein' && !_zlText(z.bemerkung)) f.push('Bei einem nicht erreichten Ziel gehört die Begründung in die Bemerkung.');
   return f;
 }
 
-/** Kennzahlen über alle Ziele. */
+/** Kennzahlen über alle Ziele (ohne Archiv). */
 function zlKennzahlen(ziele, massnahmen, heute) {
-  const l = (ziele || []).map(zlNormal).filter(z => z.status !== 'verworfen');
-  const laufend = l.filter(z => zlStatusInfo(z.status).offen);
+  const l = (ziele || []).filter(z => z && !z.archiv);
+  const laufend = l.filter(z => zlStatusInfo(z.status).laufend);
   return {
     gesamt: l.length,
     laufend: laufend.length,
-    erreicht: l.filter(z => z.status === 'erreicht').length,
-    teilweise: l.filter(z => z.status === 'teilweise').length,
-    verfehlt: l.filter(z => z.status === 'verfehlt').length,
+    erreicht: l.filter(z => zlErgebnis(z) === 'erreicht').length,
+    verfehlt: l.filter(z => zlErgebnis(z) === 'verfehlt').length,
+    teilweise: 0,
+    gefaehrdet: laufend.filter(z => zlStatusInfo(z.status).warn).length,
     ueberschritten: laufend.filter(z => zlTerminUeberschritten(z, heute)).length,
-    ohneKennzahl: laufend.filter(z => !z.kennzahlIds.length).length,
     mitLuecken: l.filter(z => zlLuecken(z, massnahmen, heute).length).length,
   };
 }
 
-/* ── Die Vorlage zur Zieleplanung lesen ──
-   Die Ziele stehen bisher in „ISMS_Vorlage_Zieleplanung.docx", Ziel für Ziel
-   mit denselben Überschriften. Daraus wird ein Vorschlag zum Übernehmen –
-   niemand soll sie abtippen. */
-
-const _ZL_MONATE = ['januar', 'februar', 'märz', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'dezember'];
-
-/** „Februar 2027" → 2027-02-28, „12/2025" → 2025-12-31, „31.12.2025" → 2025-12-31, „Q1 2027" → 2027-03-31. */
-function zlDatumAusText(s) {
-  const t = _zlText(s).toLowerCase().replace(/maerz/g, 'märz');
-  const ende = (j, m) => { const d = new Date(Date.UTC(j, m, 0)); return d.toISOString().slice(0, 10); };
-  let m = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  m = /(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  if (m) return m[0];
-  m = /\bq([1-4])\s*\/?\s*(\d{4})/.exec(t);
-  if (m) return ende(Number(m[2]), Number(m[1]) * 3);
-  m = /\b(\d{1,2})\s*[/.]\s*(\d{4})\b/.exec(t);
-  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12) return ende(Number(m[2]), Number(m[1]));
-  for (let i = 0; i < 12; i++) {
-    const r = new RegExp(_ZL_MONATE[i] + '\\s+(\\d{4})').exec(t);
-    if (r) return ende(Number(r[1]), i + 1);
-  }
-  m = /\b(20\d\d)\b/.exec(t);
-  if (m) return `${m[1]}-12-31`;
-  return '';
-}
-
-const _ZL_FELDER = [
-  { re: /^beschreibung\s*:/i, feld: 'beschreibung' },
-  { re: /^zielerreichung bis\s*:/i, feld: 'terminText' },
-  { re: /^messung der zielerreichung\s*:/i, feld: 'messung' },
-  { re: /^verantwortlich\s*:/i, feld: 'verantwortlich' },
-  { re: /^ma(ß|ss)nahme\s*:/i, feld: '#massnahme' },
-  { re: /^geplantes umsetzungsdatum\s*:/i, feld: 'terminText', m: true },
-  { re: /^messung\s*:/i, feld: 'messung', m: true },
-  { re: /^ressourcen\s*:/i, feld: 'ressourcen' },
-];
-
-/**
- * Ziele aus dem Text der Vorlage.
- * → [{ nr, titel, beschreibung, termin, terminText, messung, verantwortlich, ressourcen,
- *      massnahmen: [{ titel, termin, terminText, verantwortlich, messung, ressourcen }] }]
- */
-function zlAusVorlageText(text) {
-  const zeilen = String(text || '').split(/\r?\n/).map(s => s.trim());
-  const ziele = [];
-  let ziel = null, mass = null, feld = null, ziel_obj = null;
-  const anhaengen = (obj, f, wert) => { if (!wert) return; obj[f] = obj[f] ? obj[f] + '\n' + wert : wert; };
-  for (const z of zeilen) {
-    const kopf = /^Ziel\s+([A-Z]{0,3}\d{1,3})\s*[:.–-]\s*(.+)$/.exec(z);
-    if (kopf) {
-      ziel = { nr: kopf[1], titel: kopf[2].trim(), beschreibung: '', terminText: '', messung: '', verantwortlich: '', ressourcen: '', massnahmen: [] };
-      ziele.push(ziel); mass = null; feld = null; ziel_obj = ziel;
-      continue;
-    }
-    if (!ziel) continue;
-    if (!z) { feld = null; continue; }   // eine Leerzeile beendet das Feld (danach: Unterschriften, Bilder)
-    const def = _ZL_FELDER.find(d => d.re.test(z));
-    if (def) {
-      const rest = z.replace(def.re, '').trim();
-      if (def.feld === '#massnahme') {
-        mass = { titel: rest, terminText: '', verantwortlich: '', messung: '', ressourcen: '' };
-        ziel.massnahmen.push(mass); ziel_obj = mass; feld = rest ? null : 'titel';
-        continue;
-      }
-      // Nach einer Maßnahme gehören Umsetzungsdatum, Verantwortlich, Messung und
-      // Ressourcen zu ihr. Beschreibung, Termin und Messung der Zielerreichung
-      // gehören immer zum Ziel.
-      const zurMassnahme = def.m || ['verantwortlich', 'ressourcen'].includes(def.feld);
-      ziel_obj = (zurMassnahme && mass) ? mass : ziel;
-      feld = def.feld;
-      anhaengen(ziel_obj, feld, rest);
-      continue;
-    }
-    if (feld && ziel_obj) anhaengen(ziel_obj, feld, z);
-  }
-  return ziele.map(x => {
-    const massnahmen = x.massnahmen.filter(m => m.titel).map(m => Object.assign(m, { termin: zlDatumAusText(m.terminText) }));
-    const ressourcen = x.ressourcen || massnahmen.map(m => m.ressourcen).filter(Boolean).join('\n');
-    return Object.assign(x, { termin: zlDatumAusText(x.terminText), ressourcen, massnahmen });
-  }).filter(x => x.titel);
-}
-
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    ZL_STATUS, zlStatusInfo, zlHeute, zlNormal, zlNaechsteNr, zlMassnahmenVon, zlFortschritt, zlTerminUeberschritten,
-    zlLuecken, zlAbschlussfehler, zlKennzahlen, zlDatumAusText, zlAusVorlageText,
+    ZL_STATUS, ZL_TYPEN, ZL_PRIO, zlStatusInfo, zlHeute, zlOhneHtml, zlAusHaus, zlZuHaus, zlErgebnis,
+    zlMassnahmenVon, zlFortschritt, zlTerminUeberschritten, zlLuecken, zlAbschlussfehler, zlKennzahlen,
   };
 }

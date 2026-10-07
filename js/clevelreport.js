@@ -327,7 +327,7 @@ function _clevelIsoRows(m) {
     if (!z.gesamt) add('ISO 6.2', 'Informationssicherheitsziele', 'gap', 'Kein Ziel im Register „Ziele". Die Planung nach 6.2 ist nicht nachweisbar.');
     else if (z.ueberschritten || z.mitLuecken)
       add('ISO 6.2', 'Informationssicherheitsziele', 'warn',
-        `${z.laufend} laufend, ${z.ueberschritten} mit überschrittenem Termin; ${z.mitLuecken} mit offenen Angaben (Verantwortung, Termin, Messung, Ressourcen, Maßnahmen oder Bewertung).`);
+        `${z.laufend} laufend, ${z.ueberschritten} mit überschrittenem Termin; ${z.mitLuecken} mit offenen Angaben (Verantwortung, Termin, Messung, Maßnahmen mit Ressourcen oder Bewertung).`);
     else add('ISO 6.2', 'Informationssicherheitsziele', 'ok', `${z.gesamt} Ziel(e) vollständig geplant, ${z.erreicht} erreicht.`);
   } else add('ISO 6.2', 'Informationssicherheitsziele', 'warn', 'Register „Ziele" noch nicht angelegt oder nicht lesbar.');
 
@@ -335,10 +335,10 @@ function _clevelIsoRows(m) {
   if (m.kennzahlen) {
     const k = m.kennzahlen;
     if (!k.gesamt) add('ISO 9.1', 'Überwachung, Messung, Analyse und Bewertung', 'gap', 'Keine Kennzahl im Register. Was gemessen wird, ist nicht festgelegt.');
-    else if (k.verfehlt || k.messungFaellig || k.ohneSoll)
+    else if (k.verfehlt || k.gelb || k.messungFaellig || k.ohneSoll)
       add('ISO 9.1', 'Überwachung, Messung, Analyse und Bewertung', 'warn',
-        `${k.gesamt} Kennzahl(en): ${k.verfehlt} verfehlt, ${k.messungFaellig} Messung(en) fällig, ${k.ohneSoll} ohne Sollwert.`);
-    else add('ISO 9.1', 'Überwachung, Messung, Analyse und Bewertung', 'ok', `${k.gesamt} Kennzahl(en), ${k.erfuellt} im Ziel, keine Messung fällig.`);
+        `${k.gesamt} Kennzahl(en): ${k.erfuellt} grün, ${k.gelb} gelb, ${k.verfehlt} rot; ${k.messungFaellig} Messung(en) fällig, ${k.ohneSoll} ohne auswertbaren Normalwert.`);
+    else add('ISO 9.1', 'Überwachung, Messung, Analyse und Bewertung', 'ok', `${k.gesamt} Kennzahl(en), alle grün, keine Messung fällig.`);
   } else add('ISO 9.1', 'Überwachung, Messung, Analyse und Bewertung', 'warn', 'Register „Kennzahlen" noch nicht angelegt oder nicht lesbar.');
 
   // Maßnahmen über alle Register: umgesetzt wird, was jemandem gehört und einen Termin hat.
@@ -493,7 +493,7 @@ function _clevelReportHtml(m) {
       ${m.wirksamkeit ? _clTile(m.wirksamkeit.abwOffen, 'Abweichungen offen', m.wirksamkeit.abwOffen ? '#b45309' : '#15803d') : ''}
       ${m.massnahmen && m.massnahmen.gesamt ? _clTile(m.massnahmen.ueberfaellig, 'Maßnahmen überfällig', m.massnahmen.ueberfaellig ? '#b91c1c' : '#15803d') : ''}
       ${m.ziele && m.ziele.gesamt ? _clTile(`${m.ziele.erreicht}/${m.ziele.gesamt}`, 'Ziele erreicht', m.ziele.ueberschritten ? '#b45309' : '#17509e') : ''}
-      ${m.kennzahlen && m.kennzahlen.gesamt ? _clTile(`${m.kennzahlen.erfuellt}/${m.kennzahlen.gesamt}`, 'Kennzahlen im Ziel', m.kennzahlen.verfehlt ? '#b45309' : '#15803d') : ''}
+      ${m.kennzahlen && m.kennzahlen.gesamt ? _clTile(`${m.kennzahlen.erfuellt}/${m.kennzahlen.gesamt}`, 'Kennzahlen grün', (m.kennzahlen.verfehlt || m.kennzahlen.gelb) ? '#b45309' : '#15803d') : ''}
       ${m.notfall ? _clTile(`${m.notfall.mitPlan}/${m.notfall.kritisch}`, 'krit. Prozesse mit Plan', m.notfall.kritisch && m.notfall.mitPlan < m.notfall.kritisch ? '#b91c1c' : '#15803d') : ''}
       ${m.reifegrad ? _clTile(m.reifegrad.rot, 'IT/OT nicht gelebt', m.reifegrad.rot ? '#b91c1c' : '#15803d') : ''}
     </tr></table>`;
@@ -512,8 +512,8 @@ function _clevelReportHtml(m) {
   if (m.ausnahmen) details.push(`<b>Ausnahmen:</b> ${m.ausnahmen.gesamt} erfasst, ${m.ausnahmen.aktiv} gültig, ${m.ausnahmen.abgelaufen} abgelaufen, ${m.ausnahmen.wartend} unentschieden`);
   if (m.wirksamkeit) details.push(`<b>Wirksamkeit:</b> ${m.wirksamkeit.audits} Audit(s), letzte Bewertung ${m.wirksamkeit.letzteBewertung || '–'}, ${m.wirksamkeit.abwOffen} Abweichung(en) offen, ${m.wirksamkeit.ohneWirksamkeit} ohne Wirksamkeitsbeleg`);
   if (m.massnahmen && m.massnahmen.gesamt) details.push(`<b>Maßnahmen:</b> ${m.massnahmen.gesamt} in allen Registern, ${m.massnahmen.offen} offen, ${m.massnahmen.inUmsetzung} in Umsetzung, ${m.massnahmen.ueberfaellig} überfällig, ${m.massnahmen.quote} % erledigt`);
-  if (m.ziele && m.ziele.gesamt) details.push(`<b>Ziele:</b> ${m.ziele.gesamt} gesamt, ${m.ziele.laufend} laufend, ${m.ziele.erreicht} erreicht, ${m.ziele.teilweise} teilweise, ${m.ziele.verfehlt} nicht erreicht, ${m.ziele.ueberschritten} mit überschrittenem Termin`);
-  if (m.kennzahlen && m.kennzahlen.gesamt) details.push(`<b>Kennzahlen:</b> ${m.kennzahlen.gesamt} geführt, ${m.kennzahlen.erfuellt} im Ziel, ${m.kennzahlen.verfehlt} verfehlt, ${m.kennzahlen.messungFaellig} Messung(en) fällig`);
+  if (m.ziele && m.ziele.gesamt) details.push(`<b>Ziele:</b> ${m.ziele.gesamt} gesamt, ${m.ziele.laufend} laufend, ${m.ziele.erreicht} erreicht, ${m.ziele.verfehlt} nicht erreicht, ${m.ziele.ueberschritten} mit überschrittenem Termin`);
+  if (m.kennzahlen && m.kennzahlen.gesamt) details.push(`<b>Kennzahlen:</b> ${m.kennzahlen.gesamt} geführt, ${m.kennzahlen.erfuellt} grün, ${m.kennzahlen.gelb} gelb, ${m.kennzahlen.verfehlt} rot, ${m.kennzahlen.messungFaellig} Messung(en) fällig`);
   if (m.assets) details.push(`<b>Assets:</b> ${m.assets.aktiv} im Inventar, ${m.assets.ohneVerantwortlichen} ohne Verantwortlichen, ${m.assets.sehrHoch} mit Verfügbarkeit „sehr hoch", ${m.assets.personenbezogen} mit Personendaten`);
   if (m.notfall) details.push(`<b>Notfall:</b> ${m.notfall.bewertet}/${m.notfall.prozesse} Prozesse mit BIA, ${m.notfall.kritisch} kritisch, ${m.notfall.mitPlan} mit Plan, ${m.notfall.geuebt} geübt, ${m.notfall.rtoKonflikte} RTO-Konflikt(e), Krisenstab vollständig in ${m.notfall.stabOk}/${m.notfall.werke} Werk(en)`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);

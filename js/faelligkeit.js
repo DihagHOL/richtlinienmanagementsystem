@@ -154,10 +154,10 @@ function _faelligRegisterHtml(r) {
       <button class="btn btn-ghost btn-sm" onclick="_faelligRegisterZeigen(true)" title="Neu lesen">↻ Aktualisieren</button>
     </div>
     ${summe ? '' : '<div class="field-hint">Nichts überfällig.</div>'}
-    ${liste('Maßnahmen überfällig', ueber, e => zeile('🛠', e.titel, `fällig seit ${datum(e.termin)}${e.verantwortlich ? ' · ' + e.verantwortlich : ''}`,
+    ${liste('Maßnahmen überfällig', ueber, e => zeile('🛠', e.titel, `fällig seit ${datum(e.termin)}${(e.verantwortlichName || e.team) ? ' · ' + (e.verantwortlichName || e.team) : ''}`,
       e.herkunft === 'risiko' ? 'risiken' : e.herkunft === 'wirksamkeit' ? 'wirksamkeit' : 'massnahmen', e.herkunft, e.bezugId))}
-    ${liste('Ziele über dem Termin', ziele, z => zeile('🎯', `${z.nr ? z.nr + ' ' : ''}${z.titel}`, `Termin ${datum(z.termin)}${z.verantwortlich ? ' · ' + z.verantwortlich : ''}`, 'ziele', 'ziel', z.id))}
-    ${liste('Messung fällig', kpi, k => zeile('📊', `${k.nr ? k.nr + ' ' : ''}${k.name}`, k.verantwortlich || '', 'kennzahlen', 'kennzahl', k.id))}`;
+    ${liste('Ziele über dem Termin', ziele, z => zeile('🎯', z.titel, `Termin ${datum(z.termin)}${(z.teams || []).length ? ' · ' + z.teams.map(t => t.wert).join(', ') : ''}`, 'ziele', 'ziel', z.id))}
+    ${liste('Messung fällig', kpi, k => zeile('📊', k.name, `${k.turnus || ''}${k.team ? ' · ' + k.team.wert : ''}`, 'kennzahlen', 'kennzahl', k.id))}`;
 }
 
 /** Aus den Fälligkeiten zum Eintrag – im Register, in dem er gepflegt wird. */

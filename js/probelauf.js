@@ -1216,7 +1216,7 @@ function _plBericht(titel) {
     <div class="modal-footer">
       ${probelaufAnzahl() ? '<button class="btn btn-outline" onclick="probelaufAufraeumen()">🧹 Aufräumen</button>' : ''}
       ${!d.nachweisId && typeof spAddWirk === 'function' ? `<button class="btn btn-outline" onclick="probelaufNachweisAblegen()"
-        title="Als Funktionsprüfung im Register „Wirksamkeit & Verbesserung" ablegen">📋 Als Nachweis ablegen</button>` : ''}
+        title="Als Funktionsprüfung im Register „Wirksamkeit &amp; Verbesserung&quot; ablegen">📋 Als Nachweis ablegen</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
     </div>`, true);
 }

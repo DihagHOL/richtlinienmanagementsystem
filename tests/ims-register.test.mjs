@@ -1,16 +1,16 @@
 /**
- * Ziele, Maßnahmen, Kennzahlen – drei Register, die im IMS noch fehlten.
+ * Ziele, Maßnahmen, Kennzahlen – auf den bestehenden Listen der ISMS-Site.
  *
- * Die Gliederung kommt aus den Dokumenten des Hauses: die „Vorlage zur
- * Zieleplanung" (Ziel, Termin, Messung, Verantwortlich, Ressourcen,
- * Maßnahmen), der „Maßnahmenplan IMS" (Bereich, NA/V/E, Priorität, Kapitel,
- * Sofort-/Korrekturmaßnahme, Wirksamkeitsprüfung) und „IMS-8.1 Kennzahlen"
- * (Einheit, Intervall, Sollvorgabe, Datenquelle, Verantwortlich, Verwendung).
+ * Das Haus führt dafür seit 2025 eigene Listen: „Maßnahmen", „ISMS Ziele",
+ * „Kennzahlen", „Kennzahlen Tracking", dazu „Teams", „Standorte" und
+ * „ISO/IEC 27001:2022". Ein erster Entwurf legte eigene Listen an und hätte
+ * in die bestehenden Spalten ergänzt. Das ist das, was hier ausgeschlossen
+ * wird: Das RMS liest und schreibt Einträge, legt keine Liste an, ändert
+ * keine Spalte.
  *
- * Geprüft wird: die Modelle (rechnen sie richtig?), die Listen auf der
- * ISMS-Site (senden sie nur, was es gibt?), die Ansichten (zeichnen sie mit
- * echten Daten ohne Fehler?) und die Verdrahtung (Navigation, Rechte,
- * Nachladen, Cockpit, Audit Report, Fälligkeiten).
+ * Geprüft wird: die Modelle (lesen sie die Listen richtig, rechnen sie
+ * richtig?), die Anbindung (was wird gesendet?), die Ansichten (zeichnen sie
+ * mit echten Daten?) und die Verdrahtung.
  */
 import fs from 'fs';
 import vm from 'vm';
@@ -30,137 +30,183 @@ const Z = modell('js/zielmodell.js');
 const K = modell('js/kennzahlmodell.js');
 const HEUTE = '2026-10-20';
 
-/* ── 1) Maßnahmen ── */
-ok(M.MN_BEREICHE.map(b => b.key).join(',') === 'isms,qualitaet,umwelt,energie,arbeitsschutz,compliance,datenschutz,ims', 'Bereiche des IMS wie im Maßnahmenplan, um die Managementsysteme erweitert');
-ok(M.MN_BEWERTUNG.map(b => b.key).join('') === 'NAVE', 'Bewertung NA / V / E');
-ok(M.MN_KATEGORIEN.map(k => k.annex).join(' ') === 'A.5 A.6 A.7 A.8', 'Kategorien: die vier Themen der ISO 27002');
-const n0 = M.mnNormal({ titel: ' X ', bereich: 'mond', quelle: '??', status: 'fertig', werke: ['WGC', ''] });
-ok(n0.titel === 'X' && n0.bereich === 'isms' && n0.quelle === 'sonstige' && n0.status === 'offen' && n0.werke.join() === 'WGC', 'Unbekanntes fällt auf sichere Vorgaben zurück');
-ok(M.mnNaechsteNr([{ nr: 'M-2026-004' }, { nr: 'M-2025-019' }, { nr: 'frei' }], 2026) === 'M-2026-005', 'Laufende Nummer je Jahr');
-ok(M.mnNaechsteNr([], 2027) === 'M-2027-001', 'Neues Jahr beginnt bei 001');
-ok(M.mnLuecken({ titel: 'A', status: 'offen' }).length === 2, 'Ohne Verantwortung und Termin: zwei Lücken');
-ok(M.mnLuecken({ titel: 'A', status: 'verworfen' }).length === 0, 'Verworfen braucht nichts mehr');
-const naErledigt = { titel: 'A', verantwortlich: 'x', termin: '2026-01-01', bewertung: 'NA', status: 'erledigt' };
-ok(M.mnLuecken(naErledigt).some(l => /10\.2/.test(l)), 'Erledigte Korrektur einer Nichtkonformität ohne Wirksamkeitsprüfung: Lücke mit Normbezug');
-ok(M.mnAbschlussfehler(Object.assign({}, naErledigt, { status: 'offen', wirksamkeit: 'Seit drei Monaten kein Vorfall' })).length === 0, 'Mit Wirksamkeitsprüfung lässt sie sich erledigen');
-ok(M.mnAbschlussfehler({ titel: 'V', verantwortlich: 'x', termin: '2026-01-01', bewertung: 'V' }).length === 0, 'Eine Verbesserung braucht keine Wirksamkeitsprüfung');
+/* Einträge, wie _hausLesen sie aus den Listen liefert (Aufbau wie im Bestand). */
+const rohMass = [
+  { id: '11', titel: '​Background Checks durchführen', beschreibung: 'Verpflichtender Background check', status: 'In Bearbeitung',
+    quellen: ['Internes Audit', 'Risikobehandlung', 'Sicherheitsvorfall'], durchfuehrung: 'Kontinuierlich', teams: [{ id: '4', wert: 'Personal' }],
+    iso: [{ id: '30', wert: 'A.6.01 Sicherheitsüberprüfung' }], termin: '2024-04-08', auswirkungEintritt: 'Reduzierend', archiv: false, ressourcen: 'HR' },
+  { id: '12', titel: 'Videoüberwachung einführen', status: 'Offen', quellen: ['Risikobehandlung'], durchfuehrung: 'Einmalig',
+    teams: [{ id: '6', wert: 'Facility Management' }], iso: [{ id: '40', wert: 'A.7.02 Physischer Zutritt' }], archiv: false },
+  { id: '13', titel: 'VM-Server Umzug', status: 'Offen', quellen: ['Zielemanagement'], teams: [], verantwortlich: { id: '16', name: 'Max Muster', email: 'max@dihag.com' },
+    termin: '2027-01-15', iso: [], archiv: false, ressourcen: 'Partner TAZ' },
+  { id: '14', titel: 'Alt', status: 'Abgeschlossen', quellen: ['Externes Audit'], archiv: true, umgesetztAm: '2025-01-01' },
+  { id: '15', titel: 'Zurückgestellt', status: 'Zurückgestellt', quellen: ['Management Review'], archiv: false },
+];
+const rohZiele = [
+  { id: '1', titel: 'Erreichung der ISO27001 Zertifizierung', beschreibung: 'Sicherheitsniveau', termin: '2027-02-28', messung: 'Alle Dokumente gelebt',
+    erreicht: 'Nein', status: 'Wie geplant', zieltyp: 'Operativ und strategisch', teams: [{ id: '23', wert: 'ISMS-Management' }],
+    massnahmen: [{ id: '11', wert: 'Background Checks durchführen' }], standort: { id: '11', wert: 'Alle DIHAG-Standorte' }, prioritaet: 'sehr hoch',
+    bemerkung: '<div class="ExternalClassX"><p><br></p></div>', archiv: false },
+  { id: '2', titel: 'Umzug OnPremise Server', termin: '2025-12-31', messung: 'Anzahl VMs', erreicht: 'Nein', status: 'Wie geplant',
+    teams: [{ id: '20', wert: 'IT' }], massnahmen: [{ id: '13', wert: 'VM-Server Umzug' }], archiv: false },
+];
+const rohKpi = [
+  { id: '1', name: 'Offene Maßnahmen aus internen Audits', typ: 'Prozess-Kennzahl', turnus: 'Jährlich', einheit: 'Stückzahl',
+    team: { id: '23', wert: 'ISMS-Management' }, normalwert: '<= 5 offene Maßnahmen', messung: 'Offene Maßnahmen', archiv: false },
+  { id: '3', name: 'Microsoft Secure Score', typ: 'Technik-Kennzahl', turnus: 'Halbjährlich', einheit: 'Prozentsatz',
+    team: { id: '20', wert: 'IT' }, normalwert: '60%', messung: 'Microsoft Score', archiv: false },
+  { id: '7', name: 'Endpoint Security', typ: 'Technik-Kennzahl', turnus: 'Quartalsweise', einheit: 'Zustand', team: { id: '20', wert: 'IT' },
+    normalwert: 'Ziel: 100% nach max. 30 Minuten, Grün: > 90%, Gelb: 70-90%, Rot: <70%', messung: 'Zeitvergleich', archiv: false },
+  { id: '10', name: 'Migrierte Systeme', typ: 'Technik-Kennzahl', turnus: 'Halbjährlich', einheit: 'Stückzahl', team: { id: '20', wert: 'IT' }, normalwert: '', messung: 'Projekte', archiv: false },
+];
+const rohTracking = [
+  { id: '7', wert: '36.73', kennzahl: { id: '3', wert: '' }, datum: '2022-07-22', standorte: [{ id: '1', wert: 'Gienanth' }] },
+  { id: '9', wert: '61.5', kennzahl: { id: '3', wert: '' }, datum: '2026-08-06', von: { id: '16', name: 'Max Muster' } },
+  { id: '10', wert: '80', kennzahl: { id: '7', wert: '' }, datum: '2026-07-31', bemerkung: '<div>Stichprobe</div>' },
+  { id: '11', wert: 'x', kennzahl: null, datum: '2026-07-31' },
+];
 
-const risiken = [{ id: '3', titel: 'Ransomware', kategorie: 'Technik / IT', brutto: { e: 4, a: 5 }, netto: { e: 2, a: 4 }, controls: ['A.8.13'],
-  massnahmen: [{ titel: 'Offline-Backup', verantwortlich: 'it@dihag.com', frist: '2026-09-01', status: 'offen' }, { titel: '', frist: '' }] }];
-const ar = M.mnAusRisiken(risiken);
-ok(ar.length === 1 && ar[0].schluessel === 'risiko:3:0' && ar[0].quelle === 'risiko' && ar[0].herkunft === 'risiko', 'Risikobehandlung: eine Zeile je benannter Maßnahme, mit Schlüssel zum Ursprung');
-ok(ar[0].kategorie === 'technologisch' && ar[0].prioritaet === 'mittel' && ar[0].normbezug === 'A.8.13', 'Kategorie aus der Risikokategorie, Priorität aus dem Netto-Risiko (2×4 = mittel), Controls als Normbezug');
+/* ── 1) Maßnahmen ── */
+ok(M.MN_QUELLEN.filter(q => !q.nurGesamtsicht).map(q => q.key).join('|') === 'Risikobehandlung|Internes Audit|Externes Audit|Management Review|Sicherheitsvorfall|Tests und Übungen|Zielemanagement',
+  '„Entspringt aus" mit den Auswahlwerten der Liste');
+ok(M.MN_STATUS.map(s => s.haus).join('|') === 'Offen|In Bearbeitung|Zurückgestellt|Abgeschlossen', 'Status wie in der Liste');
+const mm = rohMass.map(M.mnAusHaus);
+ok(mm[0].titel === 'Background Checks durchführen' && mm[0].status === 'in Umsetzung' && mm[0].quelle === 'Internes Audit' && mm[0].quellen.length === 3,
+  'Gelesen: unsichtbares Leerzeichen entfernt, Status abgebildet, mehrere Quellen');
+ok(mm[0].team === 'Personal' && mm[0].normbezug === 'A.6.01' && mm[0].kategorie === 'personell', 'Team, Control und daraus das Thema (A.6 = personell)');
+ok(mm[1].kategorie === 'physisch' && mm[2].verantwortlich === 'max@dihag.com' && mm[2].verantwortlichName === 'Max Muster', 'A.7 = physisch; Person mit E-Mail und Namen');
+ok(M.mnKategorieAusIso(['A.8.13 Sicherung', 'A.8.15 Protokollierung', 'A.5.1 Politik']) === 'technologisch' && M.mnKategorieAusIso(['A.08.13']) === 'technologisch', 'Thema nach den meisten Controls, auch mit führender Null');
+const zu = M.mnZuHaus(Object.assign({}, mm[0], { quellen: ['Risikobehandlung', 'Sonstige'], verantwortlich: 'neu@dihag.com' }));
+ok(zu.status === 'In Bearbeitung' && zu.quellen.join() === 'Risikobehandlung' && zu.teams.join() === '4' && zu.iso.join() === '30', 'Geschrieben: Status als Auswahl, „Sonstige" nicht (gibt es in der Liste nicht), Nachschlagewerte als IDs');
+ok(zu.verantwortlich === 'neu@dihag.com' && M.mnZuHaus({ titel: 'x', verantwortlich: 'Max Muster' }).verantwortlich === undefined && M.mnZuHaus({ titel: 'x' }).verantwortlich === '',
+  'Person als E-Mail; ein bloßer Name bleibt unangetastet, leer wird geleert');
+ok(M.mnLuecken(mm[1]).length === 1 && M.mnLuecken(Object.assign({}, mm[1], { teams: [] })).length === 2 && M.mnLuecken(mm[2]).length === 0, 'Lücken: ein Team genügt als Verantwortung; ohne Termin eine, ohne Team zwei, vollständig keine');
+ok(M.mnLuecken(Object.assign({}, mm[3], { archiv: false })).length === 0 && M.mnLuecken(Object.assign({}, mm[3], { archiv: false, umgesetztAm: '' }))[0].includes('Umsetzungsdatum'),
+  'Abgeschlossen braucht das Umsetzungsdatum');
+ok(M.mnLuecken(mm[4]).length === 0, 'Zurückgestellt verlangt nichts');
+ok(M.mnUeberfaellig(mm[0], HEUTE) && !M.mnUeberfaellig(mm[2], HEUTE) && !M.mnUeberfaellig(mm[4], HEUTE), 'Überfällig: geplant vorbei und offen; Zurückgestelltes nie');
+
+const risiken = [{ id: '3', titel: 'Ransomware', kategorie: 'Technik / IT', controls: ['A.8.13'],
+  massnahmen: [{ titel: 'Offline-Backup', verantwortlich: 'it@dihag.com', frist: '2026-09-01', status: 'offen' }, { titel: '' }] }];
 const wirk = [
   { id: '7', art: 'abweichung', titel: 'Rechte nicht entzogen', quelle: 'internes Audit', werke: ['SHB'], massnahmen: [{ titel: 'Austrittsprozess', status: 'erledigt' }] },
-  { id: '8', art: 'abweichung', titel: 'Phishing', herkunftId: 'ticket:44', massnahmen: [{ titel: 'Schulung', status: 'offen', frist: '2026-12-01' }] },
+  { id: '8', art: 'abweichung', titel: 'Phishing', herkunftId: 'ticket:44', massnahmen: [{ titel: 'Schulung', status: 'offen' }] },
   { id: '9', art: 'bewertung', titel: 'MR 2026', massnahmen: [{ titel: 'Budget', status: 'in Umsetzung' }] },
   { id: '10', art: 'uebung', titel: 'Übung SAP', massnahmen: [{ titel: 'Telefonliste', status: 'offen' }] },
+  { id: '11', art: 'abweichung', titel: 'Fund', quelle: 'Beobachtung im Betrieb', massnahmen: [{ titel: 'Prüfen', status: 'offen' }] },
 ];
-const aw = M.mnAusWirksamkeit(wirk);
-ok(aw.map(e => e.quelle).join(',') === 'audit_intern,vorfall,bewertung,uebung', 'Wirksamkeit: Quelle aus Satzart, Herkunft und Freitext');
-ok(aw[0].bewertung === 'NA' && aw[0].art === 'korrektur' && aw[0].werke.join() === 'SHB' && aw[2].bewertung === '', 'Abweichung = Nichtkonformität und Korrektur, mit den Werken des Eintrags');
-const eigene = [{ id: '1', nr: 'M-2026-001', titel: 'Externes Audit: Zutritt', quelle: 'audit_extern', verantwortlich: 'a', termin: '2026-10-01', status: 'offen', prioritaet: 'hoch', kategorie: 'physisch' },
-  { id: '2', nr: 'M-2026-002', titel: 'Intranet', quelle: 'ziel', zielId: '5', verantwortlich: 'b', termin: '2027-01-01', status: 'erledigt' }];
-const alle = M.mnAlle(eigene, risiken, wirk, HEUTE);
-ok(alle.length === 7, 'Gesamtsicht: eigene, Risiken und Wirksamkeit zusammen (7)');
-ok(alle[0].titel === 'Externes Audit: Zutritt' && alle[1].titel === 'Offline-Backup', 'Überfälliges zuerst, nach Priorität');
-ok(alle[alle.length - 1].status === 'erledigt', 'Erledigtes am Ende');
-ok(M.mnFiltern(alle, { offen: true }, HEUTE).length === 5, 'Filter „nur offene"');
-ok(M.mnFiltern(alle, { ueberfaellig: true }, HEUTE).length === 2, 'Filter „nur überfällige"');
-ok(M.mnFiltern(alle, { herkunft: 'wirksamkeit' }).length === 4 && M.mnFiltern(alle, { zielId: '5' }).length === 1, 'Filter nach Register und Ziel');
-ok(M.mnFiltern(alle, { werk: 'WGC' }).length === 6, 'Werk-Filter: konzernweite bleiben, fremde Werke fallen weg');
-ok(M.mnFiltern(alle, { q: 'ransom' }).length === 1, 'Volltext findet auch den Bezug (Risiko „Ransomware")');
+ok(M.mnAusRisiken(risiken).length === 1 && M.mnAusRisiken(risiken)[0].quelle === 'Risikobehandlung' && M.mnAusRisiken(risiken)[0].kategorie === 'technologisch', 'Risiko-Register: Risikobehandlung, Thema aus der Risikokategorie');
+ok(M.mnAusWirksamkeit(wirk).map(e => e.quelle).join('|') === 'Internes Audit|Sicherheitsvorfall|Management Review|Tests und Übungen|Sonstige', 'Wirksamkeit: auf „Entspringt aus" abgebildet, sonst „Sonstige"');
+const alle = M.mnAlle(rohMass, risiken, wirk, HEUTE);
+ok(alle.length === 10, 'Gesamtsicht ohne Archiv: 4 aus der Liste, 1 aus Risiken, 5 aus Wirksamkeit');
+ok(M.mnAlle(rohMass, [], [], HEUTE, { archiv: true }).length === 5, 'Mit Archiv: alle der Liste');
+ok(alle[0].titel === 'Background Checks durchführen' && alle[1].titel === 'Offline-Backup', 'Überfälliges zuerst, nach Termin');
+ok(M.mnFiltern(alle, { quelle: 'Risikobehandlung' }).length === 3, 'Filter „Entspringt aus" trifft auch mehrwertige Einträge');
+ok(M.mnFiltern(alle, { team: 'Personal' }).length === 1 && M.mnFiltern(alle, { offen: true }).length === 8, 'Filter Team; „nur offene" ohne Abgeschlossenes und Zurückgestelltes');
+ok(M.mnFiltern(alle, { ids: new Set(['13']) }).length === 1 && M.mnFiltern(alle, { werk: 'WGC' }).length === 9, 'Filter „zum Ziel" über IDs; Werk lässt Einträge ohne Werk stehen');
 const gq = M.mnGruppieren(alle, 'quelle');
-ok(gq[0].wert === 'risiko' && gq.map(g => g.wert).indexOf('audit_extern') > gq.map(g => g.wert).indexOf('uebung'), 'Gruppen in der Reihenfolge des Katalogs');
-ok(M.mnGruppieren(alle, 'kategorie').slice(-1)[0].label === 'ohne Angabe', 'Ohne Angabe steht am Ende');
+ok(gq[0].wert === 'Risikobehandlung' && gq.slice(-1)[0].wert === 'Sonstige', 'Gruppen in der Reihenfolge der Auswahl, Sonstige zuletzt');
+ok(M.mnGruppieren(alle, 'herkunft').map(g => g.wert).join() === 'eigen,risiko,wirksamkeit', 'Nach Register gruppierbar');
 const k0 = M.mnKennzahlen(alle, HEUTE);
-ok(k0.gesamt === 7 && k0.offen === 4 && k0.inUmsetzung === 1 && k0.erledigt === 2 && k0.ueberfaellig === 2 && k0.quote === 29, 'Kennzahlen der Gesamtsicht');
-ok(k0.ohneVerantwortlich === 3 && k0.jeQuelle.risiko === 1, 'Ohne Verantwortliche und je Quelle gezählt');
-const csv = M.mnCsv(alle, (id) => (id === '5' ? 'S03 Intranet' : ''));
-ok(csv.charCodeAt(0) === 0xFEFF && csv.split('\r\n').length === 8, 'CSV mit BOM, Kopf und einer Zeile je Maßnahme');
-ok(/"Bewertung";"Art";"Priorität"/.test(csv) && /"S03 Intranet"/.test(csv) && /"Risiko-Register"/.test(csv), 'CSV trägt die Kategorien, das Ziel und das Register');
+ok(k0.gesamt === 10 && k0.offen === 6 && k0.inUmsetzung === 2 && k0.zurueckgestellt === 1 && k0.erledigt === 1 && k0.ueberfaellig === 2, 'Kennzahlen der Gesamtsicht');
+ok(k0.jeQuelle.Risikobehandlung === 3 && k0.ohneTermin === 5, 'Je Quelle (mehrwertig gezählt) und ohne Termin');
+const csv = M.mnCsv(alle, (id) => (id === '13' ? 'Umzug OnPremise Server' : ''));
+ok(csv.charCodeAt(0) === 0xFEFF && csv.split('\r\n').length === 11 && /"Entspringt aus"/.test(csv) && /"Umzug OnPremise Server"/.test(csv), 'CSV mit BOM, Kategorien und Ziel');
 
 /* ── 2) Ziele ── */
-ok(Z.zlNaechsteNr([{ nr: 'S01' }, { nr: 'S07' }, { nr: 'Q02' }], 'S') === 'S08', 'Nummer S08 nach S07');
-const zEntwurf = { titel: 'ISO 27001', status: 'entwurf' };
-ok(Z.zlLuecken(zEntwurf, []).length === 0, 'Ein Entwurf darf unvollständig sein');
-const zPlan = { id: '5', titel: 'Intranet', status: 'umsetzung' };
-const lp = Z.zlLuecken(zPlan, [], HEUTE);
-ok(lp.length === 5, 'Ab „verabschiedet": Verantwortung, Termin, Messung, Ressourcen, Maßnahme verlangt');
-const zVoll = { id: '5', titel: 'Intranet', status: 'umsetzung', verantwortlich: 'it', termin: '2027-07-31', messung: 'alle Maßnahmen', ressourcen: '1 IT' };
-ok(Z.zlLuecken(zVoll, [{ zielId: '5', status: 'offen' }], HEUTE).length === 0, 'Vollständig geplant: keine Lücke');
-ok(Z.zlLuecken(Object.assign({}, zVoll, { termin: '2026-01-31' }), [{ zielId: '5', status: 'offen' }], HEUTE).some(l => /Management Review/.test(l)), 'Termin überschritten: die Bewertung gehört ins Management Review');
-ok(Z.zlLuecken(Object.assign({}, zVoll, { status: 'verfehlt' }), [], HEUTE).some(l => /Bewertung/.test(l)), 'Auch ein verfehltes Ziel braucht seine Bewertung');
-ok(Z.zlAbschlussfehler(zVoll, 'erreicht', '').length === 1 && Z.zlAbschlussfehler(zVoll, 'erreicht', 'Zertifikat liegt vor').length === 0, 'Ein Ergebnis gibt es nur mit Bewertungstext');
-ok(Z.zlFortschritt(zVoll, [{ zielId: '5', status: 'erledigt' }, { zielId: '5', status: 'offen' }, { zielId: '5', status: 'verworfen' }]).pct === 50, 'Fortschritt ohne Verworfenes: 1 von 2');
-const zk = Z.zlKennzahlen([zVoll, Object.assign({}, zVoll, { id: '6', termin: '2026-01-01' }), { titel: 'X', status: 'erreicht' }], [], HEUTE);
-ok(zk.gesamt === 3 && zk.laufend === 2 && zk.erreicht === 1 && zk.ueberschritten === 1 && zk.ohneKennzahl === 2, 'Kennzahlen über die Ziele');
-for (const [ein, aus] of [['Februar 2027', '2027-02-28'], ['Dezember 2025', '2025-12-31'], ['Juli 2026', '2026-07-31'], ['12/2025', '2025-12-31'],
-  ['31.03.2026', '2026-03-31'], ['Q1 2027', '2027-03-31'], ['Ende 2028', '2028-12-31'], ['bald', '']])
-  ok(Z.zlDatumAusText(ein) === aus, `Termin „${ein}" → ${aus || 'leer'}`);
-const vorlage = ['Informationssicherheitsziele', '', 'Ziel S01: Zertifizierung', 'Beschreibung:', 'Zeile eins.', 'Zeile zwei.', 'Zielerreichung bis:', 'Februar 2027',
-  'Messung der Zielerreichung:', 'Vollständige Maßnahmenumsetzung', 'Verantwortlich:', 'Compliance und IT', 'Maßnahme:', 'Einführung', 'Geplantes Umsetzungsdatum:', 'Februar 2027',
-  'Verantwortlich:', 'Compliance', 'Messung:', 'Alles dokumentiert.', 'Ressourcen:', 'Partner', '', 'Ziel S02: Umzug', 'Beschreibung:', 'Konsolidierung.', '',
-  'Zielerreichung bis:', 'Dezember 2025', 'Verantwortlich:', 'IT', 'Maßnahme:', 'VM-Umzug', 'Geplantes Umsetzungsdatum:', 'Dezember 2025', '', 'Verantwortlich:', 'IT',
-  'Ressourcen:', 'Zwei Personen', 'Maßnahme:', 'Zweite', 'Ressourcen:', 'Budget', '', 'Max Muster', 'CEO'].join('\n');
-const vz = Z.zlAusVorlageText(vorlage);
-ok(vz.length === 2 && vz[0].nr === 'S01' && vz[0].titel === 'Zertifizierung' && vz[0].termin === '2027-02-28', 'Vorlage: Ziele mit Nummer, Titel und Termin');
-ok(vz[0].beschreibung === 'Zeile eins.\nZeile zwei.' && vz[0].verantwortlich === 'Compliance und IT' && vz[0].messung === 'Vollständige Maßnahmenumsetzung', 'Mehrzeilige Beschreibung; Verantwortung und Messung des Ziels');
-ok(vz[0].massnahmen.length === 1 && vz[0].massnahmen[0].verantwortlich === 'Compliance' && vz[0].massnahmen[0].messung === 'Alles dokumentiert.', 'Nach „Maßnahme:" gehören Verantwortung und Messung zur Maßnahme');
-ok(vz[1].massnahmen.length === 2 && vz[1].massnahmen[0].verantwortlich === 'IT' && vz[1].massnahmen[1].ressourcen === 'Budget', 'Leerzeile mitten in einer Maßnahme stört nicht');
-ok(vz[1].ressourcen === 'Zwei Personen\nBudget' && !/Muster|CEO/.test(JSON.stringify(vz)), 'Ressourcen des Ziels aus seinen Maßnahmen; die Unterschriften bleiben draußen');
+const zz = rohZiele.map(Z.zlAusHaus);
+ok(zz[0].massnahmenIds.join() === '11' && zz[0].teams[0].wert === 'ISMS-Management' && zz[0].standort.wert === 'Alle DIHAG-Standorte' && zz[0].bemerkung === '', 'Gelesen: Maßnahmen als IDs, Teams, Standort; leere Rich-Text-Bemerkung wird leer');
+ok(Z.zlOhneHtml('<div><p>Zeile&#58; eins</p><p>zwei &amp; drei</p></div>') === 'Zeile: eins\nzwei & drei', 'Rich-Text als Text');
+const zh = Z.zlZuHaus(Object.assign({}, zz[0], { massnahmenIds: ['11', '13'] }));
+ok(zh.massnahmen.join() === '11,13' && zh.teams.join() === '23' && zh.standort === '11' && zh.status === 'Wie geplant', 'Geschrieben: IDs für Maßnahmen, Teams, Standort');
+ok(zh.bemerkung === undefined && Z.zlZuHaus(Object.assign({}, zz[0], { bemerkung: 'a <b>\nb', bemerkungGeaendert: true })).bemerkung === 'a &lt;b&gt;<br>b', 'Die Bemerkung wird nur geschrieben, wenn sie geändert wurde, und dann sicher');
+ok(Z.zlErgebnis({ status: 'Abgeschlossen', erreicht: 'Ja' }) === 'erreicht' && Z.zlErgebnis({ status: 'Abgeschlossen', erreicht: 'Nein' }) === 'verfehlt' && Z.zlErgebnis({ status: 'Gestoppt' }) === 'gestoppt', 'Ergebnis aus Status und Zielerreichung');
+const mass = rohMass.map(M.mnAusHaus);
+ok(Z.zlLuecken(zz[0], mass, HEUTE).length === 0, 'Vollständig geplant: keine Lücke (Ressourcen an der Maßnahme)');
+const l2 = Z.zlLuecken(zz[1], mass, HEUTE);
+ok(l2.length === 1 && /Management Review/.test(l2[0]), 'Termin überschritten: das Ergebnis gehört ins Management Review');
+ok(Z.zlLuecken({ titel: 'X', status: 'Wie geplant', massnahmenIds: ['12'] }, mass, HEUTE).length === 4, 'Ohne Team, Termin, Messung; Maßnahme ohne Ressourcen');
+ok(Z.zlLuecken({ titel: 'X', status: 'Abgeschlossen', teams: [{ id: '1' }], termin: '2026-01-01', messung: 'm', erreicht: 'Nein' }, mass, HEUTE).some(l => /Begründung/.test(l)), 'Nicht erreicht ohne Bemerkung: Lücke');
+ok(Z.zlAbschlussfehler({ erreicht: '' }).length === 1 && Z.zlAbschlussfehler({ erreicht: 'Nein', bemerkung: '' }).length === 1 && Z.zlAbschlussfehler({ erreicht: 'Ja' }).length === 0, 'Abschließen verlangt die Zielerreichung, bei „Nein" eine Bemerkung');
+ok(Z.zlFortschritt(zz[0], mass).pct === 0 && Z.zlFortschritt({ massnahmenIds: ['14', '12'] }, mass).gesamt === 1, 'Fortschritt ohne Archiviertes');
+const zk = Z.zlKennzahlen(zz.concat([{ titel: 'G', status: 'Gefährdet', termin: '2027-01-01' }, { titel: 'E', status: 'Abgeschlossen', erreicht: 'Ja' }]), mass, HEUTE);
+ok(zk.gesamt === 4 && zk.laufend === 3 && zk.erreicht === 1 && zk.gefaehrdet === 1 && zk.ueberschritten === 1, 'Kennzahlen über die Ziele');
 
 /* ── 3) Kennzahlen ── */
-ok(K.kzZahl('1.250,5') === 1250.5 && K.kzZahl('93 %') === 93 && K.kzZahl('abc') === null && K.kzZahl(4) === 4, 'Zahlen deutsch gelesen');
-const kp = { name: 'Patch-Quote', richtung: 'hoch', ziel: '95', intervall: 'monatlich', status: 'aktiv', verantwortlich: 'it', methode: 'WSUS',
-  werte: [{ datum: '2026-08-31', wert: 91 }, { datum: '2026-09-30', wert: '96,5' }, { datum: 'kaputt', wert: 3 }] };
-ok(K.kzNormal(kp).werte.length === 2 && K.kzLetzter(kp).wert === 96.5, 'Ungültige Werte fallen weg; letzter Wert');
-ok(K.kzBewertung(kp) === 'erfuellt' && K.kzTrend(kp) === 'besser', '96,5 ≥ 95: im Ziel, besser als zuvor');
-const kn = { name: 'Offene hohe Risiken', richtung: 'niedrig', ziel: '0', werte: [{ datum: '2026-09-01', wert: 1 }, { datum: '2026-10-01', wert: 3 }] };
-ok(K.kzBewertung(kn) === 'verfehlt' && K.kzTrend(kn) === 'schlechter', 'Höchstens 0, Ist 3: verfehlt und schlechter');
-ok(K.kzBewertung({ ziel: '', werte: [{ datum: '2026-01-01', wert: 1 }] }) === 'offen', 'Ohne Sollwert: offen');
-const nm = K.kzNaechsteMessung({ intervall: 'monatlich', status: 'aktiv', werte: [{ datum: '2026-01-31', wert: 1 }] }, '2026-02-20');
-ok(nm.datum === '2026-02-28' && !nm.faellig && nm.tage === 8, 'Nächste Messung: 31.01. + 1 Monat = 28.02.');
-ok(K.kzNaechsteMessung(kp, HEUTE).faellig === false && K.kzNaechsteMessung(Object.assign({}, kp, { werte: [{ datum: '2026-08-31', wert: 91 }] }), HEUTE).faellig, 'Fällig, wenn das Intervall um ist');
-ok(K.kzNaechsteMessung(Object.assign({}, kp, { status: 'stillgelegt' }), HEUTE) === null, 'Stillgelegt: keine Messung fällig');
-ok(K.kzLuecken({ name: 'X', status: 'aktiv' }).length === 4, 'Ohne Soll, Verantwortung, Intervall und Methode: vier Lücken');
-ok(K.kzLuecken(kp, HEUTE).length === 0, 'Vollständig und gemessen: keine Lücke');
-const ks = K.kzKennzahlen([kp, kn, { name: 'neu', status: 'aktiv', intervall: 'quartal' }, { name: 'alt', status: 'stillgelegt' }], HEUTE);
-ok(ks.gesamt === 3 && ks.erfuellt === 1 && ks.verfehlt === 1 && ks.offen === 1 && ks.messungFaellig === 1 && ks.ohneSoll === 1, 'Kennzahlen über das Register (Stillgelegtes zählt nicht)');
-ok(K.kzSollText(kp) === '≥ 95' && K.kzSollText({ ziel: '5', richtung: 'niedrig', einheit: 'Tage' }) === '≤ 5 Tage', 'Sollwert als Text');
-const metr = { compliance: { quote: 87 }, soa: { umgesetzt: 40, anwendbar: 80 }, risiken: { hoch: 2, mUeber: 1 }, wirksamkeit: { mUeber: 2, abwOffen: 3 },
-  massnahmen: { ueberfaellig: 5 }, ziele: { laufend: 4, ueberschritten: 1 }, faellig: { overdue: 0 } };
-ok(K.kzAutomatikWert('kenntnisquote', metr) === 87 && K.kzAutomatikWert('soaUmgesetzt', metr) === 50 && K.kzAutomatikWert('zieleImPlan', metr) === 75, 'Automatik liest die Metriken des Audit Reports');
-ok(K.kzAutomatikWert('massnahmenUeberfaellig', metr) === 5 && K.kzAutomatikWert('massnahmenUeberfaellig', { risiken: { mUeber: 1 }, wirksamkeit: { mUeber: 2 } }) === 3, 'Überfällige Maßnahmen: aus der Gesamtsicht, sonst aus Risiken und Wirksamkeit');
-ok(K.kzAutomatikWert('vorfaelleUnbeurteilt', metr) === null && K.kzAutomatikWert('regelwerkeUeberfaellig', metr) === 0, 'Fehlt ein Teil, ist der Wert null, keine falsche Null; eine echte Null bleibt');
-const ap = K.kzAusProzessen([{ art: 'kachel', werk: 'WGC', kachel: { id: 'k1', name: 'Einkauf' }, kennzahlen: { liste: [{ name: 'Liefertreue', richtung: 'hoch', ziel: '95', ist: '93', einheit: '%' }], geerbt: false } },
-  { art: 'modell', werk: 'HOL', kachel: { id: 'm9', name: 'Vertrieb' }, kennzahlen: { liste: [{ name: 'Angebote', richtung: 'hoch', ziel: '10', ist: '' }], geerbt: true } }]);
-ok(ap.length === 2 && ap[0].werk === 'HOL' && ap[0].geerbt && ap[0].bewertung === 'offen' && ap[1].bewertung === 'verfehlt', 'Prozesskennzahlen: je Kennzahl eine Zeile, Vorgabe erkannt, bewertet');
-const vl = K.kzVerlauf(kp, 100, 20);
-ok(/^M[\d.]+ [\d.]+ L[\d.]+ [\d.]+$/.test(vl.pfad) && vl.soll !== null && vl.punkte.length === 2, 'Verlauf als SVG-Pfad mit Sollwert-Linie');
-ok(K.kzNaechsteNr([{ nr: 'K-09' }, { nr: 'X' }]) === 'K-10', 'Nummer K-10 nach K-09');
+ok(JSON.stringify(K.kzSoll('<= 5 offene Maßnahmen', 'Stückzahl')) === JSON.stringify({ art: 'grenze', richtung: 'niedrig', op: '<=', wert: 5 }), 'Normalwert „<= 5 …": Grenze, höchstens 5');
+ok(K.kzSoll('60%', 'Prozentsatz').op === '>=' && K.kzSoll('99,5%', 'Prozentsatz').wert === 99.5, '„60%", „99,5%": Mindestwert');
+const amp = K.kzSoll('Ziel: 100% nach max. 30 Minuten, Grün: > 90%, Gelb: 70-90%, Rot: <70%', 'Zustand');
+ok(amp.art === 'ampel' && amp.gruen.wert === 90 && amp.rot.wert === 70, 'Ampel aus „Grün: > 90%, …, Rot: <70%", auch mit Text davor');
+ok(K.kzBewertungWert(amp, 95) === 'erfuellt' && K.kzBewertungWert(amp, 80) === 'gelb' && K.kzBewertungWert(amp, 50) === 'verfehlt', 'Ampel grün, gelb, rot');
+ok(K.kzSoll('', 'Stückzahl') === null && K.kzSoll('nach Bedarf', 'Stückzahl') === null && K.kzSoll('12', 'Stückzahl') === null, 'Ohne erkennbare Grenze: keine Bewertung geraten');
+const kk = K.kzAusHaus(rohKpi, rohTracking);
+ok(kk.length === 4 && kk[1].werte.length === 2 && kk[1].werte[1].wert === 61.5 && kk[1].werte[1].von === 'Max Muster', 'Messwerte aus „Kennzahlen Tracking" an der Kennzahl, „61.5" mit Punkt gelesen');
+ok(kk[2].werte[0].bemerkung === 'Stichprobe' && kk[0].werte.length === 0, 'Bemerkung als Text; ohne Messwert leer; ein Wert ohne Kennzahl fällt weg');
+ok(K.kzBewertung(kk[1]) === 'erfuellt' && K.kzTrend(kk[1]) === 'besser' && K.kzBewertung(kk[2]) === 'gelb', 'Secure Score 61,5 ≥ 60: grün und besser; Endpoint 80: gelb');
+ok(K.kzNaechsteMessung(kk[1], HEUTE).datum === '2027-02-06' && !K.kzNaechsteMessung(kk[1], HEUTE).faellig, 'Halbjährlich: nächste Messung ein halbes Jahr nach der letzten');
+ok(K.kzNaechsteMessung(kk[0], HEUTE).faellig && K.kzNaechsteMessung(Object.assign({}, kk[0], { archiv: true }), HEUTE) === null, 'Ohne Wert sofort fällig; Archiv nie');
+ok(K.kzLuecken(kk[3], HEUTE).some(l => /Normalwert/.test(l)) && K.kzLuecken(kk[1], HEUTE).length === 0, 'Lücken: ohne Normalwert; vollständig keine');
+const ks = K.kzKennzahlen(kk, HEUTE);
+ok(ks.gesamt === 4 && ks.erfuellt === 1 && ks.gelb === 1 && ks.offen === 2 && ks.messungFaellig === 2 && ks.ohneSoll === 1, 'Kennzahlen über das Register');
+const kh = K.kzZuHaus(Object.assign({}, kk[2], { bereiche: [{ id: '20' }, { id: '23' }], standorte: [{ id: '11' }] }));
+ok(kh.team === '20' && kh.bereiche.join() === '20,23' && kh.standorte.join() === '11' && kh.turnus === 'Quartalsweise', 'Geschrieben: Team, Bereiche, Standorte als IDs');
+const kw = K.kzWertZuHaus({ kennzahlId: '3', datum: '2026-10-20', wert: '62,5', von: 'max@dihag.com', bemerkung: 'Halbjahr' });
+ok(kw.wert === '62.5' && kw.kennzahl === '3' && kw.datum === '2026-10-20' && kw.von === 'max@dihag.com', 'Messwert für „Kennzahlen Tracking": IST-Wert mit Punkt wie im Bestand');
+const metr = { compliance: { quote: 87 }, soa: { umgesetzt: 40, anwendbar: 80 }, massnahmen: { ueberfaellig: 5, offen: 3, inUmsetzung: 2 }, ziele: { laufend: 4, ueberschritten: 1 }, faellig: { overdue: 0 } };
+ok(K.kzAutomatikWert('kenntnisquote', metr) === 87 && K.kzAutomatikWert('soaUmgesetzt', metr) === 50 && K.kzAutomatikWert('zieleImPlan', metr) === 75 && K.kzAutomatikWert('massnahmenOffen', metr) === 5,
+  'Automatik liest die Metriken des Audit Reports');
+ok(K.kzAutomatikWert('vorfaelleUnbeurteilt', metr) === null && K.kzAutomatikWert('regelwerkeUeberfaellig', metr) === 0, 'Fehlt ein Teil: null, keine falsche Null; eine echte Null bleibt');
+const vl = K.kzVerlauf(kk[1], 100, 20);
+ok(/^M[\d.]+ [\d.]+ L[\d.]+ [\d.]+$/.test(vl.pfad) && vl.soll !== null, 'Verlauf als SVG-Pfad mit der Grenze des Normalwerts');
 
-/* ── 4) Die Listen auf der ISMS-Site ── */
+/* ── 4) Die Anbindung: bestehende Listen, keine neuen, keine Spalten ── */
 const sp = lies('js/sharepoint.js');
+ok(!/_ismsRegister|MASSNAHMEN_COLUMNS|ZIELE_COLUMNS|KENNZAHLEN_COLUMNS/.test(sp), 'Kein Register mehr, das eigene Listen oder Spalten anlegt');
+const block = sp.slice(sp.indexOf('const HAUS_LISTEN'), sp.indexOf('Assets / Werte'));
+ok(!/\/columns`, token, \{|\/lists`, token, \{/.test(block) && !/_post\([^)]*\/columns/.test(block), 'Im Block der ISMS-Listen wird weder eine Liste noch eine Spalte angelegt');
+ok(/massnahmen: 'Maßnahmen', ziele: 'ISMS Ziele', kennzahlen: 'Kennzahlen', tracking: 'Kennzahlen Tracking'/.test(sp), 'Die Listen des Hauses beim Namen');
 const sctx = { console, JSON, Date, Promise, Set, Map, Array, Object, String, Math, Number, location: { origin: '', pathname: '' } };
 sctx.window = sctx; sctx.globalThis = sctx;
 vm.createContext(sctx);
 vm.runInContext(sp, sctx);
-const w = (a) => vm.runInContext(a, sctx);
-ok(w(`_regMassnahmen.name === 'Massnahmen' && _regZiele.name === 'Ziele' && _regKennzahlen.name === 'Kennzahlen'`), 'Drei Listen: Massnahmen, Ziele, Kennzahlen');
-w(`_regMassnahmen.cols = new Set(['Title', 'Nr', 'MTermin', 'MStatus', 'KostenPlan', 'HistorieJson'])`);
-const neu = w(`_regMassnahmen._felder({ titel: 'A', nr: 'M-2026-001', termin: '', status: 'offen', kostenPlan: '', beschreibung: 'gibt es nicht' }, false)`);
-ok(neu.Title === 'A' && neu.Nr === 'M-2026-001' && !('MTermin' in neu) && !('KostenPlan' in neu) && !('Beschreibung' in neu), 'Anlegen: leeres Datum und leere Zahl weggelassen, unbekannte Spalte nicht gesendet');
-const aend = w(`_regMassnahmen._felder({ titel: 'A', termin: '', kostenPlan: '' }, true)`);
-ok(aend.MTermin === null && aend.KostenPlan === null, 'Ändern: geleertes Datum und geleerte Zahl werden geleert (null)');
-const mit = w(`_regMassnahmen._felder({ titel: 'A', termin: '2026-11-30' }, false)`);
-ok(mit.MTermin === '2026-11-30T12:00:00Z', 'Datum mittags UTC, damit kein Tag durch die Zeitzone kippt');
-w(`_regKennzahlen.cols = null`);
-const kf = w(`_regKennzahlen._felder({ name: 'Q', werte: [{ datum: '2026-01-01', wert: 1 }], automatik: 'kenntnisquote' }, false)`);
-ok(JSON.parse(kf.WerteJson).length === 1 && kf.Automatik === 'kenntnisquote' && kf.Title === 'Q', 'Kennzahl: Messwerte als JSON, Automatik als Spalte');
-ok(/async function spGetMassnahmenLeise\(\)\s*\{ return _regMassnahmen\.alle\(false\); \}/.test(sp) && /async function spGetZieleLeise\(\)/.test(sp) && /async function spGetKennzahlenLeise\(\)/.test(sp),
-  'Leise lesen legt keine Liste an (Cockpit, Audit Report, Fälligkeiten)');
-ok(/root\/search\(q=/.test(sp) && /async function spSucheIsmsDatei/.test(sp), 'Die Vorlage wird über die Suche gefunden, nicht durch Lesen der ganzen Bibliothek');
+const anfragen = [];
+sctx.acquireToken = async () => 'tok';
+vm.runInContext(`_sp.ismsSiteId = 'S';`, sctx);
+const spalten = [
+  { name: 'Title', displayName: 'Titel', text: {} }, { name: 'Status', displayName: 'Status', choice: { choices: ['Offen'] } },
+  { name: 'Entspringt_x0020_aus', displayName: 'Entspringt aus', choice: { displayAs: 'checkBoxes', choices: ['Risikobehandlung'] } },
+  { name: 'Team', displayName: 'Team', lookup: { allowMultipleValues: true, listId: 'T' } },
+  { name: 'Verantwortlich_x0020_zur_x0020_U', displayName: 'Verantwortlich zur Umsetzung', personOrGroup: {} },
+  { name: 'Geplante_x0020_Umsetzung', displayName: 'Geplante Umsetzung', dateTime: {} },
+  { name: 'Durchf_x00fc_hrung', displayName: 'Durchführung', choice: { choices: ['Einmalig'] } },
+  { name: 'Archiv', displayName: 'Archiv', boolean: {} },
+];
+sctx.fetch = async (url, opt) => {
+  anfragen.push({ url, opt });
+  const json = (o) => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => o, text: async () => JSON.stringify(o) });
+  if (/\/lists\?\$select/.test(url)) return json({ value: [{ id: 'L1', displayName: 'Maßnahmen', name: 'Massnahmen' }, { id: 'L2', displayName: 'ISMS Ziele', name: 'ISMS Ziele' }] });
+  if (/\/lists\/L1\/columns/.test(url)) return json({ value: spalten });
+  if (/\/lists\/[^/]+\/items\?\$expand=fields\(\$select=id,EMail/.test(url)) return json({ value: [{ id: '16', fields: { EMail: 'max@dihag.com', Title: 'Max' } }] });
+  if (/\/lists\?.*userInformationList|template/.test(url)) return json({ value: [] });
+  if (opt && opt.method === 'POST') return json({ id: '99' });
+  if (opt && opt.method === 'PATCH') return json({});
+  return json({ value: [], id: 'X' });
+};
+vm.runInContext(`_ismsUserListId = 'U';`, sctx);
+const neueId = await vm.runInContext(`_hausSchreiben('massnahmen', null, { titel: 'Neu', status: 'Offen', quellen: ['Risikobehandlung'], teams: ['20', '23'],
+  verantwortlich: 'max@dihag.com', termin: '2026-11-30', durchfuehrung: '', archiv: false, gibtEsNicht: 'x' })`, sctx);
+const post = anfragen.find(a => a.opt && a.opt.method === 'POST');
+const felder = JSON.parse(post.opt.body).fields;
+ok(neueId === '99' && /\/lists\/L1\/items$/.test(post.url), 'Neuer Eintrag in der bestehenden Liste (POST auf ihre Einträge)');
+ok(felder.Title === 'Neu' && felder.Status === 'Offen' && felder['Entspringt_x0020_aus@odata.type'] === 'Collection(Edm.String)' && felder.Entspringt_x0020_aus[0] === 'Risikobehandlung',
+  'Interne Spaltennamen aus dem Anzeigenamen; Mehrfachauswahl als Sammlung');
+ok(felder['TeamLookupId@odata.type'] === 'Collection(Edm.Int32)' && felder.TeamLookupId.join() === '20,23', 'Mehrfach-Nachschlagewert als Liste von IDs');
+ok(felder.Verantwortlich_x0020_zur_x0020_ULookupId === '16', 'Person über die Benutzerinformationsliste der ISMS-Site');
+ok(felder.Durchf_x00fc_hrung === null && felder.Archiv === false && !('gibtEsNicht' in felder), 'Leere Auswahl wird geleert; was es nicht gibt, wird nicht gesendet');
+ok(/^2026-11-(29T2[23]|30T00):00:00\.000Z$/.test(felder.Geplante_x0020_Umsetzung), 'Datum als Mitternacht Ortszeit, wie SharePoint selbst speichert');
+ok(vm.runInContext(`_hausTag('2027-02-27T23:00:00Z') === '2027-02-28' && _hausTag('2024-04-07T22:00:00Z') === '2024-04-08' && _hausTag('') === ''`, sctx), 'Gelesen: Mitternacht Ortszeit ist der Kalendertag');
+ok(!anfragen.some(a => /\/columns$/.test(a.url) && a.opt && a.opt.method === 'POST') && !anfragen.some(a => /\/lists$/.test(a.url) && a.opt && a.opt.method === 'POST'),
+  'Dabei keine neue Spalte, keine neue Liste');
 
 /* ── 5) Die Ansichten zeichnen mit echten Daten ── */
 const mounts = {};
@@ -171,48 +217,44 @@ const vctx = {
   jsArg, sichereUrl,
   fmtDate: (s) => String(s || '').slice(0, 10).split('-').reverse().join('.'), fmtDateTime: (s) => String(s || ''),
   emptyState: (t) => `<div class="empty">${t}</div>`, toast: () => {}, openModal: (h) => modals.push(h), closeModal: () => {},
-  canWriteTab: () => true, STANDORTE: ['HOL', 'SHB', 'WGC'], State: { user: { upn: 'isb@dihag.com', name: 'Iris' } },
+  canWriteTab: () => true, State: { user: { upn: 'isb@dihag.com', name: 'Iris' } },
+  localStorage: { getItem: () => null, setItem() {} },
   document: { getElementById: (id) => (mounts[id] = mounts[id] || { innerHTML: '' }) },
 };
 vctx.globalThis = vctx;
 vm.createContext(vctx);
 for (const f of ['js/massnahmenmodell.js', 'js/zielmodell.js', 'js/kennzahlmodell.js', 'js/massnahmen.js', 'js/ziele.js', 'js/kennzahlen.js']) vm.runInContext(lies(f), vctx);
 const v = (a) => vm.runInContext(a, vctx);
-vctx.__eigene = eigene; vctx.__risiken = risiken; vctx.__wirk = wirk;
-v(`_mn = __eigene; _mnRisiken = __risiken; _mnWirk = __wirk; _mnZiele = [{ id: '5', nr: 'S03', titel: 'Intranet' }]; _mnFilter.offen = false; renderMassnahmen()`);
+vctx.__mass = mass; vctx.__risiken = risiken; vctx.__wirk = wirk; vctx.__ziele = zz; vctx.__kpi = kk;
+v(`_mn = __mass; _mnRisiken = __risiken; _mnWirk = __wirk; _mnZiele = __ziele; _mnFilter.offen = false; renderMassnahmen()`);
 const mh = mounts['massnahmen-mount'].innerHTML;
-ok(/Offline-Backup/.test(mh) && /Externes Audit: Zutritt/.test(mh) && /Schulung/.test(mh), 'Maßnahmen: eigene und fremde in einer Liste');
-ok(/Kategorisieren nach/.test(mh) && /Risikobehandlung \(1/.test(mh) && />überfällig</.test(mh), 'Gruppiert nach Quelle, mit Übersicht und Kacheln');
-ok(/mnUrsprungOeffnen\(&quot;risiko:3:0&quot;\)/.test(mh) && /openMassnahme\(&quot;1&quot;\)/.test(mh), 'Fremde führen zum Ursprung, eigene in den Editor');
-ok(/🎯 S03 Intranet/.test(mh), 'Am Ziel hängende Maßnahme zeigt das Ziel');
+ok(/Background Checks durchführen/.test(mh) && /Offline-Backup/.test(mh) && /Telefonliste/.test(mh) && !/>Alt</.test(mh), 'Maßnahmen: Liste und Register zusammen, Archiv ausgeblendet');
+ok(/Kategorisieren nach/.test(mh) && /Risikobehandlung \(2/.test(mh) && /Entspringt aus/.test(mh), 'Kategorisiert nach „Entspringt aus", mit Übersicht');
+ok(/mnUrsprungOeffnen\(&quot;risiko:3:0&quot;\)/.test(mh) && /openMassnahme\(&quot;11&quot;\)/.test(mh) && /🎯 Erreichung der ISO27001 Zertifizierung/.test(mh), 'Register führen zum Ursprung, die Liste in den Editor; das Ziel steht dabei');
 v(`_mnGruppe = 'kategorie'; renderMassnahmen()`);
-ok(/Technologisch \(1/.test(mounts['massnahmen-mount'].innerHTML), 'Umschalten auf Kategorie (ISO 27002)');
-v(`openMassnahme('1')`);
-ok(/Maßnahme M-2026-001/.test(modals.at(-1)) && /Bereich des IMS/.test(modals.at(-1)) && /NA Nichtkonformität · V Verbesserung · E Empfehlung/.test(modals.at(-1)), 'Editor mit den Kategorien des Maßnahmenplans');
-v(`openMassnahme(null)`);
-ok(/Neue Maßnahme M-2026-003/.test(modals.at(-1)), 'Neue Maßnahme bekommt die nächste Nummer');
+ok(/Personell \(1/.test(mounts['massnahmen-mount'].innerHTML) && /Physisch \(1/.test(mounts['massnahmen-mount'].innerHTML), 'Umschalten auf das Thema nach ISO 27002');
+await v(`_mnTeams = [{ id: '4', wert: 'Personal' }]; _mnIso = [{ id: '30', wert: 'A.6.01 Sicherheitsüberprüfung' }]; openMassnahme('11')`);
+const ed = modals.at(-1);
+ok(/Entspringt aus/.test(ed) && /Verantwortlich zur Umsetzung/.test(ed) && /ISO\/IEC 27001:2022/.test(ed) && /Personell/.test(ed) && /Archiv/.test(ed), 'Editor mit den Spalten der Liste');
+ok(!/Bewertung|Kosten|Wirksamkeitsprüfung/.test(ed), 'Keine Felder, die die Liste nicht hat');
 
-vctx.__ziele = [zVoll, { id: '6', nr: 'S01', titel: 'ISO 27001', status: 'umsetzung', termin: '2026-02-28', kennzahlIds: ['k1'] }];
-vctx.__kpi = [Object.assign({ id: 'k1', nr: 'K-01' }, kp)];
-v(`_zl = __ziele.map(zlNormal); _zlMass = [{ id: 'm1', zielId: '5', status: 'erledigt', titel: 'A' }, { id: 'm2', zielId: '5', status: 'offen', titel: 'B' }];
-   _zlKpi = __kpi; _zlWirk = [{ id: 'w1', art: 'bewertung', titel: 'MR 2026', datum: '2026-03-01' }]; renderZiele()`);
-const zh = mounts['ziele-mount'].innerHTML;
-ok(/Intranet/.test(zh) && /1 von 2 Maßnahmen erledigt/.test(zh) && /Termin überschritten/.test(zh), 'Ziele: Fortschritt der Maßnahmen und überschrittener Termin');
-ok(/📊 Patch-Quote: <b style="color:#15803d">96,5/.test(zh), 'Die verknüpfte Kennzahl zeigt ihren letzten Wert mit Ampel');
-ok(/Aus der Vorlage übernehmen/.test(zh), 'Übernahme aus der Vorlage angeboten');
-v(`openZiel('5')`);
-ok(/Bewertung \(Management Review\)/.test(modals.at(-1)) && /MR 2026/.test(modals.at(-1)) && /\+ Maßnahme zu diesem Ziel/.test(modals.at(-1)), 'Ziel-Editor: Bewertung mit Managementbewertung, Maßnahme anlegen');
+v(`_zl = __ziele; _zlMass = __mass; renderZiele()`);
+const zhtml = mounts['ziele-mount'].innerHTML;
+ok(/Erreichung der ISO27001 Zertifizierung/.test(zhtml) && /0 von 1 Maßnahmen abgeschlossen/.test(zhtml) && /Termin überschritten/.test(zhtml), 'Ziele: Fortschritt und überschrittener Termin');
+ok(/ISMS-Management/.test(zhtml) && /Operativ und strategisch/.test(zhtml) && !/Aus der Vorlage/.test(zhtml), 'Teams und Zieltyp; keine Übernahme aus der Vorlage mehr (die Ziele stehen schon in der Liste)');
+await v(`_zlTeams = [{ id: '23', wert: 'ISMS-Management' }]; _zlStandorte = [{ id: '11', wert: 'Alle DIHAG-Standorte' }]; openZiel('1')`);
+ok(/Bewertung \(Management Review\)/.test(modals.at(-1)) && /Zielerreichung/.test(modals.at(-1)) && /Background Checks/.test(modals.at(-1)), 'Ziel-Editor: Bewertung, Zielerreichung, verknüpfte Maßnahmen');
 
-v(`_kz = __kpi.map(kzNormal); _kzZiele = __ziele; _kzProzesse = []; renderKennzahlen()`);
-const kh = mounts['kennzahlen-mount'].innerHTML;
-ok(/Patch-Quote/.test(kh) && /▲ besser/.test(kh) && /<svg/.test(kh) && /🎯 S01 ISO 27001/.test(kh), 'Kennzahlen: Trend, Verlauf und gemessene Ziele');
-ok(/Vom RMS gemessen/.test(kh) && /Jetzt messen/.test(kh) && /Prozesskennzahlen/.test(kh), 'Mit Automatik und Prozesskennzahlen');
+v(`_kz = __kpi; _kzProzesse = []; renderKennzahlen()`);
+const khtml = mounts['kennzahlen-mount'].innerHTML;
+ok(/Microsoft Secure Score/.test(khtml) && /▲ besser/.test(khtml) && /<svg/.test(khtml) && /&lt;= 5 offene Maßnahmen/.test(khtml), 'Kennzahlen: Normalwert, Trend, Verlauf');
+ok(/Vom RMS gemessen/.test(khtml) && /Prozesskennzahlen/.test(khtml), 'Mit „Vom RMS gemessen" und Prozesskennzahlen');
 vctx.__metr = metr;
 v(`_kzMetriken = Object.assign({ fehler: [] }, __metr)`);
 const ah = v('_kzAutomatikHtml()');
-ok(/Kenntnisnahme-Quote der Pflicht-Regelwerke/.test(ah) && /Als Kennzahl führen/.test(ah) && /nicht messbar/.test(ah), 'Automatik: Wert heute, führen oder nicht messbar');
-v(`kzWertErfassen('k1')`);
-ok(/Wert erfassen: Patch-Quote/.test(modals.at(-1)), '„+ Wert" öffnet die Erfassung');
+ok(/Kenntnisnahme-Quote/.test(ah) && /Kennzahl wählen/.test(ah) && /nicht messbar/.test(ah), 'Automatik: Wert heute, Kennzahl wählen und eintragen');
+await v(`_kzTeams = [{ id: '20', wert: 'IT' }]; _kzStandorte = []; openKennzahl('7')`);
+ok(/Gelesen als Ampel: grün &gt; 90, rot &lt; 70/.test(modals.at(-1)) && /Kennzahlen Tracking/.test(modals.at(-1)), 'Kennzahl-Editor zeigt, wie der Normalwert gelesen wird');
 
 /* ── 6) Verdrahtung ── */
 const html = lies('index.html');
@@ -220,34 +262,23 @@ for (const [id, mount, refresh] of [['ziele', 'ziele-mount', 'refreshZiele'], ['
   ok(new RegExp(`<a class="nav-item" data-view="${id}" id="nav-${id}" style="display:none">`).test(html), `Navigation: ${id}, von sich aus ausgeblendet`);
   ok(new RegExp(`<section id="view-${id}" class="view">[\\s\\S]*?<div id="${mount}">`).test(html) && html.includes(`onclick="${refresh}()"`), `Ansicht ${id} mit Mount und Aktualisieren`);
 }
-ok(html.indexOf('id="nav-ziele"') > html.indexOf('id="nav-assets"') && html.indexOf('id="nav-kennzahlen"') < html.indexOf('id="nav-wirksamkeit"'), 'In der Gruppe „IMS und Prozesse", vor Wirksamkeit');
 const acc = lies('js/access.js');
-ok(/\{ view: 'ziele',\s*label: 'Ziele'/.test(acc) && /\{ view: 'massnahmen',\s*label: 'Maßnahmen'/.test(acc) && /\{ view: 'kennzahlen',\s*label: 'Kennzahlen'/.test(acc), 'In der Reiter-Matrix (Einstellungen → Reiter-Berechtigungen)');
-ok(/show\('nav-ziele',\s+v\.ziele\)/.test(acc) && /show\('nav-massnahmen',\s+v\.massnahmen\)/.test(acc) && /show\('nav-kennzahlen',\s+v\.kennzahlen\)/.test(acc), 'Sichtbar nach Leserecht');
-ok(/v\.ziele \|\| v\.massnahmen \|\| v\.kennzahlen/.test(acc.slice(acc.indexOf("show('nav-grp-isms'"))), 'Die Gruppen-Überschrift zählt sie mit');
-ok(!/REITER_OHNE_STANDARD = \[[^\]]*'(ziele|massnahmen|kennzahlen)'/.test(acc), 'Von sich aus nur für Admins; wer sie sonst sieht, entscheidet die Reiter-Freigabe');
+ok(/\{ view: 'ziele',\s*label: 'Ziele'/.test(acc) && /\{ view: 'massnahmen',\s*label: 'Maßnahmen'/.test(acc) && /\{ view: 'kennzahlen',\s*label: 'Kennzahlen'/.test(acc), 'In der Reiter-Matrix');
+ok(!/REITER_OHNE_STANDARD = \[[^\]]*'(ziele|massnahmen|kennzahlen)'/.test(acc), 'Von sich aus nur für Admins');
 const plBleibt = (lies('js/probelauf.js').match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';
 ok(plBleibt && !/'(ziele|massnahmen|kennzahlen)'/.test(plBleibt), 'Im Probelauf ausgeblendet');
 const mctx = { module: { exports: {} }, document: { querySelector: () => null }, Map, Promise };
 mctx.window = mctx; mctx.globalThis = mctx; vm.createContext(mctx);
 vm.runInContext(lies('js/module.js'), mctx);
 const { MODUL_ADMIN, MODUL_ANSICHTEN } = mctx.module.exports;
-ok(['massnahmenmodell', 'zielmodell', 'kennzahlmodell'].every(x => MODUL_ADMIN.includes(x)) && MODUL_ADMIN.indexOf('kennzahlmodell') < MODUL_ADMIN.indexOf('clevelreport'),
-  'Die Modelle im Verwaltungsblock, vor dem Audit Report');
-ok(MODUL_ANSICHTEN.massnahmen.includes('massnahmen') && MODUL_ANSICHTEN.ziele.includes('massnahmen') && MODUL_ANSICHTEN.ziele.includes('ziele')
-  && MODUL_ANSICHTEN.kennzahlen.includes('prozessmodell') && MODUL_ANSICHTEN.kennzahlen.includes('kennzahlen'), 'Die Ansichten laden, was sie brauchen');
+ok(['massnahmenmodell', 'zielmodell', 'kennzahlmodell'].every(x => MODUL_ADMIN.includes(x)) && MODUL_ADMIN.indexOf('kennzahlmodell') < MODUL_ADMIN.indexOf('clevelreport'), 'Modelle im Verwaltungsblock, vor dem Audit Report');
+ok(MODUL_ANSICHTEN.ziele.includes('massnahmen') && MODUL_ANSICHTEN.kennzahlen.includes('prozessmodell'), 'Die Ansichten laden, was sie brauchen');
 const app = lies('js/app.js');
-ok(/if \(view === 'ziele'\s+&& typeof initZiele === 'function'\)\s+initZiele\(\);/.test(app) && /initMassnahmen\(\);/.test(app) && /initKennzahlen\(\);/.test(app), 'switchView startet die Ansichten');
-ok(/'ziele', 'massnahmen', 'kennzahlen', 'wirksamkeit'/.test(app) && /mnDeepLink\(params\.get\('massnahme'\)\)/.test(app) && /zlDeepLink/.test(app) && /kzDeepLink/.test(app), 'Deep-Links auf Maßnahme, Ziel, Kennzahl');
-const ck = lies('js/cockpit.js');
-ok(/tile\('ziele'/.test(ck) && /tile\('massnahmen'/.test(ck) && /tile\('kennzahlen'/.test(ck) && /_ckLoadZieleMassnahmenKennzahlen\(seq\)/.test(ck), 'Cockpit: drei Kacheln');
+ok(/initZiele\(\);/.test(app) && /initMassnahmen\(\);/.test(app) && /initKennzahlen\(\);/.test(app) && /mnDeepLink/.test(app) && /zlDeepLink/.test(app) && /kzDeepLink/.test(app), 'switchView und Deep-Links');
+ok(/_ckLoadZieleMassnahmenKennzahlen\(seq\)/.test(lies('js/cockpit.js')), 'Cockpit: drei Kacheln');
 const cl = lies('js/clevelreport.js');
-ok(/add\('ISO 6\.2', 'Informationssicherheitsziele'/.test(cl) && /add\('ISO 9\.1', 'Überwachung, Messung, Analyse und Bewertung'/.test(cl) && /'Maßnahmen \(alle Register\)'/.test(cl),
-  'Audit Report: ISO 6.2, ISO 9.1 und die Maßnahmen');
-ok(/spGetMassnahmenLeise\(\)/.test(cl) && /spGetZieleLeise\(\)/.test(cl) && /spGetKennzahlenLeise\(\)/.test(cl), 'Der Audit Report liest leise');
-const fae = lies('js/faelligkeit.js');
-ok(/<div id="fael-register"/.test(fae) && /_faelligRegisterZeigen\(\);/.test(fae) && /Maßnahmen überfällig/.test(fae) && /Ziele über dem Termin/.test(fae) && /Messung fällig/.test(fae),
-  'Fälligkeiten: überfällige Maßnahmen, Ziele über dem Termin, fällige Messungen');
+ok(/add\('ISO 6\.2', 'Informationssicherheitsziele'/.test(cl) && /add\('ISO 9\.1', 'Überwachung, Messung, Analyse und Bewertung'/.test(cl) && /spGetKennzahlenLeise\(\)/.test(cl), 'Audit Report: ISO 6.2, ISO 9.1, leise gelesen');
+ok(/Ziele über dem Termin/.test(lies('js/faelligkeit.js')) && /Messung fällig/.test(lies('js/faelligkeit.js')), 'Fälligkeiten: Maßnahmen, Ziele, Messungen');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

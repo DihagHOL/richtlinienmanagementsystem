@@ -424,48 +424,46 @@ function _dokuSections() {
       'ISO 27001 A.5.9 (Inventar der Informationen und anderen Werte), A.5.10 (zulässige Verwendung), A.5.12 (Klassifizierung), A.5.19–5.22 (Lieferanten); BSI-Standard 200-2 (Strukturanalyse, Schutzbedarfsfeststellung, Vererbung); NIS2 Art. 21 (2i); Reifegrad R093.'),
 
     sec('ziele', 'Ziele', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Ziele"</b>: die Ziele der Managementsysteme nach <b>ISO 27001 6.2</b> und der Konzernrichtlinie <b>Zieleplanung und -erreichung</b>. Sie werden im Management Review festgelegt und dort jährlich bewertet. Die SharePoint-Liste „Ziele" liegt auf der ISMS-Site und entsteht beim ersten Öffnen.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Ziele"</b>: die Liste <b>„ISMS Ziele"</b> der ISMS-Site, geprüft gegen <b>ISO 27001 6.2</b> und die Konzernrichtlinie <b>Zieleplanung und -erreichung</b>. Das RMS liest und schreibt die Einträge mit den Spalten der Liste, wie sie sind; es legt keine Liste an und ändert keine Spalte.</p>
       <ul style="${ol}">
-        <li style="${li}"><b>Je Ziel:</b> Nummer (S01 …), Beschreibung, woraus es abgeleitet ist (Unternehmensziel, Leitlinie), Bereich des IMS, Verantwortung, Termin („Zielerreichung bis"), Messung der Zielerreichung, benötigte Ressourcen und Geltung nach Werk.</li>
-        <li style="${li}"><b>Status:</b> Entwurf, Verabschiedet, In Umsetzung, dann Erreicht, Teilweise erreicht oder Nicht erreicht; dazu Verworfen. Ab „Verabschiedet" nennt die Karte beim Namen, was die Richtlinie noch verlangt: Verantwortung, Termin, Messung oder Kennzahl, Ressourcen und mindestens eine Maßnahme.</li>
-        <li style="${li}"><b>Maßnahmen zur Zielerreichung</b> stehen in der Maßnahmenliste (Feld „Zum Ziel"). Am Ziel legt <b>„+ Maßnahme zu diesem Ziel"</b> eine an; der Balken zeigt, wie viele erledigt sind.</li>
-        <li style="${li}"><b>Kennzahlen</b> aus dem Kennzahlen-Register lassen sich anhaken; die Karte zeigt den letzten Wert mit Ampel.</li>
-        <li style="${li}"><b>Bewertung (Management Review):</b> Ergebnis, Text, Datum und die Managementbewertung aus dem Register „Wirksamkeit". <b>„Ergebnis übernehmen"</b> setzt den Status, aber nur mit Bewertungstext. Ist der Termin überschritten, steht das als Lücke da, bis die Bewertung erfasst ist, auch für ein verfehltes Ziel.</li>
-        <li style="${li}"><b>„📄 Aus der Vorlage übernehmen":</b> sucht „ISMS_Vorlage_Zieleplanung.docx" in der ISMS-Bibliothek, liest die Ziele („Ziel S01: …" mit Beschreibung, Zielerreichung bis, Messung, Verantwortlich, Maßnahmen) und legt die gewählten als „In Umsetzung" an, je Maßnahme mit einem Eintrag in der Maßnahmenliste. Termine wie „Februar 2027" werden zum Monatsende.</li>
+        <li style="${li}"><b>Je Ziel:</b> Ziel, Beschreibung, Umsetzung bis, Messung, Zieltyp, Status, Verantwortlich (Teams), Standort, Priorität, die verknüpften Maßnahmen und die Bewertung (Zielerreichung Ja oder Nein, Bemerkung).</li>
+        <li style="${li}"><b>Was die Richtlinie verlangt</b>, steht beim Namen da, solange es fehlt: Verantwortung, Termin, Messung, mindestens eine Maßnahme, Ressourcen (in der Liste stehen sie an den Maßnahmen). Ist der Termin überschritten, gehört das Ergebnis ins Management Review, auch wenn das Ziel nicht erreicht ist.</li>
+        <li style="${li}"><b>Status</b> wie in der Liste: Nicht begonnen, Wie geplant, Verzögert, Gefährdet, Verschoben, Abgeschlossen, Gestoppt. <b>„Abschließen"</b> verlangt die Angabe zur Zielerreichung, bei „Nein" eine Begründung in der Bemerkung.</li>
+        <li style="${li}"><b>Maßnahmen zur Zielerreichung</b> werden am Ziel verknüpft (Suche mit Haken). <b>„+ Neue Maßnahme zu diesem Ziel"</b> legt eine in der Liste „Maßnahmen" an und verknüpft sie gleich. Der Balken zeigt, wie viele abgeschlossen sind.</li>
       </ul>
       <div style="${hint}">Im <b>Cockpit</b> (laufend, erreicht, Termin überschritten), in den <b>Fälligkeiten</b> (Ziele über dem Termin) und im <b>Audit Report</b> als Zeile <b>ISO 6.2</b>.</div>`,
       'ISO 27001 Klausel 6.2 (Informationssicherheitsziele und Planung zu deren Erreichung), 9.3 (Managementbewertung); Konzernrichtlinie Zieleplanung und -erreichung.'),
 
     sec('massnahmen', 'Maßnahmen (Gesamtliste)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Maßnahmen"</b>: alle Maßnahmen an einem Ort. Die eigenen stehen in der Liste „Massnahmen" auf der ISMS-Site, für alles ohne andere Herkunft: externes Audit, Zieleplanung, Begehung, Gesetz, Verbesserungsvorschlag. Die Maßnahmen aus <b>Risikobehandlung</b>, <b>Abweichungen</b>, <b>Managementbewertungen</b> und <b>Notfallübungen</b> bleiben in ihren Registern und erscheinen hier mit; ein Klick öffnet sie dort. Zwei Orte für dieselbe Maßnahme wären zwei Wahrheiten.</p>
-      <div style="${h3}">Kategorisierung (nach dem Maßnahmenplan IMS)</div>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Maßnahmen"</b>: die Liste <b>„Maßnahmen"</b> der ISMS-Site zusammen mit den Maßnahmen aus <b>Risiko-Register</b> und <b>Wirksamkeit</b> des RMS (Abweichungen, Managementbewertungen, Notfallübungen). Die der Liste werden hier gepflegt, mit ihren Spalten, wie sie sind; die aus den Registern dort, wo sie entstanden sind, ein Klick führt hin. Zwei Orte für dieselbe Maßnahme wären zwei Wahrheiten.</p>
+      <div style="${h3}">Kategorisierung</div>
       ${tbl([
-        ['Bereich des IMS', 'Informationssicherheit, Qualität, Umwelt, Energie, Arbeits- und Gesundheitsschutz, Compliance, Datenschutz, IMS übergreifend.'],
-        ['Quelle', 'Risikobehandlung, Abweichung, Managementbewertung, Notfallübung, internes und externes Audit, Zielerreichung, Sicherheitsvorfall, Funktionsprüfung, Kennzahl, Ausnahme, Gesetz oder Vertrag, Verbesserungsvorschlag, Sonstige.'],
-        ['Bewertung', '<b>NA</b> Nichtkonformität, <b>V</b> Verbesserung, <b>E</b> Empfehlung, wie in der Spalte des Maßnahmenplans.'],
-        ['Art', 'Sofort-, Korrektur-, Vorbeugemaßnahme oder Verbesserung.'],
-        ['Kategorie', 'Die vier Themen der ISO 27002:2022: organisatorisch (A.5), personell (A.6), physisch (A.7), technologisch (A.8). Bei Risiken folgt sie der Risikokategorie.'],
-        ['Priorität', 'hoch, mittel, niedrig. Bei Risiken aus der Risikostufe, bei Abweichungen hoch.'],
+        ['Entspringt aus', 'Externes Audit, Internes Audit, Management Review, Risikobehandlung, Sicherheitsvorfall, Tests und Übungen, Zielemanagement; mehrere sind möglich. Maßnahmen aus den Registern des RMS bekommen die passende Angabe.'],
+        ['Team', 'aus der Nachschlageliste „Teams".'],
+        ['Thema (ISO 27002)', 'organisatorisch, personell, physisch, technologisch: abgeleitet aus dem verknüpften Control der ISO/IEC 27001:2022 (A.5 bis A.8).'],
+        ['Status', 'Offen, In Bearbeitung, Zurückgestellt, Abgeschlossen.'],
+        ['Durchführung', 'Einmalig oder Kontinuierlich.'],
+        ['Register', 'Liste „Maßnahmen", Risiko-Register oder Wirksamkeit.'],
       ])}
       <ul style="${ol}">
-        <li style="${li}"><b>„Kategorisieren nach"</b> wählt das Merkmal für die Übersicht (offen, in Umsetzung, überfällig, erledigt je Gruppe) und für die Gruppen der Liste. Filter je Merkmal, nach Register, Werk und Ziel, dazu „nur offene" und „nur überfällige".</li>
-        <li style="${li}"><b>Je eigene Maßnahme:</b> laufende Nummer (M-2026-001), To-do, Normbezug, Ziel der Maßnahme, Ursachenanalyse (bei NA und Korrektur), Verantwortlich, Termin, Status und „Status geprüft am", Kosten geplant und Ist, Messung, Ressourcen, Wirksamkeitsprüfung, Nachweis-Link, Werke.</li>
-        <li style="${li}"><b>Erledigt</b> geht erst mit Verantwortlichem und Termin, bei einer Nichtkonformität oder Korrektur zusätzlich mit Wirksamkeitsprüfung (ISO 27001 10.2).</li>
+        <li style="${li}"><b>„Kategorisieren nach"</b> wählt das Merkmal für die Übersicht (offen, in Bearbeitung, überfällig, zurückgestellt, abgeschlossen je Gruppe) und für die Gruppen der Liste. Filter je Merkmal und nach Ziel, dazu „nur offene", „nur überfällige" und „mit Archiv".</li>
+        <li style="${li}"><b>Je Maßnahme der Liste:</b> Detailbeschreibung, Entspringt aus, Status, Durchführung, Team, Verantwortlich zur Umsetzung, geplante Umsetzung, Umsetzungsdatum, Controls der ISO/IEC 27001:2022 (mit Suche), Ressourcen, Quelle / Bericht, Auswirkung auf Eintrittswahrscheinlichkeit und Schadenshöhe, Archiv.</li>
+        <li style="${li}"><b>Was fehlt</b>, steht je Zeile: Verantwortung (Person oder Team), geplanter Termin, woraus sie entspringt; eine abgeschlossene Maßnahme braucht ihr Umsetzungsdatum. <b>„Abschließen"</b> setzt es auf heute, wenn es leer ist.</li>
         <li style="${li}"><b>⬇ CSV</b> exportiert die gefilterte Gesamtliste mit allen Merkmalen.</li>
       </ul>
       <div style="${hint}">Im <b>Cockpit</b>, in den <b>Fälligkeiten</b> (überfällige Maßnahmen aus allen Registern) und im <b>Audit Report</b> als Zeile „Maßnahmen (alle Register)".</div>`,
       'ISO 27001 Klausel 6.1.3 (Risikobehandlung), 6.2 (Planung der Zielerreichung), 10.1 (fortlaufende Verbesserung), 10.2 (Korrekturmaßnahmen); ISO 27002:2022 Themen.'),
 
     sec('kennzahlen', 'Kennzahlen', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Kennzahlen"</b> nach <b>ISO 27001 9.1</b>: was gemessen wird, mit welcher Methode, wie oft, von wem, und was dabei herauskam. Die Liste „Kennzahlen" liegt auf der ISMS-Site und entsteht beim ersten Öffnen. Die Felder folgen „IMS-8.1 Kennzahlen" der Werke: Einheit, Erhebungsintervall, Sollvorgabe, Datenquelle, Verantwortlich, Verwendung.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Kennzahlen"</b>: die Listen <b>„Kennzahlen"</b> und <b>„Kennzahlen Tracking"</b> der ISMS-Site nach <b>ISO 27001 9.1</b>: was gemessen wird, wie, wie oft, von wem, und was herauskam. Gepflegt mit den Spalten der Listen, wie sie sind.</p>
       <ul style="${ol}">
-        <li style="${li}"><b>Messwerte mit Datum:</b> „+ Wert" erfasst einen Wert; daraus folgen Ampel (im Ziel, verfehlt), Trend gegenüber der vorigen Messung, ein kleiner Verlauf mit Sollwert-Linie und die nächste fällige Messung aus dem Intervall.</li>
-        <li style="${li}"><b>Richtung:</b> „mindestens" (etwa Patch-Quote ≥ 95 %) oder „höchstens" (etwa offene hohe Risiken ≤ 0).</li>
-        <li style="${li}"><b>Vom RMS gemessen:</b> „Jetzt messen" liest die Register wie der Audit Report und zeigt Werte, die ohnehin entstehen: Kenntnisnahme-Quote, Anhang-A-Abdeckung, umgesetzte Controls, offene hohe Risiken, überfällige Maßnahmen, offene Abweichungen, abgelaufene Ausnahmen, überfällige Überprüfungen, unbeurteilte Vorfälle, Ziele im Plan. „Als Kennzahl führen" legt eine Kennzahl mit Automatik an, „Wert übernehmen" trägt den heutigen Wert ein, gekennzeichnet mit ⚙.</li>
+        <li style="${li}"><b>Je Kennzahl:</b> Kennzahl-Typ, Turnus, Einheit, Verantwortlich (Team), Normalwert, Messung, Zweck, Umfang, Betroffener Bereich, Standort, Archiv. Die Messwerte stehen in „Kennzahlen Tracking"; <b>„+ Wert"</b> legt dort einen Eintrag an (IST-Wert, Datum der Erhebung, Erhoben durch, Bemerkung).</li>
+        <li style="${li}"><b>Ampel aus dem Normalwert:</b> „&lt;= 5 offene Maßnahmen" ist eine Grenze, „Grün: &gt; 90%, Gelb: 70-90%, Rot: &lt; 70%" eine Ampel, „60%" bei Einheit Prozentsatz ein Mindestwert. Lässt sich keine Grenze lesen, bleibt die Ampel offen und das steht als Lücke da.</li>
+        <li style="${li}"><b>Trend und Verlauf</b> aus den letzten Messwerten; die <b>nächste Messung</b> folgt aus dem Turnus und wird rot, wenn sie fällig ist.</li>
+        <li style="${li}"><b>Vom RMS gemessen:</b> „Jetzt messen" liest die Register wie der Audit Report und zeigt Werte, die ohnehin entstehen: Kenntnisnahme-Quote, Anhang-A-Abdeckung, umgesetzte Controls, offene hohe Risiken, offene und überfällige Maßnahmen, offene Abweichungen, abgelaufene Ausnahmen, überfällige Überprüfungen, unbeurteilte Vorfälle, Ziele im Plan. Jeder Wert lässt sich als Messwert einer gewählten Kennzahl eintragen; der Browser merkt sich die Zuordnung.</li>
         <li style="${li}"><b>Prozesskennzahlen</b> aus Landkarte und Modellen stehen darunter, nur zur Ansicht; gepflegt werden sie am Prozess.</li>
-        <li style="${li}">Am <b>Ziel</b> lassen sich Kennzahlen anhaken; die Kennzahl zeigt dann, welche Ziele sie misst.</li>
       </ul>
-      <div style="${hint}">Im <b>Cockpit</b> (im Ziel, verfehlt, Messung fällig), in den <b>Fälligkeiten</b> (Messung fällig) und im <b>Audit Report</b> als Zeile <b>ISO 9.1</b>.</div>`,
+      <div style="${hint}">Im <b>Cockpit</b> (grün, gelb oder rot, Messung fällig), in den <b>Fälligkeiten</b> (Messung fällig) und im <b>Audit Report</b> als Zeile <b>ISO 9.1</b>.</div>`,
       'ISO 27001 Klausel 9.1 (Überwachung, Messung, Analyse und Bewertung), ISO 9001 4.4 c (Prozesskennzahlen).'),
 
     sec('ausnahmen', 'Ausnahmeregister (Abweichungen)', 'admin', `

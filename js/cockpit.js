@@ -292,14 +292,14 @@ async function _ckLoadZieleMassnahmenKennzahlen(seq) {
         _ckBig(z.laufend, 'laufend', '#17509e') +
         _ckBig(z.erreicht, 'erreicht', '#15803d') +
         _ckBig(z.ueberschritten, 'Termin überschritten', z.ueberschritten ? '#b91c1c' : '#15803d'));
-    } else _ckErr('ziele', 'Noch keine Ziele. Der Reiter legt die Liste beim ersten Öffnen an.');
+    } else _ckErr('ziele', 'Liste „ISMS Ziele" nicht lesbar.');
     if (Array.isArray(kpi)) {
       const k = kzKennzahlen(kpi);
       _ckSet('kennzahlen',
-        _ckBig(`${k.erfuellt}/${k.gesamt}`, 'im Ziel', k.verfehlt ? '#b45309' : '#15803d') +
-        _ckBig(k.verfehlt, 'verfehlt', k.verfehlt ? '#b91c1c' : '#15803d') +
+        _ckBig(`${k.erfuellt}/${k.gesamt}`, 'grün', (k.verfehlt || k.gelb) ? '#b45309' : '#15803d') +
+        _ckBig(k.gelb + k.verfehlt, 'gelb oder rot', (k.verfehlt || k.gelb) ? '#b91c1c' : '#15803d') +
         _ckBig(k.messungFaellig, 'Messung fällig', k.messungFaellig ? '#b45309' : '#15803d'));
-    } else _ckErr('kennzahlen', 'Noch keine Kennzahlen. Der Reiter legt die Liste beim ersten Öffnen an.');
+    } else _ckErr('kennzahlen', 'Liste „Kennzahlen" nicht lesbar.');
   } catch (e) { if (seq === _cockpitSeq) ids.forEach(id => _ckErr(id, 'Nicht ladbar.')); }
 }
 
