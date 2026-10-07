@@ -80,12 +80,12 @@ ok(aw[1].gesehen === 2 && aw[1].teilnahmen === 3 && aw[1].bestanden === 1 && aw[
 
 const leer = M.wiNormalisieren({});
 const n = M.wiStartbestandErgaenzen(leer, 'Anna', '2026-09-16T12:00:00Z');
-ok(n === 17 && leer.themen.length === 8 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
-  'Der Startbestand: acht Themen, siebzehn Beiträge (eine Schulung, je Thema ein Artikel und ein Test) – und jeder besteht die eigene Prüfung');
-ok(new Set(leer.themen.map(t => t.bereich)).size === 4 && leer.themen.some(t => t.bereich === 'Compliance & Verhalten') && leer.themen.some(t => t.bereich === 'Arbeitssicherheit'),
-  'Vier Bereiche – Informationssicherheit, Datenschutz, Compliance & Verhalten, Arbeitssicherheit: nicht nur IT');
+ok(n === 18 && leer.themen.length === 9 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
+  'Der Startbestand: neun Themen, achtzehn Beiträge (zwei Schulungen, Artikel und Tests) – und jeder besteht die eigene Prüfung');
+ok(new Set(leer.themen.map(t => t.bereich)).size === 5 && leer.themen.some(t => t.bereich === 'Compliance & Verhalten') && leer.themen.some(t => t.bereich === 'Arbeitssicherheit') && leer.themen.some(t => t.bereich === 'Qualität & Umwelt'),
+  'Fünf Bereiche – Informationssicherheit, Datenschutz, Compliance & Verhalten, Arbeitssicherheit, Qualität & Umwelt: nicht nur IT');
 ok(leer.beitraege.filter(b => b.art === 'test').every(b => b.fragen.length >= 3 && b.fragen.every(q => q.optionen.length === 3)), 'Jeder Test hat mindestens drei Fragen mit je drei Antworten');
-ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 17, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
+ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 18, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
 ok(leer.beitraege.every(b => b.erstelltVon === 'Anna' && b.erstelltAm === '2026-09-16T12:00:00Z'), 'Wer angelegt hat, steht dran');
 ok(!/Videos? (stehen|steht) (drin|bereit)/.test(JSON.stringify(M.WI_STARTBESTAND)) && !M.WI_STARTBESTAND.beitraege.some(b => b.art === 'video'),
   'Keine erfundenen Videos – die dreht das Haus selbst oder wählt sie aus');
@@ -251,7 +251,7 @@ run('closeModal()');
 gespeichert.length = 0;
 await run('wiStartbestand()');
 // „Datenschutz" gibt es schon (gleiche Kennung) – das Thema bleibt, wie es ist; nur fünf Themen kommen dazu.
-ok(run('_wi.daten.beitraege.length') === 6 + 17 && run('_wi.daten.themen.length') === 1 + 7 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
+ok(run('_wi.daten.beitraege.length') === 6 + 18 && run('_wi.daten.themen.length') === 1 + 8 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
 await run('wiAuswertungOeffnen()');
 const aus = felder['modal-body'].innerHTML;
 ok(/Beitrag<\/th>/.test(aus) && /Phishing in 3 Minuten/.test(aus) && /Person/.test(aus), 'Die Auswertung je Beitrag – Personen, nicht Klicks');

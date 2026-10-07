@@ -65,6 +65,8 @@ function _wiEsc(s) {
  *   !! Titel: Text      ein Warnsignal als Karte (rot, mit Titel)
  *   :::mail … :::       eine nachgebaute E-Mail: Von:/An:/Betreff:/Hinweis:, dann „---", dann der Text;
  *                       [→ Beschriftung] wird darin zu einem Knopf, der nirgends hinführt
+ *   :::code … :::       Zeilen, die genau so abzutippen sind (Schreibmaschinenschrift, Zeile für Zeile)
+ *   `Schreibweise`      dasselbe mitten im Satz
  *
  * Zeile für Zeile gelesen, damit eine Überschrift direkt über ihrer Liste
  * stehen darf – so schreibt man das nun einmal. Alles wird vorher
@@ -72,8 +74,9 @@ function _wiEsc(s) {
  */
 function wiTextHtml(text) {
   const out = [];
-  let absatz = [], liste = [], nummern = [], kasten = null, signale = [], mail = null;
-  const inline = (s) => _wiEsc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  let absatz = [], liste = [], nummern = [], kasten = null, signale = [], mail = null, code = null;
+  const inline = (s) => _wiEsc(s).replace(/`([^`]+)`/g, '<code class="wi-code-inline">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/\[→\s*([^\]]+)\]/g, '<span class="wi-mail-knopf">→ $1</span>');
   const absatzZu = () => { if (absatz.length) { out.push('<p>' + absatz.map(inline).join('<br>') + '</p>'); absatz = []; } };
   const listeZu = () => { if (liste.length) { out.push('<ul>' + liste.map(z => '<li>' + inline(z) + '</li>').join('') + '</ul>'); liste = []; } };
@@ -91,6 +94,13 @@ function wiTextHtml(text) {
   };
   String(text || '').replace(/\r/g, '').split('\n').forEach(z => {
     const t = z.trim();
+    // Abzutippende Zeilen bleiben, wie sie sind: keine Formatierung, nur entschärft.
+    if (code) {
+      if (t === ':::') { out.push('<pre class="wi-code">' + code.map(_wiEsc).join('\n') + '</pre>'); code = null; }
+      else code.push(z.replace(/\s+$/, ''));
+      return;
+    }
+    if (t === ':::code') { alleZu(); code = []; return; }
     if (mail) {
       if (t === ':::') { mailZu(); return; }
       if (t === '---') { mail.rumpf = true; return; }
@@ -118,6 +128,7 @@ function wiTextHtml(text) {
     listeZu(); nummernZu(); kastenZu(); signaleZu(); absatz.push(t);
   });
   mailZu(); alleZu();
+  if (code) out.push('<pre class="wi-code">' + code.map(_wiEsc).join('\n') + '</pre>');   // ohne schließendes ::: geht nichts verloren
   return out.join('');
 }
 
@@ -324,7 +335,7 @@ function wiAuswertung(daten, acks) {
 }
 
 /* ── Der Startbestand ──
-   Sechs Themen, je ein Artikel und ein Wissenstest – allgemein gehalten, damit
+   Themen mit je einem Artikel und einem Wissenstest, dazu zwei Schulungen – allgemein gehalten, damit
    sie in jedem Werk stimmen. Ein Vorschlag zum Anpassen, keine Hausregel: Wo
    ein Regelwerk etwas anderes sagt, gilt das Regelwerk. Videos stehen bewusst
    nicht drin – die dreht das Haus selbst oder wählt sie aus. */
@@ -338,6 +349,7 @@ const WI_STARTBESTAND = {
     { id: 'datenschutz',  titel: 'Datenschutz im Alltag',    symbol: '🛡️', kurz: 'Was personenbezogen ist: und was daraus folgt.', bereich: 'Datenschutz' },
     { id: 'verhalten',    titel: 'Verhaltenskodex & Compliance', symbol: '⚖️', kurz: 'Geschenke, Einladungen, Interessenkonflikte, und wo man Bedenken loswird.', bereich: 'Compliance & Verhalten' },
     { id: 'arbeitssicherheit', titel: 'Sicher arbeiten',    symbol: '🦺', kurz: 'Schutzausrüstung, Beinaheunfälle, das Recht, Nein zu sagen.', bereich: 'Arbeitssicherheit' },
+    { id: 'prozesse',     titel: 'Prozesse & BPMN',          symbol: '🔀', kurz: 'Abläufe lesen, aufschreiben und im RMS modellieren.', bereich: 'Qualität & Umwelt' },
   ],
   beitraege: [
     { id: 'start-verhalten-artikel', art: 'artikel', thema: 'verhalten', titel: 'Geschenke, Einladungen, Interessenkonflikte: die drei Alltagsfragen', dauer: 3,
@@ -661,6 +673,184 @@ Ein Logo, ein korrekter Name, ein freundlicher Ton, sogar ein „echter" Absende
 };
 WI_STARTBESTAND.beitraege.unshift(WI_KURS_PHISHING);
 
+/* Die Schulung „Abläufe beschreiben mit BPMN" – sechs Module und ein
+   Wissenstest, freiwillig. Der Inhalt ist die vorhandene Anleitung: „BPMN
+   einfach erklärt" (js/bpmnhilfe.js, Stufe 1 und 2) und die Word-Anleitung
+   (js/bpmnanleitung.js). Die beiden Beispiele stehen hier als Kopie, weil der
+   Reiter Wissen js/bpmnhilfe.js nicht lädt; tests/wissen-bpmn prüft, dass sie
+   mit den Beispielen dort übereinstimmen, die gegen das Hausschema getestet
+   sind. Ändert sich die Anleitung, fällt eine veraltete Schulung dort auf. */
+const WI_KURS_BPMN = {
+  id: 'start-bpmn-kurs', art: 'kurs', thema: 'prozesse', titel: 'Abläufe beschreiben mit BPMN',
+  kurz: 'Ein Prozessdiagramm lesen, einen Ablauf Zeile für Zeile aufschreiben und daraus im RMS ein Modell machen.',
+  intro: `Wir halten unsere Abläufe als Diagramme fest, in der Zeichensprache **BPMN**. Ein BPMN-Diagramm liest jede und jeder gleich: wo es losgeht, wer was tut, wo entschieden wird und wie die Sache ausgeht. Zeichnen müssen Sie dafür nicht. Sie schreiben den Ablauf Zeile für Zeile auf, das RMS baut daraus das Diagramm.`,
+  dauer: 30, zielgruppe: 'Prozessverantwortliche und alle, die einen Ablauf beschreiben oder im RMS modellieren: kein Vorwissen erforderlich',
+  pflicht: false, wiederholung: 0, bestehen: 80,
+  ziele: [
+    'Ein BPMN-Diagramm lesen: Zeichen, Bahnen, Pfeile und Farben',
+    'Einen Ablauf nach vier Regeln Zeile für Zeile aufschreiben',
+    'Aus dem Text im RMS ein Modell erzeugen und im Modeler anpassen',
+    'Größere Abläufe mit Handgriff, Warten, Aufteilung und Unterprozess abbilden',
+    'Die Befunde der Hausschema-Prüfung verstehen und beheben',
+  ],
+  module: [
+    { id: 'm1', titel: 'Worum es geht', text: `# Warum Abläufe als Diagramm
+Ein Ablauf, der nur in den Köpfen steckt, wird in jedem Werk anders gelebt. Als Diagramm lässt er sich lesen, vergleichen und verbessern. **BPMN** ist die Zeichensprache dafür, international genormt (ISO/IEC 19510).
+
+# Was Sie dafür brauchen
+- **Sechs Zeichen**, um ein Diagramm zu lesen
+- **Vier Regeln**, um einen Ablauf aufzuschreiben
+- Für größere Abläufe **vier weitere Bausteine** und ein paar Muster
+
+# Wie es im RMS zusammenhängt
+1. **Prozesslandkarte:** Jedes Werk hat seine Landkarte mit seinen Prozessen.
+2. **Modell:** Ein Prozess der Landkarte ist als BPMN-Modell beschrieben, mit Bahnen für die Zuständigen.
+3. **Regelwerk:** Das Modell ist mit dem Regelwerk verknüpft, das es umsetzt.
+
+> Ein Ablauf ohne Regelwerk ist Gewohnheit, keine Vorgabe. Deshalb gehört zu jedem Modell das Regelwerk, das es umsetzt.` },
+    { id: 'm2', titel: 'Ein Diagramm lesen', text: `# Die sechs Zeichen
+- **○ Auslöser:** Womit es losgeht. Ein Ereignis, kein Tun. Dünner Kreis. Beispiel: „Antrag geht ein"
+- **👤 Aufgabe:** Ein Mensch tut etwas. Beispiel: „Antrag prüfen"
+- **⚙ Automatik:** Das System tut etwas von selbst: Mail, Workflow, Schnittstelle. Beispiel: „Bestätigung versenden"
+- **◇ Entscheidung:** Eine Frage. Genau ein Weg geht weiter. Raute. Beispiel: „Betrag über 5.000 €?"
+- **◎ Ergebnis:** Wie die Sache ausgeht. Mehrere Ergebnisse sind normal. Dicker Kreis. Beispiel: „Antrag genehmigt"
+- **▭ Bahn:** Wer zuständig ist. Immer eine Rolle, nie ein Name. Beispiel: „Einkauf"
+
+# So liest man ein Diagramm
+Von links nach rechts läuft die Zeit, von oben nach unten stehen die Zuständigen, jede Rolle in ihrer Bahn. Die Pfeile geben die Reihenfolge vor.
+
+> Wo ein Pfeil die Bahn wechselt, wird Arbeit übergeben. An genau diesen Stellen bleibt im Alltag am meisten liegen.
+
+# Die Farben in der Ansicht
+- **Orange:** Ein Mensch tut etwas.
+- **Blau:** Es läuft automatisch.
+- **Gold:** eine Entscheidung
+- **Grün:** Anfang und gutes Ende
+- **Rot:** ein Ende, das niemand will, etwa „Antrag abgelehnt"
+
+# Ein Beispiel lesen: der Urlaubsantrag
+Die Mitarbeitenden erfassen den Antrag. Die Führungskraft entscheidet. Bei ja trägt das Personal den Urlaub ins Zeitkonto ein, und der Urlaub ist genehmigt. Bei nein teilt die Führungskraft die Ablehnung mit, und der Vorgang ist beendet. Drei Bahnen, eine Entscheidung, zwei Ergebnisse.` },
+    { id: 'm3', titel: 'Einen Ablauf aufschreiben', text: `# Die vier Regeln
+1. **Eine Zeile ist ein Schritt.** Vorne steht die Rolle, dann ein Doppelpunkt, dann die Tätigkeit: \`Einkauf: Angebote einholen\`.
+2. **Die Tätigkeit endet auf einem Verb:** „Antrag prüfen", nicht „Antragsprüfung".
+3. **Eine Entscheidung ist eine Frage mit Fragezeichen.** Was im Nein-Fall zu tun ist, steht dahinter nach \`| nein:\`.
+4. **Die erste Zeile beginnt mit \`Start:\`, die letzte mit \`Ende:\`.**
+
+# Der Urlaubsantrag als Text
+:::code
+Start: Urlaubsantrag gestellt
+Mitarbeitende: Antrag im Portal erfassen
+Führungskraft: Urlaub genehmigen? | nein: Ablehnung mitteilen
+Personal: Urlaub im Zeitkonto eintragen
+Ende: Urlaub genehmigt
+:::
+Aus genau diesen fünf Zeilen entsteht das Diagramm aus Modul 2. Die Prüfung gegen das Hausschema findet daran nichts.
+
+>✓ Den senkrechten Strich \`|\` tippen Sie mit der Taste \`AltGr\` und der Taste \`<\` links unten.
+
+# Damit es gut wird
+- **Rollen statt Namen:** „Einkauf", nicht „Frau Weber". Personen wechseln, Rollen bleiben.
+- **Ein Schritt** ist das, was eine Rolle am Stück erledigt. Sobald jemand anderes übernimmt, beginnt eine neue Zeile.
+- **Jedes Ende sagt, wie die Sache ausging:** „Urlaub genehmigt", nicht „Ende" oder „fertig".
+- **Offene Fragen** gehören unter den Ablauf, nicht hinein.` },
+    { id: 'm4', titel: 'Vom Text zum Modell im RMS', text: `# So kommt der Text ins RMS
+1. Reiter **„Prozesse"** öffnen und oben die Ansicht **„📋 Modelle"** wählen.
+2. **„✨ Aus Richtlinie"** klicken, das Regelwerk wählen, das der Ablauf umsetzt, und **„Text auslesen →"**.
+3. Im Textfeld steht nun der Text des Regelwerks, oder nichts, wenn kein Word-Dokument verknüpft ist. Ersetzen Sie ihn durch Ihre Zeilen.
+4. **„BPMN-Entwurf erzeugen →"**. Der Modeler öffnet sich mit dem fertigen Diagramm, das Regelwerk ist schon verknüpft.
+5. Rechts den **Prozessnamen** prüfen, unter **Ablage** das Werk wählen und oben **„💾 Speichern"**.
+
+# Kleine Korrekturen im Modeler
+- **Element anklicken:** Daneben erscheinen kleine Symbole. Damit hängen Sie den nächsten Schritt direkt an oder verbinden zwei Elemente.
+- **Doppelklick oder E:** Beschriftung ändern.
+- **🔧 oder R:** Die Art ändern, etwa einen leeren Kasten zu 👤, ⚙ oder ✋ machen.
+- **🗑 oder Entf:** Löschen.
+- **Strg+Z:** Rückgängig. Strg+Y stellt wieder her.
+
+# Fertig ist ein Prozess, wenn
+- es genau einen Auslöser gibt,
+- jedes Ergebnis einen Namen hat,
+- jeder Kasten 👤, ⚙ oder ✋ trägt,
+- jeder Kasten in einer Bahn liegt und jede Bahn nach einer Rolle heißt,
+- jede Raute eine Frage ist und ihre Ausgänge beschriftet sind,
+- ein Regelwerk verknüpft ist.
+
+> Genau das prüft **„🔍 Schema"** oben im Modeler, und still nach jeder Änderung. Ein roter Rahmen ist ein Verstoß, ein gestrichelter ein Hinweis.
+
+>✓ Für Kolleginnen und Kollegen ohne RMS gibt es im Modeler unter **„❓ Hilfe"** die **Word-Anleitung zum Weitergeben**: lesen, ausfüllen, zurückschicken.` },
+    { id: 'm5', titel: 'Größere Abläufe', text: `# Vier weitere Bausteine
+- **✋ Handgriff:** Arbeit außerhalb jeder Anwendung: Werkstatt, Papier, Telefon. Im Text: \`… (manuell)\`
+- **⏱ Warten:** Der Prozess ruht, bis eine Frist abläuft oder eine Nachricht kommt. Im Text: \`Warten: …\`
+- **✛ Aufteilung:** Zwei Wege laufen gleichzeitig und treffen sich wieder. Geht nur im Modeler.
+- **⊞ Unterprozess:** Ein eigener Prozess, der hier im Ganzen läuft. Einmal modelliert, überall eingebunden. Im Text: \`… (Unterprozess)\`
+
+Heißt die Rolle **System**, **Automatik**, **Workflow** oder **Cron**, gilt der Schritt als ⚙ Automatik. Bei jeder anderen Rolle macht der Zusatz \`(automatisch)\` daraus eine.
+
+# Ein Beispiel mit allen Zusätzen: die Reklamation
+:::code
+Start: Reklamation geht ein
+Vertrieb: Reklamation erfassen
+System: Eingang bestätigen (automatisch)
+Qualität: Muster prüfen (manuell)
+Qualität: Mangel berechtigt? | nein: Kunden informieren
+Qualität: Ursache analysieren (Unterprozess)
+Warten: Stellungnahme des Lieferanten
+Vertrieb: Gutschrift erstellen
+Ende: Reklamation erledigt
+:::
+Nach dem Erzeugen meldet die Prüfung genau einen Befund, **R10**: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie im Modeler rechts unter „Unterprozess – ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf daneben ihn an.
+
+# Muster, die immer wieder vorkommen
+- **Nachbessern:** Der Nein-Zweig muss nicht enden. Ein Pfeil zurück zu dem Schritt, der wiederholt wird, macht aus „abgelehnt" eine Schleife.
+- **Mehrere Ergebnisse:** Jedes Ende heißt nach seinem Zustand: „Antrag genehmigt", „Antrag abgelehnt".
+- **Gleichzeitig:** Eine ✛ teilt, eine zweite ✛ führt wieder zusammen. Ohne die zweite endet der Prozess doppelt.
+- **Ausgänge beschriften:** Jeder Pfeil aus einer Raute bekommt seine Bedingung, meist „ja" und „nein".
+- **Teil statt Kopie:** Läuft derselbe Ablauf in zwei Prozessen, wird er einmal modelliert und in beiden als ⊞ eingebunden. Was zweimal abgeschrieben ist, ist bald zweimal verschieden.
+- **Weiter in einem anderen Prozess:** Geht der Ablauf an einer Stelle in einen anderen Prozess über, steht am Element ↦. Nach einer ⊞ geht es hier weiter, nach ↦ dort.
+- **Formular am Schritt:** Arbeitsanweisung, Formular oder Merkblatt hängen per 📎 an dem Schritt, an dem sie gebraucht werden.
+
+>! Aufgeklappte Teilprozesse, Datenobjekte und Gruppen aus der Palette kennt das Hausschema nicht. Statt eines Teilprozesses im Bild wird ein Modell als ⊞ eingebunden, statt eines Datenobjekts hängt das Dokument per 📎 am Schritt.` },
+    { id: 'm6', titel: 'Wenn die Prüfung etwas meldet', text: `Die Prüfung gegen das Hausschema meldet jeden Befund mit seiner Regel. Ein Klick auf den Befund im Modeler zeigt die Stelle im Diagramm.
+
+# Die zehn Regeln
+!! R1 Mehr als ein Auslöser: Das sind zwei Prozesse. In zwei Modelle aufteilen und bei Bedarf per ⊞ verbinden.
+!! R2 Ein Ergebnis ohne Namen: Den Zustand eintragen, etwa „Antrag genehmigt".
+!! R3 Ein leerer Kasten: Mit 🔧 oder R zu 👤 Aufgabe, ⚙ Automatik oder ✋ Handgriff machen.
+!! R4 Ein Element liegt in keiner Bahn: In die zuständige Bahn ziehen.
+!! R5 Eine Bahn heißt wie eine Person: Die Rolle eintragen, „Einkauf" statt eines Namens.
+!! R6 Ein Ausgang einer Raute ist nicht beschriftet: Den Pfeil doppelklicken und die Bedingung eintragen.
+!! R7 Ein Element hängt lose: Verbinden oder löschen.
+!! R8 Kein Verb oder keine Frage: „Rechnung prüfen" statt „Rechnungsprüfung", „Freigegeben?" mit Fragezeichen.
+!! R9 Kein Regelwerk verknüpft: Rechts unter „Verknüpfte Richtlinien" ankreuzen.
+!! R10 Eine ⊞ bindet nichts ein: Rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen.
+
+>✓ Ein roter Rahmen ist ein Verstoß, ein gestrichelter ein Hinweis. Wer die zehn Regeln einhält, hat ein Modell, das im ganzen Haus gleich gelesen wird.` },
+  ],
+  fragen: [
+    { frage: 'Was zeigt eine Bahn in einem BPMN-Diagramm?',
+      optionen: ['Die Reihenfolge der Schritte', 'Wer zuständig ist, als Rolle', 'Wie lange ein Schritt dauert'], richtig: 1 },
+    { frage: 'Wie heißt eine Bahn richtig?',
+      optionen: ['Frau Weber', 'Team 3, Raum 214', 'Einkauf'], richtig: 2 },
+    { frage: 'Welche Zeile ist richtig geschrieben?',
+      optionen: ['Einkauf: Angebote einholen', 'Einkauf: Angebotseinholung', 'Angebote einholen (Einkauf)'], richtig: 0 },
+    { frage: 'Wie schreiben Sie eine Entscheidung auf?',
+      optionen: ['Führungskraft: Freigabe Antrag', 'Führungskraft: Antrag freigeben? | nein: Antrag zurückgeben', 'Entscheidung: Führungskraft gibt frei'], richtig: 1 },
+    { frage: 'Wie sollte ein Ergebnis heißen?',
+      optionen: ['Ende', 'fertig', 'Antrag genehmigt'], richtig: 2 },
+    { frage: 'Wofür steht ein Kasten mit ⚙?',
+      optionen: ['Das System tut etwas von selbst', 'Ein Mensch tut etwas', 'Arbeit ohne System, etwa in der Werkstatt'], richtig: 0 },
+    { frage: 'Wo bleibt im Alltag am meisten liegen?',
+      optionen: ['Am Auslöser', 'Am Ende des Ablaufs', 'Wo ein Pfeil die Bahn wechselt, also bei Übergaben'], richtig: 2 },
+    { frage: 'Derselbe Ablauf kommt in zwei Prozessen vor. Was tun Sie?',
+      optionen: ['Ihn einmal modellieren und in beiden als ⊞ Unterprozess einbinden', 'Ihn in beide Modelle hineinzeichnen', 'Ihn nur im wichtigeren Prozess beschreiben'], richtig: 0 },
+    { frage: 'Der Ablauf ruht, bis die Stellungnahme des Lieferanten eintrifft. Wie schreiben Sie das?',
+      optionen: ['Lieferant: Stellungnahme abwarten (automatisch)', 'Warten: Stellungnahme des Lieferanten', 'Ende: Stellungnahme angefordert'], richtig: 1 },
+    { frage: 'Die Prüfung meldet R9. Was fehlt?',
+      optionen: ['Eine Bahn hat keinen Namen', 'Ein Kasten ist leer', 'Das Modell ist mit keinem Regelwerk verknüpft'], richtig: 2 },
+  ],
+};
+WI_STARTBESTAND.beitraege.splice(1, 0, WI_KURS_BPMN);
+
 /**
  * Die Teilnahmebescheinigung – eine eigene Seite zum Drucken oder als PDF.
  * Sie belegt, was der Nachweis in der Bestätigungen-Liste festhält: wer,
@@ -741,7 +931,7 @@ function wiStartbestandErgaenzen(daten, wer, jetzt) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING,
+  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN,
     wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
     wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiTag,
     wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };

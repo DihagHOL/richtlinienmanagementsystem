@@ -688,6 +688,10 @@ body.demo-mode .main { padding-bottom: 64px; }
 .wi-box.info { background: #eff3ff; border-color: #c7d5f5; color: #1A2644; }
 .wi-box.warn { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
 .wi-box.ok { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.wi-code { background: var(--c-bg, #f8fafc); border: 1px solid var(--c-border, #e5e7eb); border-radius: 8px; padding: 10px 12px; margin: 6px 0 12px;
+           font-family: Consolas, 'Courier New', monospace; font-size: .86rem; line-height: 1.6; white-space: pre; overflow-x: auto; color: #1A2644; }
+.wi-code-inline { font-family: Consolas, 'Courier New', monospace; font-size: .9em; background: var(--c-bg, #f8fafc); border: 1px solid var(--c-border, #e5e7eb);
+                  border-radius: 4px; padding: 0 4px; white-space: nowrap; }
 .wi-signale { display: grid; gap: 8px; margin: 0 0 12px; }
 .wi-signal { border: 1px solid #fca5a5; border-left: 4px solid #b91c1c; border-radius: 8px; padding: 8px 12px; background: #fff; font-size: .9rem; line-height: 1.5; }
 .wi-signal b { color: #b91c1c; display: block; }

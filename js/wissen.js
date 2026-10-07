@@ -129,7 +129,7 @@ function renderWissen() {
         <button class="btn btn-primary btn-sm" onclick="wiBeitragDialog('')">+ Beitrag</button>
         <button class="btn btn-outline btn-sm" onclick="wiThemaDialog('')">+ Thema</button>
         <button class="btn btn-outline btn-sm" onclick="wiAuswertungOeffnen()" title="Wer hat was angesehen, welche Tests wurden bestanden">📊 Auswertung</button>
-        <button class="btn btn-outline btn-sm" onclick="wiStartbestand()" title="Sechs Themen mit je einem Artikel und einem Wissenstest – als Vorschlag zum Anpassen">📋 Startbestand</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="wiStartbestand()" title="Themen mit Artikeln und Wissenstests, dazu die Schulungen Phishing und BPMN. Ergänzt nur, was fehlt, als Vorschlag zum Anpassen">📋 Startbestand</button>` : ''}
       ${pflege ? `<button class="btn btn-sm ${_wiPflege ? 'btn-primary' : 'btn-ghost'}" onclick="wiPflegeUmschalten()"
         title="Beiträge und Themen anlegen, ändern, sortieren">${_wiPflege ? '✓ Fertig' : '✎ Pflegen'}</button>` : ''}
       <button class="btn btn-sm btn-ghost" onclick="refreshWissen()" title="Aktualisieren">↻</button>
