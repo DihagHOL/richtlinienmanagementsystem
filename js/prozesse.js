@@ -118,8 +118,8 @@ function _procDokuText(ids, docs, pm, gl) {
 /** Gehört die Zeile zu dem, was _procDokuText schreibt? Alles andere ist Beschreibung und bleibt stehen. */
 function _procIstDokuZeile(z) {
   const t = String(z || '').trim();
-  return /^\[\[rms:(policies|doc|pm|kpi|unter|neben)=/.test(t)
-    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|Unterprozesse|Nebenprozesse):/.test(t);
+  return /^\[\[rms:(policies|doc|pm|kpi|poc|pockrit|unter|neben)=/.test(t)
+    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Unterprozesse|Nebenprozesse):/.test(t);
 }
 
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
@@ -2381,7 +2381,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|Dokument):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -2448,7 +2448,8 @@ function _procAnsichtenLeiste(itemId, herkunft) {
   // IST und SOLL: das abgelöste IST führt zu seinem SOLL (mit dessen Stand), das SOLL zurück.
   const stufe = (x) => pzStatusInfo(x.status);
   const abloesung = (ab.nachfolger
-    ? `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(ab.nachfolger.kachel.id)})" title="SOLL-Prozess, der dieses IST ablöst: ${esc(stufe(ab.nachfolger).label)}">↪ SOLL: ${
+    ? `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(ab.nachfolger.kachel.id)})" title="SOLL-Prozess, der dieses IST ablöst: ${esc(stufe(ab.nachfolger).label)}${
+        typeof pzPocLeer === 'function' && !pzPocLeer(ab.nachfolger.poc) ? '. POC: ' + esc(pzPocKurz(ab.nachfolger.poc)) : ''}">↪ SOLL: ${
         esc(ab.nachfolger.kachel.name)} · <b style="color:${stufe(ab.nachfolger).farbe}">${esc(stufe(ab.nachfolger).kurz)}</b></button>`
     : ab.eol ? '<span class="pa-chip t-err" title="Ein IST in EOL braucht den SOLL-Prozess, der es ablöst (Backlog → ✎ Angaben oder rechts im Modeler)">↪ kein SOLL verknüpft</span>' : '')
     + ab.vorgaenger.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.kachel.id)})"
@@ -2916,6 +2917,9 @@ function _renderProcPm(canWrite) {
       </select>
       <div class="field-hint" style="margin-top:2px">Pflicht bei EOL. Das IST bleibt in der IST-Erfassung und zeigt, wie weit dieses SOLL ist.</div>
     </div>
+    ${(typeof pzPocLeer === 'function' && !pzPocLeer(pm.poc)) ? `
+    <label class="field-hint" style="display:block;margin:6px 0 2px">🧪 POC</label>
+    <div class="field-hint" title="${esc(pm.poc.kriterien.map(k => pzPocBewertungInfo(k.bewertung).zeichen + ' ' + k.text).join('\n'))}">${esc(pzPocKurz(pm.poc))}. Bearbeiten im Backlog unter ✎ Angaben.</div>` : ''}
     <label class="field-hint" style="display:block;margin:6px 0 2px">Standardisierungsgrad</label>
     <select id="proc-pm-std" ${dis}>
       <option value=""${sel('', pm.standardisierung)}>${erbeStd ? 'wie Kachel: ' + esc(erbeStd.label) : 'noch nicht entschieden'}</option>
@@ -2997,6 +3001,8 @@ function _procPmAusFormular() {
     reifegrad: wert('proc-pm-rg') || '', kennzahlen: (_procPm && _procPm.kennzahlen) || [],
     freigeber: wert('proc-pm-freigeber') || '',
     nachfolger: status === 'eol' ? (wert('proc-pm-nachfolger') || '') : '',
+    // Der POC wird im Backlog gepflegt (✎ Angaben); hier bleibt er, wie er ist.
+    poc: (_procPm && _procPm.poc) || null,
   }) : null;
   // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
   const kc = document.getElementById('proc-pm-kpi');
@@ -3042,6 +3048,24 @@ function _procPmChips(proc) {
     teile.push(`<span class="pa-chip${s.verfehlt ? ' t-err' : ''}" title="${esc(titel)}">📊 ${s.erfuellt} von ${s.gesamt} im Ziel${s.verfehlt ? ', ' + s.verfehlt + ' verfehlt' : ''}</span>`);
   }
   if (typeof pzLuecken === 'function') pzLuecken(e).forEach(l => teile.push(`<span class="pa-chip t-warn">${esc(l)}</span>`));
+  // Der POC gehört zum SOLL: am Hauptprozess der eigene, sonst der des Hauptprozesses.
+  if (typeof pzPocKurz === 'function' && e.status !== 'ist' && e.status !== 'eol') {
+    const haupt = typeof pfIstHauptprozess !== 'function' || pfIstHauptprozess(proc.itemId);
+    let poc = haupt && !pzPocLeer(e.poc) ? { poc: e.poc, ueber: null } : null;
+    if (!haupt && typeof pfHauptprozesseVon === 'function') {
+      const alle = procModellEintraegeAlle();
+      pfHauptprozesseVon(proc.itemId).some(h => {
+        const x = alle.find(y => String(y.kachel.id) === String(h));
+        if (x && !pzPocLeer(x.poc)) { poc = { poc: x.poc, ueber: x.kachel.name }; return true; }
+        return false;
+      });
+    }
+    if (poc) {
+      const erg = pzPocErgebnisInfo(poc.poc.ergebnis);
+      teile.push(`<span class="pa-chip" style="color:${erg.farbe};border-color:${erg.farbe}" title="${esc(poc.poc.kriterien.map(k => pzPocBewertungInfo(k.bewertung).zeichen + ' ' + k.text).join('\n') || 'Noch keine Erfolgskriterien')}">🧪 POC${poc.ueber ? ' über ' + esc(poc.ueber) : ''}: ${esc(pzPocKurz(poc.poc))}</span>`);
+    }
+    if (haupt) pzPocLuecken(e.status, e.poc).forEach(l => teile.push(`<span class="pa-chip t-warn">🧪 ${esc(l)}</span>`));
+  }
   return teile;
 }
 

@@ -24,6 +24,9 @@
  *     ablöst, steht in der IST-Spalte unter „wird abgelöst". Es muss mit seinem
  *     SOLL-Modell verknüpft sein; die Karte zeigt, wie weit das SOLL ist (SOLL,
  *     POC, freigegeben), die SOLL-Karte umgekehrt, welches IST sie ablöst.
+ *  5. Der POC gehört zum SOLL: Pilotwerk, Zeitraum, Erfolgskriterien und
+ *     Ergebnis stehen am SOLL-Modell (am Hauptprozess, Unter- und Nebenprozesse
+ *     laufen mit). So zeigt die Kette IST → SOLL → POC auf jeder Karte, wo sie steht.
  */
 
 let _pbWerk = '';          // '' = alle Karten
@@ -104,6 +107,8 @@ function renderProzessBacklog() {
   const istVerborgen = _pbIstAlle ? 0 : spalten.ist.filter(e => e.status === 'ist' && !e.prio).length;
   if (!_pbIstAlle) spalten.ist = spalten.ist.filter(e => e.prio || e.status === 'eol');
   const kz = pzKennzahlen(eintraege);
+  const pocs = eintraege.filter(e => e.art === 'modell' && e.status === 'poc' && _pbIstHaupt(e.kachel.id));
+  const pocMitKriterien = pocs.filter(e => e.poc && e.poc.kriterien.length).length;
   const schreiben = (typeof lkDarfSchreiben === 'function') ? lkDarfSchreiben() : false;
   const sel = (wert, aktuell) => (wert === aktuell ? ' selected' : '');
   const kpi = (zahl, gesamt, label, warn) => `<div class="pm-kpi"${warn ? ' style="border-color:#fca5a5"' : ''}><b${warn ? ' style="color:#b91c1c"' : ''}>${zahl}${
@@ -115,7 +120,8 @@ function renderProzessBacklog() {
       Jeder Prozess durchläuft denselben Weg: <b>IST erfasst → SOLL in Arbeit → POC → freigegeben → ausgerollt</b>,
       danach die regelmäßige <b>Überprüfung</b>. Wird ein bisheriger Ablauf durch ein SOLL abgelöst, bleibt sein IST-Modell
       in der IST-Erfassung unter <b>„wird abgelöst (EOL)"</b>, verknüpft mit dem SOLL-Modell und dessen Stand
-      (SOLL, POC, freigegeben). Ab dem POC braucht ein Prozess einen <b>Review-Termin</b> (Fälligkeiten → Prozesse)
+      (SOLL, POC, freigegeben). Der <b>POC</b> 🧪 gehört zum SOLL: Pilotwerk, Zeitraum und Erfolgskriterien stehen am
+      SOLL-Modell, am Hauptprozess. Ab dem POC braucht ein Prozess einen <b>Review-Termin</b> (Fälligkeiten → Prozesse)
       und die Angabe, <b>wer ihn freigibt</b>. Ein Prozess ist ein <b>BPMN-Modell</b> 🔀, auch ohne Landkarte,
       oder eine <b>Kachel</b> 🗺, die noch kein Modell hat. Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
       der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
@@ -161,6 +167,7 @@ function renderProzessBacklog() {
       ${kpi(kz.ausgerollt, null, 'ausgerollt')}
       ${kz.modelle ? kpi(kz.mitFreigeber, kz.modelle, 'Modelle mit Freigeber', kz.mitFreigeber < kz.modelle) : ''}
       ${kz.eol ? kpi(kz.eolMitSoll, kz.eol, 'abgelöste IST mit SOLL verknüpft', kz.eolMitSoll < kz.eol) : ''}
+      ${pocs.length ? kpi(pocMitKriterien, pocs.length, 'POC mit Erfolgskriterien', pocMitKriterien < pocs.length) : ''}
       ${kpi(kz.ueberfaellig + kz.ohneTermin, null, 'Review überfällig oder ohne Termin', kz.ueberfaellig + kz.ohneTermin > 0)}
       ${kz.mitKennzahl !== undefined ? `
       ${kpi(kz.mitKennzahl, kz.gesamt, 'mit Kennzahlen')}
@@ -229,6 +236,7 @@ function _pbKarteHtml(e, schreiben) {
         : '<span style="color:#b45309">👤 kein Prozesseigner</span>'}</div>
       ${modell ? _pbFreigabeHtml(e) : ''}
       ${modell ? _pbAbloesungHtml(e, schreiben) : ''}
+      ${modell ? _pbPocHtml(e, schreiben) : ''}
       ${pruefText ? `<div class="pb-karte-pruefung"${pruefFarbe ? ` style="color:${pruefFarbe}"` : ''}>${esc(pruefText)}</div>` : ''}
       ${_pbReifeHtml(e)}
       ${schreiben && modell ? `<button type="button" class="pb-angaben" onclick="pbAngabenDialog(${jsArg(k.id)})"
@@ -302,14 +310,53 @@ function _pbAbloesungHtml(e, schreiben) {
   const ab = pzAbloesung(_pbModellEintraege(), e.kachel.id);
   if (e.status === 'eol') {
     if (ab.nachfolger) {
+      const poc = _pbPocVon(ab.nachfolger);
       return `<div class="pb-karte-person" title="Das SOLL-Modell, das diesen Ablauf ablöst, und wie weit es ist">↪ abgelöst durch ${
-        link(ab.nachfolger.kachel.id, ab.nachfolger.kachel.name)} ${_pbStufeHtml(ab.nachfolger)}</div>`;
+        link(ab.nachfolger.kachel.id, ab.nachfolger.kachel.name)} ${_pbStufeHtml(ab.nachfolger)}</div>${poc
+        ? `<div class="pb-karte-person pb-poc" title="Der POC dieses SOLL">🧪 POC: ${esc(pzPocKurz(poc.poc))}</div>` : ''}`;
     }
     return `<div class="pb-karte-person" style="color:#b91c1c">↪ kein SOLL-Prozess verknüpft${schreiben
       ? ` · <a href="#" onclick="event.preventDefault();pbAngabenDialog(${jsArg(e.kachel.id)})">verknüpfen</a>` : ''}</div>`;
   }
   return ab.vorgaenger.length ? `<div class="pb-karte-person" title="Diese IST-Abläufe laufen aus, wenn dieser Prozess ausgerollt ist">↩ löst ab: ${
     ab.vorgaenger.map(x => link(x.kachel.id, x.kachel.name)).join(', ')} <span class="pb-tag">IST</span></div>` : '';
+}
+
+/** Hauptprozess? Ohne Gliederung (Modul nicht geladen) gilt jedes Modell als einer. */
+function _pbIstHaupt(id) {
+  return typeof pfIstHauptprozess !== 'function' || pfIstHauptprozess(id);
+}
+
+/**
+ * Der POC, der für ein Modell gilt: am Hauptprozess der eigene, an einem Unter-
+ * oder Nebenprozess der seines Hauptprozesses. → { eintrag, poc, ueber } | null
+ */
+function _pbPocVon(e) {
+  if (_pbIstHaupt(e.kachel.id)) return pzPocLeer(e.poc) ? null : { eintrag: e, poc: e.poc, ueber: null };
+  const haupt = (typeof pfHauptprozesseVon === 'function') ? pfHauptprozesseVon(e.kachel.id) : [];
+  const alle = _pbModellEintraege();
+  for (const h of haupt) {
+    const x = alle.find(y => String(y.kachel.id) === String(h));
+    if (x && !pzPocLeer(x.poc)) return { eintrag: x, poc: x.poc, ueber: x };
+  }
+  return null;
+}
+
+/** Die POC-Zeile einer Karte: Stand, Ergebnis und was dem laufenden POC fehlt. */
+function _pbPocHtml(e, schreiben) {
+  if (e.status === 'ist' || e.status === 'eol') return '';
+  const x = _pbPocVon(e);
+  const haupt = _pbIstHaupt(e.kachel.id);
+  const luecken = haupt ? pzPocLuecken(e.status, e.poc) : [];
+  if (!x && !luecken.length) return '';
+  const erg = x ? pzPocErgebnisInfo(x.poc.ergebnis) : null;
+  const titel = x ? x.poc.kriterien.map(k => `${pzPocBewertungInfo(k.bewertung).zeichen} ${k.text}`).join('\n') : '';
+  const zeile = x ? `<div class="pb-karte-person pb-poc" title="${esc(titel || 'Noch keine Erfolgskriterien')}">🧪 POC${x.ueber
+      ? ` über <a href="#" onclick="event.preventDefault();pbModellOeffnen(${jsArg(x.ueber.kachel.id)})">${esc(x.ueber.kachel.name)}</a>` : ''}: ${
+      esc(pzPocKurz(x.poc).replace(/ · [^·]+$/, ''))} <span class="pb-tag" style="color:${erg.farbe};border-color:${erg.farbe}">${esc(erg.label)}</span></div>` : '';
+  const fehlt = luecken.length ? `<div class="pb-karte-person" style="color:#b45309">🧪 ${esc(luecken.join(', '))}${schreiben
+      ? ` · <a href="#" onclick="event.preventDefault();pbAngabenDialog(${jsArg(e.kachel.id)})">eintragen</a>` : ''}</div>` : '';
+  return zeile + fehlt;
 }
 
 /** Die Auswahl des SOLL-Prozesses: zuerst, was ab dem SOLL steht, dann der Rest. */
@@ -337,6 +384,10 @@ function pbAngabenDialog(itemId, status) {
   const pm = pzPmNormal((e && e.m) || {});
   if (status) pm.status = status;
   const sel = (a, b) => (a === b ? ' selected' : '');
+  const haupt = _pbIstHaupt(p.itemId);
+  const ueber = haupt ? [] : ((typeof pfHauptprozesseVon === 'function') ? pfHauptprozesseVon(p.itemId) : [])
+    .map(h => (procModellVon(h) || {}).title).filter(Boolean);
+  _pbKriterien = pm.poc.kriterien.map(k => Object.assign({}, k));
   openModal(`
     <div class="modal-header"><h3>✎ Angaben: ${esc(p.title)}</h3>
       <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button></div>
@@ -370,6 +421,27 @@ function pbAngabenDialog(itemId, status) {
           </select>
           <span class="field-hint">Pflicht bei EOL. Das IST bleibt in der IST-Erfassung und zeigt, wie weit dieses SOLL ist (SOLL, POC, freigegeben).</span></div>
       </div>
+      <fieldset id="pb-a-poc" class="pb-poc-feld" style="${_pbPocSichtbar(pm.status, pm.poc) ? '' : 'display:none'}">
+        <legend>🧪 POC für dieses SOLL</legend>
+        ${haupt ? `
+        <div class="form-grid">
+          <div class="form-group"><label for="pb-a-poc-werke">Pilotwerk(e)</label>
+            <input type="text" id="pb-a-poc-werke" value="${esc(pm.poc.werke.join(', '))}" placeholder="z. B. WGC, SHB"></div>
+          <div class="form-group"><label for="pb-a-poc-verantwortlich">Verantwortlich für den POC</label>
+            <input type="text" id="pb-a-poc-verantwortlich" list="pb-people" value="${esc(pm.poc.verantwortlich)}" placeholder="name@dihag.com"></div>
+          <div class="form-group"><label for="pb-a-poc-start">Beginn</label>
+            <input type="date" id="pb-a-poc-start" value="${esc(pm.poc.start)}"></div>
+          <div class="form-group"><label for="pb-a-poc-ende">Ende</label>
+            <input type="date" id="pb-a-poc-ende" value="${esc(pm.poc.ende)}"></div>
+          <div class="form-group"><label for="pb-a-poc-ergebnis">Ergebnis</label>
+            <select id="pb-a-poc-ergebnis">${PZ_POC_ERGEBNIS.map(x => `<option value="${x.key}"${sel(x.key, pm.poc.ergebnis)}>${esc(x.label)}</option>`).join('')}</select>
+            <span class="field-hint">Bewertet wird am Review-Termin oben.</span></div>
+        </div>
+        <label class="field-hint" style="display:block;margin:8px 0 4px">Erfolgskriterien (stehen vor dem POC fest)</label>
+        <div id="pb-a-poc-krit">${_pbKriterienHtml()}</div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="pbKriteriumNeu()">+ Erfolgskriterium</button>`
+        : `<div class="field-hint">Der POC wird am Hauptprozess geführt${ueber.length ? `: <b>${esc(ueber.join(', '))}</b>` : ''}. Unter- und Nebenprozesse laufen mit.</div>`}
+      </fieldset>
       <datalist id="pb-people">${(typeof _lkPeopleOptions === 'function') ? _lkPeopleOptions() : ''}</datalist>
     </div>
     <div class="modal-footer">
@@ -382,6 +454,58 @@ function pbAngabenDialog(itemId, status) {
 function pbAngabenStatus(status) {
   const z = document.getElementById('pb-a-nachfolger-zeile');
   if (z) z.style.display = status === 'eol' ? '' : 'none';
+  const poc = document.getElementById('pb-a-poc');
+  if (poc) poc.style.display = _pbPocSichtbar(status, _pbPocFormular() || {}) ? '' : 'none';
+}
+
+/** Den POC-Teil zeigen: ab dem SOLL, oder wenn schon etwas eingetragen ist. */
+function _pbPocSichtbar(status, poc) {
+  return PZ_NACHFOLGER_STUFEN.includes(status) || !pzPocLeer(poc);
+}
+
+/* Erfolgskriterien im Dialog: eine Liste, die beim Tippen mitgeschrieben wird. */
+let _pbKriterien = [];
+
+function _pbKriterienHtml() {
+  if (!_pbKriterien.length) return '<div class="field-hint" style="margin-bottom:4px">Noch keine. Ohne Erfolgskriterien ist der POC eine Lücke.</div>';
+  return _pbKriterien.map((k, i) => `<div class="pb-krit">
+      <input type="text" value="${esc(k.text)}" aria-label="Erfolgskriterium ${i + 1}" placeholder="z. B. 95 % der Rechnungen automatisch erkannt"
+        oninput="pbKriteriumSetzen(${i},'text',this.value)">
+      <select aria-label="Bewertung" onchange="pbKriteriumSetzen(${i},'bewertung',this.value)">${PZ_POC_BEWERTUNG.map(b =>
+        `<option value="${b.key}"${b.key === k.bewertung ? ' selected' : ''}>${b.zeichen} ${esc(b.label)}</option>`).join('')}</select>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="pbKriteriumWeg(${i})" aria-label="Kriterium entfernen" title="Entfernen">✕</button>
+    </div>`).join('');
+}
+
+function _pbKriterienZeigen() {
+  const c = document.getElementById('pb-a-poc-krit');
+  if (c) c.innerHTML = _pbKriterienHtml();
+}
+
+function pbKriteriumNeu() {
+  _pbKriterien.push({ text: '', bewertung: '' });
+  _pbKriterienZeigen();
+  const felder = document.querySelectorAll('#pb-a-poc-krit input');
+  if (felder.length) felder[felder.length - 1].focus();
+}
+
+function pbKriteriumSetzen(i, feld, wert) {
+  if (_pbKriterien[i]) _pbKriterien[i][feld] = String(wert || '');
+}
+
+function pbKriteriumWeg(i) {
+  _pbKriterien.splice(i, 1);
+  _pbKriterienZeigen();
+}
+
+/** Der POC aus dem Dialog (null, wenn der Dialog keine POC-Felder hat). */
+function _pbPocFormular() {
+  if (!document.getElementById('pb-a-poc-werke')) return null;
+  const wert = (id) => String((document.getElementById(id) || {}).value || '').trim();
+  return pzPocNormal({
+    werke: wert('pb-a-poc-werke'), start: wert('pb-a-poc-start'), ende: wert('pb-a-poc-ende'),
+    verantwortlich: wert('pb-a-poc-verantwortlich'), ergebnis: wert('pb-a-poc-ergebnis'), kriterien: _pbKriterien,
+  });
 }
 
 function pbAngabenTermin() {
@@ -406,6 +530,14 @@ async function pbAngabenSpeichern(itemId) {
     pm.freigeber = wert('pb-a-freigeber');
     pm.naechsteUeberpruefung = wert('pb-a-termin');
     pm.nachfolger = pm.status === 'eol' ? wert('pb-a-nachfolger') : '';
+    // Der POC kommt aus dem Dialog, wenn er dort steht; sonst bleibt der aus der Datei.
+    const poc = _pbPocFormular();
+    if (poc) pm.poc = poc;
+    if (poc && poc.start && poc.ende && poc.ende < poc.start) {
+      toast('Das Ende des POC liegt vor seinem Beginn.', 'error');
+      if (knopf) knopf.disabled = false;
+      return;
+    }
     if (pm.status === 'eol' && !pm.nachfolger) {
       toast('Ein IST, das abgelöst wird, braucht seinen SOLL-Prozess. Bitte unter „Abgelöst durch" wählen.', 'error');
       if (knopf) knopf.disabled = false;
@@ -638,5 +770,5 @@ async function pbNeuAnlegen(modellieren) {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml, _pbNachfolgerOptionen, _pbSpalteHtml };
+  module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml, _pbNachfolgerOptionen, _pbSpalteHtml, _pbPocHtml, _pbPocVon };
 }

@@ -1037,6 +1037,11 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pb-karte-person .status-badge { padding: 0 6px; font-size: .66rem; }
 .pb-angaben { font: inherit; font-size: .72rem; font-weight: 600; margin-top: 6px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; }
 .pb-angaben:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.pb-poc-feld { border: 1px solid var(--c-border); border-radius: 8px; padding: 8px 12px 10px; margin: 12px 0 0; }
+.pb-poc-feld legend { font-weight: 700; font-size: .85rem; padding: 0 4px; color: var(--c-navy, #1A2644); }
+.pb-krit { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.pb-krit input { flex: 1; min-width: 0; }
+.pb-krit select { width: auto; flex: 0 0 auto; }
 .fael-rubriken { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
 .fael-rubriken .fael-zahl { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: #b91c1c; color: #fff; font-size: .7rem; line-height: 1.5; }
 .pb-status { width: 100%; margin-top: 6px; font-size: .74rem; padding: 3px 4px; }

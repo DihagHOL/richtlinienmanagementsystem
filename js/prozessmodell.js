@@ -44,7 +44,7 @@ const PZ_STATUS = [
   { key: 'soll',        label: 'SOLL in Arbeit', kurz: 'SOLL', farbe: '#0284C7',
     text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema.' },
   { key: 'poc',         label: 'POC läuft',      kurz: 'POC',  farbe: '#F08300',
-    text: 'Der SOLL-Prozess wird in einem Werk erprobt. Die Erfolgskriterien stehen vorher fest.' },
+    text: 'Der SOLL-Prozess wird in einem Werk erprobt. Pilotwerk, Zeitraum und Erfolgskriterien stehen vorher fest, am SOLL-Modell (✎ Angaben).' },
   { key: 'freigegeben', label: 'Freigegeben',    kurz: 'frei', farbe: '#17509E',
     text: 'Nach dem POC freigegeben. Modell und Regelwerke sind veröffentlicht, der Rollout läuft.' },
   { key: 'ausgerollt',  label: 'Ausgerollt',     kurz: 'live', farbe: '#15803d',
@@ -457,6 +457,14 @@ function pzFaellige(daten, werke, heute, modelle) {
    freigibt (siehe js/prozessfreigabe.js), „Nachfolger" die Datei-Kennung des
    SOLL-Modells, das einen auslaufenden Prozess (EOL) ablöst.
 
+   Der POC gehört zum SOLL: Er erprobt genau dieses Modell. Darum steht er am
+   SOLL-Modell selbst, nicht in einem zweiten:
+
+     [[rms:poc=Werke|Beginn|Ende|Verantwortlich|Ergebnis]]
+     [[rms:pockrit=Erfolgskriterium|Bewertung]]            (je Kriterium eine Zeile)
+
+   Der Termin der Bewertung ist der Review-Termin des Modells (naechsteUeberpruefung).
+
    Was am Modell leer ist, kommt von der Kachel, an der es hängt, und von dort
    wie gehabt von der gleichnamigen Konzernkachel. Hängt es an keiner, zählt
    für Eigner und Standardisierung die gleichnamige Konzernkachel. */
@@ -467,6 +475,24 @@ const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet
 const PZ_KPI_FELDER = ['name', 'einheit', 'richtung', 'ziel', 'ist', 'stand'];
 const PZ_PM_TEXTZEILE = 'Prozessmanagement: ';
 const PZ_KPI_TEXTZEILE = 'Kennzahlen: ';
+const PZ_POC_MARKER = /\[\[rms:poc=([^\]]*)\]\]/;
+const PZ_POC_KRIT_MARKER = /\[\[rms:pockrit=([^\]]*)\]\]/g;
+const PZ_POC_FELDER = ['werke', 'start', 'ende', 'verantwortlich', 'ergebnis'];
+const PZ_POC_TEXTZEILE = 'POC: ';
+const PZ_POC_KRIT_TEXTZEILE = 'POC-Kriterien: ';
+/** Ergebnis des POC: leer, solange er läuft. */
+const PZ_POC_ERGEBNIS = [
+  { key: '',            label: 'läuft',           farbe: '#F08300' },
+  { key: 'bestanden',   label: 'bestanden',       farbe: '#15803d' },
+  { key: 'verlaengert', label: 'verlängert',      farbe: '#b45309' },
+  { key: 'nicht',       label: 'nicht bestanden', farbe: '#b91c1c' },
+];
+/** Bewertung eines Erfolgskriteriums. */
+const PZ_POC_BEWERTUNG = [
+  { key: '',         label: 'offen',    zeichen: '○' },
+  { key: 'erfuellt', label: 'erfüllt',  zeichen: '✓' },
+  { key: 'verfehlt', label: 'verfehlt', zeichen: '✗' },
+];
 
 /** Ein Feld für den Marker tauglich machen: Trenner und Klammern raus. */
 function _pzFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, ' ').trim(); }
@@ -485,13 +511,109 @@ function pzPmNormal(pm) {
     freigeber: _pzFeld(p.freigeber),
     nachfolger: _pzFeld(p.nachfolger),
     kennzahlen: pzKpiNormal(p.kennzahlen),
+    poc: pzPocNormal(p.poc),
   };
+}
+
+/* ── POC am SOLL-Modell ── */
+
+function pzPocErgebnisInfo(key) { return PZ_POC_ERGEBNIS.find(x => x.key === key) || PZ_POC_ERGEBNIS[0]; }
+function pzPocBewertungInfo(key) { return PZ_POC_BEWERTUNG.find(x => x.key === key) || PZ_POC_BEWERTUNG[0]; }
+
+/** Nur gültige Werte. Werke als Liste von Kürzeln, Kriterien ohne leere Zeilen. */
+function pzPocNormal(poc) {
+  const p = poc || {};
+  const datum = (s) => { const d = String(s || '').trim().slice(0, 10); return pzTageBis(d) === null ? '' : d; };
+  const werke = (Array.isArray(p.werke) ? p.werke : String(p.werke || '').split(/[,;\s]+/))
+    .map(w => _pzFeld(w).replace(/,/g, '').toUpperCase()).filter(Boolean);
+  return {
+    werke: [...new Set(werke)],
+    start: datum(p.start),
+    ende: datum(p.ende),
+    verantwortlich: _pzFeld(p.verantwortlich),
+    ergebnis: PZ_POC_ERGEBNIS.some(x => x.key === p.ergebnis) ? p.ergebnis : '',
+    kriterien: (Array.isArray(p.kriterien) ? p.kriterien : [])
+      .map(k => ({ text: _pzFeld(k && k.text), bewertung: PZ_POC_BEWERTUNG.some(x => x.key === (k && k.bewertung)) ? k.bewertung : '' }))
+      .filter(k => k.text),
+  };
+}
+
+function pzPocLeer(poc) {
+  const n = pzPocNormal(poc);
+  return !n.werke.length && !n.start && !n.ende && !n.verantwortlich && !n.ergebnis && !n.kriterien.length;
+}
+
+/** Stand der Erfolgskriterien. → { gesamt, erfuellt, verfehlt, offen } */
+function pzPocStand(poc) {
+  const k = pzPocNormal(poc).kriterien;
+  const z = (b) => k.filter(x => x.bewertung === b).length;
+  return { gesamt: k.length, erfuellt: z('erfuellt'), verfehlt: z('verfehlt'), offen: z('') };
+}
+
+function _pzTagText(iso) { return iso ? iso.split('-').reverse().join('.') : ''; }
+
+/** Der POC in einer Zeile: „WGC, SHB · 01.10.2026 bis 30.11.2026 · 2 von 3 Kriterien erfüllt · läuft" */
+function pzPocKurz(poc) {
+  const n = pzPocNormal(poc);
+  const s = pzPocStand(n);
+  const teile = [];
+  if (n.werke.length) teile.push(n.werke.join(', '));
+  if (n.start || n.ende) teile.push(n.start && n.ende ? `${_pzTagText(n.start)} bis ${_pzTagText(n.ende)}` : n.ende ? `bis ${_pzTagText(n.ende)}` : `ab ${_pzTagText(n.start)}`);
+  if (s.gesamt) teile.push(`${s.erfuellt} von ${s.gesamt} Kriterien erfüllt${s.verfehlt ? ', ' + s.verfehlt + ' verfehlt' : ''}`);
+  teile.push(pzPocErgebnisInfo(n.ergebnis).label);
+  return teile.join(' · ');
+}
+
+/**
+ * Was einem laufenden POC fehlt (Konzernfachregelung: Die Erfolgskriterien
+ * stehen vorher fest). Nur für Modelle im POC. → ['…', …]
+ */
+function pzPocLuecken(status, poc, heute) {
+  if (status !== 'poc') return [];
+  const n = pzPocNormal(poc);
+  const out = [];
+  if (!n.werke.length) out.push('kein Pilotwerk');
+  if (!n.kriterien.length) out.push('keine Erfolgskriterien');
+  const tage = pzTageBis(n.ende, heute);
+  if (!n.ergebnis && tage !== null && tage < 0) out.push('POC-Ende überschritten, Ergebnis offen');
+  return out;
+}
+
+/** Klartext und Marker des POC für die Dokumentation. */
+function pzPocZeilen(poc) {
+  const n = pzPocNormal(poc);
+  if (pzPocLeer(n)) return [];
+  const zeilen = [];
+  const kopf = [n.werke.length ? 'Pilot ' + n.werke.join(', ') : '', n.start || n.ende ? `${_pzTagText(n.start) || '…'} bis ${_pzTagText(n.ende) || '…'}` : '',
+    n.verantwortlich ? 'verantwortlich ' + n.verantwortlich : '', 'Ergebnis ' + pzPocErgebnisInfo(n.ergebnis).label].filter(Boolean);
+  zeilen.push(PZ_POC_TEXTZEILE + kopf.join(' · '));
+  zeilen.push('[[rms:poc=' + [n.werke.join(','), n.start, n.ende, n.verantwortlich, n.ergebnis].map(_pzFeld).join('|') + ']]');
+  if (n.kriterien.length) {
+    zeilen.push(PZ_POC_KRIT_TEXTZEILE + n.kriterien.map(k => `${k.text} (${pzPocBewertungInfo(k.bewertung).label})`).join('; '));
+    n.kriterien.forEach(k => zeilen.push('[[rms:pockrit=' + _pzFeld(k.text) + '|' + k.bewertung + ']]'));
+  }
+  return zeilen;
+}
+
+/** Den POC aus einem Text oder XML lesen (null, wenn keiner drinsteht). */
+function pzPocAusText(text) {
+  const s = String(text || '');
+  const m = s.match(PZ_POC_MARKER);
+  const krit = [...s.matchAll(PZ_POC_KRIT_MARKER)].map(x => {
+    const t = x[1].split('|').map(v => (v || '').trim());
+    return { text: t[0] || '', bewertung: t[1] || '' };
+  });
+  if (!m && !krit.length) return null;
+  const poc = { kriterien: krit };
+  const t = m ? m[1].split('|').map(x => (x || '').trim()) : [];
+  PZ_POC_FELDER.forEach((f, i) => { poc[f] = t[i] || ''; });
+  return pzPocNormal(poc);
 }
 
 /** Sind die Angaben der pm-Zeile leer? (Die Kennzahlen stehen in eigenen Zeilen.) */
 function _pzPmZeileLeer(n) { return PZ_PM_FELDER.every(f => !n[f]); }
 
-function pzPmLeer(pm) { const n = pzPmNormal(pm); return _pzPmZeileLeer(n) && !n.kennzahlen.length; }
+function pzPmLeer(pm) { const n = pzPmNormal(pm); return _pzPmZeileLeer(n) && !n.kennzahlen.length && pzPocLeer(n.poc); }
 
 /** Der Marker der pm-Zeile ('' wenn dort nichts gesetzt ist). */
 function pzPmMarker(pm) {
@@ -539,6 +661,7 @@ function pzPmZeilen(pm) {
     zeilen.push(PZ_KPI_TEXTZEILE + n.kennzahlen.map(pzKpiText).join('; '));
     n.kennzahlen.forEach(k => zeilen.push(pzKpiMarker(k)));
   }
+  zeilen.push(...pzPocZeilen(n.poc));
   return zeilen;
 }
 
@@ -552,8 +675,9 @@ function pzPmAusText(text) {
     PZ_KPI_FELDER.forEach((f, i) => { k[f] = t[i] || ''; });
     return k;
   });
-  if (!m && !kpis.length) return null;
-  const pm = { kennzahlen: kpis };
+  const poc = pzPocAusText(s);
+  if (!m && !kpis.length && !poc) return null;
+  const pm = { kennzahlen: kpis, poc };
   const t = m ? m[1].split('|').map(x => (x || '').trim()) : [];
   PZ_PM_FELDER.forEach((f, i) => { pm[f] = t[i] || ''; });
   return pzPmNormal(pm);
@@ -605,7 +729,7 @@ function pzModellEintraege(daten, modelle, heute) {
     }
     return {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
-      status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger,
+      status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger, poc: pm.poc,
       pruefung: pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute),
       reifegrad, kennzahlen,
     };
@@ -616,6 +740,8 @@ function pzModellEintraege(daten, modelle, heute) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten,
+    PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,
+    pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocErgebnisInfo, pzPocBewertungInfo,
     PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
     PZ_REIFEGRAD, PZ_REIFEGRAD_ZIEL, PZ_RICHTUNG,
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
