@@ -47,7 +47,7 @@ const FEATURES = [
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
   { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
-  { name: 'IST, SOLL und EOL',       code: () => /key: 'eol'/.test(read('js/prozessmodell.js')), begriffe: ['EOL, wird abgelöst', 'wer gibt frei? offen', '✎ Angaben', 'Rubriken', 'Review ab dem POC'] },
+  { name: 'IST, SOLL und EOL',       code: () => /key: 'eol'/.test(read('js/prozessmodell.js')), begriffe: ['IST, wird abgelöst (EOL)', 'IST-Erfassung', 'kein SOLL-Prozess verknüpft', 'wer gibt frei? offen', '✎ Angaben', 'Rubriken', 'Review ab dem POC'] },
   { name: 'Freigabe von Prozessen',  code: () => /function pfAnlegen/.test(read('js/prozessfreigabe.js')), begriffe: ['Freigabe von Prozessen', '📋 Zur Freigabe', 'Arbeits-/Prozessanweisung', 'Beschreibung aktualisieren', 'Freigabe über'] },
   { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
   { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },

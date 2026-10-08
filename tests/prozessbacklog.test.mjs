@@ -77,7 +77,7 @@ await w('initProzessBacklog()');
 console.log('Backlog');
 const html = mount.innerHTML;
 ok(/<div class="modus">backlog<\/div>/.test(html), 'Die Umschaltleiste steht mit „backlog" aktiv');
-for (const s of ['IST erfasst', 'SOLL in Arbeit', 'POC läuft', 'Freigegeben', 'Ausgerollt']) {
+for (const s of ['IST-Erfassung', 'SOLL in Arbeit', 'POC läuft', 'Freigegeben', 'Ausgerollt']) {
   ok(html.includes(`<span>${s}</span>`), `Spalte „${s}"`);
 }
 ok(html.includes('>IT</a>') && !html.includes('>Lohn</a>'), 'IST zeigt nur Priorisiertes (IT ja, Lohn nein)');

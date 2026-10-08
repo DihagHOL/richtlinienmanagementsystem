@@ -42,7 +42,8 @@ console.log('Status');
 ok(M.pzStatus({}) === 'ist', 'Ohne Status gilt „IST erfasst"');
 ok(M.pzStatus({ status: 'unsinn' }) === 'ist', 'Ein unbekannter Status gilt als „IST erfasst"');
 ok(M.pzStatus({ status: 'poc' }) === 'poc', 'Ein bekannter Status bleibt');
-ok(M.PZ_STATUS.map(s => s.key).join(',') === 'ist,soll,poc,freigegeben,ausgerollt,eol', 'Lebenszyklus in der Reihenfolge des Durchlaufs, am Ende EOL');
+ok(M.PZ_STATUS.map(s => s.key).join(',') === 'ist,eol,soll,poc,freigegeben,ausgerollt', 'Lebenszyklus in der Reihenfolge des Durchlaufs, EOL bei der IST-Erfassung');
+ok(M.PZ_SPALTEN.map(s => s.key).join(',') === 'ist,soll,poc,freigegeben,ausgerollt' && M.pzPhase('eol') === 'ist' && M.pzPhase('poc') === 'poc', 'Fünf Spalten, EOL steht unter IST');
 
 console.log('Erbe von der Konzern-Landkarte');
 const e1 = M.pzEigner(daten, 'HOL', kachel('HOL', 'h-einkauf'));

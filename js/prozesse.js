@@ -1316,6 +1316,15 @@ function procEintragVon(p) {
 function procModellVon(itemId) {
   return (_processes || []).find(p => String(p.itemId) === String(itemId)) || null;
 }
+/** Alle Modelle als Einträge des Prozessmanagements (Status, Nachfolger), wie im Backlog. */
+function procModellEintraegeAlle() {
+  if (typeof pzModellEintraege !== 'function') return [];
+  const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
+  return pzModellEintraege(daten, (_processes || []).map(p => {
+    const e = procEintragVon(p);
+    return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: e ? e.m : null, kacheln: procKachelnVon(p.itemId) };
+  }));
+}
 function _procWerkLabel(p) {
   return (p && p.ordner) ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(p.ordner) : p.ordner) : '';
 }
@@ -2433,8 +2442,17 @@ function _procAnsichtenLeiste(itemId, herkunft) {
   const zugeordnet = procGliederungKinder(itemId)
     .filter(k => k.quelle === 'zuordnung' && procModellVon(k.id) && !eindeutig.some(x => x.id === k.id));
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
-  if (!herkunft && !eindeutig.length && !eltern.length && !zugeordnet.length && !canWrite) { host.innerHTML = ''; return; }
+  const ab = (typeof pzAbloesung === 'function') ? pzAbloesung(procModellEintraegeAlle(), itemId) : { eol: false, nachfolger: null, vorgaenger: [] };
+  if (!herkunft && !eindeutig.length && !eltern.length && !zugeordnet.length && !ab.eol && !ab.vorgaenger.length && !canWrite) { host.innerHTML = ''; return; }
   const eigen = procModellVon(itemId);
+  // IST und SOLL: das abgelöste IST führt zu seinem SOLL (mit dessen Stand), das SOLL zurück.
+  const stufe = (x) => pzStatusInfo(x.status);
+  const abloesung = (ab.nachfolger
+    ? `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(ab.nachfolger.kachel.id)})" title="SOLL-Prozess, der dieses IST ablöst: ${esc(stufe(ab.nachfolger).label)}">↪ SOLL: ${
+        esc(ab.nachfolger.kachel.name)} · <b style="color:${stufe(ab.nachfolger).farbe}">${esc(stufe(ab.nachfolger).kurz)}</b></button>`
+    : ab.eol ? '<span class="pa-chip t-err" title="Ein IST in EOL braucht den SOLL-Prozess, der es ablöst (Backlog → ✎ Angaben oder rechts im Modeler)">↪ kein SOLL verknüpft</span>' : '')
+    + ab.vorgaenger.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.kachel.id)})"
+        title="IST-Erfassung, die dieser Prozess ablöst">↩ IST: ${esc(x.kachel.name)}</button>`).join('');
   host.innerHTML = `<span>Ansicht:</span>
     ${herkunft ? `<button type="button" onclick="procZurueck()" title="Zurück in das einbindende Modell">↰ ${esc(herkunft.title)}</button>` : ''}
     ${eltern.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.modell.itemId)})"
@@ -2450,6 +2468,7 @@ function _procAnsichtenLeiste(itemId, herkunft) {
         title="${esc(PROC_GL_ARTEN[k.art].label)} öffnen">${PROC_GL_ARTEN[k.art].zeichen} ${esc(_procTitelVon(k.id))}</button>`).join('')}
     ${canWrite ? `<button type="button" onclick="procGliederungDialog(${jsArg(itemId)})"
         title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}
+    ${abloesung}
     ${typeof pfStatusHtml === 'function' ? (pfIstHauptprozess(itemId) ? pfStatusHtml(itemId) : pfUeberHtml(itemId)) : ''}`;
 }
 
@@ -2890,12 +2909,12 @@ function _renderProcPm(canWrite) {
     <input type="text" id="proc-pm-freigeber" ${dis} list="lk-people" value="${esc(pm.freigeber || '')}"
       placeholder="wer den Prozess freigibt" title="Bei „📋 Zur Freigabe" wird diese Person Freigeber des Regelwerks">
     <div id="proc-pm-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}">
-      <label class="field-hint" style="display:block;margin:6px 0 2px">Abgelöst durch</label>
+      <label class="field-hint" style="display:block;margin:6px 0 2px">Abgelöst durch (SOLL-Prozess) *</label>
       <select id="proc-pm-nachfolger" ${dis}>
-        <option value="">– SOLL-Prozess wählen –</option>
-        ${(_processes || []).filter(x => String(x.itemId) !== String(itemId)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'de'))
-          .map(x => `<option value="${esc(x.itemId)}"${sel(String(x.itemId), pm.nachfolger)}>${esc(x.title)}${x.ordner ? ' (' + esc(_procWerkLabel(x)) + ')' : ''}</option>`).join('')}
+        <option value="">SOLL-Prozess wählen …</option>
+        ${_procNachfolgerOptionen(itemId, pm.nachfolger)}
       </select>
+      <div class="field-hint" style="margin-top:2px">Pflicht bei EOL. Das IST bleibt in der IST-Erfassung und zeigt, wie weit dieses SOLL ist.</div>
     </div>
     <label class="field-hint" style="display:block;margin:6px 0 2px">Standardisierungsgrad</label>
     <select id="proc-pm-std" ${dis}>
@@ -2928,6 +2947,17 @@ function _renderProcPm(canWrite) {
 }
 
 function procPmGeaendert() { if (_bpmnModeler) _procDirty = true; }
+
+/** Die Auswahl des SOLL-Prozesses: zuerst, was ab dem SOLL steht, dann der Rest. */
+function _procNachfolgerOptionen(itemId, gewaehlt) {
+  if (typeof pzNachfolgerKandidaten !== 'function') return '';
+  const k = pzNachfolgerKandidaten(procModellEintraegeAlle(), itemId);
+  const werk = (x) => (x.werk ? ' (' + ((typeof lkWerkLabel === 'function') ? lkWerkLabel(x.werk) : x.werk) + ')' : '');
+  const opt = (x) => `<option value="${esc(x.kachel.id)}"${String(x.kachel.id) === String(gewaehlt) ? ' selected' : ''}>${
+    esc(x.kachel.name + werk(x) + ' · ' + pzStatusInfo(x.status).kurz)}</option>`;
+  return `${k.passend.length ? `<optgroup label="SOLL, POC und weiter">${k.passend.map(opt).join('')}</optgroup>` : ''}
+    ${k.weitere.length ? `<optgroup label="Weitere Modelle (noch als IST geführt)">${k.weitere.map(opt).join('')}</optgroup>` : ''}`;
+}
 
 function procPmRgHinweis() {
   const sel = document.getElementById('proc-pm-rg');
@@ -3373,7 +3403,10 @@ async function saveProcess() {
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = `<span style="color:#15803d">Gespeichert: ${esc(newFname)} ✓${
       kennung && kennung.neu !== kennung.alt ? ` · Kennung <code>${esc(kennung.neu)}</code> vergeben` : ''}</span>`;
-    toast('Prozess gespeichert ✓', 'success');
+    // Ein importiertes IST kennt sein SOLL noch nicht: speichern, aber sagen, was fehlt.
+    if (_procPm && _procPm.status === 'eol' && !_procPm.nachfolger) {
+      toast('Gespeichert. Es fehlt noch der SOLL-Prozess, der dieses IST ablöst: rechts unter „Abgelöst durch" wählen.', '', 7000);
+    } else toast('Prozess gespeichert ✓', 'success');
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, 'error');
   } finally {

@@ -32,10 +32,15 @@
  * Landkarte mitzunehmen, und deshalb ist sie ohne Browser prüfbar.
  */
 
-/* ── Lebenszyklus: in der Reihenfolge, in der ein Prozess ihn durchläuft ── */
+/* ── Lebenszyklus: in der Reihenfolge, in der ein Prozess ihn durchläuft ──
+   EOL ist keine eigene Stufe, sondern gehört zur IST-Erfassung (`phase`): Es ist
+   das IST eines Ablaufs, für den schon ein SOLL läuft. Im Backlog steht es in
+   der IST-Spalte, verknüpft mit seinem SOLL-Prozess und dessen Stand. */
 const PZ_STATUS = [
-  { key: 'ist',         label: 'IST erfasst',    kurz: 'IST',  farbe: '#64748b',
-    text: 'Der Prozess steht in der Landkarte. Ein SOLL ist noch nicht begonnen.' },
+  { key: 'ist',         label: 'IST erfasst',    kurz: 'IST',  farbe: '#64748b', spalte: 'IST-Erfassung',
+    text: 'Der Prozess steht in der Landkarte oder ist als IST-Modell aufgenommen. Ein SOLL ist noch nicht begonnen.' },
+  { key: 'eol',         label: 'IST, wird abgelöst (EOL)', kurz: 'EOL', farbe: '#9F1239', phase: 'ist',
+    text: 'IST-Erfassung eines Ablaufs, den ein SOLL-Prozess ablöst. Sie ist mit dem SOLL-Prozess verknüpft und zeigt, wie weit er ist (SOLL, POC, freigegeben). Der Ablauf bleibt als Nachweis stehen, wird aber nicht weiterentwickelt und nicht mehr überprüft.' },
   { key: 'soll',        label: 'SOLL in Arbeit', kurz: 'SOLL', farbe: '#0284C7',
     text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema.' },
   { key: 'poc',         label: 'POC läuft',      kurz: 'POC',  farbe: '#F08300',
@@ -44,9 +49,11 @@ const PZ_STATUS = [
     text: 'Nach dem POC freigegeben. Modell und Regelwerke sind veröffentlicht, der Rollout läuft.' },
   { key: 'ausgerollt',  label: 'Ausgerollt',     kurz: 'live', farbe: '#15803d',
     text: 'Der Prozess läuft in allen vorgesehenen Werken und wird regelmäßig überprüft.' },
-  { key: 'eol',         label: 'EOL, wird abgelöst', kurz: 'EOL', farbe: '#9F1239',
-    text: 'Der bisherige Ablauf läuft aus und wird durch einen SOLL-Prozess abgelöst. Er bleibt als Nachweis des IST stehen, wird aber nicht weiterentwickelt und nicht mehr überprüft.' },
 ];
+/** Die Spalten des Backlogs: jede Stufe ohne `phase`. */
+const PZ_SPALTEN = PZ_STATUS.filter(s => !s.phase);
+/** Stufen, in denen ein Prozess einen IST-Prozess ablösen kann. */
+const PZ_NACHFOLGER_STUFEN = ['soll', 'poc', 'freigegeben', 'ausgerollt'];
 
 /* ── Standardisierungsgrad: entscheidet das Prozess-Board je Konzernprozess ── */
 const PZ_STANDARD = [
@@ -106,6 +113,8 @@ function pzStatus(k) {
   return PZ_STATUS.some(x => x.key === s) ? s : 'ist';   // was in der Karte steht, ist erfasst
 }
 function pzStatusInfo(key) { return PZ_STATUS.find(x => x.key === key) || PZ_STATUS[0]; }
+/** Die Spalte einer Stufe: EOL steht bei IST. */
+function pzPhase(key) { const s = pzStatusInfo(key); return s.phase || s.key; }
 function pzStandardInfo(key) { return PZ_STANDARD.find(x => x.key === key) || null; }
 function pzPrioInfo(key) { return PZ_PRIO.find(x => x.key === key) || null; }
 function pzReifegradInfo(key) { return PZ_REIFEGRAD.find(x => x.key === String(key == null ? '' : key)) || null; }
@@ -342,13 +351,46 @@ function pzSortieren(a, b) {
   return String(a.kachel.name || '').localeCompare(String(b.kachel.name || ''), 'de');
 }
 
-/** Einträge je Status, sortiert. → { ist: [...], soll: [...], ... } */
+/** Einträge je Spalte, sortiert. → { ist: [...], soll: [...], ... } (EOL steht unter ist) */
 function pzSpalten(eintraege) {
   const sp = {};
-  PZ_STATUS.forEach(s => { sp[s.key] = []; });
-  eintraege.forEach(e => sp[e.status].push(e));
+  PZ_SPALTEN.forEach(s => { sp[s.key] = []; });
+  eintraege.forEach(e => sp[pzPhase(e.status)].push(e));
   Object.values(sp).forEach(l => l.sort(pzSortieren));
   return sp;
+}
+
+/**
+ * IST und SOLL: wer wen ablöst. Ein IST-Modell in EOL nennt das Modell, das
+ * es ablöst; dessen Stand (SOLL, POC, freigegeben) zeigt, wie weit die Ablösung
+ * ist. Umgekehrt kennt das SOLL-Modell die IST-Modelle, die es ablöst.
+ * → { eol, nachfolger: Eintrag|null, fehlt, vorgaenger: [Einträge] }
+ */
+function pzAbloesung(eintraege, id) {
+  const sid = String(id);
+  const liste = (eintraege || []).filter(x => x.art === 'modell');
+  const e = liste.find(x => String(x.kachel.id) === sid) || null;
+  const eol = !!e && e.status === 'eol';
+  const nid = eol ? String(e.nachfolger || '') : '';
+  const nachfolger = nid ? (liste.find(x => String(x.kachel.id) === nid) || null) : null;
+  return {
+    eol, nachfolger, fehlt: eol && !nachfolger,
+    vorgaenger: liste.filter(x => x.status === 'eol' && String(x.nachfolger || '') === sid),
+  };
+}
+
+/**
+ * Wer einen IST-Prozess ablösen kann: zuerst die Modelle ab dem SOLL, dann die
+ * übrigen (ein SOLL-Modell ohne gesetzten Status gilt sonst als IST). Kein
+ * anderes EOL und nicht das Modell selbst. → { passend: [...], weitere: [...] }
+ */
+function pzNachfolgerKandidaten(eintraege, eigeneId) {
+  const nachName = (a, b) => String(a.kachel.name || '').localeCompare(String(b.kachel.name || ''), 'de');
+  const liste = (eintraege || []).filter(x => x.art === 'modell' && x.status !== 'eol' && String(x.kachel.id) !== String(eigeneId));
+  return {
+    passend: liste.filter(x => PZ_NACHFOLGER_STUFEN.includes(x.status)).sort(nachName),
+    weitere: liste.filter(x => !PZ_NACHFOLGER_STUFEN.includes(x.status)).sort(nachName),
+  };
 }
 
 /** Kennzahlen für die Kopfzeile des Backlogs. */
@@ -363,6 +405,7 @@ function pzKennzahlen(eintraege) {
     inArbeit: zaehl(e => ['soll', 'poc', 'freigegeben'].includes(e.status)),
     ausgerollt: zaehl(e => e.status === 'ausgerollt'),
     eol: zaehl(e => e.status === 'eol'),
+    eolMitSoll: zaehl(e => e.status === 'eol' && e.nachfolger),
     modelle: zaehl(e => e.art === 'modell' && e.status !== 'eol'),
     mitFreigeber: zaehl(e => e.art === 'modell' && e.status !== 'eol' && e.freigeber),
     ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig'),
@@ -572,7 +615,8 @@ function pzModellEintraege(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
+    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten,
+    PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
     PZ_REIFEGRAD, PZ_REIFEGRAD_ZIEL, PZ_RICHTUNG,
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
     pzReifegradInfo, pzRichtungInfo, pzReifegrad,

@@ -3964,7 +3964,8 @@ function _lkPzEditorHtml(k) {
         <div class="form-group">
           <label>Status</label>
           <select onchange="lkPzStatusWahl(this.value)">
-            ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
+            ${PZ_STATUS.filter(s => s.key !== 'eol' || s.key === status)   // EOL braucht ein IST-Modell mit seinem SOLL
+              .map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
           </select>
           <span class="field-hint" id="lk-pz-status-hinweis">${esc(pzStatusInfo(status).text)}</span>
         </div>
