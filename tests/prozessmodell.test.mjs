@@ -42,7 +42,7 @@ console.log('Status');
 ok(M.pzStatus({}) === 'ist', 'Ohne Status gilt „IST erfasst"');
 ok(M.pzStatus({ status: 'unsinn' }) === 'ist', 'Ein unbekannter Status gilt als „IST erfasst"');
 ok(M.pzStatus({ status: 'poc' }) === 'poc', 'Ein bekannter Status bleibt');
-ok(M.PZ_STATUS.map(s => s.key).join(',') === 'ist,soll,poc,freigegeben,ausgerollt', 'Lebenszyklus in der Reihenfolge des Durchlaufs');
+ok(M.PZ_STATUS.map(s => s.key).join(',') === 'ist,soll,poc,freigegeben,ausgerollt,eol', 'Lebenszyklus in der Reihenfolge des Durchlaufs, am Ende EOL');
 
 console.log('Erbe von der Konzern-Landkarte');
 const e1 = M.pzEigner(daten, 'HOL', kachel('HOL', 'h-einkauf'));
@@ -69,7 +69,9 @@ ok(M.pzUeberpruefung(kachel('HOL', 'h-personal'), HEUTE).stufe === 'ueberfaellig
 ok(M.pzUeberpruefung(kachel('HOL', 'h-bau'), HEUTE).stufe === 'bald', 'Termin in 14 Tagen: bald');
 ok(M.pzUeberpruefung(kachel('SHB', 's-einkauf'), HEUTE).stufe === 'spaeter', 'Termin im nächsten Jahr: später');
 ok(M.pzUeberpruefung(kachel('HOL', 'h-it'), HEUTE).stufe === 'fehlt', 'Freigegeben ohne Termin: Lücke');
-ok(M.pzUeberpruefung(kachel('HOL', 'h-einkauf'), HEUTE).stufe === '', 'Im POC ohne Termin: noch keine Lücke');
+ok(M.pzUeberpruefung(kachel('HOL', 'h-einkauf'), HEUTE).stufe === 'fehlt', 'Im POC ohne Termin: Lücke, der Pilot braucht den Termin seiner Bewertung');
+ok(M.pzUeberpruefung({ status: 'eol' }, HEUTE).stufe === '' && M.pzUeberpruefung({ status: 'eol', naechsteUeberpruefung: '2020-01-01' }, HEUTE).stufe === '', 'EOL: keine Überprüfung mehr, auch nicht mit altem Termin');
+ok(M.pzUeberpruefung({ status: 'soll' }, HEUTE).stufe === '', 'SOLL in Arbeit ohne Termin: noch keine Lücke');
 ok(M.pzTerminVorschlag(HEUTE) === '2027-10-01', 'Vorschlag: heute + 12 Monate');
 
 console.log('Status setzen');
@@ -98,13 +100,13 @@ const kz = M.pzKennzahlen(alle);
 ok(kz.gesamt === 7 && kz.priorisiert === 3, 'Kennzahlen: gesamt und priorisiert');
 ok(kz.mitEigner === 5, 'Kennzahlen: mit Prozesseigner (eigen oder geerbt)');
 ok(kz.standardEntschieden === 4, 'Kennzahlen: Standardisierung entschieden (eigen oder geerbt)');
-ok(kz.ueberfaellig === 1 && kz.ohneTermin === 1, 'Kennzahlen: überfällig und freigegeben ohne Termin');
+ok(kz.ueberfaellig === 1 && kz.ohneTermin === 2, 'Kennzahlen: überfällig und ohne Review-Termin (freigegeben und POC)');
 ok(kz.inArbeit === 2 && kz.ausgerollt === 1, 'Kennzahlen: in Arbeit und ausgerollt');
 
 console.log('Fälligkeiten');
 const f = M.pzFaellige(daten, null, HEUTE);
 ok(f.ueberfaellig.length === 1 && f.ueberfaellig[0].kachel.id === 'h-personal', 'Überfällig');
-ok(f.fehlt.length === 1 && f.fehlt[0].kachel.id === 'h-it', 'Freigegeben ohne Termin');
+ok(f.fehlt.length === 2 && f.fehlt.map(e => e.kachel.id).sort().join() === 'h-einkauf,h-it', 'Ohne Review-Termin: freigegeben und im POC');
 ok(f.bald.length === 1 && f.spaeter.length === 1, 'Bald und später');
 ok(M.pzNrText({ nr: 7 }) === 'P-007' && M.pzNrText({}) === '', 'Prozessnummer wie in der Landkarte');
 

@@ -595,6 +595,8 @@ async function _baZeichnen(xml) {
     const arten = {};
     viewer.get('elementRegistry').getAll().forEach(el => {
       if (el.labelTarget || !el.businessObject) return;
+      // Ein Element mit eigener Farbe (etwa die Bewertung einer IST-Aufnahme) behält sie.
+      if (typeof procEigeneFarbe === 'function' && procEigeneFarbe(el)) return;
       arten[el.id] = { typ: String(el.type || '').replace(/^bpmn:/, ''), name: el.businessObject.name || '' };
     });
     return _baFaerben(svg, arten);

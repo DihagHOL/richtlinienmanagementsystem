@@ -373,6 +373,9 @@ async function pfAnlegen(hauptId) {
       dokumentUrl: doc.url, dokumentName: doc.name, dokumentDriveId: doc.driveId, dokumentItemId: doc.itemId,
       prozess: _pfStand(id, umfang),
     });
+    // Wer am Modell als Freigeber steht (Backlog „✎ Angaben" oder Modeler), gibt das Regelwerk frei.
+    const pmHaupt = (typeof procEintragVon === 'function') ? (procEintragVon(m) || {}).m : null;
+    if (pmHaupt && pmHaupt.freigeber) p.freigabeKonfig = { freigeber: [pmHaupt.freigeber], schwelle: '' };
     if (typeof historieAdd === 'function') {
       historieAdd(p, 'Angelegt', `Aus dem Prozess „${m.title}" angelegt${umfang.length > 1 ? `, mit ${umfang.length - 1} Unter- und Nebenprozessen` : ''}. Prozessbeschreibung erzeugt.`);
     }

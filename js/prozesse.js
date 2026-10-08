@@ -1779,6 +1779,33 @@ function procKennungSichern() {
  * Marker ist die Wahrheit, der Rest wird nachgezogen.
  * @returns Zahl der nachgezogenen Angaben
  */
+/**
+ * Aufrufaktivitäten aus einer importierten Datei nennen ihr Ziel nur über
+ * `calledElement`, die Prozess-Kennung, und kennen keine Datei des RMS. Gibt es
+ * genau ein Modell mit dieser Kennung, wird es eingebunden, wie über
+ * „Unterprozess – ein Modell einbinden". So bleiben Modellsätze verbunden, die
+ * zusammen importiert werden (oder aus Camunda kommen): erst die Unterprozesse,
+ * dann das Modell, das sie aufruft. Was einen Kreis ergäbe, bleibt offen.
+ * @returns {number} wie viele neu eingebunden wurden
+ */
+function procAufrufeAufloesen() {
+  if (!_bpmnModeler) return 0;
+  let reg;
+  try { reg = _bpmnModeler.get('elementRegistry'); } catch (e) { return 0; }
+  const eigen = String((_procEditing && _procEditing.itemId) || '');
+  let n = 0;
+  reg.filter(el => el.type === 'bpmn:CallActivity' && !el.labelTarget && !procElementModell(el)
+      && el.businessObject && el.businessObject.calledElement)
+    .forEach(el => {
+      const ziel = String(el.businessObject.calledElement);
+      const treffer = (_processes || []).filter(p => String(p.itemId) !== eigen && procKennungVon(p.itemId) === ziel);
+      if (treffer.length !== 1) return;
+      if (eigen && procBindetTransitiv(treffer[0].itemId, eigen)) return;
+      if (procUnterprozessSetzen(el, String(treffer[0].itemId))) n++;
+    });
+  return n;
+}
+
 function procUnterprozesseAbgleichen() {
   let n = 0;
   procUnterElemente().forEach(el => {
@@ -1978,7 +2005,16 @@ async function openProcessEditor(itemId, seed) {
   // Kreisprüfung und „eingebunden in" brauchen die Einträge aller Modelle –
   // im Hintergrund, der Kasten zieht nach, sobald sie da sind.
   _procLadeLauf = procEintraegeLaden().then(n => {
-    if (!n || !_bpmnModeler) return;
+    if (!_bpmnModeler) return;
+    // Erst jetzt kennt der Editor die Kennungen aller Modelle: Aufrufe aus einer
+    // importierten Datei finden hier ihr Modell.
+    const aufgeloest = canWrite ? procAufrufeAufloesen() : 0;
+    if (aufgeloest) {
+      _procDirty = true;
+      toast(`${aufgeloest} ⊞ über die Prozess-Kennung eingebunden – zum Behalten speichern.`, 'success');
+      prozessSchemaPruefung(true);
+    }
+    if (!n && !aufgeloest) return;
     procUnterMarker();
     if (!(document.activeElement && document.activeElement.id === 'proc-unter-suche')) _renderElementUnter(canWrite);
   }).catch(() => {}).finally(() => { _procLadeLauf = null; });
@@ -2190,9 +2226,24 @@ function _procFaerben() {
     marker.concat(['pa-bahn-0', 'pa-bahn-1']).forEach(m => canvas.removeMarker(el.id, m));
     const t = String(el.type || '').replace(/^bpmn:/, '');
     if (t === 'Lane') { canvas.addMarker(el.id, 'pa-bahn-' + (bahn++ % 2)); return; }
+    // Bringt ein Element seine eigene Farbe mit (etwa die Bewertung einer
+    // IST-Aufnahme: rot, gelb, grau, grün), bleibt sie: Sie sagt mehr als die Art.
+    if (procEigeneFarbe(el)) return;
     const art = prozessArt(t.charAt(0).toLowerCase() + t.slice(1), el.businessObject.name);
     if (art) canvas.addMarker(el.id, 'pa-art-' + art);
   });
+}
+
+/** Trägt ein Element eine eigene Füllfarbe im Diagramm (bpmn-js-Farben oder BPMN-Farbangabe)? */
+function procEigeneFarbe(el) {
+  try {
+    const di = el.di || (el.businessObject && el.businessObject.di);
+    if (!di) return false;
+    const attrs = di.$attrs || {};
+    const get = (k) => (typeof di.get === 'function' ? di.get(k) : undefined);
+    return !!(get('color:background-color') || get('bioc:fill')
+      || Object.keys(attrs).some(k => /(^|:)(fill|background-color)$/.test(k) && attrs[k]));
+  } catch (e) { return false; }
 }
 function _procFaerbenBald() {
   clearTimeout(_procFarbTimer);
@@ -2835,6 +2886,17 @@ function _renderProcPm(canWrite) {
     <label class="field-hint" style="display:block;margin:6px 0 2px">Prozesseigner (E-Mail)</label>
     <input type="text" id="proc-pm-eigner" ${dis} list="lk-people" value="${esc(pm.prozesseigner || '')}"
       placeholder="${esc(erbeEigner ? 'leer = ' + erbeEigner : 'name@dihag.com')}">
+    <label class="field-hint" style="display:block;margin:6px 0 2px">Freigabe durch (E-Mail)</label>
+    <input type="text" id="proc-pm-freigeber" ${dis} list="lk-people" value="${esc(pm.freigeber || '')}"
+      placeholder="wer den Prozess freigibt" title="Bei „📋 Zur Freigabe" wird diese Person Freigeber des Regelwerks">
+    <div id="proc-pm-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}">
+      <label class="field-hint" style="display:block;margin:6px 0 2px">Abgelöst durch</label>
+      <select id="proc-pm-nachfolger" ${dis}>
+        <option value="">– SOLL-Prozess wählen –</option>
+        ${(_processes || []).filter(x => String(x.itemId) !== String(itemId)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'de'))
+          .map(x => `<option value="${esc(x.itemId)}"${sel(String(x.itemId), pm.nachfolger)}>${esc(x.title)}${x.ordner ? ' (' + esc(_procWerkLabel(x)) + ')' : ''}</option>`).join('')}
+      </select>
+    </div>
     <label class="field-hint" style="display:block;margin:6px 0 2px">Standardisierungsgrad</label>
     <select id="proc-pm-std" ${dis}>
       <option value=""${sel('', pm.standardisierung)}>${erbeStd ? 'wie Kachel: ' + esc(erbeStd.label) : 'noch nicht entschieden'}</option>
@@ -2903,6 +2965,8 @@ function _procPmAusFormular() {
     status, prozesseigner: wert('proc-pm-eigner'), standardisierung: wert('proc-pm-std'),
     prioritaet: wert('proc-pm-prio'), naechsteUeberpruefung: wert('proc-pm-termin'),
     reifegrad: wert('proc-pm-rg') || '', kennzahlen: (_procPm && _procPm.kennzahlen) || [],
+    freigeber: wert('proc-pm-freigeber') || '',
+    nachfolger: status === 'eol' ? (wert('proc-pm-nachfolger') || '') : '',
   }) : null;
   // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
   const kc = document.getElementById('proc-pm-kpi');
@@ -2912,6 +2976,8 @@ function _procPmAusFormular() {
 
 /** Wer freigibt oder ausrollt, bekommt einen Überprüfungstermin vorgeschlagen. */
 function procPmStatusWahl(wert) {
+  const nz = document.getElementById('proc-pm-nachfolger-zeile');
+  if (nz) nz.style.display = wert === 'eol' ? '' : 'none';
   const termin = document.getElementById('proc-pm-termin');
   if (!termin || typeof pzStatusSetzen !== 'function' || !wert) return;
   const pm = { status: '', naechsteUeberpruefung: termin.value };
@@ -3284,6 +3350,7 @@ async function saveProcess() {
     // was die anderen heißen, falls das Hintergrund-Lesen noch läuft.
     if (_procLadeLauf) { try { await _procLadeLauf; } catch (e) { /* dann mit dem, was da ist */ } }
     const kennung = procKennungSichern();
+    procAufrufeAufloesen();
     procUnterprozesseAbgleichen();
     const { xml } = await _bpmnModeler.saveXML({ format: true });
     const newFname = /\.bpmn$/i.test(name) ? name : name + '.bpmn';

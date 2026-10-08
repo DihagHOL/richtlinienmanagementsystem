@@ -71,9 +71,42 @@ function _faelligCard(entry, accent) {
   </div>`;
 }
 
+/* ── Rubriken ──
+   Regelwerke, Register, Funktionsprüfung und Prozesse standen untereinander auf
+   einer langen Seite; wer die Überprüfung der Prozesse suchte, scrollte an allen
+   Regelwerken vorbei. Jede Art hat jetzt ihre Rubrik, „Alles" zeigt sie wie
+   bisher zusammen. Die Wahl bleibt im Browser, ?rubrik=prozesse springt direkt hin. */
+const FAELLIG_RUBRIKEN = [
+  { key: '',           label: 'Alles' },
+  { key: 'regelwerke', label: '📘 Regelwerke' },
+  { key: 'register',   label: '📋 Maßnahmen, Ziele, Kennzahlen' },
+  { key: 'funktion',   label: '🧪 Funktionsprüfung' },
+  { key: 'prozesse',   label: '🔀 Prozesse' },
+];
+const FAELLIG_RUBRIK_SPEICHER = 'rms_faellig_rubrik';
+let _faelligRubrik = null;
+
+function _faelligRubrikAktiv() {
+  if (_faelligRubrik === null) {
+    let r = '';
+    try { r = new URLSearchParams(location.search).get('rubrik') || localStorage.getItem(FAELLIG_RUBRIK_SPEICHER) || ''; }
+    catch (e) { r = ''; }
+    _faelligRubrik = FAELLIG_RUBRIKEN.some(x => x.key === r) ? r : '';
+  }
+  return _faelligRubrik;
+}
+
+function faelligRubrikSetzen(r) {
+  _faelligRubrik = FAELLIG_RUBRIKEN.some(x => x.key === r) ? r : '';
+  try { localStorage.setItem(FAELLIG_RUBRIK_SPEICHER, _faelligRubrik); } catch (e) { /* gilt dann nur jetzt */ }
+  renderFaelligkeit();
+}
+
 function renderFaelligkeit() {
   const mount = document.getElementById('faelligkeit-mount');
   if (!mount) return;
+  const rubrik = _faelligRubrikAktiv();
+  const zeigt = (key) => !rubrik || rubrik === key;
   const b = _faelligBuckets();
   const kpi = (n, label, col) => `<div style="flex:1;min-width:120px;background:var(--c-surface,#fff);border:1px solid var(--c-border);border-radius:10px;padding:12px 14px">
     <div style="font-size:1.6rem;font-weight:800;color:${col}">${n}</div>
@@ -83,7 +116,12 @@ function renderFaelligkeit() {
     <div style="font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em;margin:20px 2px 8px">${esc(title)} (${list.length})</div>
     ${list.length ? list.map(e => _faelligCard(e, accent)).join('') : (typeof emptyState === 'function' ? emptyState(emptyTxt, '✓') : `<div class="field-hint">${esc(emptyTxt)}</div>`)}`;
 
-  mount.innerHTML = `
+  const rubriken = `<div class="fael-rubriken" role="tablist" aria-label="Rubrik">${FAELLIG_RUBRIKEN.map(r => {
+    const zahl = r.key === 'regelwerke' && b.overdue.length ? ` <span class="fael-zahl">${b.overdue.length}</span>` : '';
+    return `<button type="button" role="tab" aria-selected="${rubrik === r.key}" class="btn btn-sm ${rubrik === r.key ? 'btn-primary' : 'btn-ghost'}"
+      onclick="faelligRubrikSetzen(${jsArg(r.key)})">${r.label}${zahl}</button>`;
+  }).join('')}</div>`;
+  const regelwerke = !zeigt('regelwerke') ? '' : `
     <div class="view-desc" style="margin:0 0 14px">
       Interne Überprüfung (Wiedervorlage) der Richtlinien – Grundlage: Feld „Nächste Überprüfung".
       <b>ISO 27001 A.5.1</b> verlangt die regelmäßige Überprüfung. „+12 Monate" setzt den nächsten Termin sofort.
@@ -97,13 +135,15 @@ function renderFaelligkeit() {
     ${section('Überfällig', b.overdue, '#ef4444', 'Nichts überfällig.')}
     ${section(`Fällig in ≤ ${FAELLIG_SOON_DAYS} Tagen`, b.soon, '#f59e0b', 'Nichts in den nächsten Wochen fällig.')}
     ${b.none.length ? section('Ohne Überprüfungstermin', b.none, '#9ca3af', '') : ''}
-    ${b.later.length ? section('Später terminiert', b.later, '#22c55e', '') : ''}
-    <div id="fael-register" style="margin-top:28px"></div>
-    <div id="fael-funktion" style="margin-top:28px"></div>
-    <div id="fael-prozesse" style="margin-top:28px"></div>`;
-  _faelligRegisterZeigen();
-  _faelligFunktionZeigen();
-  _faelligProzesseZeigen();
+    ${b.later.length ? section('Später terminiert', b.later, '#22c55e', '') : ''}`;
+  const abstand = (key) => (rubrik === key ? '0' : '28px');
+  mount.innerHTML = `${rubriken}${regelwerke}
+    ${zeigt('register') ? `<div id="fael-register" style="margin-top:${abstand('register')}"></div>` : ''}
+    ${zeigt('funktion') ? `<div id="fael-funktion" style="margin-top:${abstand('funktion')}"></div>` : ''}
+    ${zeigt('prozesse') ? `<div id="fael-prozesse" style="margin-top:${abstand('prozesse')}"></div>` : ''}`;
+  if (zeigt('register')) _faelligRegisterZeigen();
+  if (zeigt('funktion')) _faelligFunktionZeigen();
+  if (zeigt('prozesse')) _faelligProzesseZeigen();
 }
 
 /* ── Maßnahmen, Ziele, Kennzahlen: was dort ansteht ──
@@ -330,7 +370,8 @@ function _faelligProzesseHtml(b) {
   const label = (w) => (w === 'KONZERN' ? 'Konzern / Holding' : w);
   const karte = (e, accent) => {
     const p = e.pruefung;
-    const wann = p.stufe === 'fehlt' ? 'freigegeben, aber ohne Termin' : `${p.datum.split('-').reverse().join('.')} · ${_faelligDueLabel(p.tage)}`;
+    const wann = p.stufe === 'fehlt' ? (e.status === 'poc' ? 'POC ohne Termin für die Bewertung' : 'freigegeben, aber ohne Termin')
+      : `${p.datum.split('-').reverse().join('.')} · ${_faelligDueLabel(p.tage)}`;
     const eigner = e.eigner.upn ? esc(e.eigner.upn) : '<span style="color:#b45309">kein Prozesseigner</span>';
     return `<div class="item-card" style="cursor:default;border-left:4px solid ${accent}">
       <div class="ic-top"><div class="ic-title">${e.art === 'modell' ? '🔀 ' : ''}${esc(e.kachel.name)}${pzNrText(e.kachel) ? ` <span class="field-hint">${esc(pzNrText(e.kachel))}</span>` : ''}</div>
@@ -352,14 +393,15 @@ function _faelligProzesseHtml(b) {
   return `
     <h3 style="margin:0 0 6px;font-size:1.05rem">Prozesse</h3>
     <div class="view-desc" style="margin:0 0 10px">
-      Überprüfung der Prozesse aus den Landkarten. Freigegebene Prozesse werden spätestens alle
-      ${typeof PZ_UEBERPRUEFUNG_MONATE !== 'undefined' ? PZ_UEBERPRUEFUNG_MONATE : 12} Monate durch den Prozesseigner überprüft.
-      Der Termin steht am Modell (Prozess-Editor) oder an der Kachel (Landkarte, „Bearbeiten").
+      Review der Prozesse aus Landkarten und Modellen. Ein <b>POC</b> braucht den Termin seiner Bewertung, freigegebene Prozesse
+      werden spätestens alle ${typeof PZ_UEBERPRUEFUNG_MONATE !== 'undefined' ? PZ_UEBERPRUEFUNG_MONATE : 12} Monate durch den
+      Prozesseigner überprüft. Ein auslaufender Prozess (<b>EOL</b>) wird nicht mehr überprüft. Der Termin steht am Modell
+      (Backlog „✎ Angaben" oder Prozess-Editor) oder an der Kachel (Landkarte, „Bearbeiten").
       <button class="btn btn-ghost btn-sm" onclick="_faelligProzesseZeigen(true)" title="Landkarten neu lesen">↻ Aktualisieren</button>
     </div>
-    ${summe ? '' : '<div class="field-hint">Noch kein Prozess mit Überprüfungstermin. Er entsteht, sobald ein Prozess freigegeben wird.</div>'}
+    ${summe ? '' : '<div class="field-hint">Noch kein Prozess mit Review-Termin. Er wird fällig, sobald ein Prozess im POC ist oder freigegeben wird.</div>'}
     ${liste('Überfällig', b.ueberfaellig, '#ef4444')}
-    ${liste('Freigegeben ohne Termin', b.fehlt, '#ef4444')}
+    ${liste('Ohne Review-Termin', b.fehlt, '#ef4444')}
     ${liste(`Fällig in ≤ ${FAELLIG_SOON_DAYS} Tagen`, b.bald, '#f59e0b')}
     ${liste('Später terminiert', b.spaeter, '#22c55e')}`;
 }

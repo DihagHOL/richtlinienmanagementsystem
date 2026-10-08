@@ -35,7 +35,7 @@ console.log('Marker');
 const pm = { status: 'soll', prozesseigner: 'cfo@dihag.com', standardisierung: 'einheitlich', prioritaet: 'hoch', naechsteUeberpruefung: '2027-03-01' };
 const marker = M.pzPmMarker(pm);
 ok(marker === '[[rms:pm=soll|cfo@dihag.com|einheitlich|hoch|2027-03-01]]', 'Der Marker trägt alle fünf Angaben');
-ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(Object.assign({}, pm, { reifegrad: '', kennzahlen: [] })),
+ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(Object.assign({}, pm, { reifegrad: '', freigeber: '', nachfolger: '', kennzahlen: [] })),
   'Rundlauf: gelesen kommt dasselbe heraus');
 ok(M.pzPmAusText('kein Marker') === null, 'Ohne Marker: null');
 const kaputt = M.pzPmAusText('[[rms:pm=quatsch|a@b.de|irgendwas|dringend|morgen]]');

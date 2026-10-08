@@ -107,7 +107,9 @@ function renderProzessBacklog() {
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('backlog') : ''}
     <div class="view-desc" style="margin:0 0 12px">
       Jeder Prozess durchläuft denselben Weg: <b>IST erfasst → SOLL in Arbeit → POC → freigegeben → ausgerollt</b>,
-      danach die regelmäßige <b>Überprüfung</b>. Ein Prozess ist ein <b>BPMN-Modell</b> 🔀, auch ohne Landkarte,
+      danach die regelmäßige <b>Überprüfung</b>. Ein IST-Prozess, den ein SOLL ablöst, steht am Ende als <b>EOL</b>,
+      mit Verweis auf seinen Nachfolger. Ab dem POC braucht ein Prozess einen <b>Review-Termin</b> (Fälligkeiten → Prozesse)
+      und die Angabe, <b>wer ihn freigibt</b>. Ein Prozess ist ein <b>BPMN-Modell</b> 🔀, auch ohne Landkarte,
       oder eine <b>Kachel</b> 🗺, die noch kein Modell hat. Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
       der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
       seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte. Ab der Freigabe braucht ein Prozess
@@ -150,7 +152,8 @@ function renderProzessBacklog() {
       ${kpi(kz.priorisiert, kz.gesamt, 'priorisiert')}
       ${kpi(kz.inArbeit, null, 'in Arbeit (SOLL bis freigegeben)')}
       ${kpi(kz.ausgerollt, null, 'ausgerollt')}
-      ${kpi(kz.ueberfaellig + kz.ohneTermin, null, 'Überprüfung überfällig oder ohne Termin', kz.ueberfaellig + kz.ohneTermin > 0)}
+      ${kz.modelle ? kpi(kz.mitFreigeber, kz.modelle, 'Modelle mit Freigeber', kz.mitFreigeber < kz.modelle) : ''}
+      ${kpi(kz.ueberfaellig + kz.ohneTermin, null, 'Review überfällig oder ohne Termin', kz.ueberfaellig + kz.ohneTermin > 0)}
       ${kz.mitKennzahl !== undefined ? `
       ${kpi(kz.mitKennzahl, kz.gesamt, 'mit Kennzahlen')}
       ${kpi(kz.kennzahlVerfehlt, null, 'Kennzahl verfehlt', kz.kennzahlVerfehlt > 0)}
@@ -207,8 +210,12 @@ function _pbKarteHtml(e, schreiben) {
       <div class="pb-karte-person">${e.eigner.upn
         ? `👤 ${esc(_pbPerson(e.eigner.upn))}${e.eigner.geerbt ? ' <span class="field-hint" title="Prozesseigner der Konzern-Landkarte">↑</span>' : ''}`
         : '<span style="color:#b45309">👤 kein Prozesseigner</span>'}</div>
+      ${modell ? _pbFreigabeHtml(e) : ''}
+      ${modell ? _pbAbloesungHtml(e) : ''}
       ${pruefText ? `<div class="pb-karte-pruefung"${pruefFarbe ? ` style="color:${pruefFarbe}"` : ''}>${esc(pruefText)}</div>` : ''}
       ${_pbReifeHtml(e)}
+      ${schreiben && modell ? `<button type="button" class="pb-angaben" onclick="pbAngabenDialog(${jsArg(k.id)})"
+          title="Prozesseigner, Freigeber, Review-Termin und Nachfolger eintragen">✎ Angaben</button>` : ''}
       ${schreiben ? `<select class="pb-status" aria-label="Status von ${esc(k.name)}"
           onchange="${modell ? `pbModellStatusSetzen(${jsArg(k.id)},this.value)` : `pbStatusSetzen(${jsArg(e.werk)},${jsArg(k.id)},this.value)`}">
           ${PZ_STATUS.map(s => `<option value="${s.key}"${s.key === e.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
@@ -230,6 +237,145 @@ function _pbReifeHtml(e) {
   const luecken = pzLuecken(e);
   if (luecken.length) teile.push(`<span style="color:#b45309">⚠ ${esc(luecken.join(', '))}</span>`);
   return teile.length ? `<div class="pb-karte-pruefung">${teile.join(' · ')}</div>` : '';
+}
+
+/**
+ * Wer gibt frei? Ein Hauptprozess wird über ein Regelwerk freigegeben
+ * (js/prozessfreigabe.js): Gibt es das, stehen sein Status und seine Freigeber
+ * da. Sonst der am Modell eingetragene Freigeber, und fehlt der ab dem SOLL,
+ * steht die Frage offen da. Unter- und Nebenprozesse gehen über ihren Hauptprozess.
+ */
+function _pbFreigabeHtml(e) {
+  if (e.status === 'eol') return '';
+  const id = e.kachel.id;
+  if (typeof pfIstHauptprozess === 'function' && !pfIstHauptprozess(id)) {
+    return typeof pfUeberHtml === 'function' ? `<div class="pb-karte-person">${pfUeberHtml(id)}</div>` : '';
+  }
+  const rw = (typeof pfRegelwerkVon === 'function') ? pfRegelwerkVon(id) : null;
+  if (rw) {
+    const wer = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(rw) : [];
+    return `<div class="pb-karte-person">📋 <a href="#" onclick="event.preventDefault();pfRegelwerkOeffnen(${jsArg(rw.id)})"
+        title="Regelwerk der Freigabe öffnen">${typeof workflowBadge === 'function' ? workflowBadge(rw.status) : esc(rw.status)}</a>
+      Freigabe: ${esc(wer.length ? wer.map(_pbPerson).join(', ') : 'Geschäftsleitung')}</div>`;
+  }
+  if (e.freigeber) return `<div class="pb-karte-person">✅ Freigabe durch ${esc(_pbPerson(e.freigeber))}</div>`;
+  return e.status === 'ist' ? '' : '<div class="pb-karte-person" style="color:#b45309">✅ wer gibt frei? offen</div>';
+}
+
+/** IST und SOLL: der auslaufende Prozess nennt seinen Nachfolger, der Nachfolger, wen er ablöst. */
+function _pbAbloesungHtml(e) {
+  const titel = (id) => { const m = (typeof procModellVon === 'function') ? procModellVon(id) : null; return m ? m.title : ''; };
+  const link = (id, t) => `<a href="#" onclick="event.preventDefault();pbModellOeffnen(${jsArg(id)})">${esc(t)}</a>`;
+  if (e.status === 'eol') {
+    const t = e.nachfolger ? titel(e.nachfolger) : '';
+    return t ? `<div class="pb-karte-person" title="Der SOLL-Prozess, der diesen Ablauf ablöst">↪ abgelöst durch ${link(e.nachfolger, t)}</div>`
+      : '<div class="pb-karte-person" style="color:#b45309">↪ Nachfolger nicht eingetragen</div>';
+  }
+  const vor = pbModelle().filter(m => m.pm && m.pm.nachfolger === e.kachel.id);
+  return vor.length ? `<div class="pb-karte-person" title="Diese IST-Prozesse laufen aus, wenn dieser Prozess ausgerollt ist">↩ löst ab: ${
+    vor.map(m => link(m.itemId, m.title)).join(', ')}</div>` : '';
+}
+
+/* ── Angaben am Modell ──
+   Prozesseigner, Freigeber, Review-Termin und Nachfolger direkt im Backlog
+   setzen, ohne den Modeler zu öffnen. Geschrieben wird wie beim Status in die
+   .bpmn-Datei (procXmlDokuNeu): Regelwerke, Anlagen, Gliederung und
+   Beschreibung bleiben stehen. */
+
+function pbAngabenDialog(itemId) {
+  if (typeof lkDarfSchreiben === 'function' && !lkDarfSchreiben()) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const p = (typeof procModellVon === 'function') ? procModellVon(itemId) : null;
+  if (!p) { toast('Modell nicht gefunden – bitte neu laden.', 'error'); return; }
+  const e = (typeof procEintragVon === 'function') ? procEintragVon(p) : null;
+  const pm = pzPmNormal((e && e.m) || {});
+  const sel = (a, b) => (a === b ? ' selected' : '');
+  const andere = ((typeof _processes !== 'undefined' && _processes) || []).filter(x => x.itemId !== p.itemId)
+    .sort((a, b) => String(a.title).localeCompare(String(b.title), 'de'));
+  const werk = (x) => (x.ordner ? ' (' + ((typeof lkWerkLabel === 'function') ? lkWerkLabel(x.ordner) : x.ordner) + ')' : '');
+  openModal(`
+    <div class="modal-header"><h3>✎ Angaben: ${esc(p.title)}</h3>
+      <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin:0 0 12px">Gespeichert in der BPMN-Datei des Modells, wie im Prozess-Editor. Reifegrad und Kennzahlen bleiben, wie sie sind.</div>
+      <div class="form-grid">
+        <div class="form-group"><label for="pb-a-status">Status</label>
+          <select id="pb-a-status" onchange="pbAngabenStatus(this.value)">
+            <option value=""${sel('', pm.status)}>wie Kachel oder Vorgabe</option>
+            ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, pm.status)}>${esc(s.label)}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label for="pb-a-prio">Priorität</label>
+          <select id="pb-a-prio"><option value=""${sel('', pm.prioritaet)}>nicht priorisiert</option>
+            ${PZ_PRIO.map(x => `<option value="${x.key}"${sel(x.key, pm.prioritaet)}>${esc(x.label)}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label for="pb-a-eigner">Prozesseigner</label>
+          <input type="text" id="pb-a-eigner" list="pb-people" value="${esc(pm.prozesseigner)}" placeholder="name@dihag.com">
+          <span class="field-hint">Verantwortet den Prozess konzernweit.</span></div>
+        <div class="form-group"><label for="pb-a-freigeber">Freigabe durch</label>
+          <input type="text" id="pb-a-freigeber" list="pb-people" value="${esc(pm.freigeber)}" placeholder="name@dihag.com">
+          <span class="field-hint">Wer den Prozess freigibt. Bei „📋 Zur Freigabe" wird sie oder er Freigeber des Regelwerks.</span></div>
+        <div class="form-group"><label for="pb-a-termin">Review (nächste Überprüfung)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="pb-a-termin" value="${esc(pm.naechsteUeberpruefung)}" style="flex:1">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="pbAngabenTermin()" title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>
+          </div>
+          <span class="field-hint">Im POC der Termin seiner Bewertung. Steht in Fälligkeiten → Prozesse.</span></div>
+        <div class="form-group" id="pb-a-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}"><label for="pb-a-nachfolger">Abgelöst durch</label>
+          <select id="pb-a-nachfolger"><option value="">– SOLL-Prozess wählen –</option>
+            ${andere.map(x => `<option value="${esc(x.itemId)}"${sel(x.itemId, pm.nachfolger)}>${esc(x.title + werk(x))}</option>`).join('')}
+          </select>
+          <span class="field-hint">Der Prozess, der diesen auslaufenden Ablauf ersetzt.</span></div>
+      </div>
+      <datalist id="pb-people">${(typeof _lkPeopleOptions === 'function') ? _lkPeopleOptions() : ''}</datalist>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="pb-a-speichern" onclick="pbAngabenSpeichern(${jsArg(itemId)})">Speichern</button>
+    </div>`);
+  if (typeof lkMitgliederLaden === 'function') lkMitgliederLaden();
+}
+
+function pbAngabenStatus(status) {
+  const z = document.getElementById('pb-a-nachfolger-zeile');
+  if (z) z.style.display = status === 'eol' ? '' : 'none';
+}
+
+function pbAngabenTermin() {
+  const f = document.getElementById('pb-a-termin');
+  if (f && typeof pzTerminVorschlag === 'function') f.value = pzTerminVorschlag();
+}
+
+async function pbAngabenSpeichern(itemId) {
+  if (typeof lkDarfSchreiben === 'function' && !lkDarfSchreiben()) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
+  const p = (typeof procModellVon === 'function') ? procModellVon(itemId) : null;
+  if (!p || typeof spGetProcessXml !== 'function' || typeof procXmlDokuNeu !== 'function') { toast('Modell nicht gefunden – bitte neu laden.', 'error'); return; }
+  const wert = (id) => String((document.getElementById(id) || {}).value || '').trim();
+  const knopf = document.getElementById('pb-a-speichern');
+  if (knopf) knopf.disabled = true;
+  try {
+    const xml = await spGetProcessXml(itemId);
+    // Von der Datei ausgehen, nicht vom Cache: Reifegrad und Kennzahlen bleiben.
+    const pm = procPmAusXml(xml) || pzPmNormal({});
+    pm.status = wert('pb-a-status');
+    pm.prioritaet = wert('pb-a-prio');
+    pm.prozesseigner = wert('pb-a-eigner');
+    pm.freigeber = wert('pb-a-freigeber');
+    pm.naechsteUeberpruefung = wert('pb-a-termin');
+    pm.nachfolger = pm.status === 'eol' ? wert('pb-a-nachfolger') : '';
+    // Wer freigibt oder ausrollt, bekommt einen Termin, wie beim Status an der Karte.
+    if (['freigegeben', 'ausgerollt'].includes(pm.status) && !pm.naechsteUeberpruefung) pm.naechsteUeberpruefung = pzTerminVorschlag();
+    const neu = procXmlDokuNeu(xml, { pm: pzPmNormal(pm) });
+    await spSaveProcess(p.title, neu, p.ordner || '');
+    try { _processes = await spListProcesses(); } catch (e) { /* dann mit der alten Liste */ }
+    const q = procModellVon(itemId);
+    if (q && typeof procLinksMerken === 'function') procLinksMerken(q.itemId + '|' + q.modified, procEintragAusXml(neu));
+    closeModal();
+    toast(`${p.title}: Angaben gespeichert ✓`, 'success');
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message, 'error');
+    if (knopf) knopf.disabled = false;
+    return;
+  }
+  renderProzessBacklog();
 }
 
 /* ── Bedienung ───────────────────────────────────────────────────────── */
@@ -440,5 +586,5 @@ async function pbNeuAnlegen(modellieren) {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { pbEintraege, pbModelle };
+  module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml };
 }

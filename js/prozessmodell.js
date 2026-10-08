@@ -44,6 +44,8 @@ const PZ_STATUS = [
     text: 'Nach dem POC freigegeben. Modell und Regelwerke sind veröffentlicht, der Rollout läuft.' },
   { key: 'ausgerollt',  label: 'Ausgerollt',     kurz: 'live', farbe: '#15803d',
     text: 'Der Prozess läuft in allen vorgesehenen Werken und wird regelmäßig überprüft.' },
+  { key: 'eol',         label: 'EOL, wird abgelöst', kurz: 'EOL', farbe: '#9F1239',
+    text: 'Der bisherige Ablauf läuft aus und wird durch einen SOLL-Prozess abgelöst. Er bleibt als Nachweis des IST stehen, wird aber nicht weiterentwickelt und nicht mehr überprüft.' },
 ];
 
 /* ── Standardisierungsgrad: entscheidet das Prozess-Board je Konzernprozess ── */
@@ -96,6 +98,8 @@ const PZ_RICHTUNG = [
 const PZ_UEBERPRUEFUNG_MONATE = 12;
 /** „Bald fällig" – dasselbe Fenster wie bei den Regelwerken. */
 const PZ_BALD_TAGE = 30;
+/** Ab diesen Stufen braucht ein Prozess einen Review-Termin (POC: die Bewertung des Pilots). */
+const PZ_REVIEW_PFLICHT = ['poc', 'freigegeben', 'ausgerollt'];
 
 function pzStatus(k) {
   const s = k && k.status;
@@ -255,9 +259,13 @@ function pzUeberpruefung(k, heute) {
   const datum = String((k && k.naechsteUeberpruefung) || '').slice(0, 10);
   const tage = pzTageBis(datum, heute);
   let stufe = '';
-  if (tage === null) {
-    // Ohne Termin ist es erst dann eine Lücke, wenn der Prozess freigegeben ist.
-    stufe = ['freigegeben', 'ausgerollt'].includes(pzStatus(k)) ? 'fehlt' : '';
+  if (pzStatus(k) === 'eol') {
+    // Ein auslaufender Prozess wird nicht mehr überprüft: Er wird abgelöst.
+    stufe = '';
+  } else if (tage === null) {
+    // Ohne Termin ist es eine Lücke, sobald es etwas zu bewerten gibt: der POC
+    // (sein Ergebnis gegen die Erfolgskriterien) und der freigegebene Prozess.
+    stufe = PZ_REVIEW_PFLICHT.includes(pzStatus(k)) ? 'fehlt' : '';
   } else if (tage < 0) stufe = 'ueberfaellig';
   else if (tage <= PZ_BALD_TAGE) stufe = 'bald';
   else stufe = 'spaeter';
@@ -354,6 +362,9 @@ function pzKennzahlen(eintraege) {
     priorisiert: zaehl(e => e.prio),
     inArbeit: zaehl(e => ['soll', 'poc', 'freigegeben'].includes(e.status)),
     ausgerollt: zaehl(e => e.status === 'ausgerollt'),
+    eol: zaehl(e => e.status === 'eol'),
+    modelle: zaehl(e => e.art === 'modell' && e.status !== 'eol'),
+    mitFreigeber: zaehl(e => e.art === 'modell' && e.status !== 'eol' && e.freigeber),
     ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig'),
     ohneTermin: zaehl(e => e.pruefung.stufe === 'fehlt'),
     mitKennzahl: zaehl(e => e.kennzahlen && e.kennzahlen.liste.length),
@@ -395,11 +406,13 @@ function pzFaellige(daten, werke, heute, modelle) {
    Seine Angaben stehen in der Datei selbst, als Marker in der Dokumentation
    des Prozesses, so wie Regelwerke und Anlagen:
 
-     [[rms:pm=Status|Prozesseigner|Standardisierung|Priorität|Überprüfung|Reifegrad]]
+     [[rms:pm=Status|Prozesseigner|Standardisierung|Priorität|Überprüfung|Reifegrad|Freigeber|Nachfolger]]
      [[rms:kpi=Name|Einheit|Richtung|Ziel|Ist|Stand]]      (je Kennzahl eine Zeile)
 
-   Der Reifegrad steht hinten und nur, wenn er gesetzt ist: Ältere Modelle
-   mit fünf Feldern lesen sich unverändert.
+   Hinten Angefügtes steht nur da, wenn es gesetzt ist: Ältere Modelle mit fünf
+   oder sechs Feldern lesen sich unverändert. „Freigeber" ist, wer den Prozess
+   freigibt (siehe js/prozessfreigabe.js), „Nachfolger" die Datei-Kennung des
+   SOLL-Modells, das einen auslaufenden Prozess (EOL) ablöst.
 
    Was am Modell leer ist, kommt von der Kachel, an der es hängt, und von dort
    wie gehabt von der gleichnamigen Konzernkachel. Hängt es an keiner, zählt
@@ -407,7 +420,7 @@ function pzFaellige(daten, werke, heute, modelle) {
 
 const PZ_PM_MARKER = /\[\[rms:pm=([^\]]*)\]\]/;
 const PZ_KPI_MARKER = /\[\[rms:kpi=([^\]]*)\]\]/g;
-const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung', 'reifegrad'];
+const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung', 'reifegrad', 'freigeber', 'nachfolger'];
 const PZ_KPI_FELDER = ['name', 'einheit', 'richtung', 'ziel', 'ist', 'stand'];
 const PZ_PM_TEXTZEILE = 'Prozessmanagement: ';
 const PZ_KPI_TEXTZEILE = 'Kennzahlen: ';
@@ -426,6 +439,8 @@ function pzPmNormal(pm) {
     prioritaet: pzPrioInfo(p.prioritaet) ? p.prioritaet : '',
     naechsteUeberpruefung: pzTageBis(datum) === null ? '' : datum,
     reifegrad: pzReifegradInfo(p.reifegrad) ? String(p.reifegrad) : '',
+    freigeber: _pzFeld(p.freigeber),
+    nachfolger: _pzFeld(p.nachfolger),
     kennzahlen: pzKpiNormal(p.kennzahlen),
   };
 }
@@ -440,7 +455,8 @@ function pzPmMarker(pm) {
   const n = pzPmNormal(pm);
   if (_pzPmZeileLeer(n)) return '';
   const felder = PZ_PM_FELDER.map(f => _pzFeld(n[f]));
-  if (!felder[felder.length - 1]) felder.pop();   // ohne Reifegrad: das alte Format mit fünf Feldern
+  // Leeres hinten fällt weg, bis zum alten Format mit fünf Feldern.
+  while (felder.length > 5 && !felder[felder.length - 1]) felder.pop();
   return '[[rms:pm=' + felder.join('|') + ']]';
 }
 
@@ -455,6 +471,11 @@ function pzPmKlartext(pm) {
   if (n.prioritaet) teile.push('Priorität ' + pzPrioInfo(n.prioritaet).label);
   if (n.naechsteUeberpruefung) teile.push('Überprüfung bis ' + n.naechsteUeberpruefung);
   if (n.reifegrad) teile.push('Reifegrad ' + pzReifegradInfo(n.reifegrad).label);
+  if (n.freigeber) teile.push('Freigabe durch ' + n.freigeber);
+  if (n.nachfolger) {
+    const m = (typeof procModellVon === 'function') ? procModellVon(n.nachfolger) : null;
+    teile.push('abgelöst durch ' + (m ? m.title : n.nachfolger));
+  }
   return PZ_PM_TEXTZEILE + teile.join(' · ');
 }
 
@@ -541,7 +562,7 @@ function pzModellEintraege(daten, modelle, heute) {
     }
     return {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
-      status, eigner, standard, prio,
+      status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger,
       pruefung: pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute),
       reifegrad, kennzahlen,
     };
@@ -551,7 +572,7 @@ function pzModellEintraege(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE,
+    PZ_STATUS, PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
     PZ_REIFEGRAD, PZ_REIFEGRAD_ZIEL, PZ_RICHTUNG,
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
     pzReifegradInfo, pzRichtungInfo, pzReifegrad,

@@ -143,7 +143,7 @@ fctx.D = JSON.parse(JSON.stringify(DATEN));
 fctx.D.karten.HOL.kacheln.push({ id: 'h-frei', name: 'Freigegeben ohne Termin', status: 'freigegeben' });
 const fh = vm.runInContext('_faelligProzesseHtml(pzFaellige(D, null))', fctx);
 ok(/Überfällig \(1\)/.test(fh) && fh.includes('Archiv'), 'Überfällige Prozesse stehen oben');
-ok(/Freigegeben ohne Termin \(1\)/.test(fh), 'Freigegebene Prozesse ohne Termin sind eine eigene Gruppe');
+ok(/Ohne Review-Termin \(\d\)/.test(fh) && fh.includes('Freigegeben ohne Termin'), 'Prozesse ohne Review-Termin sind eine eigene Gruppe');
 ok(fh.includes('faelligProzessOeffnen(&quot;HOL&quot;,&quot;h-alt&quot;)'), 'Ein Klick führt zur Kachel');
 
 console.log('Modelle im Backlog');
