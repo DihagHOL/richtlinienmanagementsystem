@@ -61,7 +61,8 @@ function pbModelle() {
   return liste.map(p => {
     const e = (typeof procEintragVon === 'function') ? procEintragVon(p) : null;
     return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: e ? e.m : null,
-      kacheln: (typeof procKachelnVon === 'function') ? procKachelnVon(p.itemId) : [] };
+      kacheln: (typeof procKachelnVon === 'function') ? procKachelnVon(p.itemId) : [],
+      kinder: (typeof procGliederungKinder === 'function') ? procGliederungKinder(p.itemId).map(k => k.id) : [] };
   });
 }
 
@@ -80,8 +81,9 @@ function pbEintraege() {
   const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
   const werke = pbWerke();
   const q = pzSchluessel(_pbSuche);
-  const modelle = pbModelle().filter(m => !_pbWerk || m.ordner === _pbWerk);
-  return pzEintraege(daten, _pbWerk ? werke.filter(w => w === _pbWerk) : werke, undefined, modelle).filter(e => {
+  // Alle Modelle mitgeben (der Hauptprozess kann woanders liegen), gefiltert wird danach.
+  return pzEintraege(daten, _pbWerk ? werke.filter(w => w === _pbWerk) : werke, undefined, pbModelle()).filter(e => {
+    if (_pbWerk && e.art === 'modell' && e.werk !== _pbWerk) return false;
     if (_pbArt === 'modell' && e.art !== 'modell') return false;
     if (_pbArt === 'frei' && !(e.art === 'modell' && !e.modell.kacheln.length)) return false;
     if (_pbArt === 'kachel' && e.art !== 'kachel') return false;
@@ -207,9 +209,9 @@ function _pbKarteHtml(e, schreiben) {
   const std = pzStandardInfo(e.standard.key);
   const p = e.pruefung;
   const werkLabel = (typeof lkWerkLabel === 'function') ? lkWerkLabel(e.werk) : e.werk;
-  const pruefText = p.stufe === 'fehlt' ? '⏰ Überprüfung fehlt'
+  const pruefText = (p.stufe === 'fehlt' ? '⏰ Überprüfung fehlt'
     : p.stufe === 'ueberfaellig' ? `⏰ seit ${-p.tage} Tag${p.tage === -1 ? '' : 'en'} fällig`
-    : p.datum ? `🔎 ${p.datum.split('-').reverse().join('.')}` : '';
+    : p.datum ? `🔎 ${p.datum.split('-').reverse().join('.')}` : '') + (p.ueber && (p.stufe || p.datum) ? ` über ${p.ueber.name}` : '');
   const pruefFarbe = (p.stufe === 'fehlt' || p.stufe === 'ueberfaellig') ? '#b91c1c' : (p.stufe === 'bald' ? '#b45309' : '');
   const modell = e.art === 'modell';
   const oeffnen = modell ? `pbModellOeffnen(${jsArg(k.id)})` : `pbOeffnen(${jsArg(e.werk)},${jsArg(k.id)})`;

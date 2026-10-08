@@ -331,9 +331,14 @@ async function _faelligPzModelleLesen(daten) {
   const modelle = [];
   for (let i = 0; i < liste.length; i += 5) {
     await Promise.all(liste.slice(i, i + 5).map(async p => {
-      let pm = null;
-      try { pm = pzPmAusText(String(await spGetProcessXml(p.itemId)).split('&amp;').join('&')); } catch (e) { /* ohne Angaben */ }
-      modelle.push({ itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm, kacheln: kachelnVon(p.itemId) });
+      let pm = null, kinder = [];
+      try {
+        const xml = String(await spGetProcessXml(p.itemId)).split('&amp;').join('&');
+        pm = pzPmAusText(xml);
+        // Unter- und Nebenprozesse: ohne eigenen Termin gehen sie über ihren Hauptprozess.
+        kinder = (typeof pzKinderAusText === 'function') ? pzKinderAusText(xml) : [];
+      } catch (e) { /* ohne Angaben */ }
+      modelle.push({ itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm, kacheln: kachelnVon(p.itemId), kinder });
     }));
   }
   return modelle;

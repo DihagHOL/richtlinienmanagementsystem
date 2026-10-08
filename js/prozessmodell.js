@@ -337,8 +337,9 @@ function pzEintraege(daten, werke, heute, modelle) {
     }));
   });
   // Modelle ohne Ablage gehören noch niemandem – sie bleiben sichtbar, damit
-  // sie einsortiert werden (wie in der Modell-Liste).
-  if (modelle) out.push(...pzModellEintraege(daten, modelle.filter(m => !werke || !m.ordner || werke.includes(m.ordner)), heute));
+  // sie einsortiert werden (wie in der Modell-Liste). Gerechnet wird über alle
+  // Modelle: Der Hauptprozess eines Unterprozesses kann in einer anderen Ablage liegen.
+  if (modelle) out.push(...pzModellEintraege(daten, modelle, heute).filter(e => !werke || !e.werk || werke.includes(e.werk)));
   return out;
 }
 
@@ -408,8 +409,9 @@ function pzKennzahlen(eintraege) {
     eolMitSoll: zaehl(e => e.status === 'eol' && e.nachfolger),
     modelle: zaehl(e => e.art === 'modell' && e.status !== 'eol'),
     mitFreigeber: zaehl(e => e.art === 'modell' && e.status !== 'eol' && e.freigeber),
-    ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig'),
-    ohneTermin: zaehl(e => e.pruefung.stufe === 'fehlt'),
+    // Wer über seinen Hauptprozess geprüft wird, zählt dort.
+    ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig' && !e.pruefung.ueber),
+    ohneTermin: zaehl(e => e.pruefung.stufe === 'fehlt' && !e.pruefung.ueber),
     mitKennzahl: zaehl(e => e.kennzahlen && e.kennzahlen.liste.length),
     kennzahlVerfehlt: zaehl(e => e.kennzahlen && pzKpiStand(e.kennzahlen.liste).verfehlt),
     reifegradBewertet: zaehl(e => e.reifegrad && e.reifegrad.key),
@@ -437,7 +439,8 @@ function pzLuecken(e) {
  */
 function pzFaellige(daten, werke, heute, modelle) {
   const b = { ueberfaellig: [], bald: [], spaeter: [], fehlt: [] };
-  pzEintraege(daten, werke, heute, modelle).forEach(e => { if (b[e.pruefung.stufe]) b[e.pruefung.stufe].push(e); });
+  // Unter- und Nebenprozesse ohne eigenen Termin stehen mit ihrem Hauptprozess da, nicht noch einmal.
+  pzEintraege(daten, werke, heute, modelle).forEach(e => { if (b[e.pruefung.stufe] && !e.pruefung.ueber) b[e.pruefung.stufe].push(e); });
   const nachTagen = (a, c) => (a.pruefung.tage - c.pruefung.tage) || String(a.kachel.name).localeCompare(String(c.kachel.name), 'de');
   b.ueberfaellig.sort(nachTagen); b.bald.sort(nachTagen); b.spaeter.sort(nachTagen);
   b.fehlt.sort((a, c) => String(a.kachel.name).localeCompare(String(c.kachel.name), 'de'));
@@ -702,11 +705,74 @@ function pzPmAusText(text) {
 }
 
 /**
+ * Die Unter- und Nebenprozesse eines Modells aus seinem XML: was ein Schritt
+ * aufruft (⊞, [[rms:modell=…]]) und was zugeordnet ist ([[rms:unter=…]],
+ * [[rms:neben=…]]). Für Ansichten, die die Gliederung nicht laden (Fälligkeiten).
+ */
+function pzKinderAusText(text) {
+  const s = String(text || '');
+  const ids = [];
+  for (const m of s.matchAll(/\[\[rms:(modell|unter|neben)=([^\]]*)\]\]/g)) ids.push(...m[2].split(','));
+  return [...new Set(ids.map(x => x.trim()).filter(Boolean))];
+}
+
+/**
+ * Die Hauptprozesse je Modell: wer über beliebig viele Stufen über ihm steht
+ * und selbst unter keinem. modelle[].kinder sind die Kennungen seiner Unter-
+ * und Nebenprozesse. → Map(id → [Kennungen der Hauptprozesse])
+ */
+function pzHauptprozesse(modelle) {
+  const eltern = new Map();
+  (modelle || []).forEach(m => (m.kinder || []).forEach(k => {
+    const id = String(k);
+    if (id === String(m.itemId)) return;
+    const a = eltern.get(id) || [];
+    a.push(String(m.itemId));
+    eltern.set(id, a);
+  }));
+  const out = new Map();
+  (modelle || []).forEach(m => {
+    const id = String(m.itemId);
+    const haupt = [], gesehen = new Set([id]);
+    const hoch = (x) => {
+      const e = eltern.get(x) || [];
+      if (!e.length) { if (x !== id && !haupt.includes(x)) haupt.push(x); return; }
+      e.forEach(p => { if (!gesehen.has(p)) { gesehen.add(p); hoch(p); } });
+    };
+    hoch(id);
+    out.set(id, haupt);
+  });
+  return out;
+}
+
+/**
  * Modelle als Backlog-Einträge.
- * modelle: [{ itemId, title, ordner, pm, kacheln: [{ werk, kachel }] }] –
- * `kacheln` sind die Kacheln, die auf das Modell zeigen.
+ * modelle: [{ itemId, title, ordner, pm, kacheln: [{ werk, kachel }], kinder: [ids] }] –
+ * `kacheln` sind die Kacheln, die auf das Modell zeigen, `kinder` seine Unter-
+ * und Nebenprozesse (optional).
+ *
+ * Unter- und Nebenprozesse ohne eigenen Review-Termin gehen über ihren
+ * Hauptprozess, wie bei Freigabe und POC: Sie übernehmen dessen Termin
+ * (pruefung.ueber nennt ihn) und zählen weder in den Kennzahlen noch in den
+ * Fälligkeiten ein zweites Mal.
  */
 function pzModellEintraege(daten, modelle, heute) {
+  const eintraege = _pzModellEintraegeEinzeln(daten, modelle, heute);
+  const hauptVon = pzHauptprozesse(modelle);
+  const nachId = new Map(eintraege.map(e => [String(e.kachel.id), e]));
+  eintraege.forEach(e => {
+    if (e.pruefung.eigen) return;
+    const haupt = (hauptVon.get(String(e.kachel.id)) || []).map(h => nachId.get(h)).filter(Boolean);
+    if (!haupt.length) return;
+    // Mehrere Hauptprozesse: der früheste Termin gilt; ohne Termin der erste.
+    const mitTermin = haupt.filter(h => h.pruefung.datum).sort((a, b) => a.pruefung.datum.localeCompare(b.pruefung.datum));
+    const h = mitTermin[0] || haupt[0];
+    e.pruefung = Object.assign({}, h.pruefung, { eigen: false, ueber: { id: h.kachel.id, name: h.kachel.name } });
+  });
+  return eintraege;
+}
+
+function _pzModellEintraegeEinzeln(daten, modelle, heute) {
   return (modelle || []).map(m => {
     const pm = pzPmNormal(m.pm);
     const host = (Array.isArray(m.kacheln) && m.kacheln.length === 1) ? m.kacheln[0] : null;
@@ -748,7 +814,7 @@ function pzModellEintraege(daten, modelle, heute) {
     return {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
       status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger, poc: pm.poc,
-      pruefung: pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute),
+      pruefung: Object.assign(pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute), { eigen: !!termin, ueber: null }),
       reifegrad, kennzahlen,
     };
   });
@@ -757,7 +823,7 @@ function pzModellEintraege(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten,
+    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
     PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,
     pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocErgebnisInfo, pzPocBewertungInfo,
     PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,

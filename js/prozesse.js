@@ -1331,14 +1331,25 @@ function procEintragVon(p) {
 function procModellVon(itemId) {
   return (_processes || []).find(p => String(p.itemId) === String(itemId)) || null;
 }
+/**
+ * Alle Modelle, wie pzModellEintraege sie braucht: Angaben, Kacheln und die
+ * Unter- und Nebenprozesse (für den Review über den Hauptprozess).
+ * `pmVon` ersetzt die Angaben einzelner Modelle (das offene, ungespeicherte).
+ */
+function _procModellListe(pmVon) {
+  return (_processes || []).map(p => {
+    const e = procEintragVon(p);
+    const eigen = pmVon && Object.prototype.hasOwnProperty.call(pmVon, String(p.itemId));
+    return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: eigen ? pmVon[String(p.itemId)] : (e ? e.m : null),
+      kacheln: procKachelnVon(p.itemId), kinder: procGliederungKinder(p.itemId).map(k => k.id) };
+  });
+}
+
 /** Alle Modelle als Einträge des Prozessmanagements (Status, Nachfolger), wie im Backlog. */
 function procModellEintraegeAlle() {
   if (typeof pzModellEintraege !== 'function') return [];
   const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
-  return pzModellEintraege(daten, (_processes || []).map(p => {
-    const e = procEintragVon(p);
-    return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: e ? e.m : null, kacheln: procKachelnVon(p.itemId) };
-  }));
+  return pzModellEintraege(daten, _procModellListe());
 }
 function _procWerkLabel(p) {
   return (p && p.ordner) ? ((typeof lkWerkLabel === 'function') ? lkWerkLabel(p.ordner) : p.ordner) : '';
@@ -3045,7 +3056,10 @@ function procPmTerminVorschlagen() {
 function _procPmChips(proc) {
   if (typeof pzModellEintraege !== 'function' || !proc) return [];
   const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
-  const e = pzModellEintraege(daten, [{ itemId: proc.itemId, title: proc.title, ordner: proc.ordner || '', pm: _procPm, kacheln: procKachelnVon(proc.itemId) }])[0];
+  // Über alle Modelle gerechnet, damit ein Unterprozess den Review seines Hauptprozesses kennt.
+  const id = String(proc.itemId);
+  const e = (procModellVon(id) ? pzModellEintraege(daten, _procModellListe({ [id]: _procPm })).find(x => String(x.kachel.id) === id) : null)
+    || pzModellEintraege(daten, [{ itemId: proc.itemId, title: proc.title, ordner: proc.ordner || '', pm: _procPm, kacheln: procKachelnVon(proc.itemId) }])[0];
   if (!e) return [];
   const st = pzStatusInfo(e.status);
   const teile = [`<span class="pa-chip" style="background:${st.farbe};border-color:${st.farbe};color:#fff" title="Status im Prozessmanagement">${esc(st.label)}</span>`];
@@ -3053,8 +3067,9 @@ function _procPmChips(proc) {
   else teile.push('<span class="pa-chip t-warn">kein Prozesseigner</span>');
   const prio = pzPrioInfo(e.prio);
   if (prio) teile.push(`<span class="pa-chip" style="color:${prio.farbe};border-color:${prio.farbe}">Priorität ${esc(prio.label)}</span>`);
-  if (e.pruefung.datum) teile.push(`<span class="pa-chip${e.pruefung.stufe === 'ueberfaellig' ? ' t-err' : ''}">🔎 ${esc(e.pruefung.datum.split('-').reverse().join('.'))}</span>`);
-  else if (e.pruefung.stufe === 'fehlt') teile.push('<span class="pa-chip t-err">Überprüfung fehlt</span>');
+  const ueber = e.pruefung.ueber ? ` über ${esc(e.pruefung.ueber.name)}` : '';
+  if (e.pruefung.datum) teile.push(`<span class="pa-chip${e.pruefung.stufe === 'ueberfaellig' ? ' t-err' : ''}"${ueber ? ` title="Review-Termin des Hauptprozesses"` : ''}>🔎 ${esc(e.pruefung.datum.split('-').reverse().join('.'))}${ueber}</span>`);
+  else if (e.pruefung.stufe === 'fehlt') teile.push(`<span class="pa-chip t-err">Überprüfung fehlt${ueber}</span>`);
   const rg = (typeof pzReifegradInfo === 'function' && e.reifegrad) ? pzReifegradInfo(e.reifegrad.key) : null;
   if (rg) teile.push(`<span class="pa-chip" title="Reifegrad nach ISO/IEC 33020${e.reifegrad.geerbt ? ' (von der Kachel)' : ''}: ${esc(rg.text)}">Reifegrad ${esc(rg.label)}</span>`);
   if (e.kennzahlen && e.kennzahlen.liste.length) {
