@@ -218,6 +218,7 @@ function pruefCardHtml(p) {
   return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    ${fgProzessZeile(p)}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
     ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
@@ -239,6 +240,7 @@ function mitbestimmungCardHtml(p, kannHandeln) {
   return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    ${fgProzessZeile(p)}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span>
       <span class="ic-tag" style="background:#eef2ff;color:#3730a3">🏛️ Betroffen: ${esc(betroffen || '–')}</span></div>
     ${_votesHtml(p)}
@@ -261,6 +263,7 @@ function freigabeCardHtml(p) {
   return `<div class="item-card" id="fg-${esc(p.id)}" style="cursor:default">
     <div class="ic-top"><div class="ic-title">${esc(p.title)}</div><div class="ic-topright">${workflowBadge(p.status)}</div></div>
     ${p.beschreibung ? `<div class="ic-desc">${esc(p.beschreibung)}</div>` : ''}
+    ${fgProzessZeile(p)}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
     ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
@@ -861,6 +864,23 @@ function _wfApprovalsHtml(p) {
  * an ihrem Platz in SharePoint ansehen können – dort steht sie mit Versionsstand
  * und Kommentaren. Deshalb immer beides anbieten, soweit vorhanden.
  */
+/**
+ * Gibt dieses Regelwerk einen Prozess frei (js/prozessfreigabe.js), steht das an
+ * jeder Karte und in jeder Mail: welcher Hauptprozess, wie viele Unter- und
+ * Nebenprozesse, und dass Diagramme und Schritte im Dokument stehen. Nur aus den
+ * Daten am Regelwerk – der Reiter Prozesse muss dafür nicht geladen sein.
+ */
+function fgProzessZeile(p, mail) {
+  const pr = p && p.prozess;
+  if (!pr || !pr.hauptId) return '';
+  const weitere = Math.max(0, (Array.isArray(pr.stand) ? pr.stand.length : 1) - 1);
+  const am = pr.standAm ? new Date(pr.standAm).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+  const text = `🔀 Gibt den Prozess <b>${esc(pr.titel || p.title)}</b> frei${weitere ? `, mit ${weitere} Unter- und Nebenprozess${weitere === 1 ? '' : 'en'}` : ''}. `
+    + `Diagramme und Schritte stehen im Dokument${am ? ` (Stand ${esc(am)})` : ''}.`;
+  return mail ? `<p style="margin:10px 0 0">${text}</p>`
+    : `<div class="field-hint" style="margin:0 0 8px">${text}</div>`;
+}
+
 function _wfDokumentHtml(p, attachmentName) {
   const zeilen = [];
   if (attachmentName) zeilen.push(`📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.`);
@@ -1159,6 +1179,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
     <p>Richtlinie: <a href="${esc(sichereUrl(url))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''}${p.regelwerkTyp ? ', ' + esc(p.regelwerkTyp) : ''})</p>
     ${_mailGeltungsbereich(p) ? `<p style="margin:0 0 10px"><b>Geltungsbereich:</b> ${esc(_mailGeltungsbereich(p))}${(p.zielgruppen && p.zielgruppen.length && !p.zielgruppen.includes('ALLE')) ? ` · <b>Zielgruppe:</b> ${esc(p.zielgruppen.join(', '))}` : ''}</p>` : ''}
     <p>${esc(text)}</p>
+    ${fgProzessZeile(p, true)}
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(sichereUrl(url))}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}

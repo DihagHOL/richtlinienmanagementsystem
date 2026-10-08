@@ -1200,6 +1200,13 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pg-knopf { font: inherit; font-size: .75rem; font-weight: 600; padding: 4px 9px; border-radius: 7px; border: 1px solid var(--c-border); background: #fff; color: #374151; cursor: pointer; white-space: nowrap; }
 .pg-knopf:hover { border-color: var(--c-primary); color: var(--c-primary); }
 .pg-fehlt .pg-titel { color: #b45309; cursor: default; text-decoration: none; }
+.pf-status { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: .75rem; font-weight: 600; padding: 3px 8px; border-radius: 7px;
+             border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; white-space: nowrap; }
+.pf-status:hover { border-color: var(--c-primary); }
+.pf-status .status-badge { padding: 1px 8px; font-size: .7rem; }
+.pg-knopf.pf-warn { border-color: #f5c27a; background: #fff8eb; color: #92400e; }
+.pf-ueber { display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--c-muted); margin-left: 6px; }
+.pf-ueber .status-badge { padding: 1px 8px; font-size: .7rem; }
 .pg-arten { display: grid; gap: 8px; margin: 0 0 14px; }
 .pg-artwahl { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 10px; cursor: pointer; }
 .pg-artwahl:has(input:checked) { border-color: var(--c-primary); background: #f5f8ff; }

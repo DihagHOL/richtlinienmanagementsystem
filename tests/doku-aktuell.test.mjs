@@ -47,6 +47,7 @@ const FEATURES = [
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
   { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
+  { name: 'Freigabe von Prozessen',  code: () => /function pfAnlegen/.test(read('js/prozessfreigabe.js')), begriffe: ['Freigabe von Prozessen', '📋 Zur Freigabe', 'Arbeits-/Prozessanweisung', 'Beschreibung aktualisieren', 'Freigabe über'] },
   { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
   { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },
   { name: 'Zuständigkeitsmatrix',    code: () => /function pmZeilen/.test(read('js/prozessmatrix.js')),     begriffe: ['Matrix', 'Abdeckung'] },

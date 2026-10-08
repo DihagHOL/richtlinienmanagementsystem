@@ -822,6 +822,8 @@ function renderPolicyEditor() {
         ${p.id ? `<div class="form-group full">${renderHistorieSection(p)}</div>` : ''}
         <div class="form-group full">
           <label>Regelwerkdokument <span class="req">*</span></label>
+          ${p.prozess && p.prozess.hauptId ? `${typeof fgProzessZeile === 'function' ? fgProzessZeile(p) : ''}
+            <div class="field-hint" style="margin:0 0 8px">Das Dokument erzeugt der Reiter <b>Prozesse</b>. Ändert sich der Prozess, steht dort am Hauptprozess <b>„⚠ Geändert: Beschreibung aktualisieren"</b>.</div>` : ''}
           <div id="ed-doc-display" class="doc-chip ${p.dokumentName ? '' : 'doc-chip-empty'}">
             ${p.dokumentName ? '📄 ' + esc(p.dokumentName) : '⚠ noch kein Dokument zugeordnet'}
           </div>

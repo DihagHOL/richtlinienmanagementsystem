@@ -89,7 +89,8 @@ function procLinkEintrag(e) {
       u: (e.g && Array.isArray(e.g.u)) ? e.g.u.map(String) : [],
       n: (e.g && Array.isArray(e.g.n)) ? e.g.n.map(String) : [],
     },
-    alt: !('k' in e) || !('u' in e) || !('m' in e) || !('g' in e),
+    h: String(e.h || ''),   // Fingerabdruck des Ablaufs (procInhaltHash) – für die Freigabe von Prozessen
+    alt: !('k' in e) || !('u' in e) || !('m' in e) || !('g' in e) || !('h' in e),
   };
 }
 

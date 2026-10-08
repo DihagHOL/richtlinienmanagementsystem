@@ -565,9 +565,11 @@ function _procBaumKnoten(id, pfad, kante, gruppe, ctx) {
         ${zahl ? `<span class="pg-zahl">${zahl}</span>` : ''}
         ${fremd}${geteilt > 1 ? `<span class="ic-tag" title="steht in ${geteilt} Prozessen, einmal gepflegt, gilt für alle">⇄ ${geteilt}</span>` : ''}
         ${kreis ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e" title="Dieses Modell steht in diesem Zweig schon weiter oben">↻ Kreis</span>' : ''}
+        ${!kreis && typeof pfUeberHtml === 'function' && (tiefe || !pfIstHauptprozess(id)) ? pfUeberHtml(id, tiefe ? pfad[0] : '') : ''}
         <div class="pg-info" data-proc-link="${esc(id)}"></div>
       </div>
       <div class="pg-aktionen">
+        ${!tiefe && typeof pfStatusHtml === 'function' && pfIstHauptprozess(id) ? pfStatusHtml(id) : ''}
         ${ctx.canWrite && !kreis ? `<button type="button" class="pg-knopf" onclick="procGliederungDialog(${jsArg(id)})"
           title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}
         ${loesen}
@@ -1020,7 +1022,27 @@ function procEintragAusXml(xml) {
     u: procUnterAusXml(s),
     m: (typeof pzPmAusText === 'function') ? pzPmAusText(_xmlUnesc(s)) : null,
     g: procGliederungAusText(s),
+    h: procInhaltHash(s),
   };
+}
+
+/**
+ * Ein Fingerabdruck des Ablaufs: was ein Modell als Arbeitsanweisung aussagt.
+ * Die Lage im Bild zählt nicht mit (Pfeile richten ändert nichts am Ablauf),
+ * und auch nicht die Dokumentation des Prozesses: Dort stehen Regelwerke,
+ * Status, Anlagen und Gliederung, die sich ändern, ohne dass sich am Ablauf
+ * etwas ändert. Schritte, Namen, Bahnen, Verbindungen und was an den Schritten
+ * hängt, zählen. Die Freigabe eines Prozesses vergleicht damit, ob ihr
+ * Dokument noch zum Modell passt (js/prozessfreigabe.js).
+ */
+function procInhaltHash(xml) {
+  const s = String(xml || '')
+    .replace(/<(\w+:)?BPMNDiagram\b[\s\S]*?<\/(\w+:)?BPMNDiagram>/g, '')
+    .replace(/(<(\w+:)?process\b[^>]*>)\s*<(\w+:)?documentation\b[^>]*>[\s\S]*?<\/(\w+:)?documentation>/, '$1')
+    .replace(/\s+/g, ' ').trim();
+  let h = 0x811c9dc5;   // FNV-1a, 32 Bit: kurz, schnell, für einen Vergleich genug
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return s ? h.toString(16).padStart(8, '0') : '';
 }
 
 /** Die Angaben zum Prozessmanagement aus dem XML eines Modells (null = keine). */
@@ -2376,7 +2398,8 @@ function _procAnsichtenLeiste(itemId, herkunft) {
     ${zugeordnet.map(k => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(k.id)})"
         title="${esc(PROC_GL_ARTEN[k.art].label)} öffnen">${PROC_GL_ARTEN[k.art].zeichen} ${esc(_procTitelVon(k.id))}</button>`).join('')}
     ${canWrite ? `<button type="button" onclick="procGliederungDialog(${jsArg(itemId)})"
-        title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}`;
+        title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}
+    ${typeof pfStatusHtml === 'function' ? (pfIstHauptprozess(itemId) ? pfStatusHtml(itemId) : pfUeberHtml(itemId)) : ''}`;
 }
 
 function _procLegendeHtml() {
@@ -3620,5 +3643,5 @@ if (typeof module !== 'undefined' && module.exports) {
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
     procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
     procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden,
-    procGliederungAusText, procGliederungAusEintrag, procGliederungWurzeln, _procGliederungZeilen };
+    procGliederungAusText, procGliederungAusEintrag, procGliederungWurzeln, _procGliederungZeilen, procInhaltHash };
 }

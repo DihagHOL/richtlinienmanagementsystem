@@ -268,6 +268,8 @@ function _baTabelle(breiten, reihen, opt) {
  * @param {{autor?:string, zeit?:string}} [meta]
  * @returns {Uint8Array}
  */
+/* `meta.titel` ersetzt Titel und Fußzeile. Die Prozessbeschreibung einer Freigabe
+   (js/prozessfreigabe.js) baut ihre Word-Datei mit derselben Werkstatt. */
 function bpmnAnleitungDocx(bloecke, bilder, meta) {
   const enc = new TextEncoder();
   const m = meta || {};
@@ -361,7 +363,7 @@ function bpmnAnleitungDocx(bloecke, bilder, meta) {
     + _baSektion(false) + '</w:body></w:document>';
 
   const fuss = KOPF + '<w:ftr ' + NS + '>'
-    + _baAbsatz('Footer', _baLaeufe(BPMN_ANLEITUNG_TITEL + ' · Seite ')
+    + _baAbsatz('Footer', _baLaeufe((m.titel || BPMN_ANLEITUNG_TITEL) + ' · Seite ')
       + '<w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
       + _baLaeufe(' von ')
       + '<w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple>')
@@ -393,7 +395,7 @@ function bpmnAnleitungDocx(bloecke, bilder, meta) {
   const kern = KOPF + '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"'
     + ' xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"'
     + ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-    + '<dc:title>' + _baXml(BPMN_ANLEITUNG_TITEL) + '</dc:title>'
+    + '<dc:title>' + _baXml(m.titel || BPMN_ANLEITUNG_TITEL) + '</dc:title>'
     + (m.autor ? '<dc:creator>' + _baXml(m.autor) + '</dc:creator>' : '')
     + '<dc:language>de-DE</dc:language>'
     + (m.zeit ? '<dcterms:created xsi:type="dcterms:W3CDTF">' + _baXml(m.zeit) + '</dcterms:created>' : '')

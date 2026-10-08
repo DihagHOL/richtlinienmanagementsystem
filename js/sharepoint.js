@@ -109,6 +109,8 @@ const POLICY_EXT_FIELDS = [
   { feld: 'aktionToken',        spalte: '',                    json: true,  leer: null },
   // Wann die Zielgruppe über die Veröffentlichung informiert wurde
   { feld: 'bekanntgabeAm',      spalte: '',                    json: false, leer: '' },
+  // Freigabe eines Prozesses: Hauptprozess und Stand der Beschreibung (js/prozessfreigabe.js)
+  { feld: 'prozess',            spalte: '',                    json: true,  leer: null },
 ];
 
 /** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,
