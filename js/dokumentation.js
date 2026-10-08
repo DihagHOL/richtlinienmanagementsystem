@@ -687,7 +687,7 @@ function _dokuSections() {
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
-      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat drei Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🕸 Verknüpfungen</b> (wer hängt woran) und <b>📋 Modelle</b> (alle BPMN-Dateien als Liste).</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat fünf Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🕸 Verknüpfungen</b> (wer hängt woran), <b>👤 Matrix</b> (wer ist zuständig), <b>📌 Backlog</b> (woran gearbeitet wird) und <b>📋 Modelle</b> (alle BPMN-Dateien, nach Gesamtprozess gegliedert).</p>
       <div style="${h3}">🗺 Prozesslandkarte</div>
       <p style="margin:0 0 8px;line-height:1.55">Die Prozesslandschaft als Zeilen: je Bereich eine Zeile mit farbiger Titelspalte, <b>Kernprozesse</b> als Pfeile. Jede Kachel ist anklickbar.</p>
       <p style="margin:0 0 8px;line-height:1.55"><b>Jedes Werk führt seine eigene Landkarte</b>, dazu gibt es die Ebene <b>Konzern / Holding</b>. Oben links wird gewählt, welche Karte offen ist. Ein Werk ohne Karte kann bei null anfangen oder <b>die Struktur eines anderen Werks übernehmen</b> und dort anpassen, wo es abweicht – der Geltungsbereich wird dabei auf das eigene Werk gesetzt, die Quelle bleibt unverändert.</p>
@@ -750,6 +750,22 @@ function _dokuSections() {
         <li style="${li}"><b>✨ Aus Regelwerk</b> – erzeugt einen echten Prozessentwurf per <b>Texterkennung</b> aus dem verknüpften Word-Dokument des Regelwerks.</li>
         <li style="${li}">Je Prozess wählbar, welche <b>Regelwerke</b> er umsetzt; die Verknüpfung wird in der BPMN-Datei mitgespeichert und auf den Karten angezeigt.</li>
       </ul>
+      <div style="${h3}">📋 Modelle: Gliederung nach Gesamtprozess</div>
+      <p style="margin:0 0 8px;line-height:1.55">Die Ansicht <b>„📋 Modelle"</b> zeigt die BPMN-Dateien je Werk als <b>Gliederung</b>. Oben stehen die <b>Gesamtprozesse</b>, darunter ihre <b>Unter- und Nebenprozesse</b>, und darunter wieder deren Unter- und Nebenprozesse, so tief, wie es nötig ist. Modelle, die noch für sich stehen, folgen unter „Weitere Modelle, noch ohne Unter- oder Nebenprozess". <b>„▦ Kacheln"</b> schaltet auf die Kartenansicht nach Werk um, <b>„🌳 Gliederung"</b> zurück; der Browser merkt sich die Wahl.</p>
+      ${tbl([
+        ['⊞ Unterprozess, im Ablauf eingebunden', 'Ein Schritt im Diagramm ruft das Modell auf (siehe „⊞ Unterprozesse einbinden" oben). Gelöst wird diese Verbindung im Modeler, nicht in der Liste.'],
+        ['↳ Unterprozess, zugeordnet', 'Gehört zum übergeordneten Prozess, ohne dass ein bestimmter Schritt ihn aufruft.'],
+        ['⇢ Nebenprozess', 'Läuft neben dem übergeordneten Prozess her, mit eigenem Ablauf, etwa die Reklamation neben der Auftragsabwicklung.'],
+      ])}
+      <ul style="${ol}">
+        <li style="${li}"><b>Erweitern:</b> <b>„+ Unter-/Nebenprozess"</b> an jeder Zeile öffnet den Dialog. Erst die Art wählen, dann ein vorhandenes Modell suchen (Name oder Werk, das eigene Werk steht oben; die Eingabetaste ordnet den einzigen Treffer zu) oder unter „Oder neu anlegen" einen Namen eingeben. Ein neues Modell entsteht als Grundgerüst nach Hausschema im Ordner des übergeordneten Modells und ist gleich zugeordnet. Was einen <b>Kreis</b> ergäbe, steht nicht zur Wahl.</li>
+        <li style="${li}"><b>Lösen:</b> <b>✕</b> an einer zugeordneten Zeile nimmt die Zuordnung nach Rückfrage zurück; das Modell selbst bleibt, wie es ist. Zeigt eine Zuordnung auf ein gelöschtes Modell, steht dort <b>„Modell fehlt"</b>, ebenfalls mit ✕.</li>
+        <li style="${li}"><b>Lesen:</b> <b>▸</b> klappt eine Zeile auf, <b>▾</b> zu, „Alle aufklappen" und „Alle zuklappen" stehen oben. Die Zeile nennt, wie viele Unter- und Nebenprozesse darunter stehen, und darunter Regelwerke, Status und Anlagen wie die Karten. <b>⇄ n</b> heißt: Das Modell steht unter n Prozessen und wird trotzdem einmal gepflegt. <b>🏭</b> nennt das Werk, wenn ein Modell im Ordner eines anderen Werks liegt. Die <b>Suche</b> zeigt jeden Treffer mit seinem Weg von oben, aufgeklappt.</li>
+        <li style="${li}"><b>Wer oben steht:</b> ein Modell, das in keinem anderen Modell desselben Werks steht. Steht es nur unter einem Modell eines anderen Werks, bleibt es in seinem eigenen Werk oben, sonst fände man es dort nicht mehr. Ein Kreis, der aus älteren Daten stammt, wird mit <b>↻</b> markiert statt endlos aufgeklappt. Greift die Trennung nach Gesellschaft, bleiben fremde Werke draußen.</li>
+        <li style="${li}"><b>In der Ansicht eines Modells</b> stehen oben in der Leiste die übergeordneten Prozesse (↰) und die zugeordneten Unter- und Nebenprozesse (↳, ⇢), jeweils zum Hineinspringen, dazu „+ Unter-/Nebenprozess".</li>
+        <li style="${li}"><b>Gespeichert</b> wird die Zuordnung beim <b>übergeordneten</b> Modell, in der Dokumentation des Prozesses: als Klartext („Unterprozesse: …", „Nebenprozesse: …") und als Marker <code>[[rms:unter=…]]</code> und <code>[[rms:neben=…]]</code> mit den Datei-Kennungen. Das untergeordnete Modell ändert sich nicht; so kann es unter mehreren Gesamtprozessen stehen. Speichern im Modeler, Status setzen oder ein Regelwerk zuordnen lassen die Zuordnung stehen, und sie übersteht Export, Umbenennen und Umzug in ein anderes Werk.</li>
+      </ul>
+      <div style="${hint}">Mindmap und Verknüpfungen zeigen bisher nur die ⊞-Einbindungen, noch nicht die zugeordneten Unter- und Nebenprozesse.</div>
       <div style="${h3}">🕸 Verknüpfungen</div>
       <p style="margin:0 0 8px;line-height:1.55">Wer hängt woran? <b>Prozess ↔ Modell ↔ Regelwerk ↔ Standort</b> als Mindmap: In der Mitte steht ein Objekt, ringsum stehen seine Beziehungen – nach Art beschriftet („modelliert in", „setzt um", „gilt für"). Ein <b>Klick auf einen Nachbarn</b> rückt diesen in die Mitte, <b>← Zurück</b> führt den Weg zurück. Über die Auswahl <b>„In die Mitte"</b> springt man direkt zu einem beliebigen Objekt.</p>
       <ul style="${ol}">

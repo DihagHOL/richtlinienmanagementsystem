@@ -46,6 +46,7 @@ const FEATURES = [
   { name: 'Muster-Vorlage',          code: () => /MUSTER_VORLAGE_URL/.test(admin),                   begriffe: ['Muster-Vorlage'] },
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
+  { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
   { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
   { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },
   { name: 'Zuständigkeitsmatrix',    code: () => /function pmZeilen/.test(read('js/prozessmatrix.js')),     begriffe: ['Matrix', 'Abdeckung'] },
