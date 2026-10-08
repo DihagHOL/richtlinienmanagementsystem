@@ -3383,12 +3383,13 @@ function _selectedPolicyIds() {
 function _setProcessDoku(ids, docs, pm) {
   if (!_bpmnModeler) return;
   try {
-    const ziel = _procProzessBo();
-    const bo = ziel && ziel.bo;
-    if (!bo) return;
-    const moddle = _bpmnModeler.get('moddle');
     const root = _bpmnModeler.get('canvas').getRootElement();
     const kollab = (root && root.businessObject && root.businessObject.$type === 'bpmn:Collaboration') ? root.businessObject : null;
+    // Ohne Pools ist die Wurzel der Prozess; findet sich keiner, bleibt es bei der Wurzel.
+    const ziel = _procProzessBo();
+    const bo = (ziel && ziel.bo) || (kollab ? null : root && root.businessObject);
+    if (!bo) return;
+    const moddle = _bpmnModeler.get('moddle');
     const textVon = (x) => (x && Array.isArray(x.documentation) && x.documentation[0] && x.documentation[0].text) || '';
     const vorher = textVon(bo), vorherK = kollab ? textVon(kollab) : '';
     // Freier Text (Beschreibung) bleibt stehen – neu geschrieben werden nur die Marker.
