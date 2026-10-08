@@ -298,7 +298,9 @@ async function _pfBeschreibungErzeugen(titel, umfang) {
       schritte: ablauf.schritte, anlagen: (typeof _parseProcessDocs === 'function') ? _parseProcessDocs(xml).map(d => d.name) : [] };
     if (zeichnen && /<(\w+:)?definitions[\s>]/.test(xml)) {
       try {
-        const png = await _baPng(await _baZeichnen(xml), 2, 'Ablauf ' + u.titel);
+        // 1,5-fach: gedruckt scharf genug, und die Datei bleibt eher unter den 3 MB,
+        // bis zu denen die Workflow-Mails das Dokument anhängen statt nur zu verlinken.
+        const png = await _baPng(await _baZeichnen(xml), 1.5, 'Ablauf ' + u.titel);
         bilder['m' + i] = png;
         eintrag.bild = 'm' + i;
         eintrag.quer = png.breite > 700;
