@@ -595,17 +595,35 @@ function pzPocZeilen(poc) {
   return zeilen;
 }
 
+/**
+ * Mehrere Marker derselben Art feldweise zusammenführen: Ein Feld, das später
+ * gesetzt ist, gewinnt. Ältere Modelle mit Pool trugen die Angaben zweimal (an
+ * der Kollaboration und, später im XML, am Prozess); gilt die am Prozess.
+ */
+function _pzFelderZusammen(treffer) {
+  const t = [];
+  treffer.forEach(m => m[1].split('|').forEach((v, i) => { const w = (v || '').trim(); if (w) t[i] = w; }));
+  return t;
+}
+
+/** Je Schlüssel nur einmal, der spätere gewinnt (doppelte Kennzahlen oder Kriterien). */
+function _pzEinmal(liste, schluessel) {
+  const m = new Map();
+  liste.forEach(x => { const k = schluessel(x); m.delete(k); m.set(k, x); });
+  return [...m.values()];
+}
+
 /** Den POC aus einem Text oder XML lesen (null, wenn keiner drinsteht). */
 function pzPocAusText(text) {
   const s = String(text || '');
-  const m = s.match(PZ_POC_MARKER);
-  const krit = [...s.matchAll(PZ_POC_KRIT_MARKER)].map(x => {
+  const kopf = [...s.matchAll(new RegExp(PZ_POC_MARKER.source, 'g'))];
+  const krit = _pzEinmal([...s.matchAll(PZ_POC_KRIT_MARKER)].map(x => {
     const t = x[1].split('|').map(v => (v || '').trim());
     return { text: t[0] || '', bewertung: t[1] || '' };
-  });
-  if (!m && !krit.length) return null;
+  }), k => k.text);
+  if (!kopf.length && !krit.length) return null;
   const poc = { kriterien: krit };
-  const t = m ? m[1].split('|').map(x => (x || '').trim()) : [];
+  const t = _pzFelderZusammen(kopf);
   PZ_POC_FELDER.forEach((f, i) => { poc[f] = t[i] || ''; });
   return pzPocNormal(poc);
 }
@@ -668,17 +686,17 @@ function pzPmZeilen(pm) {
 /** Die Angaben aus einem Text oder XML lesen (null, wenn weder pm- noch Kennzahl-Marker drinsteht). */
 function pzPmAusText(text) {
   const s = String(text || '');
-  const m = s.match(PZ_PM_MARKER);
-  const kpis = [...s.matchAll(PZ_KPI_MARKER)].map(x => {
+  const zeilen = [...s.matchAll(new RegExp(PZ_PM_MARKER.source, 'g'))];
+  const kpis = _pzEinmal([...s.matchAll(PZ_KPI_MARKER)].map(x => {
     const t = x[1].split('|').map(v => (v || '').trim());
     const k = {};
     PZ_KPI_FELDER.forEach((f, i) => { k[f] = t[i] || ''; });
     return k;
-  });
+  }), k => k.name);
   const poc = pzPocAusText(s);
-  if (!m && !kpis.length && !poc) return null;
+  if (!zeilen.length && !kpis.length && !poc) return null;
   const pm = { kennzahlen: kpis, poc };
-  const t = m ? m[1].split('|').map(x => (x || '').trim()) : [];
+  const t = _pzFelderZusammen(zeilen);
   PZ_PM_FELDER.forEach((f, i) => { pm[f] = t[i] || ''; });
   return pzPmNormal(pm);
 }

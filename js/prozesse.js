@@ -76,7 +76,10 @@ function _parseProcessDocs(xml) {
   let m;
   while ((m = re.exec(String(xml || '')))) {
     const t = _xmlUnesc(m[1]).split('|').map(x => (x || '').trim());
-    if (t[0] || t[1]) out.push({ name: t[0] || 'Dokument', url: t[1] || '', driveId: t[2] || '', itemId: t[3] || '' });
+    if (!(t[0] || t[1])) continue;
+    const d = { name: t[0] || 'Dokument', url: t[1] || '', driveId: t[2] || '', itemId: t[3] || '' };
+    // Dieselbe Anlage an zwei Stellen (Prozess und Kollaboration) zählt einmal.
+    if (!out.some(x => x.name === d.name && x.url === d.url)) out.push(d);
   }
   return out;
 }
@@ -384,8 +387,9 @@ let _procBaumTimer = null;
 let _procGlDialog = null;            // { elternId, art } des offenen Zuordnen-Dialogs
 
 function _procGlIds(text, re) {
-  const m = String(text || '').match(re);
-  return m ? [...new Set(m[1].split(',').map(s => s.trim()).filter(Boolean))] : [];
+  // Alle Stellen: Ältere Modelle mit Pool trugen die Angaben auch an der Kollaboration.
+  const ids = [...String(text || '').matchAll(new RegExp(re.source, 'g'))].flatMap(m => m[1].split(','));
+  return [...new Set(ids.map(s => s.trim()).filter(Boolean))];
 }
 
 /** Die zugeordneten Unter- (u) und Nebenprozesse (n) aus der Dokumentation oder dem ganzen XML. */
@@ -1003,8 +1007,9 @@ function _procKarteZeileHtml(itemId, e) {
 }
 
 function _parsePolicyIds(xml) {
-  const m = String(xml || '').match(PROC_POLICY_MARKER);
-  return m ? m[1].split(',').map(s => s.trim()).filter(Boolean) : [];
+  // Alle Stellen zusammen (Prozess und, bei älteren Modellen mit Pool, Kollaboration).
+  const ids = [...String(xml || '').matchAll(new RegExp(PROC_POLICY_MARKER.source, 'g'))].flatMap(m => m[1].split(','));
+  return [...new Set(ids.map(s => s.trim()).filter(Boolean))];
 }
 
 /**
@@ -1039,6 +1044,7 @@ function procInhaltHash(xml) {
   const s = String(xml || '')
     .replace(/<(\w+:)?BPMNDiagram\b[\s\S]*?<\/(\w+:)?BPMNDiagram>/g, '')
     .replace(/(<(\w+:)?process\b[^>]*>)\s*<(\w+:)?documentation\b[^>]*>[\s\S]*?<\/(\w+:)?documentation>/, '$1')
+    .replace(/(<(\w+:)?collaboration\b[^>]*>)\s*<(\w+:)?documentation\b[^>]*>[\s\S]*?<\/(\w+:)?documentation>/, '$1')
     .replace(/\s+/g, ' ').trim();
   let h = 0x811c9dc5;   // FNV-1a, 32 Bit: kurz, schnell, für einen Vergleich genug
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -1085,10 +1091,19 @@ function procXmlDokuNeu(xml, teile) {
   // Den freien Text (Beschreibung) erhalten – nur Marker und ihre Klartextzeilen werden neu geschrieben.
   const m = String(xml || '').match(/<(\w+:)?process\b[^>]*>\s*<(\w+:)?documentation\b[^>]*>([\s\S]*?)<\/(\w+:)?documentation>/);
   const frei = m ? _xmlUnesc(m[3]).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z)) : [];
+  // Die Angaben stehen an einer Stelle, am Prozess. Ältere Fassungen des
+  // Editors schrieben sie bei einem Modell mit Pool an die Kollaboration; die
+  // Kopie dort verschwindet, ein freier Text von dort wandert mit an den Prozess.
+  const k = PROC_KOLLAB_DOKU.exec(String(xml || ''));
+  const ohneKollab = k ? String(xml).replace(PROC_KOLLAB_DOKU, '$1') : xml;
+  if (k) _xmlUnesc(k[4]).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z) && !frei.includes(z)).forEach(z => frei.push(z));
   const marker = _procDokuText(ids, docs, pm, gl);
   const text = frei.concat(marker ? [marker] : []).join('\n');
-  return procXmlDokuErsetzen(xml, text);
+  return procXmlDokuErsetzen(ohneKollab, text);
 }
+
+/** Die Dokumentation einer Kollaboration (Modell mit Pools): $1 Öffnendes Element, $4 Text. */
+const PROC_KOLLAB_DOKU = /(<(\w+:)?collaboration\b[^>]*>)\s*<(\w+:)?documentation\b[^>]*>([\s\S]*?)<\/(\w+:)?documentation>/;
 
 /* ═══════════════════════════════════════════════════
    Übergänge auf Element-Ebene
@@ -3359,21 +3374,31 @@ function _selectedPolicyIds() {
 }
 
 /** Richtlinien und Anlagen in die Prozess-Dokumentation schreiben (Klartext + Marker). */
+/**
+ * Die Angaben des Modells in die Dokumentation des Prozesses schreiben. Bei
+ * einem Modell mit Pools ist das Wurzelelement die Kollaboration; geschrieben
+ * wird trotzdem an den Prozess, dorthin, wo auch Backlog, Status und Freigabe
+ * schreiben. Eine Kopie an der Kollaboration (ältere Fassungen) verschwindet.
+ */
 function _setProcessDoku(ids, docs, pm) {
   if (!_bpmnModeler) return;
   try {
-    const root = _bpmnModeler.get('canvas').getRootElement();
-    const bo = root && root.businessObject;
+    const ziel = _procProzessBo();
+    const bo = ziel && ziel.bo;
     if (!bo) return;
     const moddle = _bpmnModeler.get('moddle');
+    const root = _bpmnModeler.get('canvas').getRootElement();
+    const kollab = (root && root.businessObject && root.businessObject.$type === 'bpmn:Collaboration') ? root.businessObject : null;
+    const textVon = (x) => (x && Array.isArray(x.documentation) && x.documentation[0] && x.documentation[0].text) || '';
+    const vorher = textVon(bo), vorherK = kollab ? textVon(kollab) : '';
     // Freier Text (Beschreibung) bleibt stehen – neu geschrieben werden nur die Marker.
-    const vorher = (Array.isArray(bo.documentation) && bo.documentation[0] && bo.documentation[0].text) || '';
     const frei = String(vorher).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z));
+    String(vorherK).split('\n').filter(z => z.trim() && !_procIstDokuZeile(z) && !frei.includes(z)).forEach(z => frei.push(z));
     // Die Gliederung pflegt die Modell-Liste, nicht der Editor: Sie bleibt, wie sie in der Datei steht.
-    const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm, procGliederungAusText(vorher));
+    const marker = _procDokuText(ids, docs, pm === undefined ? _procPm : pm, procGliederungAusText(vorher + '\n' + vorherK));
     const text = frei.concat(marker ? [marker] : []).join('\n');
-    if (!text) { bo.documentation = undefined; return; }
-    bo.documentation = [moddle.create('bpmn:Documentation', { text })];
+    bo.documentation = text ? [moddle.create('bpmn:Documentation', { text })] : undefined;
+    if (kollab && vorherK) kollab.documentation = undefined;
   } catch (e) { console.warn('Prozess-Dokumentation nicht gesetzt:', e.message); }
 }
 
