@@ -44,6 +44,10 @@ ok(M.pzPocNormal({ start: 'bald', ergebnis: 'super', kriterien: [{ text: 'x', be
   && M.pzPocNormal({ ergebnis: 'super' }).ergebnis === '' && M.pzPocNormal({ kriterien: [{ text: 'x', bewertung: 'naja' }] }).kriterien[0].bewertung === '',
   'Ungültiges Datum, Ergebnis und Bewertung gelten als nicht gesetzt');
 ok(M.pzPocLeer({}) && M.pzPocLeer(null) && !M.pzPocLeer({ werke: 'WGC' }), 'Leer ist nur ein POC ohne jede Angabe');
+ok(M.pzPocNormal({ werke: 'WGC, alle' }).werke.join() === 'ALLE' && M.pzPocWerkeText(['ALLE']) === 'alle Werke'
+  && M.pzPocKurz({ werke: 'ALLE', ende: '2026-12-31' }) === 'alle Werke · bis 31.12.2026 · läuft', '„ALLE" steht für alle Werke');
+ok(M.pzPocZeilen({ werke: 'ALLE' }).includes('[[rms:poc=ALLE||||]]') && M.pzPocZeilen({ werke: 'ALLE' })[0] === 'POC: Pilot alle Werke · Ergebnis läuft',
+  'Im Marker als ALLE, im Klartext als „alle Werke"');
 const st = M.pzPocStand(n);
 ok(st.gesamt === 2 && st.erfuellt === 1 && st.offen === 1 && st.verfehlt === 0, 'Stand der Kriterien');
 ok(M.pzPocKurz(n) === 'WGC, SHB · 01.10.2026 bis 30.11.2026 · 1 von 2 Kriterien erfüllt · läuft', 'Der POC in einer Zeile');

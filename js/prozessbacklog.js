@@ -428,7 +428,8 @@ function pbAngabenDialog(itemId, status) {
         ${haupt ? `
         <div class="form-grid">
           <div class="form-group"><label for="pb-a-poc-werke">Pilotwerk(e)</label>
-            <input type="text" id="pb-a-poc-werke" value="${esc(pm.poc.werke.join(', '))}" placeholder="z. B. WGC, SHB"></div>
+            <input type="text" id="pb-a-poc-werke" value="${esc(pm.poc.werke.join(', '))}" placeholder="z. B. WGC, SHB oder ALLE">
+            <span class="field-hint">Kürzel mit Komma, „ALLE" für alle Werke.</span></div>
           <div class="form-group"><label for="pb-a-poc-verantwortlich">Verantwortlich für den POC</label>
             <input type="text" id="pb-a-poc-verantwortlich" list="pb-people" value="${esc(pm.poc.verantwortlich)}" placeholder="name@dihag.com"></div>
           <div class="form-group"><label for="pb-a-poc-start">Beginn</label>

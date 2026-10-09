@@ -530,7 +530,8 @@ function pzPocNormal(poc) {
   const werke = (Array.isArray(p.werke) ? p.werke : String(p.werke || '').split(/[,;\s]+/))
     .map(w => _pzFeld(w).replace(/,/g, '').toUpperCase()).filter(Boolean);
   return {
-    werke: [...new Set(werke)],
+    // „ALLE": der POC läuft in allen Werken (bleibt richtig, wenn eines dazukommt).
+    werke: werke.includes('ALLE') ? ['ALLE'] : [...new Set(werke)],
     start: datum(p.start),
     ende: datum(p.ende),
     verantwortlich: _pzFeld(p.verantwortlich),
@@ -555,12 +556,17 @@ function pzPocStand(poc) {
 
 function _pzTagText(iso) { return iso ? iso.split('-').reverse().join('.') : ''; }
 
+/** Die Werke eines POC zum Lesen: „alle Werke" oder die Kürzel. */
+function pzPocWerkeText(werke) {
+  return (werke || []).includes('ALLE') ? 'alle Werke' : (werke || []).join(', ');
+}
+
 /** Der POC in einer Zeile: „WGC, SHB · 01.10.2026 bis 30.11.2026 · 2 von 3 Kriterien erfüllt · läuft" */
 function pzPocKurz(poc) {
   const n = pzPocNormal(poc);
   const s = pzPocStand(n);
   const teile = [];
-  if (n.werke.length) teile.push(n.werke.join(', '));
+  if (n.werke.length) teile.push(pzPocWerkeText(n.werke));
   if (n.start || n.ende) teile.push(n.start && n.ende ? `${_pzTagText(n.start)} bis ${_pzTagText(n.ende)}` : n.ende ? `bis ${_pzTagText(n.ende)}` : `ab ${_pzTagText(n.start)}`);
   if (s.gesamt) teile.push(`${s.erfuellt} von ${s.gesamt} Kriterien erfüllt${s.verfehlt ? ', ' + s.verfehlt + ' verfehlt' : ''}`);
   teile.push(pzPocErgebnisInfo(n.ergebnis).label);
@@ -587,7 +593,7 @@ function pzPocZeilen(poc) {
   const n = pzPocNormal(poc);
   if (pzPocLeer(n)) return [];
   const zeilen = [];
-  const kopf = [n.werke.length ? 'Pilot ' + n.werke.join(', ') : '', n.start || n.ende ? `${_pzTagText(n.start) || '…'} bis ${_pzTagText(n.ende) || '…'}` : '',
+  const kopf = [n.werke.length ? 'Pilot ' + pzPocWerkeText(n.werke) : '', n.start || n.ende ? `${_pzTagText(n.start) || '…'} bis ${_pzTagText(n.ende) || '…'}` : '',
     n.verantwortlich ? 'verantwortlich ' + n.verantwortlich : '', 'Ergebnis ' + pzPocErgebnisInfo(n.ergebnis).label].filter(Boolean);
   zeilen.push(PZ_POC_TEXTZEILE + kopf.join(' · '));
   zeilen.push('[[rms:poc=' + [n.werke.join(','), n.start, n.ende, n.verantwortlich, n.ergebnis].map(_pzFeld).join('|') + ']]');
@@ -825,7 +831,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
     PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,
-    pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocErgebnisInfo, pzPocBewertungInfo,
+    pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocWerkeText, pzPocErgebnisInfo, pzPocBewertungInfo,
     PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
     PZ_REIFEGRAD, PZ_REIFEGRAD_ZIEL, PZ_RICHTUNG,
     pzStatus, pzStatusInfo, pzStandardInfo, pzPrioInfo, pzSchluessel, pzIstAblauf, pzNrText,
