@@ -121,19 +121,11 @@ function renderProzessBacklog() {
 
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('backlog') : ''}
-    <div class="view-desc" style="margin:0 0 12px">
-      Das Backlog folgt dem <b>BPM-Lebenszyklus</b> (Dumas, La Rosa, Mendling, Reijers: <i>Fundamentals of Business Process
-      Management</i>): <b>Identifiziert → IST-Aufnahme → Analyse → SOLL-Design → Umsetzung (POC, Freigabe, Rollout) → Betrieb</b>,
-      bei Abweichungen im Betrieb zurück in die Analyse. <b>Jede Karte ist ein Prozess</b>: eine <b>Kachel</b> 🗺 ohne Modell oder
-      ein Hauptprozess als <b>BPMN-Modell</b> 🔀. An ihr hängen seine Unter- und Nebenprozesse und die <b>IST-Modelle</b>, die er
-      ablöst; ein IST bleibt <b>in Benutzung</b>, bis es außer Betrieb genommen ist. Die Phase setzen Sie an der Karte, die Zeile
-      <b>„→ fehlt …"</b> zeigt, was nach den Kriterien der Phase noch aussteht. Der <b>POC</b> 🧪 gehört zum SOLL: Pilotwerk,
-      Zeitraum und Erfolgskriterien stehen am Hauptprozess. Ab dem POC braucht ein Prozess einen <b>Review-Termin</b>
-      (Fälligkeiten → Prozesse). Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
-      der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
-      seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte. Ab der Freigabe braucht ein Prozess
-      mindestens eine <b>Kennzahl</b> (ISO 9001, 4.4) und einen bewerteten <b>Reifegrad</b> (ISO/IEC 33020).
+    <div class="view-desc" style="margin:0 0 8px">
+      Jede Karte ist ein Prozess in seiner Phase. <b>Was als Nächstes zu tun ist, steht unten an der Karte</b> (→ fehlt …):
+      Ein Klick auf einen Punkt öffnet das Feld, in dem er eingetragen wird. Unter jedem Spaltenkopf steht, was in der Phase zu tun ist.
     </div>
+    ${_pbHilfeHtml()}
     <div class="view-toolbar">
       <select onchange="pbSetWerk(this.value)" style="max-width:200px" aria-label="Landkarte filtern">
         <option value=""${sel('', _pbWerk)}>Alle Landkarten</option>
@@ -188,6 +180,50 @@ function renderProzessBacklog() {
           s.key === 'identifiziert' ? istVerborgen : 0)).join('')}</div>`}`;
 }
 
+/** Die Kennung des Kurses „Prozesse im RMS bearbeiten" im Reiter Wissen (js/wissenmodell.js). */
+const PB_KURS_ID = 'start-prozesse-rms-kurs';
+
+/**
+ * „So arbeiten Sie mit dem Backlog": fünf Schritte für alle, die einen
+ * Prozess bearbeiten, darunter der fachliche Hintergrund. Beim ersten Besuch
+ * aufgeklappt; wer sie zuklappt, sieht sie in diesem Browser zugeklappt wieder.
+ */
+function _pbHilfeHtml() {
+  let zu = false;
+  try { zu = localStorage.getItem('rms.pbHilfeZu') === '1'; } catch (e) { /* ohne Speicher: aufgeklappt */ }
+  return `<details class="pb-hilfe"${zu ? '' : ' open'} ontoggle="pbHilfeMerken(this.open)">
+      <summary>❓ So arbeiten Sie mit dem Backlog</summary>
+      <ol>
+        <li>Suchen Sie oben nach dem Namen oder wählen Sie Ihre Landkarte. Eine Karte ist ein Prozess,
+          an ihr hängen seine Teilprozesse und die IST-Modelle, die er ablöst.</li>
+        <li>Lesen Sie die Zeile <b>„→ fehlt"</b> unten an der Karte. Sie nennt, was für die nächste Phase noch aussteht.
+          Ein Klick auf einen Punkt öffnet das Feld dafür und hebt es hervor.</li>
+        <li>Tragen Sie es ein und speichern Sie. Die meisten Angaben stehen unter <b>✎ Angaben</b>, Richtlinien, Kennzahlen und
+          Reifegrad im Prozess-Editor. Gespeichert wird in der BPMN-Datei des Prozesses.</li>
+        <li>Steht <b>„✓ bereit für …"</b> an der Karte, stellen Sie die Phase in der Auswahl unten an der Karte um.
+          Die Kriterien sperren nichts, sie zeigen nur, was fehlt.</li>
+        <li>Ab dem SOLL-Design halten Sie unter <b>⇄ Vergleich IST/SOLL</b> fest, was aus jedem Schritt des IST wird.
+          Rückfragen schreiben die Beteiligten als Anmerkung 💬 an die Zuordnung, dort sieht jeder, wer was wann geschrieben hat.</li>
+      </ol>
+      <div class="pb-hilfe-fuss">Ausführlich, mit kurzem Test: Kurs <a href="?ansicht=wissen&amp;beitrag=${esc(PB_KURS_ID)}" target="_blank" rel="noopener">„Prozesse im RMS bearbeiten"</a> im Reiter Wissen.</div>
+      <details class="pb-hilfe-hintergrund"><summary>Hintergrund und Begriffe</summary>
+        Das Backlog folgt dem <b>BPM-Lebenszyklus</b> (Dumas, La Rosa, Mendling, Reijers: <i>Fundamentals of Business Process
+        Management</i>): <b>Identifiziert → IST-Aufnahme → Analyse → SOLL-Design → Umsetzung (POC, Freigabe, Rollout) → Betrieb</b>,
+        bei Abweichungen im Betrieb zurück in die Analyse. <b>Jede Karte ist ein Prozess</b>: eine <b>Kachel</b> 🗺 ohne Modell oder
+        ein Hauptprozess als <b>BPMN-Modell</b> 🔀. Ein IST bleibt <b>in Benutzung</b>, bis es außer Betrieb genommen ist.
+        Der <b>POC</b> 🧪 gehört zum SOLL: Pilotwerk, Zeitraum und Erfolgskriterien stehen am Hauptprozess. Ab dem POC braucht ein
+        Prozess einen <b>Review-Termin</b> (Fälligkeiten → Prozesse). Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
+        der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
+        seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte. Ab der Freigabe braucht ein Prozess
+        mindestens eine <b>Kennzahl</b> (ISO 9001, 4.4) und einen bewerteten <b>Reifegrad</b> (ISO/IEC 33020).
+      </details>
+    </details>`;
+}
+
+function pbHilfeMerken(offen) {
+  try { localStorage.setItem('rms.pbHilfeZu', offen ? '0' : '1'); } catch (e) { /* dann eben nicht gemerkt */ }
+}
+
 /**
  * Eine Spalte. Die Umsetzung zeigt ihre Stufen (POC, Rollout) als Unterköpfe;
  * in der IST-Aufnahme stehen darunter IST-Modelle, denen der Prozess fehlt.
@@ -199,6 +235,7 @@ function _pbSpalteHtml(status, liste, schreiben, verborgen) {
   const unterTitel = (s) => (s.anhang ? '↪ IST-Modelle ohne Prozess' : s.label.replace(/^Umsetzung: /, ''));
   return `<div class="pb-spalte" style="--pb-c:${status.farbe}">
       <div class="pb-spalte-kopf" title="${esc(titel)}"><span>${esc(status.spalte || status.label)}</span><i>${liste.length}</i></div>
+      ${status.tun ? `<div class="pb-spalte-tun">${esc(status.tun)}</div>` : ''}
       <div class="pb-spalte-inhalt">
         ${eigen.length ? eigen.map(e => _pbKarteHtml(e, schreiben)).join('')
           : (verborgen || !liste.length) ? `<div class="field-hint" style="padding:8px 4px">${status.key === 'identifiziert' && verborgen ? 'Noch nichts priorisiert.' : 'Leer.'}</div>` : ''}
@@ -297,18 +334,98 @@ function _pbPhasenName(key) {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-/** Die Kriterien der Phase: was zur nächsten fehlt, oder dass sie erfüllt sind. */
+/**
+ * Die Kriterien der Phase: was zur nächsten fehlt, oder dass sie erfüllt sind.
+ * Jeder fehlende Punkt ist ein Link an die Stelle, wo er eingetragen wird
+ * (pbSchrittOeffnen). Ohne Schreibrecht steht nur da, was fehlt.
+ */
 function _pbSchrittHtml(e, schreiben) {
   const kr = pzKriterien(e, _pbExtra(e));
   if (kr.phase === 'eol') return '';
   const jetzt = pzStatusInfo(kr.phase);
-  if (!kr.fehlt.length) {
-    return kr.naechste ? `<div class="pb-schritt pb-schritt-ok" title="Die Kriterien der Phase „${esc(jetzt.label)}" sind erfüllt">✓ bereit für „${esc(_pbPhasenName(kr.naechste))}"</div>` : '';
+  if (!kr.schritte.length) {
+    return kr.naechste ? `<div class="pb-schritt pb-schritt-ok" title="Die Kriterien der Phase „${esc(jetzt.label)}" sind erfüllt">✓ bereit für „${esc(_pbPhasenName(kr.naechste))}"${
+      schreiben ? ': Phase unten umstellen' : ''}</div>` : '';
   }
-  const wohin = e.art === 'modell' ? `pbAngabenDialog(${jsArg(e.kachel.id)})` : `pbOeffnen(${jsArg(e.werk)},${jsArg(e.kachel.id)})`;
-  return `<div class="pb-schritt" title="Kriterien der Phase „${esc(jetzt.label)}" (Definition of Done)">→ ${
-    kr.naechste ? `für „${esc(_pbPhasenName(kr.naechste))}"` : 'im Betrieb'} fehlt: ${esc(kr.fehlt.join(', '))}${schreiben
-    ? ` · <a href="#" onclick="event.preventDefault();${wohin}">${e.art === 'modell' ? 'eintragen' : 'in der Landkarte'}</a>` : ''}</div>`;
+  const punkt = (s) => (schreiben
+    ? `<a href="#" class="pb-schritt-link" title="${esc(_pbSchrittWohin(e, s))}"
+        onclick="event.preventDefault();pbSchrittOeffnen(${jsArg(e.art)},${jsArg(e.werk)},${jsArg(e.kachel.id)},${jsArg(s.ziel)},${jsArg(s.id || '')})">${esc(s.text)}</a>`
+    : esc(s.text));
+  return `<div class="pb-schritt" title="Kriterien der Phase „${esc(jetzt.label)}" (Definition of Done)${schreiben ? '. Ein Klick auf einen Punkt öffnet das Feld dafür.' : ''}">→ ${
+    kr.naechste ? `für „${esc(_pbPhasenName(kr.naechste))}"` : 'im Betrieb'} fehlt: ${kr.schritte.map(punkt).join(', ')}</div>`;
+}
+
+/** Wohin ein fehlender Punkt führt, als Tooltip. */
+function _pbSchrittWohin(e, s) {
+  const z = PZ_SCHRITT_ZIELE[s.ziel] || { wo: 'kachel', feld: s.text };
+  if (e.art !== 'modell') return PB_SCHRITT_KACHELFELD[s.ziel] ? `Öffnet die Kachel zum Bearbeiten beim Feld „${z.feld}"` : 'Öffnet die Kachel in der Landkarte';
+  return {
+    angaben: `Öffnet ✎ Angaben beim Feld „${z.feld}"`,
+    editor: `Öffnet den Prozess-Editor beim Feld „${z.feld}"`,
+    freigabe: 'Öffnet die Freigabe des Prozesses (Regelwerk)',
+    vergleich: 'Öffnet den Vergleich IST/SOLL',
+  }[z.wo] || 'Öffnet das Modell';
+}
+
+/* Die Felder zu den Zielen (PZ_SCHRITT_ZIELE): im Dialog ✎ Angaben, im
+   Prozess-Editor und, für Prozesse ohne Modell, im Kachel-Editor. */
+const PB_SCHRITT_FELD = {
+  eigner: 'pb-a-eigner', prio: 'pb-a-prio', freigeber: 'pb-a-freigeber', termin: 'pb-a-termin', analyse: 'pb-a-analyse',
+  pocWerke: 'pb-a-poc-werke', pocKriterien: 'pb-a-poc-krit', pocErgebnis: 'pb-a-poc-ergebnis',
+  nachfolger: 'pb-a-nachfolger', abgeloest: 'pb-a-abgeloest',
+  regelwerk: 'proc-policy-list', kennzahl: 'proc-pm-kpi', reifegrad: 'proc-pm-rg',
+};
+const PB_SCHRITT_KACHELFELD = { eigner: 'lk-pz-eigner', prio: 'lk-pz-prio', termin: 'lk-pz-termin', kennzahl: 'lk-pz-kpi', reifegrad: 'lk-pz-rg' };
+
+/**
+ * Einen fehlenden Punkt erledigen: dorthin, wo er eingetragen wird, und das
+ * Feld hervorheben. art, werk und id sind die der Karte; istId ist das
+ * IST-Modell, um das es geht (nur bei „noch in Benutzung").
+ */
+function pbSchrittOeffnen(art, werk, id, ziel, istId) {
+  const z = PZ_SCHRITT_ZIELE[ziel] || { wo: 'kachel' };
+  if (art !== 'modell') {
+    pbOeffnen(werk, id);
+    const feld = PB_SCHRITT_KACHELFELD[ziel];
+    if (feld && typeof lkKachelBearbeiten === 'function') { lkKachelBearbeiten(id); pbFeldZeigen(feld); }
+    return;
+  }
+  if (z.wo === 'angaben') {
+    pbAngabenDialog(ziel === 'abgeloest' && istId ? istId : id, ziel === 'nachfolger' ? 'eol' : undefined);
+    if (ziel === 'pocKriterien' && !_pbKriterien.length) pbKriteriumNeu();
+    pbFeldZeigen(PB_SCHRITT_FELD[ziel]);
+  } else if (z.wo === 'editor') {
+    if (typeof openProcessEditor === 'function') openProcessEditor(id);
+    pbFeldZeigen(PB_SCHRITT_FELD[ziel]);
+  } else if (z.wo === 'freigabe') {
+    if (typeof pfFreigabeStarten === 'function') pfFreigabeStarten(id);
+  } else if (z.wo === 'vergleich') {
+    if (typeof pvOeffnen === 'function') pvOeffnen(id, 'backlog');
+  } else {
+    pbModellOeffnen(id);
+  }
+}
+
+/**
+ * Ein Feld zeigen: hinscrollen, kurz hervorheben, Fokus hinein. Der
+ * Prozess-Editor baut seine Felder erst nach dem Laden der Datei, darum wird
+ * bis zu neun Sekunden gewartet, bis das Feld da ist.
+ */
+function pbFeldZeigen(feldId, versuch) {
+  if (!feldId || typeof document === 'undefined') return;
+  const el = document.getElementById(feldId);
+  const n = versuch || 0;
+  if (!el) { if (n < 60) setTimeout(() => pbFeldZeigen(feldId, n + 1), 150); return; }
+  // Hervorgehoben wird das Feld mit seiner Beschriftung, wenn es allein in seiner Gruppe steht.
+  const gruppe = el.closest ? el.closest('.form-group') : null;
+  const ziel = gruppe && gruppe.querySelectorAll('input,select,textarea').length <= 1 ? gruppe : el;
+  if (ziel.scrollIntoView) ziel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (ziel.classList) {
+    ziel.classList.add('pb-hervor');
+    setTimeout(() => ziel.classList.remove('pb-hervor'), 2600);
+  }
+  const eingabe = /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) ? el : (el.querySelector ? el.querySelector('input,select,textarea') : null);
+  if (eingabe && eingabe.focus) { try { eingabe.focus({ preventScroll: true }); } catch (e) { eingabe.focus(); } }
 }
 
 /** Reifegrad und Kennzahlen. */
@@ -825,5 +942,5 @@ async function pbNeuAnlegen(modellieren) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml, _pbNachfolgerOptionen, _pbSpalteHtml, _pbPocHtml, _pbPocVon,
-    _pbAnhangHtml, _pbSchrittHtml, _pbExtra };
+    _pbAnhangHtml, _pbSchrittHtml, _pbSchrittWohin, _pbExtra, pbSchrittOeffnen, pbFeldZeigen, _pbHilfeHtml, PB_KURS_ID };
 }

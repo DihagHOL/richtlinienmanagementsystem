@@ -186,7 +186,8 @@ console.log('Backlog');
 w('renderProzessBacklog()');
 const bh = mount.innerHTML;
 ok(bh.includes('📊 0/1 im Ziel') && bh.includes('RG 2'), 'Die Karte zeigt Reifegrad und Kennzahlen');
-ok(/→ im Betrieb fehlt: [^<]*Reifegrad unter 3/.test(bh), 'Im Betrieb, gruppeneinheitlich und unter Stufe 3: fehlt in den Kriterien');
+ok(/→ im Betrieb fehlt: [^<]*(<a [^>]*>[^<]*<\/a>, )*<a [^>]*pbSchrittOeffnen\([^)]*&quot;reifegrad&quot;[^>]*>Reifegrad unter 3<\/a>/.test(bh),
+  'Im Betrieb, gruppeneinheitlich und unter Stufe 3: fehlt in den Kriterien, mit dem Weg zum Reifegrad');
 ok(bh.includes('Kennzahl verfehlt') && bh.includes('Reifegrad bewertet') && bh.includes('mit Kennzahlen'), 'Der Kopf zählt Kennzahlen und Reifegrad');
 
 /* ── Modell-Editor und Dokumentation ── */

@@ -145,8 +145,8 @@ ok(/🧪 POC: WGC, SHB · 01\.10\.2026 bis 30\.11\.2026 · 1 von 2 Kriterien erf
 ok(/title="✓ 95 % der Rechnungen automatisch erkannt\n○ Durchlaufzeit unter 3 Tagen"/.test(h1), 'Die Kriterien stehen im Tooltip');
 ok(/🧪 POC über <a [^>]*pbModellOeffnen\(&quot;SOLL1&quot;\)[^>]*>E-Rechnung Rechnungseingang<\/a>: WGC, SHB/.test(pocHtml(karte('UNTER1'), true)) && !/kein Pilotwerk/.test(pocHtml(karte('UNTER1'), true)),
   'Ein Unterprozess zeigt den POC seines Hauptprozesses, ohne eigene Lücken');
-ok(/→ für „Freigegeben, Rollout" fehlt: kein Pilotwerk, keine Erfolgskriterien[^<]* · <a [^>]*pbAngabenDialog\(&quot;SOLL2&quot;\)[^>]*>eintragen<\/a>/.test(vm.runInContext('_pbSchrittHtml', bctx)(karte('SOLL2'), true))
-  && pocHtml(karte('SOLL2')) === '', 'Einem POC ohne Angaben fehlt etwas: steht in den Kriterien der Phase, mit „eintragen"');
+ok(/→ für „Freigegeben, Rollout" fehlt: <a [^>]*pbSchrittOeffnen\(&quot;modell&quot;,&quot;[^&]*&quot;,&quot;SOLL2&quot;,&quot;pocWerke&quot;,&quot;&quot;\)[^>]*>kein Pilotwerk<\/a>, <a [^>]*&quot;pocKriterien&quot;[^>]*>keine Erfolgskriterien<\/a>/.test(vm.runInContext('_pbSchrittHtml', bctx)(karte('SOLL2'), true))
+  && pocHtml(karte('SOLL2')) === '', 'Einem POC ohne Angaben fehlt etwas: steht in den Kriterien der Phase, jeder Punkt führt zu seinem Feld');
 ok(pocHtml(karte('IST1'), true) === '', 'An der IST-Karte steht kein eigener POC');
 const kSoll = vm.runInContext('pbEintraege()', bctx).find(k => k.kachel.id === 'SOLL1');
 ok(kSoll && kSoll.istModelle.map(x => x.kachel.id).join() === 'IST1' && kSoll.teile.map(x => x.kachel.id).join() === 'UNTER1'

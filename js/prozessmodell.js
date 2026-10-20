@@ -10,6 +10,9 @@
  * Werkzeuge, aber keinen Prozess, der sie benutzt (Konzernfachregelung
  * Prozessmanagement).
  *
+ * Jede Phase sagt in `tun`, was in ihr zu tun ist: Das Backlog zeigt den Satz
+ * unter dem Spaltenkopf, damit niemand erst die Theorie lesen muss.
+ *
  * Gespeichert wird an der Kachel selbst, in prozesslandkarte.json:
  *
  *   status                 Phase im Lebenszyklus: identifiziert · aufnahme · analyse · soll · poc · freigegeben · ausgerollt
@@ -50,21 +53,29 @@
    aufgenommen" (heute aufnahme). Beides wird beim Lesen umgedeutet. */
 const PZ_STATUS = [
   { key: 'identifiziert', label: 'Identifiziert', kurz: 'neu', farbe: '#94a3b8',
-    text: 'Der Prozess steht in der Landkarte. Prozesseigner und Priorität entscheiden, ob und wann er aufgenommen wird.' },
+    text: 'Der Prozess steht in der Landkarte. Prozesseigner und Priorität entscheiden, ob und wann er aufgenommen wird.',
+    tun: 'Prozesseigner und Priorität eintragen.' },
   { key: 'aufnahme',    label: 'IST-Aufnahme', kurz: 'IST', farbe: '#64748b',
-    text: 'Der Ablauf wird so aufgenommen, wie er heute läuft: als IST-Modell, bei Varianten je eines.' },
+    text: 'Der Ablauf wird so aufgenommen, wie er heute läuft: als IST-Modell, bei Varianten je eines.',
+    tun: 'Den heutigen Ablauf als IST-Modell zeichnen, bei Varianten je eines.' },
   { key: 'analyse',     label: 'Analyse', kurz: 'Analyse', farbe: '#7c3aed',
-    text: 'Die Schwachstellen des IST werden bewertet: was kostet Zeit, verursacht Fehler oder birgt Risiko, und warum.' },
+    text: 'Die Schwachstellen des IST werden bewertet: was kostet Zeit, verursacht Fehler oder birgt Risiko, und warum.',
+    tun: 'Schwachstellen des IST bewerten, dann das Datum des Abschlusses eintragen.' },
   { key: 'soll',        label: 'SOLL-Design', kurz: 'SOLL', farbe: '#0284C7',
-    text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema, mit Regelwerk und Freigeber.' },
+    text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema, mit Regelwerk und Freigeber.',
+    tun: 'Zielprozess modellieren, Richtlinie verknüpfen, Freigeber benennen und mit dem IST vergleichen.' },
   { key: 'poc',         label: 'Umsetzung: POC läuft', kurz: 'POC', farbe: '#F08300', phase: 'umsetzung',
-    text: 'Das SOLL wird erprobt. Pilotwerk, Zeitraum und Erfolgskriterien stehen vorher fest (✎ Angaben).' },
+    text: 'Das SOLL wird erprobt. Pilotwerk, Zeitraum und Erfolgskriterien stehen vorher fest (✎ Angaben).',
+    tun: 'Pilotwerk, Zeitraum und Erfolgskriterien eintragen, am Ende das Ergebnis bewerten.' },
   { key: 'freigegeben', label: 'Umsetzung: freigegeben, Rollout', kurz: 'Rollout', farbe: '#17509E', phase: 'umsetzung',
-    text: 'Nach dem POC freigegeben. Modell und Regelwerk sind veröffentlicht, der Rollout in die Werke läuft. Er ist abgeschlossen, wenn kein abgelöstes IST mehr in Benutzung ist.' },
+    text: 'Nach dem POC freigegeben. Modell und Regelwerk sind veröffentlicht, der Rollout in die Werke läuft. Er ist abgeschlossen, wenn kein abgelöstes IST mehr in Benutzung ist.',
+    tun: 'Regelwerk veröffentlichen, Kennzahl und Reifegrad pflegen, abgelöste IST außer Betrieb nehmen.' },
   { key: 'ausgerollt',  label: 'Betrieb', kurz: 'Betrieb', farbe: '#15803d',
-    text: 'Der Prozess läuft in allen vorgesehenen Werken. Kennzahlen und Review zeigen, ob er hält, was er soll; bei Abweichung geht es zurück in die Analyse.' },
+    text: 'Der Prozess läuft in allen vorgesehenen Werken. Kennzahlen und Review zeigen, ob er hält, was er soll; bei Abweichung geht es zurück in die Analyse.',
+    tun: 'Kennzahlen messen und den Prozess zum Review-Termin überprüfen.' },
   { key: 'eol',         label: 'IST-Modell eines anderen Prozesses (EOL)', kurz: 'EOL', farbe: '#9F1239', anhang: true,
-    text: 'IST-Aufnahme eines Ablaufs, den ein anderer Prozess ablöst. Sie hängt an dessen Karte und bleibt in Benutzung, bis sie außer Betrieb genommen ist.' },
+    text: 'IST-Aufnahme eines Ablaufs, den ein anderer Prozess ablöst. Sie hängt an dessen Karte und bleibt in Benutzung, bis sie außer Betrieb genommen ist.',
+    tun: 'Den Prozess verknüpfen, der dieses IST ablöst, und das Datum eintragen, ab dem es außer Betrieb ist.' },
 ];
 /** Die Phasen, die ein Prozess haben kann (EOL ist die Art eines Modells). */
 const PZ_PHASEN = PZ_STATUS.filter(s => !s.anhang);
@@ -72,11 +83,36 @@ const PZ_PHASEN = PZ_STATUS.filter(s => !s.anhang);
 const PZ_SPALTEN = [
   { key: 'identifiziert' }, { key: 'aufnahme' }, { key: 'analyse' }, { key: 'soll' },
   { key: 'umsetzung', label: 'Umsetzung', kurz: 'Umsetzung', farbe: '#F08300',
-    text: 'POC, Freigabe und Rollout: Das SOLL wird erprobt, freigegeben und in die Werke gebracht.' },
+    text: 'POC, Freigabe und Rollout: Das SOLL wird erprobt, freigegeben und in die Werke gebracht.',
+    tun: 'Im POC erproben, dann freigeben und in die Werke ausrollen.' },
   { key: 'ausgerollt' },
 ].map(s => Object.assign({}, PZ_STATUS.find(x => x.key === s.key) || {}, s));
 /** Stufen, in denen ein Prozess einen IST-Prozess ablösen kann. */
 const PZ_NACHFOLGER_STUFEN = ['soll', 'poc', 'freigegeben', 'ausgerollt'];
+/**
+ * Wo ein fehlender Punkt erledigt wird (pzKriterien → schritte[].ziel).
+ * „angaben" ist der Dialog ✎ Angaben im Backlog, „editor" der Prozess-Editor,
+ * „kachel" die Kachel in der Landkarte. Ein Prozess ohne Modell erledigt alles
+ * an seiner Kachel.
+ */
+const PZ_SCHRITT_ZIELE = {
+  eigner:       { wo: 'angaben',   feld: 'Prozesseigner' },
+  prio:         { wo: 'angaben',   feld: 'Priorität' },
+  freigeber:    { wo: 'angaben',   feld: 'Freigabe durch' },
+  termin:       { wo: 'angaben',   feld: 'Review' },
+  analyse:      { wo: 'angaben',   feld: 'Analyse abgeschlossen am' },
+  pocWerke:     { wo: 'angaben',   feld: 'Pilotwerk(e)' },
+  pocKriterien: { wo: 'angaben',   feld: 'Erfolgskriterien' },
+  pocErgebnis:  { wo: 'angaben',   feld: 'Ergebnis des POC' },
+  nachfolger:   { wo: 'angaben',   feld: 'Abgelöst durch' },
+  abgeloest:    { wo: 'angaben',   feld: 'Außer Betrieb seit (am IST-Modell)' },
+  regelwerk:    { wo: 'editor',    feld: 'Verknüpfte Richtlinien' },
+  kennzahl:     { wo: 'editor',    feld: 'Kennzahlen' },
+  reifegrad:    { wo: 'editor',    feld: 'Reifegrad' },
+  modell:       { wo: 'kachel',    feld: 'BPMN-Modell an der Kachel' },
+  freigabe:     { wo: 'freigabe',  feld: 'Regelwerk der Freigabe' },
+  vergleich:    { wo: 'vergleich', feld: 'Vergleich IST/SOLL' },
+};
 
 /* ── Standardisierungsgrad: entscheidet das Prozess-Board je Konzernprozess ── */
 const PZ_STANDARD = [
@@ -472,43 +508,55 @@ function pzKarten(eintraege) {
  * geprüft an den vorhandenen Angaben. Die Kriterien blockieren nichts, die
  * Phase wird von Hand gesetzt; die Karte zeigt, was fehlt.
  * extra: { regelwerke: Anzahl verknüpfter Regelwerke, freigabe: Status des
- * Regelwerks der Freigabe ('' = keins) }.  → { phase, naechste, fehlt: ['…'] }
+ * Regelwerks der Freigabe ('' = keins) }.
+ * → { phase, naechste, fehlt: ['…'], schritte: [{ text, ziel, id? }] }
+ *
+ * Jeder Schritt sagt, wo er erledigt wird (ziel, siehe PZ_SCHRITT_ZIELE).
+ * Das Backlog macht daraus einen Link an genau diese Stelle: Wer einen Prozess
+ * bearbeitet, muss nicht wissen, in welchem Dialog ein Feld steht. id nennt
+ * ein anderes Modell als die Karte selbst (das IST, das noch läuft).
  */
 function pzKriterien(k, extra, heute) {
   const x = extra || {};
   const phase = pzStatusInfo(k && k.status).key;
-  const fehlt = [];
+  const schritte = [];
+  const f = (text, ziel, id) => { schritte.push(id ? { text, ziel, id } : { text, ziel }); };
+  // Die Lücken aus POC, Kennzahl und Reifegrad kommen als Text; ihr Ziel steht im Text.
+  const luecke = (t) => f(t, /Pilotwerk/.test(t) ? 'pocWerke' : /Erfolgskriterien/.test(t) ? 'pocKriterien'
+    : /POC/.test(t) ? 'pocErgebnis' : /Kennzahl/.test(t) ? 'kennzahl' : 'reifegrad');
   const modell = k.art === 'modell';
   const ist = k.istModelle || [];
   if (phase === 'identifiziert') {
-    if (!k.eigner || !k.eigner.upn) fehlt.push('Prozesseigner');
-    if (!k.prio) fehlt.push('Priorität');
+    if (!k.eigner || !k.eigner.upn) f('Prozesseigner', 'eigner');
+    if (!k.prio) f('Priorität', 'prio');
   } else if (phase === 'aufnahme') {
-    if (!modell && !ist.length) fehlt.push('IST-Modell');
+    if (!modell && !ist.length) f('IST-Modell', 'modell');
   } else if (phase === 'analyse') {
-    if (!k.analyseAm) fehlt.push('Analyse abschließen (Datum)');
+    if (!k.analyseAm) f('Analyse abschließen (Datum)', 'analyse');
   } else if (phase === 'soll') {
-    if (!modell) fehlt.push('SOLL-Modell');
-    if (!x.regelwerke) fehlt.push('Regelwerk');
-    if (!k.freigeber && !x.freigabe) fehlt.push('Freigeber');
+    if (!modell) f('SOLL-Modell', 'modell');
+    if (!x.regelwerke) f('Regelwerk', 'regelwerk');
+    if (!k.freigeber && !x.freigabe) f('Freigeber', 'freigeber');
+    // Wer ein IST ablöst, hält fest, was aus dessen Schritten wird (js/prozessvergleich.js).
+    if (modell && ist.length && !(k.vergleich || []).length) f('Vergleich mit dem IST', 'vergleich');
   } else if (phase === 'poc') {
     const l = pzPocLuecken('poc', k.poc, heute);
-    fehlt.push(...l);
-    if (k.pruefung && !k.pruefung.datum) fehlt.push('Termin der Bewertung');
-    if (!l.some(t => /Ende/.test(t)) && (!k.poc || k.poc.ergebnis !== 'bestanden')) fehlt.push('POC bestanden');
+    l.forEach(luecke);
+    if (k.pruefung && !k.pruefung.datum) f('Termin der Bewertung', 'termin');
+    if (!l.some(t => /Ende/.test(t)) && (!k.poc || k.poc.ergebnis !== 'bestanden')) f('POC bestanden', 'pocErgebnis');
   } else if (phase === 'freigegeben') {
-    if (x.freigabe !== 'Veröffentlicht') fehlt.push('Regelwerk der Freigabe veröffentlicht');
-    fehlt.push(...pzLuecken(k));
-    const laeuft = ist.filter(i => i.status === 'eol' && !i.abgeloestAm).length;
-    if (laeuft) fehlt.push(`${laeuft} IST noch in Benutzung`);
+    if (x.freigabe !== 'Veröffentlicht') f('Regelwerk der Freigabe veröffentlicht', 'freigabe');
+    pzLuecken(k).forEach(luecke);
+    const laeuft = ist.filter(i => i.status === 'eol' && !i.abgeloestAm);
+    if (laeuft.length) f(`${laeuft.length} IST noch in Benutzung`, 'abgeloest', laeuft[0].kachel && laeuft[0].kachel.id);
   } else if (phase === 'ausgerollt') {
-    fehlt.push(...pzLuecken(k));
-    if (k.pruefung && k.pruefung.stufe === 'fehlt') fehlt.push('Review-Termin');
-    if (k.pruefung && k.pruefung.stufe === 'ueberfaellig') fehlt.push('Review überfällig');
+    pzLuecken(k).forEach(luecke);
+    if (k.pruefung && k.pruefung.stufe === 'fehlt') f('Review-Termin', 'termin');
+    if (k.pruefung && k.pruefung.stufe === 'ueberfaellig') f('Review überfällig', 'termin');
   } else if (phase === 'eol') {
-    fehlt.push('Prozess verknüpfen, den es ablöst');
+    f('Prozess verknüpfen, den es ablöst', 'nachfolger');
   }
-  return { phase, naechste: pzNaechstePhase(phase), fehlt };
+  return { phase, naechste: pzNaechstePhase(phase), fehlt: schritte.map(s => s.text), schritte };
 }
 
 /** Kennzahlen für die Kopfzeile des Backlogs, gezählt über die Karten (Prozesse). */
@@ -1078,7 +1126,7 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, PZ_VGL_ARTEN, PZ_VGL_TEXTZEILE, PZ_VGL_NOTIZ_TEXTZEILE, pzVglArtInfo, pzVglNormal, pzVglKurz, pzVglZeilen, pzVglAusText,
+    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, PZ_SCHRITT_ZIELE, PZ_VGL_ARTEN, PZ_VGL_TEXTZEILE, PZ_VGL_NOTIZ_TEXTZEILE, pzVglArtInfo, pzVglNormal, pzVglKurz, pzVglZeilen, pzVglAusText,
     pzVglNotizenNormal, pzVglNotizZeilen, pzVglNotizenAusText,
     pzPhase, pzNaechstePhase, PZ_PHASEN, pzKarten, pzKriterien, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
     PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,

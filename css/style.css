@@ -1081,6 +1081,20 @@ body.demo-mode .main { padding-bottom: 64px; }
 .ic-png:hover { border-color: var(--c-primary); color: var(--c-primary); }
 .pb-schritt { margin-top: 4px; font-size: .74rem; color: #b45309; }
 .pb-schritt-ok { color: #15803d; }
+.pb-spalte-tun { padding: 0 10px 6px; font-size: .72rem; line-height: 1.35; color: var(--c-muted); }
+.pb-hilfe { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--c-border); border-left: 4px solid var(--c-primary, #17509E); border-radius: 8px; background: #fff; font-size: .84rem; }
+.pb-hilfe > summary { cursor: pointer; font-weight: 700; color: var(--c-navy, #1A2644); }
+.pb-hilfe ol { margin: 8px 0 6px; padding-left: 22px; line-height: 1.5; }
+.pb-hilfe li { margin-bottom: 3px; }
+.pb-hilfe-fuss { font-size: .8rem; color: var(--c-muted); margin: 4px 0; }
+.pb-hilfe-hintergrund { margin-top: 6px; font-size: .8rem; color: var(--c-muted); line-height: 1.5; }
+.pb-hilfe-hintergrund summary { cursor: pointer; font-weight: 600; }
+.pv-anleitung { margin: 0 0 10px; padding: 8px 12px 8px 30px; border: 1px solid var(--c-border); border-left: 4px solid var(--c-primary, #17509E); border-radius: 8px; background: #fff; font-size: .82rem; line-height: 1.5; }
+.pv-anleitung li { margin-bottom: 3px; }
+.pb-schritt-link { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.pb-schritt-link:hover { color: var(--c-primary, #17509E); }
+.pb-hervor { outline: 3px solid #F08300; outline-offset: 3px; border-radius: 8px; animation: pbHervor 1.3s ease-in-out 2; }
+@keyframes pbHervor { 50% { outline-color: rgba(240, 131, 0, .25); } }
 .pb-anhang { margin-top: 4px; font-size: .74rem; color: var(--c-muted); }
 .pb-anhang summary { cursor: pointer; font-weight: 600; color: var(--c-navy, #1A2644); }
 .pb-anhang ul { margin: 2px 0 4px; padding-left: 16px; }

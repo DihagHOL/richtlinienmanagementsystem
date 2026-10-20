@@ -313,6 +313,7 @@ function _pvRender() {
         automatisiert, zusammengelegt oder entfällt, und was im SOLL neu ist, jeweils mit Grund (etwa der Schwachstelle aus der
         IST-Aufnahme). Jede Zuordnung hat eine <b>Nummer und Farbe</b>, die in beiden Diagrammen am Schritt steht; was entfällt,
         ist <b style="color:${PV_ROT}">rot</b>, was neu ist, <b style="color:${PV_BLAU}">blau</b>. Gespeichert wird am SOLL-Modell.</div>
+      ${darf ? _pvAnleitungHtml() : ''}
       <div class="pm-kpis">
         <div class="pm-kpi"${ab.istZu < ab.istGesamt ? ' style="border-color:#fca5a5"' : ''}><b>${ab.istZu}<span>/${ab.istGesamt}</span></b>IST-Schritte zugeordnet</div>
         <div class="pm-kpi"${ab.sollZu < ab.sollGesamt ? ' style="border-color:#fca5a5"' : ''}><b>${ab.sollZu}<span>/${ab.sollGesamt}</span></b>SOLL-Schritte zugeordnet</div>
@@ -332,6 +333,18 @@ function _pvRender() {
     </div>`;
   _pvBild('ist');
   _pvBild('soll');
+}
+
+/** Die Anleitung in drei Schritten, für alle, die zuordnen dürfen. */
+function _pvAnleitungHtml() {
+  return `<ol class="pv-anleitung">
+      <li>Wählen Sie unter „Gegenüberstellung" je Zeile den IST-Schritt, den SOLL-Schritt und die Änderung.
+        „💡 Vorschläge übernehmen" ordnet Schritte mit ähnlichem Namen zu, „+ Zuordnung" fügt eine Zeile hinzu.</li>
+      <li>Tragen Sie den Grund ein, etwa die Schwachstelle aus der Analyse. Rückfragen schreiben die Beteiligten
+        als Anmerkung 💬 an die Zeile, sie wird sofort gespeichert.</li>
+      <li>Speichern Sie mit 💾. Ganz unten steht, welche Schritte noch keiner Zeile zugeordnet sind.
+        Die Freigabe übernimmt die Tabelle in die Word-Beschreibung.</li>
+    </ol>`;
 }
 
 function _pvOptionen(seite, gewaehlt) {

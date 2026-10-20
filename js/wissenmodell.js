@@ -851,6 +851,117 @@ Nach dem Erzeugen meldet die Prüfung genau einen Befund, **R10**: Die ⊞ „Ur
 };
 WI_STARTBESTAND.beitraege.splice(1, 0, WI_KURS_BPMN);
 
+/* Die Schulung „Prozesse im RMS bearbeiten": wie ein Prozess im Backlog von
+   der Landkarte bis in den Betrieb kommt, mit Vergleich und Anmerkungen. Der
+   Inhalt folgt dem Backlog (js/prozessbacklog.js) und den Kriterien der
+   Phasen (pzKriterien in js/prozessmodell.js); tests/prozess-bedienung prüft,
+   dass die Begriffe hier dieselben sind wie dort. Das Backlog verlinkt den
+   Kurs über seine Kennung (PB_KURS_ID). */
+const WI_KURS_PROZESSE_RMS = {
+  id: 'start-prozesse-rms-kurs', art: 'kurs', thema: 'prozesse', titel: 'Prozesse im RMS bearbeiten',
+  kurz: 'Wie Sie einen Prozess im Backlog von der Landkarte bis in den Betrieb bringen, mit dem IST vergleichen und mit den Beteiligten abstimmen.',
+  intro: `Wir arbeiten prozessorientiert: Jeder Prozess hat einen Eigner und steht in einer Phase. Das RMS zeigt im **Backlog** des Reiters „Prozesse", was als Nächstes zu tun ist. Dieser Kurs erklärt in etwa zehn Minuten, wie Sie dort einen Prozess bearbeiten. Wie man einen Ablauf als Diagramm aufschreibt, zeigt der Kurs „Abläufe beschreiben mit BPMN".`,
+  dauer: 10, zielgruppe: 'Prozesseigner, Fachabteilungen und alle, die im RMS einen Prozess aufnehmen, verbessern oder freigeben',
+  pflicht: false, wiederholung: 0, bestehen: 80,
+  ziele: [
+    'Die sechs Phasen des Backlogs kennen und wissen, was in jeder zu tun ist',
+    'Mit der Zeile „→ fehlt" den nächsten Schritt finden und erledigen',
+    'IST und SOLL im Vergleich zuordnen und begründen',
+    'Rückfragen als Anmerkung am Schritt festhalten',
+    'POC, Freigabe und Ablösung des IST richtig eintragen',
+  ],
+  module: [
+    { id: 'm1', titel: 'Das Backlog', text: `# Wo Sie es finden
+Reiter **„Prozesse"**, oben die Ansicht **„📌 Backlog"**. Jede Karte ist ein Prozess: eine Kachel der Landkarte ohne Modell oder ein Hauptprozess als BPMN-Modell. An der Karte hängen seine Unter- und Nebenprozesse und die IST-Modelle, die er ablöst.
+
+# Die Phasen
+Die Spalten folgen dem BPM-Lebenszyklus nach Dumas, La Rosa, Mendling und Reijers (Fundamentals of Business Process Management, 2018). Ein Prozess wandert von links nach rechts:
+1. **Identifiziert:** Er steht in der Landkarte.
+2. **IST-Aufnahme:** Der heutige Ablauf wird als IST-Modell gezeichnet.
+3. **Analyse:** Die Schwachstellen des IST werden bewertet.
+4. **SOLL-Design:** Der Zielprozess wird modelliert.
+5. **Umsetzung:** POC, Freigabe und Rollout in die Werke.
+6. **Betrieb:** Der Prozess läuft und wird regelmäßig überprüft.
+
+> Zeigen Kennzahlen oder Review im Betrieb Abweichungen, stellen Sie den Prozess zurück in die Analyse.` },
+    { id: 'm2', titel: 'Der nächste Schritt an der Karte', text: `# Die Zeile „→ fehlt"
+Unten an jeder Karte steht, was für die nächste Phase noch aussteht, etwa „→ für „Analyse" fehlt: Prozesseigner, Priorität". Jeder Punkt ist ein Link. Ein Klick öffnet das Feld, in dem er eingetragen wird, und hebt es orange hervor.
+
+# Wo die Angaben stehen
+- Prozesseigner, Priorität, Freigeber, Review-Termin, Analyse und POC stehen unter **✎ Angaben** an der Karte.
+- Verknüpfte Richtlinien, Kennzahlen und Reifegrad pflegen Sie im Prozess-Editor, rechts neben dem Diagramm.
+- Ein Prozess ohne Modell wird an seiner Kachel in der Landkarte bearbeitet.
+
+Gespeichert wird in der BPMN-Datei des Prozesses, bei einer Kachel in der Landkarte mit Versionsverlauf.
+
+# Die Phase weiterstellen
+Steht an der Karte **„✓ bereit für …"**, sind die Kriterien der Phase erfüllt. Die Phase stellen Sie in der Auswahl unten an der Karte um. Die Kriterien sperren nichts. Sie dürfen auch weiterstellen, wenn noch etwas fehlt, die Karte zeigt es dann weiter an.
+
+>✓ Unter jedem Spaltenkopf steht in einem Satz, was in der Phase zu tun ist. Oben im Backlog lässt sich „❓ So arbeiten Sie mit dem Backlog" aufklappen.` },
+    { id: 'm3', titel: 'Wann eine Phase fertig ist', text: `Für jede Phase prüft das RMS einige Angaben. Sind sie vollständig, steht an der Karte „✓ bereit".
+- **Identifiziert:** Prozesseigner und Priorität sind eingetragen.
+- **IST-Aufnahme:** Es gibt ein IST-Modell.
+- **Analyse:** Das Datum „Analyse abgeschlossen am" ist eingetragen.
+- **SOLL-Design:** Das SOLL-Modell ist mit einer Richtlinie verknüpft und hat einen Freigeber. Löst es ein IST ab, ist der Vergleich mit dem IST angelegt.
+- **POC:** Pilotwerk und Erfolgskriterien stehen fest, der Termin der Bewertung ist eingetragen, das Ergebnis lautet „bestanden".
+- **Rollout:** Das Regelwerk der Freigabe ist veröffentlicht, Kennzahl und Reifegrad sind gepflegt, kein abgelöstes IST ist mehr in Benutzung.
+- **Betrieb:** Kennzahl und Reifegrad sind gepflegt, der Review-Termin steht und ist nicht überfällig. Ein gruppeneinheitlicher Prozess braucht mindestens Reifegrad 3.
+
+> Kennzahlen verlangt ISO 9001 (Abschnitt 4.4), den Reifegrad bewerten wir nach ISO/IEC 33020.` },
+    { id: 'm4', titel: 'IST und SOLL vergleichen', text: `# Wozu
+Wer einen Ablauf ändert, muss sagen können, was aus jedem bisherigen Schritt wird. Die Freigeber brauchen das für ihre Entscheidung, die Werke für die Umstellung.
+
+# So geht es
+1. An der Karte des SOLL-Prozesses **„⇄ Vergleich IST/SOLL"** öffnen. Oben steht das IST, darunter das SOLL.
+2. Unter „Gegenüberstellung" je Zeile den IST-Schritt, den SOLL-Schritt und die Änderung wählen. „💡 Vorschläge übernehmen" ordnet Schritte mit ähnlichem Namen zu.
+3. Den Grund eintragen, etwa die Schwachstelle aus der Analyse, und **💾 Speichern**.
+
+# Die Änderungen
+- **bleibt:** Der Schritt läuft wie bisher.
+- **geändert:** andere Rolle, anderes Werkzeug oder andere Regel
+- **automatisiert:** Im SOLL erledigt ihn ein System.
+- **zusammengelegt:** Mehrere IST-Schritte werden zu einem.
+- **entfällt:** Im SOLL gibt es ihn nicht mehr. Rot markiert.
+- **neu:** Im IST gab es ihn nicht. Blau markiert.
+
+Jede Zuordnung hat eine Nummer und eine Farbe, die in beiden Diagrammen am Schritt steht. So sieht jeder, was zu wem gehört. Mit **🖼 PNG** werden beide Diagramme ein Bild für Mail oder Präsentation. Die Freigabe übernimmt die Tabelle als Kapitel „Vergleich mit dem IST" in die Word-Beschreibung.` },
+    { id: 'm5', titel: 'Gemeinsam abstimmen', text: `# Anmerkungen am Schritt
+Rückfragen und Einwände gehören an die Zuordnung, um die es geht. In der Spalte 💬 der Gegenüberstellung schreiben Sie eine Anmerkung. Sie wird sofort gespeichert, mit Ihrem Namen und der Uhrzeit, und alle, die den Vergleich öffnen, sehen sie.
+- Was andere inzwischen geschrieben haben, bleibt beim Speichern erhalten.
+- Löschen können Sie nur Ihre eigenen Anmerkungen.
+- Wer eine Zuordnung mit Anmerkungen entfernt, wird vorher gefragt.
+
+> Eine Anmerkung bleibt am Prozess. Wer ihn in einem Jahr überprüft, sieht noch, warum ein Schritt weggefallen ist.` },
+    { id: 'm6', titel: 'POC, Freigabe und Ablösung', text: `# POC
+Der POC erprobt das SOLL. Bevor er beginnt, tragen Sie unter ✎ Angaben Pilotwerk, Beginn und Ende, die Verantwortlichen und die Erfolgskriterien ein. „ALLE" steht für alle Werke. Am Review-Termin bewerten Sie jedes Kriterium und das Ergebnis: bestanden, verlängert oder nicht bestanden.
+
+# Freigabe
+Freigegeben wird der Hauptprozess über ein Regelwerk („📋 Zur Freigabe"). Unter- und Nebenprozesse gehen mit ihm. Die Freigeber erhalten eine Word-Beschreibung mit dem Vergleich zum IST.
+
+# Das alte IST ablösen
+Ein IST-Modell, das ein neuer Prozess ablöst, bekommt die Phase „IST-Modell eines anderen Prozesses (EOL)", unter „Abgelöst durch" steht der Prozess, der es ablöst. Solange unter ✎ Angaben „Außer Betrieb seit" leer ist, gilt es als in Benutzung, etwa in Werken, die noch nicht umgestellt haben. Der Rollout ist abgeschlossen, wenn kein abgelöstes IST mehr läuft.` },
+  ],
+  fragen: [
+    { frage: 'Wo sehen Sie, was an einem Prozess als Nächstes zu tun ist?',
+      optionen: ['In der Zeile „→ fehlt" unten an seiner Karte im Backlog', 'Nur in der Landkarte', 'In einer Mail des Prozesseigners'], richtig: 0 },
+    { frage: 'Was passiert, wenn Sie auf einen fehlenden Punkt klicken?',
+      optionen: ['Die Phase wird automatisch weitergestellt', 'Das Feld, in dem er eingetragen wird, öffnet sich und ist hervorgehoben', 'Der Prozess wird gesperrt, bis der Punkt erledigt ist'], richtig: 1 },
+    { frage: 'An der Karte steht „✓ bereit für SOLL-Design". Was tun Sie?',
+      optionen: ['Nichts, das RMS stellt die Phase selbst um', 'Den Prozess neu anlegen', 'Die Phase in der Auswahl unten an der Karte umstellen'], richtig: 2 },
+    { frage: 'Jemand hat eine Rückfrage zu einem Schritt im Vergleich. Wo gehört sie hin?',
+      optionen: ['Als Anmerkung 💬 an die Zuordnung im Vergleich', 'In eine Mail an alle Beteiligten', 'In das Feld „Grund"'], richtig: 0 },
+    { frage: 'Ein Schritt des IST fällt im SOLL weg. Welche Änderung wählen Sie?',
+      optionen: ['bleibt', 'entfällt', 'zusammengelegt'], richtig: 1 },
+    { frage: 'Wann stehen Pilotwerk und Erfolgskriterien eines POC fest?',
+      optionen: ['Bevor der POC beginnt', 'Am Ende des POC', 'Erst nach der Freigabe'], richtig: 0 },
+    { frage: 'Ein abgelöstes IST-Modell läuft im Werk SHB noch. Was tragen Sie unter „Außer Betrieb seit" ein?',
+      optionen: ['Das heutige Datum', 'Nichts, solange es noch läuft', 'Das Datum, an dem das SOLL freigegeben wurde'], richtig: 1 },
+    { frage: 'Wo verknüpfen Sie die Richtlinie, die ein Prozess umsetzt?',
+      optionen: ['Unter ✎ Angaben', 'Im Feld „Grund" des Vergleichs', 'Im Prozess-Editor unter „Verknüpfte Richtlinien"'], richtig: 2 },
+  ],
+};
+WI_STARTBESTAND.beitraege.splice(2, 0, WI_KURS_PROZESSE_RMS);
+
 /**
  * Die Teilnahmebescheinigung – eine eigene Seite zum Drucken oder als PDF.
  * Sie belegt, was der Nachweis in der Bestätigungen-Liste festhält: wer,
@@ -944,7 +1055,7 @@ function wiStartbestandErgaenzen(daten, wer, jetzt, nur) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN,
+  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN, WI_KURS_PROZESSE_RMS,
     wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
     wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiStartbestandFehlend, wiTag,
     wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };

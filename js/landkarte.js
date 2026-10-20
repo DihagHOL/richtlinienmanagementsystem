@@ -3946,7 +3946,7 @@ function _lkPzEditorHtml(k) {
       <div class="form-grid">
         <div class="form-group">
           <label>Prozesseigner (E-Mail)</label>
-          <input type="text" list="lk-people" value="${esc(k.prozesseigner || '')}"
+          <input type="text" id="lk-pz-eigner" list="lk-people" value="${esc(k.prozesseigner || '')}"
             oninput="_lkEditing.prozesseigner=this.value"
             placeholder="${esc(konzern ? 'leer = die verantwortliche Person' : (erbEigner ? 'leer = ' + lkPersonName(erbEigner) + ' (Konzern)' : 'name@dihag.com'))}">
           <span class="field-hint">${konzern
@@ -3970,7 +3970,7 @@ function _lkPzEditorHtml(k) {
         </div>
         <div class="form-group">
           <label>Priorität</label>
-          <select onchange="_lkEditing.prioritaet=this.value">
+          <select id="lk-pz-prio" onchange="_lkEditing.prioritaet=this.value">
             <option value=""${sel('', k.prioritaet || '')}>nicht priorisiert</option>
             ${PZ_PRIO.map(p => `<option value="${p.key}"${sel(p.key, k.prioritaet)}>${esc(p.label)}</option>`).join('')}
           </select>
@@ -3988,7 +3988,7 @@ function _lkPzEditorHtml(k) {
         ${typeof PZ_REIFEGRAD !== 'undefined' ? `
         <div class="form-group">
           <label>Reifegrad (ISO/IEC 33020)</label>
-          <select onchange="_lkEditing.reifegrad=this.value;_lkPzRgHinweis()">
+          <select id="lk-pz-rg" onchange="_lkEditing.reifegrad=this.value;_lkPzRgHinweis()">
             <option value=""${sel('', String(k.reifegrad || ''))}>nicht bewertet</option>
             ${PZ_REIFEGRAD.map(r => `<option value="${r.key}"${sel(r.key, String(k.reifegrad == null ? '' : k.reifegrad))}>${esc(r.label)}</option>`).join('')}
           </select>

@@ -82,8 +82,8 @@ for (const s of ['Identifiziert', 'IST-Aufnahme', 'Analyse', 'SOLL-Design', 'Ums
 }
 ok(html.includes('>IT</a>') && !html.includes('>Lohn</a>'), '„Identifiziert" zeigt nur Priorisiertes (IT ja, Lohn nein)');
 ok(/\+ 2 ohne Priorität/.test(html), 'Die nicht priorisierten stehen als Zahl darunter (Lohn, Konzern-Beschaffung)');
-ok(/→ für „IST-Aufnahme" fehlt: Prozesseigner · <a [^>]*pbOeffnen\(&quot;HOL&quot;,&quot;h-it&quot;\)[^>]*>in der Landkarte<\/a>/.test(html),
-  'Die Karte nennt, was zur nächsten Phase fehlt, mit dem Weg dorthin');
+ok(/→ für „IST-Aufnahme" fehlt: <a href="#" class="pb-schritt-link" title="Öffnet die Kachel zum Bearbeiten beim Feld „Prozesseigner&quot;"[^>]*pbSchrittOeffnen\(&quot;kachel&quot;,&quot;HOL&quot;,&quot;h-it&quot;,&quot;eigner&quot;,&quot;&quot;\)[^>]*>Prozesseigner<\/a><\/div>/.test(html),
+  'Die Karte nennt, was zur nächsten Phase fehlt; der Punkt führt zum Feld an der Kachel');
 ok(html.includes('Prio hoch'), 'Die Priorität steht an der Karte');
 ok(/cfo@dihag\.com[^<]*<span class="field-hint" title="Prozesseigner der Konzern-Landkarte">↑/.test(html), 'Der geerbte Prozesseigner ist als geerbt markiert');
 ok(/einheitlich ↑/.test(html), 'Der geerbte Standardisierungsgrad ist als geerbt markiert');
