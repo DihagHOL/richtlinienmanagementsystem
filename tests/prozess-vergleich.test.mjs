@@ -170,7 +170,7 @@ ok(/class="pv-notiz-knopf hat"[^>]*onclick="pvNotizUmschalten\(&quot;z1abcd&quot
   'Die Zeile zeigt, wie viele Anmerkungen es gibt, oben steht die Summe');
 vm.runInContext(`pvNotizUmschalten('z1abcd')`, vctx);
 const offen = mount.innerHTML;
-ok(/class="pv-notizen-zeile"/.test(offen) && /kollegin@dihag\.com<\/span> <span class="pv-notiz-wann">20\.10\.2026 09:15<\/span>/.test(offen)
+ok(/class="pv-notizen-zeile"/.test(offen) && /data-upn="kollegin@dihag\.com">kollegin@dihag\.com<\/span> <span class="pv-notiz-wann">20\.10\.2026 09:15<\/span>/.test(offen)
   && /Ablage passiert künftig im Archiv/.test(offen) && /id="pv-notiz-z1abcd"/.test(offen), 'Aufgeklappt: wer, wann, was, und das Feld für eine neue');
 ok(!/pvNotizWeg/.test(offen), 'Fremde Anmerkungen lassen sich nicht löschen');
 let gespeichert = 0;
@@ -196,6 +196,7 @@ const zus = V.pvNotizenZusammen(ausDatei, [{ zeile: 'z1abcd', am: '2026-10-20T10
 ok(zus.map(n => n.text).join('|') === 'Inzwischen geschrieben|Meine', 'Zusammenführen: was andere inzwischen schrieben bleibt, gelöschte und verwaiste fallen weg');
 ok(V.pvNeueId([{ id: 'aaaaaa' }], (() => { const f = [0.1, 0.123456789]; let i = 0; return () => f[i++ % 2]; })()).length === 6, 'Neue Kennung: sechs Zeichen');
 ok(/Mit der Zuordnung werden sie beim Speichern entfernt/.test(lies('js/prozessvergleich.js')), 'Wer eine Zuordnung mit Anmerkungen entfernt, wird gefragt');
+ok(/function _pvNamenLaden\(\)[\s\S]*?spGetMembers\(\)\.then[\s\S]*?\.pv-notiz-wer\[data-upn\]/.test(lies('js/prozessvergleich.js')), 'Namen statt Adressen, sobald die Liste der Beteiligten da ist');
 const pmN = M.pzPmZeilen({ vergleich: [{ art: 'bleibt', ist: 'a:1', soll: 'b:1', id: 'k3x9q2' }],
   vergleichNotizen: [{ zeile: 'k3x9q2', am: '2026-10-20T14:05', von: 'a@dihag.com', text: 'Text | mit [Klammern]' }] });
 ok(pmN.includes('[[rms:vgl=bleibt|a:1|b:1||k3x9q2]]') && pmN.includes('Anmerkungen zum Vergleich: 1') && pmN.includes('[[rms:vglnotiz=k3x9q2|2026-10-20T14:05|a@dihag.com|Text mit Klammern]]'),

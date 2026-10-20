@@ -265,6 +265,7 @@ async function pvOeffnen(id, von) {
     // Ältere Zuordnungen ohne Kennung bekommen eine; gespeichert wird sie mit der nächsten Änderung.
     _pv.zeilen.forEach(z => { if (!z.id) z.id = pvNeueId(_pv.zeilen); });
     _pvRender();
+    _pvNamenLaden();
   } catch (e) {
     mount.innerHTML = `<div class="field-hint" style="color:#b91c1c">Vergleich nicht ladbar: ${esc(e.message)}</div>`;
   }
@@ -377,6 +378,19 @@ function _pvIch() {
   return (typeof State !== 'undefined' && State.user) ? String(State.user.upn || State.user.name || '') : '';
 }
 
+/**
+ * Die Namen der Beteiligten: Die Liste lädt die Landkarte erst bei Bedarf.
+ * Ist sie da, werden die Namen eingesetzt, ohne die Seite neu zu bauen (ein
+ * halb getippter Text bliebe sonst nicht stehen).
+ */
+function _pvNamenLaden() {
+  if (typeof _lkMembers === 'undefined' || _lkMembers || typeof spGetMembers !== 'function') return;
+  spGetMembers().then(m => {
+    if (!_lkMembers) _lkMembers = m || [];
+    document.querySelectorAll('.pv-notiz-wer[data-upn]').forEach(el => { el.textContent = _pvPerson(el.getAttribute('data-upn')); });
+  }).catch(() => { /* dann bleiben die Adressen */ });
+}
+
 /** Der Knopf in der Zeile: wie viele Anmerkungen es gibt, aufklappen. */
 function _pvNotizKnopf(z) {
   const n = _pv.notizen.filter(x => x.zeile === z.id).length;
@@ -390,7 +404,7 @@ function _pvNotizenHtml(z, darf) {
   const liste = _pv.notizen.filter(x => x.zeile === z.id);
   return `<div class="pv-notizen">
       ${liste.length ? liste.map(n => `<div class="pv-notiz">
-          <span class="pv-notiz-wer">${esc(_pvPerson(n.von))}</span> <span class="pv-notiz-wann">${esc(_pvZeitpunkt(n.am))}</span>
+          <span class="pv-notiz-wer" data-upn="${esc(n.von)}">${esc(_pvPerson(n.von))}</span> <span class="pv-notiz-wann">${esc(_pvZeitpunkt(n.am))}</span>
           ${darf && n.von && n.von === ich ? `<button type="button" class="pv-notiz-weg" onclick="pvNotizWeg(${jsArg(pvNotizSchluessel(n))})" title="Eigene Anmerkung löschen" aria-label="Anmerkung löschen">✕</button>` : ''}
           <div class="pv-notiz-text">${esc(n.text)}</div></div>`).join('')
         : '<div class="field-hint">Noch keine Anmerkung zu dieser Zuordnung.</div>'}
