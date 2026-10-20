@@ -79,7 +79,7 @@ ok(/⏰ Überprüfung fehlt über Zahlungsausgang/.test(vm.runInContext('_pbKart
 
 const bl = lies('js/prozessbacklog.js');
 ok(/kinder: \(typeof procGliederungKinder === 'function'\) \? procGliederungKinder\(p\.itemId\)\.map\(k => k\.id\) : \[\]/.test(bl), 'Das Backlog gibt die Gliederung mit');
-ok(/undefined, pbModelle\(\)\)\.filter\(e => \{\s+if \(_pbWerk && e\.art === 'modell' && e\.werk !== _pbWerk\) return false;/.test(bl), 'und alle Modelle, gefiltert wird danach');
+ok(/pzKarten\(pzEintraege\(daten, pbWerke\(\), undefined, pbModelle\(\)\)\)\.filter\(e => \{\s+if \(_pbWerk && e\.werk !== _pbWerk\) return false;/.test(bl), 'und alle Modelle, gefiltert wird danach');
 const P = lies('js/prozesse.js');
 ok(/kinder: procGliederungKinder\(p\.itemId\)\.map\(k => k\.id\)/.test(P) && /_procModellListe\(\{ \[id\]: _procPm \}\)/.test(P), 'Die Modellansicht rechnet über alle Modelle, mit den offenen Angaben');
 ok(/kinder = \(typeof pzKinderAusText === 'function'\) \? pzKinderAusText\(xml\) : \[\];/.test(lies('js/faelligkeit.js')), 'Die Fälligkeiten lesen die Gliederung aus den Dateien');

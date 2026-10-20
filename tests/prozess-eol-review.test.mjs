@@ -1,10 +1,9 @@
 /**
  * IST und SOLL im Backlog: EOL, Nachfolger, Freigeber, Review in den Fälligkeiten.
  *
- * EOL gehört zur IST-Erfassung: Das IST eines Ablaufs, den ein SOLL ablöst,
- * steht in der IST-Spalte unter „wird abgelöst". Es muss mit seinem SOLL-Modell
- * verknüpft sein und zeigt dessen Stand (SOLL, POC, freigegeben); es wird nicht
- * mehr überprüft. Ab dem POC
+ * EOL ist die Art eines Modells: die IST-Aufnahme eines Ablaufs, den ein anderer
+ * Prozess ablöst. Sie hängt an dessen Karte im Backlog, bleibt in Benutzung, bis
+ * sie außer Betrieb genommen ist, und wird nicht mehr überprüft. Ab dem POC
  * braucht ein Prozess einen Review-Termin und die Angabe, wer ihn freigibt.
  * Die Fälligkeiten haben dafür eine eigene Rubrik „Prozesse".
  *
@@ -31,10 +30,9 @@ const HEUTE = new Date(2026, 9, 8);
 
 /* ══ 1) Lebenszyklus und Angaben am Modell ══ */
 const eol = M.pzStatusInfo('eol');
-ok(eol.key === 'eol' && eol.label === 'IST, wird abgelöst (EOL)' && eol.phase === 'ist' && /SOLL-Prozess verknüpft/.test(eol.text),
-  'EOL gehört zur IST-Erfassung und ist mit dem SOLL verknüpft');
-ok(M.PZ_STATUS[1].key === 'eol' && !M.PZ_SPALTEN.some(s => s.key === 'eol') && M.pzStatusInfo('ist').spalte === 'IST-Erfassung',
-  'Keine eigene Spalte: EOL steht gleich nach IST, die Spalte heißt IST-Erfassung');
+ok(eol.key === 'eol' && eol.anhang && /EOL/.test(eol.label) && /in Benutzung/.test(eol.text),
+  'EOL ist die Art eines Modells (IST-Aufnahme eines anderen Prozesses), das in Benutzung bleiben kann');
+ok(!M.PZ_PHASEN.some(s => s.key === 'eol') && !M.PZ_SPALTEN.some(s => s.key === 'eol'), 'Keine Phase und keine Spalte');
 ok(M.PZ_REVIEW_PFLICHT.join() === 'poc,freigegeben,ausgerollt', 'Ab dem POC braucht ein Prozess einen Review-Termin');
 
 const pm = { status: 'eol', prozesseigner: 'cfo@dihag.com', freigeber: 'gf@dihag.com', nachfolger: '01SOLL' };
@@ -61,11 +59,17 @@ const modelle = [
 ];
 const eintraege = M.pzModellEintraege({ karten: {} }, modelle, HEUTE);
 ok(eintraege[0].status === 'eol' && eintraege[0].nachfolger === 'SOLL1' && eintraege[1].freigeber === 'gf@dihag.com', 'Einträge tragen Nachfolger und Freigeber');
-const kz = M.pzKennzahlen(eintraege);
-ok(kz.eol === 1 && kz.eolMitSoll === 1 && kz.modelle === 2 && kz.mitFreigeber === 1, 'Kennzahlen: EOL zählt nicht als Modell in Arbeit, ist mit SOLL verknüpft; einer von zwei hat einen Freigeber');
+const karten = M.pzKarten(eintraege);
+ok(karten.length === 2 && karten.find(k => k.kachel.id === 'SOLL1').istModelle.map(x => x.kachel.id).join() === 'IST1',
+  'Zwei Karten: das IST hängt an der Karte des Prozesses, der es ablöst');
+const kz = M.pzKennzahlen(karten);
+ok(kz.eol === 1 && kz.eolMitSoll === 1 && kz.istInBenutzung === 1 && kz.modelle === 2 && kz.mitFreigeber === 1,
+  'Kennzahlen: ein IST zugeordnet und noch in Benutzung; einer von zwei Prozessen hat einen Freigeber');
 ok(kz.ohneTermin === 2, 'Beide POC ohne Review-Termin sind Lücken');
-const spalten = M.pzSpalten(eintraege);
-ok(!spalten.eol && spalten.ist.length === 1 && spalten.ist[0].status === 'eol' && spalten.poc.length === 2, 'Das EOL steht in der IST-Spalte');
+const spalten = M.pzSpalten(karten);
+ok(spalten.umsetzung.length === 2 && !spalten.aufnahme.length, 'Beide Prozesse stehen in der Umsetzung, kein loses IST');
+const abgeloest = M.pzKennzahlen(M.pzKarten(M.pzModellEintraege({ karten: {} }, [modelle[1], Object.assign({}, modelle[0], { pm: { status: 'eol', nachfolger: 'SOLL1', abgeloestAm: '2026-10-01' } })], HEUTE)));
+ok(abgeloest.eolMitSoll === 1 && abgeloest.istInBenutzung === 0, 'Mit „außer Betrieb seit" ist das IST nicht mehr in Benutzung');
 
 /* IST und SOLL verknüpft */
 const ab = M.pzAbloesung(eintraege, 'IST1');
@@ -105,22 +109,29 @@ bctx.pfRegelwerkVon = (id) => (id === 'SOLL2' ? { id: '88', status: 'Freigabe', 
 bctx.getPolicyGeschaeftsleitung = (p) => p.freigabeKonfig.freigeber;
 const E = vm.runInContext(`pzModellEintraege({ karten: {} }, pbModelle(), new Date(2026, 9, 8))`, bctx);
 const karte = (id) => E.find(e => e.kachel.id === id);
-ok(/↪ abgelöst durch <a [^>]*pbModellOeffnen\(&quot;SOLL1&quot;\)[^>]*>E-Rechnung Rechnungseingang<\/a> <span class="pb-tag"[^>]*>POC läuft<\/span>/.test(vm.runInContext('_pbAbloesungHtml', bctx)(karte('IST1'))),
-  'Die IST-Karte nennt ihr SOLL, anklickbar, mit dessen Stand');
+const K = vm.runInContext('pbEintraege()', bctx);
+const sollKarte = K.find(k => k.kachel.id === 'SOLL1');
+ok(K.length === 2 && sollKarte && sollKarte.istModelle.length === 1, 'Im Backlog: eine Karte je Prozess, das IST hängt an seiner');
+const anhang = vm.runInContext('_pbAnhangHtml', bctx)(sollKarte);
+ok(/<summary>📄 1 IST, 1 in Benutzung<\/summary>/.test(anhang) && /pbModellOeffnen\(&quot;IST1&quot;\)[^>]*>E-Rechnung Rechnungseingang \(IST\)<\/a> <span class="pb-anhang-stand pb-laeuft">noch in Benutzung<\/span>/.test(anhang),
+  'Die Karte zeigt ihr IST, anklickbar, und dass es noch in Benutzung ist');
+const ausser = vm.runInContext('_pbAnhangHtml', bctx)(Object.assign({}, sollKarte, { istModelle: [Object.assign({}, sollKarte.istModelle[0], { abgeloestAm: '2026-10-01' })] }));
+ok(/<summary>📄 1 IST<\/summary>/.test(ausser) && /außer Betrieb seit 01\.10\.2026/.test(ausser), 'Außer Betrieb: mit Datum, nicht mehr als „in Benutzung"');
 bctx.procEintragVon = (p) => { const m = modelle.find(x => x.itemId === p.itemId); return { m: m ? (m.itemId === 'IST1' ? { status: 'eol' } : m.pm) : null }; };
-const ohneSoll = vm.runInContext(`pzModellEintraege({ karten: {} }, pbModelle(), new Date(2026, 9, 8))`, bctx).find(e => e.kachel.id === 'IST1');
-ok(/color:#b91c1c">↪ kein SOLL-Prozess verknüpft · <a [^>]*pbAngabenDialog\(&quot;IST1&quot;\)/.test(vm.runInContext('_pbAbloesungHtml', bctx)(ohneSoll, true)),
-  'Fehlt das SOLL, steht das rot da, mit „verknüpfen"');
-const spalte = vm.runInContext('_pbSpalteHtml', bctx)(M.pzStatusInfo('ist'), [ohneSoll], false, 0);
-ok(/<span>IST-Erfassung<\/span><i>1<\/i>/.test(spalte) && /↪ wird abgelöst \(EOL\)<\/span><i>1<\/i>/.test(spalte),
-  'In der Spalte IST-Erfassung steht das EOL unter „wird abgelöst"');
+const lose = vm.runInContext('pbEintraege()', bctx).find(e => e.kachel.id === 'IST1');
+ok(lose && lose.status === 'eol', 'Ein IST ohne Prozess bleibt eine eigene Karte');
+ok(/color:#b91c1c">↪ kein Prozess verknüpft, den es ablöst · <a [^>]*pbAngabenDialog\(&quot;IST1&quot;\)/.test(vm.runInContext('_pbAbloesungHtml', bctx)(lose, true))
+  && /noch in Benutzung/.test(vm.runInContext('_pbAbloesungHtml', bctx)(lose, true)), 'Das steht rot da, mit „verknüpfen", und ob es noch läuft');
+const spalte = vm.runInContext('_pbSpalteHtml', bctx)(M.PZ_SPALTEN.find(s => s.key === 'aufnahme'), [lose], false, 0);
+ok(/<span>IST-Aufnahme<\/span><i>1<\/i>/.test(spalte) && /↪ IST-Modelle ohne Prozess<\/span><i>1<\/i>/.test(spalte),
+  'In der Spalte IST-Aufnahme steht es unter „IST-Modelle ohne Prozess"');
 bctx.procEintragVon = (p) => { const m = modelle.find(x => x.itemId === p.itemId); return { m: m ? m.pm : null }; };
+const umsetzung = vm.runInContext('_pbSpalteHtml', bctx)(M.PZ_SPALTEN.find(s => s.key === 'umsetzung'), vm.runInContext('pbEintraege()', bctx), false, 0);
+ok(/<span>Umsetzung<\/span><i>2<\/i>/.test(umsetzung) && /<span>POC läuft<\/span><i>2<\/i>/.test(umsetzung), 'Die Umsetzung zeigt ihre Stufe als Unterkopf');
 const opts = vm.runInContext('_pbNachfolgerOptionen', bctx)('IST1', 'SOLL1');
 ok(/<optgroup label="SOLL, POC und weiter">[^]*<option value="SOLL1" selected>E-Rechnung Rechnungseingang \(KONZERN\) · POC<\/option>/.test(opts) && !/value="IST1"/.test(opts),
-  'Im Dialog: das SOLL vorgewählt, mit Stand, ohne das IST selbst');
-ok(/↩ löst ab: <a [^>]*>E-Rechnung Rechnungseingang \(IST\)<\/a>/.test(vm.runInContext('_pbAbloesungHtml', bctx)(karte('SOLL1'))),
-  'Die SOLL-Karte sagt, welchen IST-Prozess sie ablöst');
-ok(vm.runInContext('_pbFreigabeHtml', bctx)(karte('IST1')) === '', 'Ein auslaufender Prozess braucht keinen Freigeber');
+  'Im Dialog: der Prozess vorgewählt, mit Stand, ohne das IST selbst');
+ok(vm.runInContext('_pbFreigabeHtml', bctx)(karte('IST1')) === '', 'Ein IST-Modell braucht keinen Freigeber');
 ok(/✅ Freigabe durch gf@dihag\.com/.test(vm.runInContext('_pbFreigabeHtml', bctx)(karte('SOLL1'))), 'Eingetragener Freigeber');
 ok(/<span class="status-badge">Freigabe<\/span><\/a>\s+Freigabe: cfo@dihag\.com/.test(vm.runInContext('_pbFreigabeHtml', bctx)(karte('SOLL2'))),
   'Gibt es das Regelwerk der Freigabe, stehen sein Status und seine Freigeber da');
@@ -128,14 +139,15 @@ bctx.pfRegelwerkVon = () => null;
 ok(/wer gibt frei\? offen/.test(vm.runInContext('_pbFreigabeHtml', bctx)(karte('SOLL2'))), 'Sonst steht die Frage offen da');
 
 const bl = lies('js/prozessbacklog.js');
-ok(/pbAngabenDialog\(\$\{jsArg\(k\.id\)\}\)/.test(bl) && /Freigabe durch/.test(bl) && /Abgelöst durch/.test(bl) && /Review \(nächste Überprüfung\)/.test(bl),
-  '„✎ Angaben" an jeder Modellkarte: Eigner, Freigeber, Review, Nachfolger');
+ok(/pbAngabenDialog\(\$\{jsArg\(k\.id\)\}\)/.test(bl) && /Freigabe durch/.test(bl) && /Abgelöst durch/.test(bl) && /Review \(nächste Überprüfung\)/.test(bl)
+  && /id="pb-a-abgeloest"/.test(bl) && /id="pb-a-analyse"/.test(bl),
+  '„✎ Angaben" an jeder Modellkarte: Eigner, Freigeber, Review, Analyse, Nachfolger und außer Betrieb seit');
 ok(/procPmAusXml\(xml\) \|\| pzPmNormal\(\{\}\)/.test(bl) && /procXmlDokuNeu\(xml, \{ pm: pzPmNormal\(pm\) \}\)/.test(bl), 'Gespeichert wird in die Datei, ausgehend von ihrem Stand');
-ok(/repeat\(5, minmax/.test(lies('css/style.css')) && /\.pb-unterkopf \{/.test(lies('css/style.css')), 'Fünf Spalten im Brett, EOL als Unterkopf');
+ok(/repeat\(6, minmax/.test(lies('css/style.css')) && /\.pb-unterkopf \{/.test(lies('css/style.css')), 'Sechs Spalten im Brett, Stufen als Unterkopf');
 ok(/if \(status === 'eol'\) \{ renderProzessBacklog\(\); pbAngabenDialog\(itemId, 'eol'\); return; \}/.test(bl),
   'Wer an der Karte EOL wählt, wird nach dem SOLL gefragt');
 ok(/if \(pm\.status === 'eol' && !pm\.nachfolger\) \{\s+toast\(/.test(bl), 'Ohne SOLL lässt sich EOL in den Angaben nicht speichern');
-ok(/PZ_STATUS\.filter\(s => s\.key !== 'eol' \|\| s\.key === status\)/.test(lies('js/landkarte.js')), 'Eine Kachel ohne Modell bekommt kein EOL');
+ok(/\$\{PZ_PHASEN\.map\(s => `<option value="\$\{s\.key\}"\$\{sel\(s\.key, status\)\}>/.test(lies('js/landkarte.js')), 'Eine Kachel ohne Modell bekommt kein EOL (nur Phasen zur Wahl)');
 ok(/proc-pm-freigeber/.test(lies('js/prozesse.js')) && /proc-pm-nachfolger/.test(lies('js/prozesse.js')), 'Beides auch im Modeler');
 ok(/_procNachfolgerOptionen\(itemId, pm\.nachfolger\)/.test(lies('js/prozesse.js')) && /Es fehlt noch der SOLL-Prozess, der dieses IST ablöst/.test(lies('js/prozesse.js')),
   'Der Modeler bietet dieselbe Auswahl und meldet beim Speichern ein IST ohne SOLL');

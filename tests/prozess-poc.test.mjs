@@ -136,6 +136,7 @@ bctx.procEintragVon = (p) => { const m = modelle.find(x => x.itemId === p.itemId
 bctx.procKachelnVon = () => [];
 bctx.pfIstHauptprozess = (id) => id !== 'UNTER1';
 bctx.pfHauptprozesseVon = (id) => (id === 'UNTER1' ? ['SOLL1'] : []);
+bctx.procGliederungKinder = (id) => (id === 'SOLL1' ? [{ id: 'UNTER1', art: 'unter' }] : []);
 const E = vm.runInContext(`pzModellEintraege({ karten: {} }, pbModelle(), new Date(2026, 9, 8))`, bctx);
 const karte = (id) => E.find(e => e.kachel.id === id);
 const pocHtml = vm.runInContext('_pbPocHtml', bctx);
@@ -144,11 +145,13 @@ ok(/🧪 POC: WGC, SHB · 01\.10\.2026 bis 30\.11\.2026 · 1 von 2 Kriterien erf
 ok(/title="✓ 95 % der Rechnungen automatisch erkannt\n○ Durchlaufzeit unter 3 Tagen"/.test(h1), 'Die Kriterien stehen im Tooltip');
 ok(/🧪 POC über <a [^>]*pbModellOeffnen\(&quot;SOLL1&quot;\)[^>]*>E-Rechnung Rechnungseingang<\/a>: WGC, SHB/.test(pocHtml(karte('UNTER1'), true)) && !/kein Pilotwerk/.test(pocHtml(karte('UNTER1'), true)),
   'Ein Unterprozess zeigt den POC seines Hauptprozesses, ohne eigene Lücken');
-ok(/🧪 kein Pilotwerk, keine Erfolgskriterien · <a [^>]*pbAngabenDialog\(&quot;SOLL2&quot;\)[^>]*>eintragen<\/a>/.test(pocHtml(karte('SOLL2'), true)), 'Einem POC ohne Angaben fehlt etwas, mit „eintragen"');
+ok(/→ für „Freigegeben, Rollout" fehlt: kein Pilotwerk, keine Erfolgskriterien[^<]* · <a [^>]*pbAngabenDialog\(&quot;SOLL2&quot;\)[^>]*>eintragen<\/a>/.test(vm.runInContext('_pbSchrittHtml', bctx)(karte('SOLL2'), true))
+  && pocHtml(karte('SOLL2')) === '', 'Einem POC ohne Angaben fehlt etwas: steht in den Kriterien der Phase, mit „eintragen"');
 ok(pocHtml(karte('IST1'), true) === '', 'An der IST-Karte steht kein eigener POC');
-const ab = vm.runInContext('_pbAbloesungHtml', bctx)(karte('IST1'), true);
-ok(/↪ abgelöst durch <a [^>]*>E-Rechnung Rechnungseingang<\/a> <span class="pb-tag"[^>]*>POC läuft<\/span><\/div><div class="pb-karte-person pb-poc"[^>]*>🧪 POC: WGC, SHB · 01\.10\.2026 bis 30\.11\.2026 · 1 von 2 Kriterien erfüllt · läuft<\/div>/.test(ab),
-  'Die IST-Karte zeigt die Kette: SOLL mit Stand, darunter sein POC');
+const kSoll = vm.runInContext('pbEintraege()', bctx).find(k => k.kachel.id === 'SOLL1');
+ok(kSoll && kSoll.istModelle.map(x => x.kachel.id).join() === 'IST1' && kSoll.teile.map(x => x.kachel.id).join() === 'UNTER1'
+  && /🧪 POC: WGC, SHB/.test(pocHtml(kSoll)) && /📄 1 IST, 1 in Benutzung · ↳ 1 Teilprozess/.test(vm.runInContext('_pbAnhangHtml', bctx)(kSoll)),
+  'Die Kette auf einer Karte: SOLL mit POC, daran das IST und der Teilprozess');
 
 const bl = lies('js/prozessbacklog.js');
 ok(/<legend>🧪 POC für dieses SOLL<\/legend>/.test(bl) && /id="pb-a-poc-werke"/.test(bl) && /id="pb-a-poc-ende"/.test(bl) && /id="pb-a-poc-ergebnis"/.test(bl) && /onclick="pbKriteriumNeu\(\)"/.test(bl),

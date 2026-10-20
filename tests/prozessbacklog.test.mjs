@@ -77,11 +77,13 @@ await w('initProzessBacklog()');
 console.log('Backlog');
 const html = mount.innerHTML;
 ok(/<div class="modus">backlog<\/div>/.test(html), 'Die Umschaltleiste steht mit „backlog" aktiv');
-for (const s of ['IST-Erfassung', 'SOLL in Arbeit', 'POC läuft', 'Freigegeben', 'Ausgerollt']) {
+for (const s of ['Identifiziert', 'IST-Aufnahme', 'Analyse', 'SOLL-Design', 'Umsetzung', 'Betrieb']) {
   ok(html.includes(`<span>${s}</span>`), `Spalte „${s}"`);
 }
-ok(html.includes('>IT</a>') && !html.includes('>Lohn</a>'), 'IST zeigt nur Priorisiertes (IT ja, Lohn nein)');
-ok(/\+ 2 ohne Priorität/.test(html), 'Die nicht priorisierten IST-Prozesse stehen als Zahl darunter (Lohn, Konzern-Beschaffung)');
+ok(html.includes('>IT</a>') && !html.includes('>Lohn</a>'), '„Identifiziert" zeigt nur Priorisiertes (IT ja, Lohn nein)');
+ok(/\+ 2 ohne Priorität/.test(html), 'Die nicht priorisierten stehen als Zahl darunter (Lohn, Konzern-Beschaffung)');
+ok(/→ für „IST-Aufnahme" fehlt: Prozesseigner · <a [^>]*pbOeffnen\(&quot;HOL&quot;,&quot;h-it&quot;\)[^>]*>in der Landkarte<\/a>/.test(html),
+  'Die Karte nennt, was zur nächsten Phase fehlt, mit dem Weg dorthin');
 ok(html.includes('Prio hoch'), 'Die Priorität steht an der Karte');
 ok(/cfo@dihag\.com[^<]*<span class="field-hint" title="Prozesseigner der Konzern-Landkarte">↑/.test(html), 'Der geerbte Prozesseigner ist als geerbt markiert');
 ok(/einheitlich ↑/.test(html), 'Der geerbte Standardisierungsgrad ist als geerbt markiert');
@@ -103,7 +105,7 @@ const letzte = gespeichert[gespeichert.length - 1];
 const it = letzte.karten.HOL.kacheln.find(k => k.id === 'h-it');
 ok(it.status === 'freigegeben' && /^\d{4}-\d{2}-\d{2}$/.test(it.naechsteUeberpruefung), 'Gespeichert: Status freigegeben, Überprüfung gesetzt');
 const v = letzte.historie[letzte.historie.length - 1];
-ok(v.werk === 'HOL' && /IT.*IST erfasst → Freigegeben/.test(v.was), 'Der Verlauf nennt Werk und Wechsel');
+ok(v.werk === 'HOL' && /IT.*Phase: Identifiziert → Umsetzung: freigegeben, Rollout/.test(v.was), 'Der Verlauf nennt Werk und Wechsel');
 ok(w('_lkWerk') === 'KONZERN', 'Die offene Landkarte bleibt, wo sie war');
 speichernGeht = false;
 await w('pbStatusSetzen("HOL", "h-lohn", "soll")');
@@ -124,14 +126,14 @@ const be = nach.karten.HOL.kacheln.find(k => k.id === 'h-einkauf');
 ok(be.prozesseigner === 'einkauf@dihag.com' && be.prioritaet === 'niedrig' && be.standardisierung === 'rahmen' && be.status === 'ausgerollt', 'Alle Felder sind gespeichert');
 ok(/^\d{4}-\d{2}-\d{2}$/.test(be.naechsteUeberpruefung), 'Ausrollen im Editor setzt die Überprüfung');
 const v2 = nach.historie[nach.historie.length - 1].was;
-ok(/Status: POC läuft → Ausgerollt/.test(v2) && /Prozesseigner: \(niemand\) → einkauf@dihag\.com/.test(v2)
+ok(/Phase: Umsetzung: POC läuft → Betrieb/.test(v2) && /Prozesseigner: \(niemand\) → einkauf@dihag\.com/.test(v2)
   && /Standardisierung: offen → einheitlicher Rahmen/.test(v2) && /Priorität: hoch → niedrig/.test(v2), 'Der Verlauf nennt jede Änderung');
 
 w('_lkWerk = "HOL"; lkKachelNeu()');
 w('_lkEditing.name = "Reisekosten"; _lkEditing.geltungsbereich = ["HOL"]; _lkEditing.prioritaet = "mittel"');
 await w('lkEditorSpeichern()');
 const neu = gespeichert[gespeichert.length - 1].karten.HOL.kacheln.find(k => k.name === 'Reisekosten');
-ok(neu && neu.status === 'ist' && neu.prioritaet === 'mittel', 'Ein neuer Prozess startet als „IST erfasst" mit seiner Priorität');
+ok(neu && neu.status === 'identifiziert' && neu.prioritaet === 'mittel', 'Ein neuer Prozess startet als „identifiziert" mit seiner Priorität');
 
 console.log('Fälligkeiten');
 const fctx = { console, JSON, Date, Array, Object, String, Math, Number, esc, jsArg, State: { policies: [] }, document: { getElementById: () => null } };
@@ -189,7 +191,7 @@ ok(/🔀 Bestellung[\s\S]*?🗺 P-002/.test(bh), 'Das Modell nennt seine Kachel'
 ok(/🔀 Reisekosten[\s\S]*?ohne Ablage[\s\S]*?ohne Landkarte/.test(bh), 'Ein Modell ohne Ablage und ohne Kachel ist als solches erkennbar');
 const poc = bh.split('<span>POC läuft</span>')[1].split('pb-spalte-kopf')[0];
 ok(poc.includes('🔀 Bestellung'), 'Ohne eigenen Status übernimmt das Modell den der Kachel (POC)');
-const soll = bh.split('<span>SOLL in Arbeit</span>')[1].split('pb-spalte-kopf')[0];
+const soll = bh.split('<span>SOLL-Design</span>')[1].split('pb-spalte-kopf')[0];
 ok(soll.includes('🔀 Reisekosten') && soll.includes('Prio hoch'), 'Der Status aus der Datei zählt');
 ok(bh.includes('pbModellStatusSetzen(&quot;M1&quot;,this.value)'), 'Der Status eines Modells wird am Modell gesetzt');
 ok(bh.includes('+ Prozess anlegen'), '„+ Prozess anlegen" steht im Backlog');

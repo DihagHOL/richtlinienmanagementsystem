@@ -1341,6 +1341,7 @@ function _procModellListe(pmVon) {
     const e = procEintragVon(p);
     const eigen = pmVon && Object.prototype.hasOwnProperty.call(pmVon, String(p.itemId));
     return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: eigen ? pmVon[String(p.itemId)] : (e ? e.m : null),
+      regelwerke: e && Array.isArray(e.p) ? e.p.length : 0,
       kacheln: procKachelnVon(p.itemId), kinder: procGliederungKinder(p.itemId).map(k => k.id) };
   });
 }
@@ -2913,7 +2914,8 @@ function _renderProcPm(canWrite) {
   const label = (x) => `${(typeof lkNrText === 'function' && lkNrText(x.kachel)) ? lkNrText(x.kachel) + ' ' : ''}${x.kachel.name} (${(typeof lkWerkLabel === 'function') ? lkWerkLabel(x.werk) : x.werk})`;
   const sel = (a, b) => (a === b ? ' selected' : '');
   const dis = canWrite ? '' : 'disabled';
-  const erbeStatus = k ? pzStatusInfo(pzStatus(k)).label : 'IST erfasst';
+  // Ein Modell ist mindestens aufgenommen: „identifiziert" von der Kachel heißt hier IST-Aufnahme.
+  const erbeStatus = pzStatusInfo(k && pzStatus(k) !== 'identifiziert' ? pzStatus(k) : 'aufnahme').label;
   const erbeEigner = erbe && typeof pzEigner === 'function' ? pzEigner(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).upn : '';
   const erbeStd = erbe && typeof pzStandard === 'function' ? pzStandardInfo(pzStandard(typeof _lkDaten !== 'undefined' ? _lkDaten : null, erbe.werk, k).key) : null;
   const erbePrio = k && pzPrioInfo(k.prioritaet) ? pzPrioInfo(k.prioritaet).label : '';
@@ -2924,7 +2926,7 @@ function _renderProcPm(canWrite) {
     <div class="field-hint" style="margin-bottom:6px">${kacheln.length
       ? `Hängt an ${kacheln.length === 1 ? 'der Kachel' : kacheln.length + ' Kacheln'}: <b>${esc(kacheln.map(label).join(', '))}</b>${kacheln.length > 1 ? '. Leere Felder erben nur bei genau einer Kachel.' : ''}`
       : 'Hängt an keiner Kachel der Landkarten.'}</div>
-    <label class="field-hint" style="display:block;margin:4px 0 2px">Status</label>
+    <label class="field-hint" style="display:block;margin:4px 0 2px">Phase</label>
     <select id="proc-pm-status" ${dis} onchange="procPmStatusWahl(this.value)">
       <option value=""${sel('', pm.status)}>wie ${k ? 'Kachel' : 'Vorgabe'}: ${esc(erbeStatus)}</option>
       ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, pm.status)}>${esc(s.label)}</option>`).join('')}
@@ -2936,12 +2938,14 @@ function _renderProcPm(canWrite) {
     <input type="text" id="proc-pm-freigeber" ${dis} list="lk-people" value="${esc(pm.freigeber || '')}"
       placeholder="wer den Prozess freigibt" title="Bei „📋 Zur Freigabe" wird diese Person Freigeber des Regelwerks">
     <div id="proc-pm-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}">
-      <label class="field-hint" style="display:block;margin:6px 0 2px">Abgelöst durch (SOLL-Prozess) *</label>
+      <label class="field-hint" style="display:block;margin:6px 0 2px">Abgelöst durch (Prozess) *</label>
       <select id="proc-pm-nachfolger" ${dis}>
-        <option value="">SOLL-Prozess wählen …</option>
+        <option value="">Prozess wählen …</option>
         ${_procNachfolgerOptionen(itemId, pm.nachfolger)}
       </select>
-      <div class="field-hint" style="margin-top:2px">Pflicht bei EOL. Das IST bleibt in der IST-Erfassung und zeigt, wie weit dieses SOLL ist.</div>
+      <div class="field-hint" style="margin-top:2px">Pflicht bei EOL. Das IST hängt im Backlog an der Karte dieses Prozesses.</div>
+      <label class="field-hint" style="display:block;margin:6px 0 2px">Außer Betrieb seit</label>
+      <input type="date" id="proc-pm-abgeloest" ${dis} value="${esc(pm.abgeloestAm || '')}" title="Leer: noch in Benutzung">
     </div>
     ${(typeof pzPocLeer === 'function' && !pzPocLeer(pm.poc)) ? `
     <label class="field-hint" style="display:block;margin:6px 0 2px">🧪 POC</label>
@@ -3027,7 +3031,9 @@ function _procPmAusFormular() {
     reifegrad: wert('proc-pm-rg') || '', kennzahlen: (_procPm && _procPm.kennzahlen) || [],
     freigeber: wert('proc-pm-freigeber') || '',
     nachfolger: status === 'eol' ? (wert('proc-pm-nachfolger') || '') : '',
-    // Der POC wird im Backlog gepflegt (✎ Angaben); hier bleibt er, wie er ist.
+    abgeloestAm: status === 'eol' ? (wert('proc-pm-abgeloest') || '') : '',
+    // Analyse und POC werden im Backlog gepflegt (✎ Angaben); hier bleiben sie, wie sie sind.
+    analyseAm: (_procPm && _procPm.analyseAm) || '',
     poc: (_procPm && _procPm.poc) || null,
   }) : null;
   // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
@@ -3079,7 +3085,7 @@ function _procPmChips(proc) {
   }
   if (typeof pzLuecken === 'function') pzLuecken(e).forEach(l => teile.push(`<span class="pa-chip t-warn">${esc(l)}</span>`));
   // Der POC gehört zum SOLL: am Hauptprozess der eigene, sonst der des Hauptprozesses.
-  if (typeof pzPocKurz === 'function' && e.status !== 'ist' && e.status !== 'eol') {
+  if (typeof pzPocKurz === 'function' && typeof PZ_NACHFOLGER_STUFEN !== 'undefined' && PZ_NACHFOLGER_STUFEN.includes(e.status)) {
     const haupt = typeof pfIstHauptprozess !== 'function' || pfIstHauptprozess(proc.itemId);
     let poc = haupt && !pzPocLeer(e.poc) ? { poc: e.poc, ueber: null } : null;
     if (!haupt && typeof pfHauptprozesseVon === 'function') {

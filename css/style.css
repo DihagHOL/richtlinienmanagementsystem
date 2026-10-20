@@ -1019,7 +1019,7 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pm-marke.aus { background: #f1f5f9; color: #cbd5e1; }
 
 /* ── Prozess-Backlog: eine Spalte je Stand im Lebenszyklus ── */
-.pb-brett { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.pb-brett { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
 .pb-spalte { background: #f8fafc; border: 1px solid var(--c-border); border-top: 3px solid var(--pb-c, var(--c-primary)); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; }
 .pb-spalte-kopf { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-weight: 700; font-size: .82rem; color: var(--c-navy, #1A2644); }
 .pb-spalte-kopf i { font-style: normal; font-weight: 600; font-size: .75rem; color: #fff; background: var(--pb-c, var(--c-primary)); border-radius: 10px; padding: 1px 8px; }
@@ -1037,6 +1037,14 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pb-karte-person .status-badge { padding: 0 6px; font-size: .66rem; }
 .pb-angaben { font: inherit; font-size: .72rem; font-weight: 600; margin-top: 6px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; }
 .pb-angaben:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.pb-schritt { margin-top: 4px; font-size: .74rem; color: #b45309; }
+.pb-schritt-ok { color: #15803d; }
+.pb-anhang { margin-top: 4px; font-size: .74rem; color: var(--c-muted); }
+.pb-anhang summary { cursor: pointer; font-weight: 600; color: var(--c-navy, #1A2644); }
+.pb-anhang ul { margin: 2px 0 4px; padding-left: 16px; }
+.pb-anhang-titel { margin-top: 4px; font-weight: 600; }
+.pb-anhang-stand { font-size: .68rem; padding: 0 5px; border-radius: 6px; border: 1px solid var(--c-border); color: var(--c-muted); }
+.pb-anhang-stand.pb-laeuft { color: #9F1239; border-color: #f9a8b8; background: #fff1f2; }
 .pb-poc-feld { border: 1px solid var(--c-border); border-radius: 8px; padding: 8px 12px 10px; margin: 12px 0 0; }
 .pb-poc-feld legend { font-weight: 700; font-size: .85rem; padding: 0 4px; color: var(--c-navy, #1A2644); }
 .pb-krit { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }

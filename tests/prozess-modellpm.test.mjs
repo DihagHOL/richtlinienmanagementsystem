@@ -35,14 +35,14 @@ console.log('Marker');
 const pm = { status: 'soll', prozesseigner: 'cfo@dihag.com', standardisierung: 'einheitlich', prioritaet: 'hoch', naechsteUeberpruefung: '2027-03-01' };
 const marker = M.pzPmMarker(pm);
 ok(marker === '[[rms:pm=soll|cfo@dihag.com|einheitlich|hoch|2027-03-01]]', 'Der Marker trägt alle fünf Angaben');
-ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(Object.assign({}, pm, { reifegrad: '', freigeber: '', nachfolger: '', kennzahlen: [], poc: M.pzPocNormal({}) })),
+ok(JSON.stringify(M.pzPmAusText('Text ' + marker + ' mehr')) === JSON.stringify(Object.assign({}, pm, { reifegrad: '', freigeber: '', nachfolger: '', analyseAm: '', abgeloestAm: '', kennzahlen: [], poc: M.pzPocNormal({}) })),
   'Rundlauf: gelesen kommt dasselbe heraus');
 ok(M.pzPmAusText('kein Marker') === null, 'Ohne Marker: null');
 const kaputt = M.pzPmAusText('[[rms:pm=quatsch|a@b.de|irgendwas|dringend|morgen]]');
 ok(kaputt.status === '' && kaputt.standardisierung === '' && kaputt.prioritaet === '' && kaputt.naechsteUeberpruefung === '' && kaputt.prozesseigner === 'a@b.de',
   'Ungültige Werte fallen raus, gültige bleiben');
 ok(M.pzPmMarker({}) === '' && M.pzPmKlartext({ status: '' }) === '', 'Nichts gesetzt: kein Marker, keine Zeile');
-ok(/^Prozessmanagement: Status SOLL in Arbeit · Prozesseigner cfo@dihag\.com/.test(M.pzPmKlartext(pm)), 'Klartextzeile für fremde Modeler');
+ok(/^Prozessmanagement: Phase SOLL-Design · Prozesseigner cfo@dihag\.com/.test(M.pzPmKlartext(pm)), 'Klartextzeile für fremde Modeler');
 ok(M.pzPmMarker({ prozesseigner: 'x|y]]z' }) === '[[rms:pm=|x y  z|||]]', 'Trenner und Klammern können den Marker nicht sprengen');
 
 console.log('Erbe am Modell');
@@ -62,7 +62,7 @@ ok(m1.prio === 'mittel' && m1.pruefung.datum === '2026-12-01', 'Priorität und T
 const [m2] = M.pzModellEintraege(daten, [{ itemId: 'M1', title: 'Bestellung', ordner: 'HOL', pm: { status: 'freigegeben', prozesseigner: 'einkauf@dihag.com', prioritaet: 'niedrig' }, kacheln: [kachel('HOL', 'h1')] }], HEUTE);
 ok(m2.status === 'freigegeben' && m2.eigner.upn === 'einkauf@dihag.com' && !m2.eigner.geerbt && m2.prio === 'niedrig', 'Eigene Angaben am Modell haben Vorrang');
 const [m3] = M.pzModellEintraege(daten, [{ itemId: 'M3', title: 'Beschaffung', ordner: 'SHB', pm: null, kacheln: [] }], HEUTE);
-ok(m3.status === 'ist' && m3.eigner.upn === 'cfo@dihag.com' && m3.eigner.geerbt, 'Ohne Kachel: IST, Eigner von der gleichnamigen Konzernkachel');
+ok(m3.status === 'aufnahme' && m3.eigner.upn === 'cfo@dihag.com' && m3.eigner.geerbt, 'Ohne Kachel und Phase: IST-Aufnahme, Eigner von der gleichnamigen Konzernkachel');
 const [m4] = M.pzModellEintraege(daten, [{ itemId: 'M4', title: 'Freies Modell', ordner: '', pm: { status: 'ausgerollt' }, kacheln: [] }], HEUTE);
 ok(m4.werk === '' && m4.pruefung.stufe === 'fehlt', 'Ausgerollt ohne Termin ist eine Lücke – auch am Modell ohne Ablage');
 
@@ -105,7 +105,7 @@ const regel = run(`vkXmlMitRegelwerken(__x, ['7', '9'])`);
 ok(/\[\[rms:policies=7,9\]\]/.test(regel) && /\[\[rms:pm=poc\|/.test(regel) && /\[\[rms:doc=Formular A/.test(regel), '„Regelwerk zuordnen" löscht weder Status noch Anlagen');
 ctx.__x = basis.replace('<bpmn:startEvent', '<bpmn:documentation>Bestellungen bis 5.000 Euro.</bpmn:documentation>' + NL + '    <bpmn:startEvent');
 const frei = run(`procXmlDokuNeu(__x, { pm: { status: 'ist', prioritaet: 'hoch' } })`);
-ok(/Bestellungen bis 5\.000 Euro\./.test(frei) && /\[\[rms:pm=ist\|\|\|hoch\|\]\]/.test(frei), 'Die Beschreibung bleibt stehen');
+ok(/Bestellungen bis 5\.000 Euro\./.test(frei) && /\[\[rms:pm=aufnahme\|\|\|hoch\|\]\]/.test(frei), 'Die Beschreibung bleibt stehen (das alte „ist" wird als IST-Aufnahme geschrieben)');
 ok((frei.match(/<bpmn:documentation>/g) || []).length === 1, 'Es bleibt bei einer Dokumentation');
 const eintrag = run(`procLinkEintrag(procEintragAusXml(${JSON.stringify(nurStatus)}))`);
 ok(eintrag.m && eintrag.m.status === 'poc' && eintrag.alt === false, 'Der Cache-Eintrag trägt die Angaben und gilt als vollständig');

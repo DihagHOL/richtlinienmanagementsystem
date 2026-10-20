@@ -39,11 +39,16 @@ const daten = {
 const kachel = (w, id) => daten.karten[w].kacheln.find(k => k.id === id);
 
 console.log('Status');
-ok(M.pzStatus({}) === 'ist', 'Ohne Status gilt „IST erfasst"');
-ok(M.pzStatus({ status: 'unsinn' }) === 'ist', 'Ein unbekannter Status gilt als „IST erfasst"');
+ok(M.pzStatus({}) === 'identifiziert', 'Ohne Phase gilt „identifiziert"');
+ok(M.pzStatus({ status: 'unsinn' }) === 'identifiziert' && M.pzStatus({ status: 'ist' }) === 'identifiziert' && M.pzStatus({ status: 'eol' }) === 'identifiziert',
+  'Unbekannt, das alte „IST erfasst" einer Kachel oder EOL (gibt es nur an Modellen): identifiziert');
 ok(M.pzStatus({ status: 'poc' }) === 'poc', 'Ein bekannter Status bleibt');
-ok(M.PZ_STATUS.map(s => s.key).join(',') === 'ist,eol,soll,poc,freigegeben,ausgerollt', 'Lebenszyklus in der Reihenfolge des Durchlaufs, EOL bei der IST-Erfassung');
-ok(M.PZ_SPALTEN.map(s => s.key).join(',') === 'ist,soll,poc,freigegeben,ausgerollt' && M.pzPhase('eol') === 'ist' && M.pzPhase('poc') === 'poc', 'Fünf Spalten, EOL steht unter IST');
+ok(M.PZ_STATUS.map(s => s.key).join(',') === 'identifiziert,aufnahme,analyse,soll,poc,freigegeben,ausgerollt,eol',
+  'Lebenszyklus nach Dumas et al. in der Reihenfolge des Durchlaufs, EOL als Art eines Modells am Ende');
+ok(M.PZ_SPALTEN.map(s => s.key).join(',') === 'identifiziert,aufnahme,analyse,soll,umsetzung,ausgerollt' && M.pzPhase('poc') === 'umsetzung'
+  && M.pzPhase('freigegeben') === 'umsetzung' && M.pzPhase('eol') === 'aufnahme', 'Sechs Spalten: POC und Rollout in der Umsetzung');
+ok(M.pzStatusInfo('ist').key === 'aufnahme' && M.pzNaechstePhase('analyse') === 'soll' && M.pzNaechstePhase('poc') === 'freigegeben' && M.pzNaechstePhase('ausgerollt') === '',
+  'Das alte „ist" eines Modells ist die IST-Aufnahme; jede Phase kennt die nächste');
 
 console.log('Erbe von der Konzern-Landkarte');
 const e1 = M.pzEigner(daten, 'HOL', kachel('HOL', 'h-einkauf'));
@@ -79,14 +84,15 @@ console.log('Status setzen');
 const k1 = { name: 'X', status: 'poc' };
 const t1 = M.pzStatusSetzen(k1, 'freigegeben', HEUTE);
 ok(k1.status === 'freigegeben' && k1.naechsteUeberpruefung === '2027-10-01', 'Freigabe ohne Termin setzt den Termin');
-ok(/POC läuft → Freigegeben/.test(t1) && /2027-10-01/.test(t1), 'Der Verlaufstext nennt Wechsel und Termin');
+ok(/^Phase: Umsetzung: POC läuft → Umsetzung: freigegeben, Rollout/.test(t1) && /2027-10-01/.test(t1), 'Der Verlaufstext nennt Wechsel und Termin');
 const k2 = { name: 'Y', status: 'freigegeben', naechsteUeberpruefung: '2027-03-01' };
 M.pzStatusSetzen(k2, 'ausgerollt', HEUTE);
 ok(k2.naechsteUeberpruefung === '2027-03-01', 'Ein vorhandener Termin bleibt');
 ok(M.pzStatusSetzen(k2, 'ausgerollt', HEUTE) === '', 'Gleicher Status: keine Änderung');
 ok(M.pzStatusSetzen(k2, 'quatsch', HEUTE) === '' && k2.status === 'ausgerollt', 'Unbekannter Status wird abgewiesen');
 const k3 = { name: 'Z' };
-ok(M.pzStatusSetzen(k3, 'ist', HEUTE) !== '' && k3.status === 'ist', 'Ein ungepflegter Status wird beim ersten Setzen festgeschrieben');
+ok(M.pzStatusSetzen(k3, 'aufnahme', HEUTE) !== '' && k3.status === 'aufnahme', 'Eine ungepflegte Phase wird beim ersten Setzen festgeschrieben');
+ok(M.pzStatusSetzen({ name: 'K' }, 'eol', HEUTE) === '', 'EOL lässt sich an einer Kachel nicht setzen');
 
 console.log('Backlog');
 const alle = M.pzEintraege(daten, null, HEUTE);
@@ -95,8 +101,8 @@ ok(!alle.some(e => e.kachel.id === 'k-kat'), 'Kategorie-Kacheln fehlen');
 const nurHol = M.pzEintraege(daten, ['HOL'], HEUTE);
 ok(nurHol.length === 4 && nurHol.every(e => e.werk === 'HOL'), 'Begrenzung auf sichtbare Karten');
 const sp = M.pzSpalten(alle);
-ok(sp.ist.length === 4 && sp.poc.length === 1 && sp.freigegeben.length === 1 && sp.ausgerollt.length === 1, 'Eine Spalte je Status');
-ok(sp.ist[0].kachel.id === 'h-bau' && sp.ist[1].kachel.id === 's-einkauf', 'Sortiert nach Priorität (mittel vor niedrig vor keiner)');
+ok(sp.identifiziert.length === 4 && sp.umsetzung.length === 2 && sp.ausgerollt.length === 1, 'Eine Spalte je Phase, POC und Rollout zusammen in der Umsetzung');
+ok(sp.identifiziert[0].kachel.id === 'h-bau' && sp.identifiziert[1].kachel.id === 's-einkauf', 'Sortiert nach Priorität (mittel vor niedrig vor keiner)');
 const kz = M.pzKennzahlen(alle);
 ok(kz.gesamt === 7 && kz.priorisiert === 3, 'Kennzahlen: gesamt und priorisiert');
 ok(kz.mitEigner === 5, 'Kennzahlen: mit Prozesseigner (eigen oder geerbt)');

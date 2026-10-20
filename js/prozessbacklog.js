@@ -4,36 +4,33 @@
  * Prozess-Backlog – Ansicht „📌 Backlog" im Reiter Prozesse
  * =========================================================
  * Die Landkarte zeigt, welche Prozesse es gibt, die Matrix, wer zuständig ist.
- * Das Backlog zeigt, **woran gerade gearbeitet wird**: jede Kachel aller
- * Landkarten in der Spalte ihres Lebenszyklus (IST · SOLL · POC · freigegeben
- * · ausgerollt), sortiert nach Priorität und Fälligkeit.
+ * Das Backlog zeigt, **woran gerade gearbeitet wird**, entlang des
+ * BPM-Lebenszyklus nach Dumas, La Rosa, Mendling und Reijers (Fundamentals of
+ * Business Process Management): Identifiziert · IST-Aufnahme · Analyse ·
+ * SOLL-Design · Umsetzung (POC, Freigabe, Rollout) · Betrieb.
  *
- * Zwei Entscheidungen:
+ * Die Entscheidungen:
  *
- *  1. Die IST-Spalte zeigt nur, was priorisiert ist. 278 erfasste Kacheln
- *     untereinander sind kein Backlog, sondern eine zweite Landkarte. Wer den
- *     Rest sehen will, schaltet ihn dazu.
- *  2. Der Status wird an der Karte gesetzt und landet in derselben Datei wie
- *     alles andere (prozesslandkarte.json) – mit Versionsverlauf und derselben
- *     Gleichzeitigkeitsprüfung wie die Landkarte. Kein zweites Register.
- *  3. Ein BPMN-Modell ist ein Prozess, auch ohne Kachel. Es steht als eigene
- *     Karte im Backlog; seine Angaben stehen in der .bpmn-Datei. Eine Kachel,
- *     an der ein Modell hängt, verschwindet dafür aus dem Backlog – sonst
- *     stünde derselbe Prozess zweimal da.
- *  4. EOL gehört zur IST-Erfassung: Das IST-Modell eines Ablaufs, den ein SOLL
- *     ablöst, steht in der IST-Spalte unter „wird abgelöst". Es muss mit seinem
- *     SOLL-Modell verknüpft sein; die Karte zeigt, wie weit das SOLL ist (SOLL,
- *     POC, freigegeben), die SOLL-Karte umgekehrt, welches IST sie ablöst.
+ *  1. Eine Karte ist ein Prozess, nicht ein Modell: eine Kachel ohne Modell
+ *     oder ein Hauptprozess (pzKarten). Seine Unter- und Nebenprozesse und die
+ *     IST-Modelle, die er ablöst, hängen an der Karte. Ein IST-Modell bleibt in
+ *     Benutzung, bis es außer Betrieb genommen ist (abgeloestAm).
+ *  2. Die Phase wird von Hand gesetzt, an der Karte, wie bisher der Status.
+ *     Die Kriterien der Phase (Definition of Done, pzKriterien) prüfen die
+ *     vorhandenen Angaben; was fehlt, steht an der Karte, blockiert aber nichts.
+ *  3. Die Spalte „Identifiziert" zeigt nur, was priorisiert ist. 278 Kacheln
+ *     untereinander sind kein Backlog, sondern eine zweite Landkarte.
+ *  4. Gespeichert wird, wo die Angaben ohnehin stehen: an der Kachel
+ *     (prozesslandkarte.json, mit Versionsverlauf) oder in der .bpmn-Datei.
  *  5. Der POC gehört zum SOLL: Pilotwerk, Zeitraum, Erfolgskriterien und
- *     Ergebnis stehen am SOLL-Modell (am Hauptprozess, Unter- und Nebenprozesse
- *     laufen mit). So zeigt die Kette IST → SOLL → POC auf jeder Karte, wo sie steht.
+ *     Ergebnis stehen am Hauptprozess. So zeigt jede Karte die Kette IST → SOLL → POC.
  */
 
 let _pbWerk = '';          // '' = alle Karten
 let _pbPrio = '';          // '' = alle · 'ohne' = nicht priorisiert · sonst PZ_PRIO-Schlüssel
 let _pbStandard = '';      // '' = alle · 'offen' = nicht entschieden · sonst PZ_STANDARD-Schlüssel
 let _pbSuche = '';
-let _pbIstAlle = false;    // IST-Spalte auch ohne Priorität zeigen
+let _pbIstAlle = false;    // „Identifiziert" auch ohne Priorität zeigen
 let _pbArt = '';           // '' = alle · 'modell' · 'frei' (Modell ohne Landkarte) · 'kachel' (Kachel ohne Modell)
 
 async function initProzessBacklog() {
@@ -61,6 +58,7 @@ function pbModelle() {
   return liste.map(p => {
     const e = (typeof procEintragVon === 'function') ? procEintragVon(p) : null;
     return { itemId: p.itemId, title: p.title, ordner: p.ordner || '', pm: e ? e.m : null,
+      regelwerke: e && Array.isArray(e.p) ? e.p.length : 0,
       kacheln: (typeof procKachelnVon === 'function') ? procKachelnVon(p.itemId) : [],
       kinder: (typeof procGliederungKinder === 'function') ? procGliederungKinder(p.itemId).map(k => k.id) : [] };
   });
@@ -76,20 +74,25 @@ function pbWerke() {
   return alle.sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, 'de'));
 }
 
-/** Einträge nach den Filtern – ohne die IST-Einschränkung (die gilt nur für die Spalte). */
+/**
+ * Die Karten nach den Filtern, ohne die Einschränkung auf Priorisiertes (die
+ * gilt nur für die Spalte „Identifiziert"). Gruppiert wird über alle
+ * sichtbaren Prozesse: Ein Teilprozess oder IST-Modell kann in einer anderen
+ * Ablage liegen als sein Prozess.
+ */
 function pbEintraege() {
   const daten = (typeof _lkDaten !== 'undefined') ? _lkDaten : null;
-  const werke = pbWerke();
   const q = pzSchluessel(_pbSuche);
-  // Alle Modelle mitgeben (der Hauptprozess kann woanders liegen), gefiltert wird danach.
-  return pzEintraege(daten, _pbWerk ? werke.filter(w => w === _pbWerk) : werke, undefined, pbModelle()).filter(e => {
-    if (_pbWerk && e.art === 'modell' && e.werk !== _pbWerk) return false;
+  const name = (e) => `${e.kachel.name} ${e.kachel.unter || ''} ${pzNrText(e.kachel)}`;
+  return pzKarten(pzEintraege(daten, pbWerke(), undefined, pbModelle())).filter(e => {
+    if (_pbWerk && e.werk !== _pbWerk) return false;
     if (_pbArt === 'modell' && e.art !== 'modell') return false;
     if (_pbArt === 'frei' && !(e.art === 'modell' && !e.modell.kacheln.length)) return false;
     if (_pbArt === 'kachel' && e.art !== 'kachel') return false;
     if (_pbPrio === 'ohne' ? e.prio : (_pbPrio && e.prio !== _pbPrio)) return false;
     if (_pbStandard === 'offen' ? e.standard.key : (_pbStandard && e.standard.key !== _pbStandard)) return false;
-    if (q && !pzSchluessel(`${e.kachel.name} ${e.kachel.unter || ''} ${pzNrText(e.kachel)}`).includes(q)) return false;
+    // Gefunden wird ein Prozess auch über seine Teilprozesse und IST-Modelle.
+    if (q && !pzSchluessel([e].concat(e.teile || [], e.istModelle || []).map(name).join(' ')).includes(q)) return false;
     return true;
   });
 }
@@ -104,13 +107,13 @@ function renderProzessBacklog() {
   const werke = pbWerke();
   const eintraege = pbEintraege();
   const spalten = pzSpalten(eintraege);
-  // Ohne Priorität ausgeblendet wird nur das reine IST. Was abgelöst wird,
-  // hängt an einem laufenden SOLL und bleibt sichtbar.
-  const istVerborgen = _pbIstAlle ? 0 : spalten.ist.filter(e => e.status === 'ist' && !e.prio).length;
-  if (!_pbIstAlle) spalten.ist = spalten.ist.filter(e => e.prio || e.status === 'eol');
+  // Ohne Priorität ausgeblendet wird nur, was erst identifiziert ist.
+  const istVerborgen = _pbIstAlle ? 0 : spalten.identifiziert.filter(e => !e.prio).length;
+  if (!_pbIstAlle) spalten.identifiziert = spalten.identifiziert.filter(e => e.prio);
   const kz = pzKennzahlen(eintraege);
-  const pocs = eintraege.filter(e => e.art === 'modell' && e.status === 'poc' && _pbIstHaupt(e.kachel.id));
+  const pocs = eintraege.filter(e => e.art === 'modell' && e.status === 'poc');
   const pocMitKriterien = pocs.filter(e => e.poc && e.poc.kriterien.length).length;
+  const bereit = eintraege.filter(e => e.status !== 'eol' && !pzKriterien(e, _pbExtra(e)).fehlt.length).length;
   const schreiben = (typeof lkDarfSchreiben === 'function') ? lkDarfSchreiben() : false;
   const sel = (wert, aktuell) => (wert === aktuell ? ' selected' : '');
   const kpi = (zahl, gesamt, label, warn) => `<div class="pm-kpi"${warn ? ' style="border-color:#fca5a5"' : ''}><b${warn ? ' style="color:#b91c1c"' : ''}>${zahl}${
@@ -119,13 +122,14 @@ function renderProzessBacklog() {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('backlog') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Jeder Prozess durchläuft denselben Weg: <b>IST erfasst → SOLL in Arbeit → POC → freigegeben → ausgerollt</b>,
-      danach die regelmäßige <b>Überprüfung</b>. Wird ein bisheriger Ablauf durch ein SOLL abgelöst, bleibt sein IST-Modell
-      in der IST-Erfassung unter <b>„wird abgelöst (EOL)"</b>, verknüpft mit dem SOLL-Modell und dessen Stand
-      (SOLL, POC, freigegeben). Der <b>POC</b> 🧪 gehört zum SOLL: Pilotwerk, Zeitraum und Erfolgskriterien stehen am
-      SOLL-Modell, am Hauptprozess. Ab dem POC braucht ein Prozess einen <b>Review-Termin</b> (Fälligkeiten → Prozesse)
-      und die Angabe, <b>wer ihn freigibt</b>. Ein Prozess ist ein <b>BPMN-Modell</b> 🔀, auch ohne Landkarte,
-      oder eine <b>Kachel</b> 🗺, die noch kein Modell hat. Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
+      Das Backlog folgt dem <b>BPM-Lebenszyklus</b> (Dumas, La Rosa, Mendling, Reijers: <i>Fundamentals of Business Process
+      Management</i>): <b>Identifiziert → IST-Aufnahme → Analyse → SOLL-Design → Umsetzung (POC, Freigabe, Rollout) → Betrieb</b>,
+      bei Abweichungen im Betrieb zurück in die Analyse. <b>Jede Karte ist ein Prozess</b>: eine <b>Kachel</b> 🗺 ohne Modell oder
+      ein Hauptprozess als <b>BPMN-Modell</b> 🔀. An ihr hängen seine Unter- und Nebenprozesse und die <b>IST-Modelle</b>, die er
+      ablöst; ein IST bleibt <b>in Benutzung</b>, bis es außer Betrieb genommen ist. Die Phase setzen Sie an der Karte, die Zeile
+      <b>„→ fehlt …"</b> zeigt, was nach den Kriterien der Phase noch aussteht. Der <b>POC</b> 🧪 gehört zum SOLL: Pilotwerk,
+      Zeitraum und Erfolgskriterien stehen am Hauptprozess. Ab dem POC braucht ein Prozess einen <b>Review-Termin</b>
+      (Fälligkeiten → Prozesse). Der <b>Prozesseigner</b> verantwortet den Prozess konzernweit,
       der <b>Standardisierungsgrad</b> sagt, ob er in allen Werken gleich laufen muss. Was am Modell leer bleibt, gilt von
       seiner Kachel, und dort von der gleichnamigen Kachel der Konzern-Landkarte. Ab der Freigabe braucht ein Prozess
       mindestens eine <b>Kennzahl</b> (ISO 9001, 4.4) und einen bewerteten <b>Reifegrad</b> (ISO/IEC 33020).
@@ -158,17 +162,19 @@ function renderProzessBacklog() {
       <div class="toolbar-spacer"></div>
       <label class="ack-check" style="font-weight:500">
         <input type="checkbox" ${_pbIstAlle ? 'checked' : ''} onchange="pbIstAlleZeigen(this.checked)">
-        <span>IST auch ohne Priorität</span></label>
+        <span>Identifizierte auch ohne Priorität</span></label>
       ${schreiben ? `<button class="btn btn-primary btn-sm" onclick="pbNeuDialog()" title="Einen Prozess als BPMN-Modell anlegen, mit oder ohne Kachel">+ Prozess anlegen</button>` : ''}
     </div>
     <div class="pm-kpis">
       ${kpi(kz.mitEigner, kz.gesamt, 'mit Prozesseigner')}
       ${kpi(kz.standardEntschieden, kz.gesamt, 'Standardisierung entschieden')}
       ${kpi(kz.priorisiert, kz.gesamt, 'priorisiert')}
-      ${kpi(kz.inArbeit, null, 'in Arbeit (SOLL bis freigegeben)')}
-      ${kpi(kz.ausgerollt, null, 'ausgerollt')}
-      ${kz.modelle ? kpi(kz.mitFreigeber, kz.modelle, 'Modelle mit Freigeber', kz.mitFreigeber < kz.modelle) : ''}
-      ${kz.eol ? kpi(kz.eolMitSoll, kz.eol, 'abgelöste IST mit SOLL verknüpft', kz.eolMitSoll < kz.eol) : ''}
+      ${kpi(kz.inArbeit, null, 'in Arbeit (IST-Aufnahme bis Rollout)')}
+      ${kpi(kz.ausgerollt, null, 'im Betrieb')}
+      ${kpi(bereit, kz.gesamt, 'Kriterien der Phase erfüllt')}
+      ${kz.modelle ? kpi(kz.mitFreigeber, kz.modelle, 'ab SOLL mit Freigeber', kz.mitFreigeber < kz.modelle) : ''}
+      ${kz.eol ? kpi(kz.eolMitSoll, kz.eol, 'IST-Modelle einem Prozess zugeordnet', kz.eolMitSoll < kz.eol) : ''}
+      ${kz.istInBenutzung ? kpi(kz.istInBenutzung, null, 'IST noch in Benutzung') : ''}
       ${pocs.length ? kpi(pocMitKriterien, pocs.length, 'POC mit Erfolgskriterien', pocMitKriterien < pocs.length) : ''}
       ${kpi(kz.ueberfaellig + kz.ohneTermin, null, 'Review überfällig oder ohne Termin', kz.ueberfaellig + kz.ohneTermin > 0)}
       ${kz.mitKennzahl !== undefined ? `
@@ -179,24 +185,28 @@ function renderProzessBacklog() {
     ${!werke.length
       ? (typeof emptyState === 'function' ? emptyState('Noch keine Landkarte angelegt.', '🗺') : '')
       : `<div class="pb-brett">${PZ_SPALTEN.map(s => _pbSpalteHtml(s, spalten[s.key], schreiben,
-          s.key === 'ist' ? istVerborgen : 0)).join('')}</div>`}`;
+          s.key === 'identifiziert' ? istVerborgen : 0)).join('')}</div>`}`;
 }
 
-/** Eine Spalte. In der IST-Erfassung steht unter dem IST, was abgelöst wird (EOL). */
+/**
+ * Eine Spalte. Die Umsetzung zeigt ihre Stufen (POC, Rollout) als Unterköpfe;
+ * in der IST-Aufnahme stehen darunter IST-Modelle, denen der Prozess fehlt.
+ */
 function _pbSpalteHtml(status, liste, schreiben, verborgen) {
-  const unter = PZ_STATUS.filter(s => s.phase === status.key);
+  const unter = PZ_STATUS.filter(s => s.phase === status.key || (s.anhang && status.key === 'aufnahme'));
   const eigen = liste.filter(e => !unter.some(s => s.key === e.status));
   const titel = [status.text].concat(unter.map(s => s.label + ': ' + s.text)).join('\n');
+  const unterTitel = (s) => (s.anhang ? '↪ IST-Modelle ohne Prozess' : s.label.replace(/^Umsetzung: /, ''));
   return `<div class="pb-spalte" style="--pb-c:${status.farbe}">
       <div class="pb-spalte-kopf" title="${esc(titel)}"><span>${esc(status.spalte || status.label)}</span><i>${liste.length}</i></div>
       <div class="pb-spalte-inhalt">
         ${eigen.length ? eigen.map(e => _pbKarteHtml(e, schreiben)).join('')
-          : (verborgen || !liste.length) ? `<div class="field-hint" style="padding:8px 4px">${status.key === 'ist' && verborgen ? 'Noch nichts priorisiert.' : 'Leer.'}</div>` : ''}
+          : (verborgen || !liste.length) ? `<div class="field-hint" style="padding:8px 4px">${status.key === 'identifiziert' && verborgen ? 'Noch nichts priorisiert.' : 'Leer.'}</div>` : ''}
         ${verborgen ? `<button class="btn btn-ghost btn-sm" style="width:100%" onclick="pbIstAlleZeigen(true)"
-          title="Erfasste, aber nicht priorisierte Prozesse zeigen">+ ${verborgen} ohne Priorität</button>` : ''}
+          title="Identifizierte, aber nicht priorisierte Prozesse zeigen">+ ${verborgen} ohne Priorität</button>` : ''}
         ${unter.map(s => {
           const teil = liste.filter(e => e.status === s.key);
-          return teil.length ? `<div class="pb-unterkopf" style="--pb-c:${s.farbe}" title="${esc(s.text)}"><span>↪ wird abgelöst (${esc(s.kurz)})</span><i>${teil.length}</i></div>
+          return teil.length ? `<div class="pb-unterkopf" style="--pb-c:${s.farbe}" title="${esc(s.text)}"><span>${esc(unterTitel(s))}</span><i>${teil.length}</i></div>
             ${teil.map(e => _pbKarteHtml(e, schreiben)).join('')}` : '';
         }).join('')}
       </div>
@@ -238,20 +248,68 @@ function _pbKarteHtml(e, schreiben) {
         : '<span style="color:#b45309">👤 kein Prozesseigner</span>'}</div>
       ${modell ? _pbFreigabeHtml(e) : ''}
       ${modell ? _pbAbloesungHtml(e, schreiben) : ''}
-      ${modell ? _pbPocHtml(e, schreiben) : ''}
+      ${modell ? _pbPocHtml(e) : ''}
       ${pruefText ? `<div class="pb-karte-pruefung"${pruefFarbe ? ` style="color:${pruefFarbe}"` : ''}>${esc(pruefText)}</div>` : ''}
       ${_pbReifeHtml(e)}
+      ${_pbAnhangHtml(e)}
+      ${_pbSchrittHtml(e, schreiben)}
       ${schreiben && modell ? `<button type="button" class="pb-angaben" onclick="pbAngabenDialog(${jsArg(k.id)})"
-          title="Prozesseigner, Freigeber, Review-Termin und Nachfolger eintragen">✎ Angaben</button>` : ''}
-      ${schreiben ? `<select class="pb-status" aria-label="Status von ${esc(k.name)}"
+          title="Phase, Prozesseigner, Freigeber, Review-Termin, Analyse und POC eintragen">✎ Angaben</button>` : ''}
+      ${schreiben ? `<select class="pb-status" aria-label="Phase von ${esc(k.name)}"
           onchange="${modell ? `pbModellStatusSetzen(${jsArg(k.id)},this.value)` : `pbStatusSetzen(${jsArg(e.werk)},${jsArg(k.id)},this.value)`}">
-          ${PZ_STATUS.filter(s => modell || s.key !== 'eol' || s.key === e.status)
+          ${PZ_STATUS.filter(s => !s.anhang || modell)
             .map(s => `<option value="${s.key}"${s.key === e.status ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
         </select>` : ''}
     </div>`;
 }
 
-/** Reifegrad, Kennzahlen und was einem freigegebenen Prozess davon noch fehlt. */
+/** Was an der Karte hängt: die IST-Modelle (mit ihrem Stand) und die Teilprozesse, aufklappbar. */
+function _pbAnhangHtml(e) {
+  const ist = e.istModelle || [], teile = e.teile || [];
+  if (!ist.length && !teile.length) return '';
+  const link = (x) => `<a href="#" onclick="event.preventDefault();pbModellOeffnen(${jsArg(x.kachel.id)})">${esc(x.kachel.name)}</a>`;
+  const tag = (iso) => String(iso || '').split('-').reverse().join('.');
+  const laeuft = (x) => x.status === 'eol' && !x.abgeloestAm;
+  const istZeile = (x) => `<li>${link(x)}${x.status !== 'eol' ? ''
+    : laeuft(x) ? ' <span class="pb-anhang-stand pb-laeuft">noch in Benutzung</span>'
+    : ` <span class="pb-anhang-stand">außer Betrieb seit ${esc(tag(x.abgeloestAm))}</span>`}</li>`;
+  const n = ist.filter(laeuft).length;
+  const kopf = [ist.length ? `📄 ${ist.length} IST${n ? `, ${n} in Benutzung` : ''}` : '',
+    teile.length ? `↳ ${teile.length} Teilprozess${teile.length > 1 ? 'e' : ''}` : ''].filter(Boolean).join(' · ');
+  return `<details class="pb-anhang"><summary>${kopf}</summary>
+      ${ist.length ? `<div class="pb-anhang-titel">IST-Aufnahme, die dieser Prozess ablöst</div><ul>${ist.map(istZeile).join('')}</ul>` : ''}
+      ${teile.length ? `<div class="pb-anhang-titel">Unter- und Nebenprozesse</div><ul>${teile.map(x => `<li>${link(x)}</li>`).join('')}</ul>` : ''}
+    </details>`;
+}
+
+/** Was die Kriterien brauchen und nicht in der Karte stehen: Regelwerke und das Regelwerk der Freigabe. */
+function _pbExtra(e) {
+  if (e.art !== 'modell') return { regelwerke: Array.isArray(e.kachel.regelwerke) ? e.kachel.regelwerke.length : 0, freigabe: '' };
+  const rw = (typeof pfRegelwerkVon === 'function') ? pfRegelwerkVon(e.kachel.id) : null;
+  return { regelwerke: e.regelwerke || 0, freigabe: rw ? rw.status : '' };
+}
+
+/** Der Name einer Phase für Sätze: ohne „Umsetzung:" davor, groß geschrieben. */
+function _pbPhasenName(key) {
+  const t = pzStatusInfo(key).label.replace(/^Umsetzung: /, '');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Die Kriterien der Phase: was zur nächsten fehlt, oder dass sie erfüllt sind. */
+function _pbSchrittHtml(e, schreiben) {
+  const kr = pzKriterien(e, _pbExtra(e));
+  if (kr.phase === 'eol') return '';
+  const jetzt = pzStatusInfo(kr.phase);
+  if (!kr.fehlt.length) {
+    return kr.naechste ? `<div class="pb-schritt pb-schritt-ok" title="Die Kriterien der Phase „${esc(jetzt.label)}" sind erfüllt">✓ bereit für „${esc(_pbPhasenName(kr.naechste))}"</div>` : '';
+  }
+  const wohin = e.art === 'modell' ? `pbAngabenDialog(${jsArg(e.kachel.id)})` : `pbOeffnen(${jsArg(e.werk)},${jsArg(e.kachel.id)})`;
+  return `<div class="pb-schritt" title="Kriterien der Phase „${esc(jetzt.label)}" (Definition of Done)">→ ${
+    kr.naechste ? `für „${esc(_pbPhasenName(kr.naechste))}"` : 'im Betrieb'} fehlt: ${esc(kr.fehlt.join(', '))}${schreiben
+    ? ` · <a href="#" onclick="event.preventDefault();${wohin}">${e.art === 'modell' ? 'eintragen' : 'in der Landkarte'}</a>` : ''}</div>`;
+}
+
+/** Reifegrad und Kennzahlen. */
 function _pbReifeHtml(e) {
   if (typeof pzLuecken !== 'function' || !e.kennzahlen) return '';
   const rg = pzReifegradInfo(e.reifegrad.key);
@@ -262,8 +320,7 @@ function _pbReifeHtml(e) {
     const titel = e.kennzahlen.liste.map(pzKpiText).join('\n') + (e.kennzahlen.geerbt ? '\n(Vorgabe, hier noch nicht gemessen)' : '');
     teile.push(`<span title="${esc(titel)}"${s.verfehlt ? ' style="color:#b91c1c"' : ''}>📊 ${s.erfuellt}/${s.gesamt} im Ziel${e.kennzahlen.geerbt ? ' ↑' : ''}</span>`);
   }
-  const luecken = pzLuecken(e);
-  if (luecken.length) teile.push(`<span style="color:#b45309">⚠ ${esc(luecken.join(', '))}</span>`);
+  // Was davon fehlt, nennen die Kriterien der Phase (_pbSchrittHtml).
   return teile.length ? `<div class="pb-karte-pruefung">${teile.join(' · ')}</div>` : '';
 }
 
@@ -274,7 +331,7 @@ function _pbReifeHtml(e) {
  * steht die Frage offen da. Unter- und Nebenprozesse gehen über ihren Hauptprozess.
  */
 function _pbFreigabeHtml(e) {
-  if (e.status === 'eol') return '';
+  if (e.status === 'eol' || !PZ_NACHFOLGER_STUFEN.includes(e.status)) return '';
   const id = e.kachel.id;
   if (typeof pfIstHauptprozess === 'function' && !pfIstHauptprozess(id)) {
     return typeof pfUeberHtml === 'function' ? `<div class="pb-karte-person">${pfUeberHtml(id)}</div>` : '';
@@ -287,7 +344,7 @@ function _pbFreigabeHtml(e) {
       Freigabe: ${esc(wer.length ? wer.map(_pbPerson).join(', ') : 'Geschäftsleitung')}</div>`;
   }
   if (e.freigeber) return `<div class="pb-karte-person">✅ Freigabe durch ${esc(_pbPerson(e.freigeber))}</div>`;
-  return e.status === 'ist' ? '' : '<div class="pb-karte-person" style="color:#b45309">✅ wer gibt frei? offen</div>';
+  return PZ_NACHFOLGER_STUFEN.includes(e.status) ? '<div class="pb-karte-person" style="color:#b45309">✅ wer gibt frei? offen</div>' : '';
 }
 
 /** Alle Modelle als Einträge, ungefiltert: Das SOLL zu einem IST kann in einer anderen Ablage liegen. */
@@ -296,32 +353,16 @@ function _pbModellEintraege() {
   return pzModellEintraege(daten, pbModelle());
 }
 
-/** Die Stufe eines verknüpften Modells als Etikett: SOLL in Arbeit, POC läuft … */
-function _pbStufeHtml(x) {
-  const s = pzStatusInfo(x.status);
-  return `<span class="pb-tag" style="color:${s.farbe};border-color:${s.farbe}" title="${esc(s.text)}">${esc(s.label)}</span>`;
-}
-
 /**
- * IST und SOLL: Das IST in EOL nennt das SOLL-Modell, das es ablöst, mit dessen
- * Stand; fehlt die Verknüpfung, steht das rot da. Das SOLL nennt, welches IST
- * es ablöst.
+ * Ein IST-Modell steht nur dann als eigene Karte da, wenn der Prozess fehlt,
+ * den es ablöst (nicht verknüpft oder gelöscht). Das steht dann rot da, mit
+ * „verknüpfen". Zugeordnete IST-Modelle hängen an ihrer Karte (_pbAnhangHtml).
  */
 function _pbAbloesungHtml(e, schreiben) {
-  const link = (id, t) => `<a href="#" onclick="event.preventDefault();pbModellOeffnen(${jsArg(id)})">${esc(t)}</a>`;
-  const ab = pzAbloesung(_pbModellEintraege(), e.kachel.id);
-  if (e.status === 'eol') {
-    if (ab.nachfolger) {
-      const poc = _pbPocVon(ab.nachfolger);
-      return `<div class="pb-karte-person" title="Das SOLL-Modell, das diesen Ablauf ablöst, und wie weit es ist">↪ abgelöst durch ${
-        link(ab.nachfolger.kachel.id, ab.nachfolger.kachel.name)} ${_pbStufeHtml(ab.nachfolger)}</div>${poc
-        ? `<div class="pb-karte-person pb-poc" title="Der POC dieses SOLL">🧪 POC: ${esc(pzPocKurz(poc.poc))}</div>` : ''}`;
-    }
-    return `<div class="pb-karte-person" style="color:#b91c1c">↪ kein SOLL-Prozess verknüpft${schreiben
-      ? ` · <a href="#" onclick="event.preventDefault();pbAngabenDialog(${jsArg(e.kachel.id)})">verknüpfen</a>` : ''}</div>`;
-  }
-  return ab.vorgaenger.length ? `<div class="pb-karte-person" title="Diese IST-Abläufe laufen aus, wenn dieser Prozess ausgerollt ist">↩ löst ab: ${
-    ab.vorgaenger.map(x => link(x.kachel.id, x.kachel.name)).join(', ')} <span class="pb-tag">IST</span></div>` : '';
+  if (e.status !== 'eol') return '';
+  return `<div class="pb-karte-person" style="color:#b91c1c">↪ kein Prozess verknüpft, den es ablöst${schreiben
+    ? ` · <a href="#" onclick="event.preventDefault();pbAngabenDialog(${jsArg(e.kachel.id)})">verknüpfen</a>` : ''}</div>${
+    e.abgeloestAm ? '' : '<div class="pb-karte-person"><span class="pb-anhang-stand pb-laeuft">noch in Benutzung</span></div>'}`;
 }
 
 /** Hauptprozess? Ohne Gliederung (Modul nicht geladen) gilt jedes Modell als einer. */
@@ -344,21 +385,16 @@ function _pbPocVon(e) {
   return null;
 }
 
-/** Die POC-Zeile einer Karte: Stand, Ergebnis und was dem laufenden POC fehlt. */
-function _pbPocHtml(e, schreiben) {
-  if (e.status === 'ist' || e.status === 'eol') return '';
+/** Die POC-Zeile einer Karte: Stand und Ergebnis. Was fehlt, nennen die Kriterien der Phase. */
+function _pbPocHtml(e) {
+  if (!PZ_NACHFOLGER_STUFEN.includes(e.status)) return '';
   const x = _pbPocVon(e);
-  const haupt = _pbIstHaupt(e.kachel.id);
-  const luecken = haupt ? pzPocLuecken(e.status, e.poc) : [];
-  if (!x && !luecken.length) return '';
-  const erg = x ? pzPocErgebnisInfo(x.poc.ergebnis) : null;
-  const titel = x ? x.poc.kriterien.map(k => `${pzPocBewertungInfo(k.bewertung).zeichen} ${k.text}`).join('\n') : '';
-  const zeile = x ? `<div class="pb-karte-person pb-poc" title="${esc(titel || 'Noch keine Erfolgskriterien')}">🧪 POC${x.ueber
+  if (!x) return '';
+  const erg = pzPocErgebnisInfo(x.poc.ergebnis);
+  const titel = x.poc.kriterien.map(k => `${pzPocBewertungInfo(k.bewertung).zeichen} ${k.text}`).join('\n');
+  return `<div class="pb-karte-person pb-poc" title="${esc(titel || 'Noch keine Erfolgskriterien')}">🧪 POC${x.ueber
       ? ` über <a href="#" onclick="event.preventDefault();pbModellOeffnen(${jsArg(x.ueber.kachel.id)})">${esc(x.ueber.kachel.name)}</a>` : ''}: ${
-      esc(pzPocKurz(x.poc).replace(/ · [^·]+$/, ''))} <span class="pb-tag" style="color:${erg.farbe};border-color:${erg.farbe}">${esc(erg.label)}</span></div>` : '';
-  const fehlt = luecken.length ? `<div class="pb-karte-person" style="color:#b45309">🧪 ${esc(luecken.join(', '))}${schreiben
-      ? ` · <a href="#" onclick="event.preventDefault();pbAngabenDialog(${jsArg(e.kachel.id)})">eintragen</a>` : ''}</div>` : '';
-  return zeile + fehlt;
+      esc(pzPocKurz(x.poc).replace(/ · [^·]+$/, ''))} <span class="pb-tag" style="color:${erg.farbe};border-color:${erg.farbe}">${esc(erg.label)}</span></div>`;
 }
 
 /** Die Auswahl des SOLL-Prozesses: zuerst, was ab dem SOLL steht, dann der Rest. */
@@ -394,9 +430,10 @@ function pbAngabenDialog(itemId, status) {
     <div class="modal-header"><h3>✎ Angaben: ${esc(p.title)}</h3>
       <button class="modal-close" onclick="closeModal()" aria-label="Schließen">×</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin:0 0 12px">Gespeichert in der BPMN-Datei des Modells, wie im Prozess-Editor. Reifegrad und Kennzahlen bleiben, wie sie sind.</div>
+      <div class="field-hint" style="margin:0 0 12px">Gespeichert in der BPMN-Datei des Modells, wie im Prozess-Editor. Reifegrad und Kennzahlen bleiben, wie sie sind.${
+        haupt ? '' : ` Dieses Modell ist ein Teilprozess${ueber.length ? ` von <b>${esc(ueber.join(', '))}</b>` : ''}: Im Backlog steht es an dessen Karte, Phase und POC gelten dort.`}</div>
       <div class="form-grid">
-        <div class="form-group"><label for="pb-a-status">Status</label>
+        <div class="form-group"><label for="pb-a-status">Phase</label>
           <select id="pb-a-status" onchange="pbAngabenStatus(this.value)">
             <option value=""${sel('', pm.status)}>wie Kachel oder Vorgabe</option>
             ${PZ_STATUS.map(s => `<option value="${s.key}"${sel(s.key, pm.status)}>${esc(s.label)}</option>`).join('')}
@@ -417,11 +454,17 @@ function pbAngabenDialog(itemId, status) {
             <button type="button" class="btn btn-ghost btn-sm" onclick="pbAngabenTermin()" title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>
           </div>
           <span class="field-hint">Im POC der Termin seiner Bewertung. Steht in Fälligkeiten → Prozesse.</span></div>
-        <div class="form-group" id="pb-a-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}"><label for="pb-a-nachfolger">Abgelöst durch (SOLL-Prozess) *</label>
-          <select id="pb-a-nachfolger"><option value="">SOLL-Prozess wählen …</option>
+        <div class="form-group" id="pb-a-analyse-zeile" style="${pm.status === 'eol' ? 'display:none' : ''}"><label for="pb-a-analyse">Analyse abgeschlossen am</label>
+          <input type="date" id="pb-a-analyse" value="${esc(pm.analyseAm)}">
+          <span class="field-hint">Die Schwachstellen des IST sind bewertet. Kriterium der Phase „Analyse".</span></div>
+        <div class="form-group" id="pb-a-nachfolger-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}"><label for="pb-a-nachfolger">Abgelöst durch (Prozess) *</label>
+          <select id="pb-a-nachfolger"><option value="">Prozess wählen …</option>
             ${_pbNachfolgerOptionen(p.itemId, pm.nachfolger)}
           </select>
-          <span class="field-hint">Pflicht bei EOL. Das IST bleibt in der IST-Erfassung und zeigt, wie weit dieses SOLL ist (SOLL, POC, freigegeben).</span></div>
+          <span class="field-hint">Pflicht bei EOL. Das IST hängt dann an der Karte dieses Prozesses.</span></div>
+        <div class="form-group" id="pb-a-abgeloest-zeile" style="${pm.status === 'eol' ? '' : 'display:none'}"><label for="pb-a-abgeloest">Außer Betrieb seit</label>
+          <input type="date" id="pb-a-abgeloest" value="${esc(pm.abgeloestAm)}">
+          <span class="field-hint">Leer: Das IST ist noch in Benutzung, etwa in Werken, die noch nicht umgestellt sind.</span></div>
       </div>
       <fieldset id="pb-a-poc" class="pb-poc-feld" style="${_pbPocSichtbar(pm.status, pm.poc) ? '' : 'display:none'}">
         <legend>🧪 POC für dieses SOLL</legend>
@@ -455,8 +498,12 @@ function pbAngabenDialog(itemId, status) {
 }
 
 function pbAngabenStatus(status) {
-  const z = document.getElementById('pb-a-nachfolger-zeile');
-  if (z) z.style.display = status === 'eol' ? '' : 'none';
+  ['pb-a-nachfolger-zeile', 'pb-a-abgeloest-zeile'].forEach(id => {
+    const z = document.getElementById(id);
+    if (z) z.style.display = status === 'eol' ? '' : 'none';
+  });
+  const a = document.getElementById('pb-a-analyse-zeile');
+  if (a) a.style.display = status === 'eol' ? 'none' : '';
   const poc = document.getElementById('pb-a-poc');
   if (poc) poc.style.display = _pbPocSichtbar(status, _pbPocFormular() || {}) ? '' : 'none';
 }
@@ -533,6 +580,8 @@ async function pbAngabenSpeichern(itemId) {
     pm.freigeber = wert('pb-a-freigeber');
     pm.naechsteUeberpruefung = wert('pb-a-termin');
     pm.nachfolger = pm.status === 'eol' ? wert('pb-a-nachfolger') : '';
+    pm.abgeloestAm = pm.status === 'eol' ? wert('pb-a-abgeloest') : '';
+    if (pm.status !== 'eol') pm.analyseAm = wert('pb-a-analyse');
     // Der POC kommt aus dem Dialog, wenn er dort steht; sonst bleibt der aus der Datei.
     const poc = _pbPocFormular();
     if (poc) pm.poc = poc;
@@ -542,7 +591,7 @@ async function pbAngabenSpeichern(itemId) {
       return;
     }
     if (pm.status === 'eol' && !pm.nachfolger) {
-      toast('Ein IST, das abgelöst wird, braucht seinen SOLL-Prozess. Bitte unter „Abgelöst durch" wählen.', 'error');
+      toast('Ein IST-Modell braucht den Prozess, der es ablöst. Bitte unter „Abgelöst durch" wählen.', 'error');
       if (knopf) knopf.disabled = false;
       return;
     }
@@ -773,5 +822,6 @@ async function pbNeuAnlegen(modellieren) {
 
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml, _pbNachfolgerOptionen, _pbSpalteHtml, _pbPocHtml, _pbPocVon };
+  module.exports = { pbEintraege, pbModelle, _pbFreigabeHtml, _pbAbloesungHtml, _pbNachfolgerOptionen, _pbSpalteHtml, _pbPocHtml, _pbPocVon,
+    _pbAnhangHtml, _pbSchrittHtml, _pbExtra };
 }

@@ -3701,7 +3701,7 @@ function lkKachelNeu(band) {
   const baender = lkBaender();
   const start = (band && baender.some(b => b.key === band)) ? band
     : (baender.some(b => b.key === 'unterstuetzung') ? 'unterstuetzung' : (baender[0] || {}).key || 'unterstuetzung');
-  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], status: 'ist', neu: true };
+  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], status: 'identifiziert', neu: true };
   renderLkEditor();
 }
 
@@ -3876,14 +3876,14 @@ async function lkKachelLoeschen(id) {
 
 function _lkPzBereit() { return typeof pzStatus === 'function'; }
 
-/** Kleine Marker auf der Kachel: Status (ab SOLL) und eine fällige Überprüfung. */
+/** Kleine Marker auf der Kachel: die Phase (sobald mehr als identifiziert) und eine fällige Überprüfung. */
 function _lkPzMarker(k) {
   if (!_lkPzBereit()) return '';
   const s = pzStatus(k);
   const teile = [];
-  if (s !== 'ist') {
+  if (s !== 'identifiziert') {
     const i = pzStatusInfo(s);
-    teile.push(`<span class="lk-pz" style="--pz-c:${i.farbe}" title="Status: ${esc(i.label)}">${esc(i.kurz)}</span>`);
+    teile.push(`<span class="lk-pz" style="--pz-c:${i.farbe}" title="Phase: ${esc(i.label)}">${esc(i.kurz)}</span>`);
   }
   const p = pzUeberpruefung(k);
   if (p.stufe === 'ueberfaellig' || p.stufe === 'fehlt') {
@@ -3908,7 +3908,7 @@ function _lkPzBlock(k) {
     : (p.stufe === 'fehlt' ? '<span style="color:#b91c1c">fehlt, freigegebene Prozesse brauchen einen Termin</span>' : '<span class="field-hint">noch keiner</span>');
   return `<div style="margin:0 0 14px;font-size:.84rem;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px">
       <div style="font-weight:700;font-size:.86rem;margin-bottom:4px">Prozessmanagement</div>
-      ${zeile('Status', `<span class="lk-pz" style="--pz-c:${st.farbe}">${esc(st.label)}</span> <span class="field-hint">${esc(st.text)}</span>`)}
+      ${zeile('Phase', `<span class="lk-pz" style="--pz-c:${st.farbe}">${esc(st.label)}</span> <span class="field-hint">${esc(st.text)}</span>`)}
       ${zeile('Prozesseigner', eig.upn ? `<a href="mailto:${esc(eig.upn)}">${esc(lkPersonName(eig.upn))}</a>${eig.geerbt ? geerbt : ''}` : '<span style="color:#b45309">nicht benannt</span>')}
       ${zeile('Standardisierung', si ? `${esc(si.label)}${std.geerbt ? geerbt : ''}` : '<span class="field-hint">noch nicht entschieden</span>')}
       ${zeile('Priorität', prio ? `<span style="color:${prio.farbe};font-weight:600">${esc(prio.label)}</span>` : '<span class="field-hint">nicht priorisiert</span>')}
@@ -3962,10 +3962,9 @@ function _lkPzEditorHtml(k) {
           <span class="field-hint" id="lk-pz-std-hinweis">${esc((pzStandardInfo(k.standardisierung) || erbStd || { text: 'Entscheidet das Prozess-Board je Konzernprozess.' }).text)}</span>
         </div>
         <div class="form-group">
-          <label>Status</label>
+          <label>Phase</label>
           <select onchange="lkPzStatusWahl(this.value)">
-            ${PZ_STATUS.filter(s => s.key !== 'eol' || s.key === status)   // EOL braucht ein IST-Modell mit seinem SOLL
-              .map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
+            ${PZ_PHASEN.map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
           </select>
           <span class="field-hint" id="lk-pz-status-hinweis">${esc(pzStatusInfo(status).text)}</span>
         </div>
@@ -4060,7 +4059,7 @@ function _lkPzUebernehmen(ziel, k) {
   if (k.neu) return teile;
   if (rgAlt !== rgNeu) teile.push(`Reifegrad: ${(pzReifegradInfo(rgAlt) || { label: 'nicht bewertet' }).label} → ${(pzReifegradInfo(rgNeu) || { label: 'nicht bewertet' }).label}`);
   if (kzAlt !== JSON.stringify(kzNeu)) teile.push(`Kennzahlen: ${kzNeu.length ? kzNeu.map(pzKpiText).join('; ') : 'keine'}`);
-  if (alt.status !== neu.status) teile.push(`Status: ${pzStatusInfo(alt.status).label} → ${pzStatusInfo(neu.status).label}`);
+  if (alt.status !== neu.status) teile.push(`Phase: ${pzStatusInfo(alt.status).label} → ${pzStatusInfo(neu.status).label}`);
   if (alt.eigner !== neu.eigner) teile.push(`Prozesseigner: ${alt.eigner || '(niemand)'} → ${neu.eigner || '(niemand)'}`);
   if (alt.std !== neu.std) teile.push(`Standardisierung: ${(pzStandardInfo(alt.std) || { label: 'offen' }).label} → ${(pzStandardInfo(neu.std) || { label: 'offen' }).label}`);
   if (alt.prio !== neu.prio) teile.push(`Priorität: ${alt.prio || 'keine'} → ${neu.prio || 'keine'}`);

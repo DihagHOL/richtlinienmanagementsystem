@@ -12,7 +12,7 @@
  *
  * Gespeichert wird an der Kachel selbst, in prozesslandkarte.json:
  *
- *   status                 Lebenszyklus: IST · SOLL · POC · freigegeben · ausgerollt
+ *   status                 Phase im Lebenszyklus: identifiziert · aufnahme · analyse · soll · poc · freigegeben · ausgerollt
  *   prozesseigner          verantwortet den Prozess konzernweit (E-Mail)
  *   standardisierung       gruppeneinheitlich · einheitlicher Rahmen · werksspezifisch
  *   prioritaet             hoch · mittel · niedrig
@@ -32,26 +32,49 @@
  * Landkarte mitzunehmen, und deshalb ist sie ohne Browser prüfbar.
  */
 
-/* ── Lebenszyklus: in der Reihenfolge, in der ein Prozess ihn durchläuft ──
-   EOL ist keine eigene Stufe, sondern gehört zur IST-Erfassung (`phase`): Es ist
-   das IST eines Ablaufs, für den schon ein SOLL läuft. Im Backlog steht es in
-   der IST-Spalte, verknüpft mit seinem SOLL-Prozess und dessen Stand. */
+/* ── Lebenszyklus: die Phasen des BPM-Lebenszyklus nach Dumas, La Rosa,
+   Mendling und Reijers (Fundamentals of Business Process Management, 2. Aufl.
+   2018): Identifikation, Aufnahme (discovery), Analyse, Redesign (SOLL),
+   Umsetzung (implementation, hier POC und Rollout) und Betrieb (monitoring and
+   controlling). Aus dem Betrieb geht es bei Abweichungen zurück in die Analyse.
+
+   Das Backlog-Element ist der Prozess, nicht das Modell: eine Kachel ohne
+   Modell oder ein Hauptprozess. Unter- und Nebenprozesse und die IST-Modelle,
+   die er ablöst, hängen an seiner Karte (pzKarten). „eol" ist deshalb keine
+   Phase, sondern die Art eines Modells: die IST-Aufnahme eines Ablaufs, den ein
+   anderer Prozess ablöst. Sie kann noch in Benutzung sein, etwa in Werken, die
+   noch nicht umgestellt sind; außer Betrieb ist sie erst mit abgeloestAm.
+
+   „ist" ist der alte Schlüssel für „IST erfasst": an einer Kachel hieß das
+   „steht in der Landkarte" (heute identifiziert), an einem Modell „Ablauf
+   aufgenommen" (heute aufnahme). Beides wird beim Lesen umgedeutet. */
 const PZ_STATUS = [
-  { key: 'ist',         label: 'IST erfasst',    kurz: 'IST',  farbe: '#64748b', spalte: 'IST-Erfassung',
-    text: 'Der Prozess steht in der Landkarte oder ist als IST-Modell aufgenommen. Ein SOLL ist noch nicht begonnen.' },
-  { key: 'eol',         label: 'IST, wird abgelöst (EOL)', kurz: 'EOL', farbe: '#9F1239', phase: 'ist',
-    text: 'IST-Erfassung eines Ablaufs, den ein SOLL-Prozess ablöst. Sie ist mit dem SOLL-Prozess verknüpft und zeigt, wie weit er ist (SOLL, POC, freigegeben). Der Ablauf bleibt als Nachweis stehen, wird aber nicht weiterentwickelt und nicht mehr überprüft.' },
-  { key: 'soll',        label: 'SOLL in Arbeit', kurz: 'SOLL', farbe: '#0284C7',
-    text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema.' },
-  { key: 'poc',         label: 'POC läuft',      kurz: 'POC',  farbe: '#F08300',
-    text: 'Der SOLL-Prozess wird in einem Werk erprobt. Pilotwerk, Zeitraum und Erfolgskriterien stehen vorher fest, am SOLL-Modell (✎ Angaben).' },
-  { key: 'freigegeben', label: 'Freigegeben',    kurz: 'frei', farbe: '#17509E',
-    text: 'Nach dem POC freigegeben. Modell und Regelwerke sind veröffentlicht, der Rollout läuft.' },
-  { key: 'ausgerollt',  label: 'Ausgerollt',     kurz: 'live', farbe: '#15803d',
-    text: 'Der Prozess läuft in allen vorgesehenen Werken und wird regelmäßig überprüft.' },
+  { key: 'identifiziert', label: 'Identifiziert', kurz: 'neu', farbe: '#94a3b8',
+    text: 'Der Prozess steht in der Landkarte. Prozesseigner und Priorität entscheiden, ob und wann er aufgenommen wird.' },
+  { key: 'aufnahme',    label: 'IST-Aufnahme', kurz: 'IST', farbe: '#64748b',
+    text: 'Der Ablauf wird so aufgenommen, wie er heute läuft: als IST-Modell, bei Varianten je eines.' },
+  { key: 'analyse',     label: 'Analyse', kurz: 'Analyse', farbe: '#7c3aed',
+    text: 'Die Schwachstellen des IST werden bewertet: was kostet Zeit, verursacht Fehler oder birgt Risiko, und warum.' },
+  { key: 'soll',        label: 'SOLL-Design', kurz: 'SOLL', farbe: '#0284C7',
+    text: 'Prozesseigner und Fachabteilung modellieren den Zielprozess nach dem Hausschema, mit Regelwerk und Freigeber.' },
+  { key: 'poc',         label: 'Umsetzung: POC läuft', kurz: 'POC', farbe: '#F08300', phase: 'umsetzung',
+    text: 'Das SOLL wird erprobt. Pilotwerk, Zeitraum und Erfolgskriterien stehen vorher fest (✎ Angaben).' },
+  { key: 'freigegeben', label: 'Umsetzung: freigegeben, Rollout', kurz: 'Rollout', farbe: '#17509E', phase: 'umsetzung',
+    text: 'Nach dem POC freigegeben. Modell und Regelwerk sind veröffentlicht, der Rollout in die Werke läuft. Er ist abgeschlossen, wenn kein abgelöstes IST mehr in Benutzung ist.' },
+  { key: 'ausgerollt',  label: 'Betrieb', kurz: 'Betrieb', farbe: '#15803d',
+    text: 'Der Prozess läuft in allen vorgesehenen Werken. Kennzahlen und Review zeigen, ob er hält, was er soll; bei Abweichung geht es zurück in die Analyse.' },
+  { key: 'eol',         label: 'IST-Modell eines anderen Prozesses (EOL)', kurz: 'EOL', farbe: '#9F1239', anhang: true,
+    text: 'IST-Aufnahme eines Ablaufs, den ein anderer Prozess ablöst. Sie hängt an dessen Karte und bleibt in Benutzung, bis sie außer Betrieb genommen ist.' },
 ];
-/** Die Spalten des Backlogs: jede Stufe ohne `phase`. */
-const PZ_SPALTEN = PZ_STATUS.filter(s => !s.phase);
+/** Die Phasen, die ein Prozess haben kann (EOL ist die Art eines Modells). */
+const PZ_PHASEN = PZ_STATUS.filter(s => !s.anhang);
+/** Die Spalten des Backlogs. Die Umsetzung fasst POC und Rollout zusammen. */
+const PZ_SPALTEN = [
+  { key: 'identifiziert' }, { key: 'aufnahme' }, { key: 'analyse' }, { key: 'soll' },
+  { key: 'umsetzung', label: 'Umsetzung', kurz: 'Umsetzung', farbe: '#F08300',
+    text: 'POC, Freigabe und Rollout: Das SOLL wird erprobt, freigegeben und in die Werke gebracht.' },
+  { key: 'ausgerollt' },
+].map(s => Object.assign({}, PZ_STATUS.find(x => x.key === s.key) || {}, s));
 /** Stufen, in denen ein Prozess einen IST-Prozess ablösen kann. */
 const PZ_NACHFOLGER_STUFEN = ['soll', 'poc', 'freigegeben', 'ausgerollt'];
 
@@ -108,13 +131,23 @@ const PZ_BALD_TAGE = 30;
 /** Ab diesen Stufen braucht ein Prozess einen Review-Termin (POC: die Bewertung des Pilots). */
 const PZ_REVIEW_PFLICHT = ['poc', 'freigegeben', 'ausgerollt'];
 
+/** Die Phase einer Kachel. Ohne Angabe, mit dem alten „ist" oder mit EOL (gibt es nur an Modellen): identifiziert. */
 function pzStatus(k) {
   const s = k && k.status;
-  return PZ_STATUS.some(x => x.key === s) ? s : 'ist';   // was in der Karte steht, ist erfasst
+  return PZ_PHASEN.some(x => x.key === s) ? s : 'identifiziert';
 }
-function pzStatusInfo(key) { return PZ_STATUS.find(x => x.key === key) || PZ_STATUS[0]; }
-/** Die Spalte einer Stufe: EOL steht bei IST. */
-function pzPhase(key) { const s = pzStatusInfo(key); return s.phase || s.key; }
+/** Die Angaben zu einer Phase; das alte „ist" eines Modells ist die IST-Aufnahme. */
+function pzStatusInfo(key) {
+  const k = key === 'ist' ? 'aufnahme' : key;
+  return PZ_STATUS.find(x => x.key === k) || PZ_STATUS[0];
+}
+/** Die Spalte einer Phase: POC und Rollout stehen in der Umsetzung, ein loses IST-Modell in der IST-Aufnahme. */
+function pzPhase(key) { const s = pzStatusInfo(key); return s.anhang ? 'aufnahme' : (s.phase || s.key); }
+/** Die Phase davor und danach (Reihenfolge von PZ_PHASEN). */
+function pzNaechstePhase(key) {
+  const i = PZ_PHASEN.findIndex(x => x.key === pzStatusInfo(key).key);
+  return i >= 0 && i < PZ_PHASEN.length - 1 ? PZ_PHASEN[i + 1].key : '';
+}
 function pzStandardInfo(key) { return PZ_STANDARD.find(x => x.key === key) || null; }
 function pzPrioInfo(key) { return PZ_PRIO.find(x => x.key === key) || null; }
 function pzReifegradInfo(key) { return PZ_REIFEGRAD.find(x => x.key === String(key == null ? '' : key)) || null; }
@@ -268,13 +301,14 @@ function pzUeberpruefung(k, heute) {
   const datum = String((k && k.naechsteUeberpruefung) || '').slice(0, 10);
   const tage = pzTageBis(datum, heute);
   let stufe = '';
-  if (pzStatus(k) === 'eol') {
-    // Ein auslaufender Prozess wird nicht mehr überprüft: Er wird abgelöst.
+  const st = k && k.status;
+  if (st === 'eol') {
+    // Ein IST-Modell, das ein anderer Prozess ablöst, wird nicht mehr überprüft.
     stufe = '';
   } else if (tage === null) {
     // Ohne Termin ist es eine Lücke, sobald es etwas zu bewerten gibt: der POC
     // (sein Ergebnis gegen die Erfolgskriterien) und der freigegebene Prozess.
-    stufe = PZ_REVIEW_PFLICHT.includes(pzStatus(k)) ? 'fehlt' : '';
+    stufe = PZ_REVIEW_PFLICHT.includes(pzStatusInfo(st).key) ? 'fehlt' : '';
   } else if (tage < 0) stufe = 'ueberfaellig';
   else if (tage <= PZ_BALD_TAGE) stufe = 'bald';
   else stufe = 'spaeter';
@@ -296,11 +330,11 @@ function pzTerminVorschlag(heute, monate) {
  * → Beschreibung für den Versionsverlauf ('' = keine Änderung)
  */
 function pzStatusSetzen(k, neu, heute) {
-  if (!k || !PZ_STATUS.some(x => x.key === neu)) return '';
+  if (!k || !PZ_PHASEN.some(x => x.key === neu)) return '';
   const alt = pzStatus(k);
   if (alt === neu && k.status === neu) return '';
   k.status = neu;
-  let text = `Status: ${pzStatusInfo(alt).label} → ${pzStatusInfo(neu).label}`;
+  let text = `Phase: ${pzStatusInfo(alt).label} → ${pzStatusInfo(neu).label}`;
   if (['freigegeben', 'ausgerollt'].includes(neu) && pzTageBis(k.naechsteUeberpruefung, heute) === null) {
     k.naechsteUeberpruefung = pzTerminVorschlag(heute);
     text += `; Überprüfung bis ${k.naechsteUeberpruefung}`;
@@ -352,7 +386,7 @@ function pzSortieren(a, b) {
   return String(a.kachel.name || '').localeCompare(String(b.kachel.name || ''), 'de');
 }
 
-/** Einträge je Spalte, sortiert. → { ist: [...], soll: [...], ... } (EOL steht unter ist) */
+/** Einträge oder Karten je Spalte, sortiert. → { identifiziert: [...], aufnahme: [...], ..., umsetzung: [...], ausgerollt: [...] } */
 function pzSpalten(eintraege) {
   const sp = {};
   PZ_SPALTEN.forEach(s => { sp[s.key] = []; });
@@ -394,21 +428,108 @@ function pzNachfolgerKandidaten(eintraege, eigeneId) {
   };
 }
 
-/** Kennzahlen für die Kopfzeile des Backlogs. */
+/**
+ * Die Karten des Backlogs: je Prozess eine. Das ist jede Kachel ohne Modell
+ * und jedes Modell, das unter keinem anderen steht (Hauptprozess) und keine
+ * IST-Aufnahme eines anderen Prozesses ist. An der Karte hängen
+ *   teile       ihre Unter- und Nebenprozesse, über beliebig viele Stufen,
+ *   istModelle  die IST-Modelle (EOL), die dieser Prozess ablöst, samt Varianten.
+ * Ein IST-Modell, dessen Prozess fehlt (nicht verknüpft oder gelöscht), bleibt
+ * eine eigene Karte, damit es nicht verschwindet.
+ * Erwartet Einträge aus pzEintraege (Modelle mit `haupt`, siehe pzModellEintraege).
+ */
+function pzKarten(eintraege) {
+  const alle = eintraege || [];
+  const modelle = new Map(alle.filter(e => e.art === 'modell').map(e => [String(e.kachel.id), e]));
+  const oben = (e) => (e.haupt || []).map(id => modelle.get(String(id))).find(Boolean) || e;
+  // Wo ein Eintrag hingehört: { karte, rolle } mit rolle karte · teil · ist.
+  const heim = (e) => {
+    if (e.art !== 'modell') return { karte: e, rolle: 'karte' };
+    const h = oben(e);
+    if (e.status === 'eol' || h.status === 'eol') {
+      // Eine IST-Aufnahme gehört zum Prozess, den sie nennt (oder den ihr Hauptprozess nennt).
+      const nid = (e.status === 'eol' && e.nachfolger) ? e.nachfolger : (h.status === 'eol' ? h.nachfolger : '');
+      const n = nid ? modelle.get(String(nid)) : null;
+      const prozess = n ? oben(n) : null;
+      if (prozess && prozess.status !== 'eol') return { karte: prozess, rolle: 'ist' };
+      return h === e ? { karte: e, rolle: 'karte' } : { karte: h, rolle: 'teil' };
+    }
+    return h === e ? { karte: e, rolle: 'karte' } : { karte: h, rolle: 'teil' };
+  };
+  const karten = new Map();
+  const zuordnung = alle.map(e => ({ e, r: heim(e) }));
+  zuordnung.filter(x => x.r.rolle === 'karte').forEach(x => karten.set(x.e, Object.assign({}, x.e, { teile: [], istModelle: [] })));
+  zuordnung.filter(x => x.r.rolle !== 'karte').forEach(x => {
+    const k = karten.get(x.r.karte);
+    if (k) k[x.r.rolle === 'ist' ? 'istModelle' : 'teile'].push(x.e);
+    else karten.set(x.e, Object.assign({}, x.e, { teile: [], istModelle: [] }));   // ohne Heimat: eigene Karte
+  });
+  return [...karten.values()];
+}
+
+/**
+ * Was ein Prozess braucht, um seine Phase abzuschließen (Definition of Done),
+ * geprüft an den vorhandenen Angaben. Die Kriterien blockieren nichts, die
+ * Phase wird von Hand gesetzt; die Karte zeigt, was fehlt.
+ * extra: { regelwerke: Anzahl verknüpfter Regelwerke, freigabe: Status des
+ * Regelwerks der Freigabe ('' = keins) }.  → { phase, naechste, fehlt: ['…'] }
+ */
+function pzKriterien(k, extra, heute) {
+  const x = extra || {};
+  const phase = pzStatusInfo(k && k.status).key;
+  const fehlt = [];
+  const modell = k.art === 'modell';
+  const ist = k.istModelle || [];
+  if (phase === 'identifiziert') {
+    if (!k.eigner || !k.eigner.upn) fehlt.push('Prozesseigner');
+    if (!k.prio) fehlt.push('Priorität');
+  } else if (phase === 'aufnahme') {
+    if (!modell && !ist.length) fehlt.push('IST-Modell');
+  } else if (phase === 'analyse') {
+    if (!k.analyseAm) fehlt.push('Analyse abschließen (Datum)');
+  } else if (phase === 'soll') {
+    if (!modell) fehlt.push('SOLL-Modell');
+    if (!x.regelwerke) fehlt.push('Regelwerk');
+    if (!k.freigeber && !x.freigabe) fehlt.push('Freigeber');
+  } else if (phase === 'poc') {
+    const l = pzPocLuecken('poc', k.poc, heute);
+    fehlt.push(...l);
+    if (k.pruefung && !k.pruefung.datum) fehlt.push('Termin der Bewertung');
+    if (!l.some(t => /Ende/.test(t)) && (!k.poc || k.poc.ergebnis !== 'bestanden')) fehlt.push('POC bestanden');
+  } else if (phase === 'freigegeben') {
+    if (x.freigabe !== 'Veröffentlicht') fehlt.push('Regelwerk der Freigabe veröffentlicht');
+    fehlt.push(...pzLuecken(k));
+    const laeuft = ist.filter(i => i.status === 'eol' && !i.abgeloestAm).length;
+    if (laeuft) fehlt.push(`${laeuft} IST noch in Benutzung`);
+  } else if (phase === 'ausgerollt') {
+    fehlt.push(...pzLuecken(k));
+    if (k.pruefung && k.pruefung.stufe === 'fehlt') fehlt.push('Review-Termin');
+    if (k.pruefung && k.pruefung.stufe === 'ueberfaellig') fehlt.push('Review überfällig');
+  } else if (phase === 'eol') {
+    fehlt.push('Prozess verknüpfen, den es ablöst');
+  }
+  return { phase, naechste: pzNaechstePhase(phase), fehlt };
+}
+
+/** Kennzahlen für die Kopfzeile des Backlogs, gezählt über die Karten (Prozesse). */
 function pzKennzahlen(eintraege) {
   const n = eintraege.length;
   const zaehl = (f) => eintraege.filter(f).length;
+  const ist = eintraege.flatMap(k => k.istModelle || []);
+  const loseIst = eintraege.filter(k => k.status === 'eol');
   return {
     gesamt: n,
     mitEigner: zaehl(e => e.eigner.upn),
     standardEntschieden: zaehl(e => e.standard.key),
     priorisiert: zaehl(e => e.prio),
-    inArbeit: zaehl(e => ['soll', 'poc', 'freigegeben'].includes(e.status)),
+    inArbeit: zaehl(e => ['aufnahme', 'analyse', 'soll', 'poc', 'freigegeben'].includes(e.status)),
     ausgerollt: zaehl(e => e.status === 'ausgerollt'),
-    eol: zaehl(e => e.status === 'eol'),
-    eolMitSoll: zaehl(e => e.status === 'eol' && e.nachfolger),
-    modelle: zaehl(e => e.art === 'modell' && e.status !== 'eol'),
-    mitFreigeber: zaehl(e => e.art === 'modell' && e.status !== 'eol' && e.freigeber),
+    // IST-Modelle: zugeordnet hängen sie an ihrer Karte, lose stehen sie für sich.
+    eol: ist.length + loseIst.length,
+    eolMitSoll: ist.length,
+    istInBenutzung: ist.concat(loseIst).filter(i => i.status === 'eol' && !i.abgeloestAm).length,
+    modelle: zaehl(e => PZ_NACHFOLGER_STUFEN.includes(e.status)),
+    mitFreigeber: zaehl(e => PZ_NACHFOLGER_STUFEN.includes(e.status) && e.freigeber),
     // Wer über seinen Hauptprozess geprüft wird, zählt dort.
     ueberfaellig: zaehl(e => e.pruefung.stufe === 'ueberfaellig' && !e.pruefung.ueber),
     ohneTermin: zaehl(e => e.pruefung.stufe === 'fehlt' && !e.pruefung.ueber),
@@ -474,7 +595,7 @@ function pzFaellige(daten, werke, heute, modelle) {
 
 const PZ_PM_MARKER = /\[\[rms:pm=([^\]]*)\]\]/;
 const PZ_KPI_MARKER = /\[\[rms:kpi=([^\]]*)\]\]/g;
-const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung', 'reifegrad', 'freigeber', 'nachfolger'];
+const PZ_PM_FELDER = ['status', 'prozesseigner', 'standardisierung', 'prioritaet', 'naechsteUeberpruefung', 'reifegrad', 'freigeber', 'nachfolger', 'analyseAm', 'abgeloestAm'];
 const PZ_KPI_FELDER = ['name', 'einheit', 'richtung', 'ziel', 'ist', 'stand'];
 const PZ_PM_TEXTZEILE = 'Prozessmanagement: ';
 const PZ_KPI_TEXTZEILE = 'Kennzahlen: ';
@@ -504,8 +625,10 @@ function _pzFeld(s) { return String(s == null ? '' : s).replace(/[|\[\]\r\n]/g, 
 function pzPmNormal(pm) {
   const p = pm || {};
   const datum = String(p.naechsteUeberpruefung || '').trim().slice(0, 10);
+  const tag = (s) => { const d = String(s || '').trim().slice(0, 10); return pzTageBis(d) === null ? '' : d; };
   return {
-    status: PZ_STATUS.some(s => s.key === p.status) ? p.status : '',
+    // Das alte „ist" eines Modells ist die IST-Aufnahme.
+    status: p.status === 'ist' ? 'aufnahme' : (PZ_STATUS.some(s => s.key === p.status) ? p.status : ''),
     prozesseigner: _pzFeld(p.prozesseigner),
     standardisierung: pzStandardInfo(p.standardisierung) ? p.standardisierung : '',
     prioritaet: pzPrioInfo(p.prioritaet) ? p.prioritaet : '',
@@ -513,6 +636,8 @@ function pzPmNormal(pm) {
     reifegrad: pzReifegradInfo(p.reifegrad) ? String(p.reifegrad) : '',
     freigeber: _pzFeld(p.freigeber),
     nachfolger: _pzFeld(p.nachfolger),
+    analyseAm: tag(p.analyseAm),
+    abgeloestAm: tag(p.abgeloestAm),
     kennzahlen: pzKpiNormal(p.kennzahlen),
     poc: pzPocNormal(p.poc),
   };
@@ -657,7 +782,7 @@ function pzPmKlartext(pm) {
   const n = pzPmNormal(pm);
   if (_pzPmZeileLeer(n)) return '';
   const teile = [];
-  if (n.status) teile.push('Status ' + pzStatusInfo(n.status).label);
+  if (n.status) teile.push('Phase ' + pzStatusInfo(n.status).label);
   if (n.prozesseigner) teile.push('Prozesseigner ' + n.prozesseigner);
   if (n.standardisierung) teile.push(pzStandardInfo(n.standardisierung).label);
   if (n.prioritaet) teile.push('Priorität ' + pzPrioInfo(n.prioritaet).label);
@@ -668,6 +793,8 @@ function pzPmKlartext(pm) {
     const m = (typeof procModellVon === 'function') ? procModellVon(n.nachfolger) : null;
     teile.push('abgelöst durch ' + (m ? m.title : n.nachfolger));
   }
+  if (n.analyseAm) teile.push('Analyse abgeschlossen am ' + n.analyseAm);
+  if (n.abgeloestAm) teile.push('außer Betrieb seit ' + n.abgeloestAm);
   return PZ_PM_TEXTZEILE + teile.join(' · ');
 }
 
@@ -766,6 +893,7 @@ function pzModellEintraege(daten, modelle, heute) {
   const eintraege = _pzModellEintraegeEinzeln(daten, modelle, heute);
   const hauptVon = pzHauptprozesse(modelle);
   const nachId = new Map(eintraege.map(e => [String(e.kachel.id), e]));
+  eintraege.forEach(e => { e.haupt = hauptVon.get(String(e.kachel.id)) || []; });
   eintraege.forEach(e => {
     if (e.pruefung.eigen) return;
     const haupt = (hauptVon.get(String(e.kachel.id)) || []).map(h => nachId.get(h)).filter(Boolean);
@@ -784,7 +912,9 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
     const host = (Array.isArray(m.kacheln) && m.kacheln.length === 1) ? m.kacheln[0] : null;
     const werk = m.ordner || '';
     const alsKachel = { name: m.title };
-    const status = pm.status || (host ? pzStatus(host.kachel) : 'ist');
+    // Ein Modell ist mindestens aufgenommen: Sagt die Kachel nur „identifiziert", gilt die IST-Aufnahme.
+    const vonKachel = host ? pzStatus(host.kachel) : '';
+    const status = pm.status || (vonKachel && vonKachel !== 'identifiziert' ? vonKachel : 'aufnahme');
     let eigner = { upn: pm.prozesseigner, geerbt: false };
     if (!eigner.upn) {
       let von = '';
@@ -820,6 +950,7 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
     return {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
       status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger, poc: pm.poc,
+      analyseAm: pm.analyseAm, abgeloestAm: pm.abgeloestAm, regelwerke: Number(m.regelwerke) || 0, haupt: [],
       pruefung: Object.assign(pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute), { eigen: !!termin, ueber: null }),
       reifegrad, kennzahlen,
     };
@@ -829,7 +960,7 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
+    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, pzPhase, pzNaechstePhase, PZ_PHASEN, pzKarten, pzKriterien, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
     PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,
     pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocWerkeText, pzPocErgebnisInfo, pzPocBewertungInfo,
     PZ_STANDARD, PZ_PRIO, PZ_UEBERPRUEFUNG_MONATE, PZ_BALD_TAGE, PZ_REVIEW_PFLICHT,
