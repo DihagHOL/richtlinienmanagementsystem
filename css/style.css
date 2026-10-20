@@ -1053,8 +1053,9 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pv-tabelle th { text-align: left; font-weight: 600; color: var(--c-muted); padding: 4px 6px; border-bottom: 1px solid var(--c-border); }
 .pv-tabelle td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 .pv-tabelle select, .pv-tabelle input { width: 100%; min-width: 0; font-size: .8rem; }
-.pv-tabelle td:nth-child(2), .pv-tabelle td:nth-child(4) { width: 32%; }
+.pv-tabelle td:nth-child(2), .pv-tabelle td:nth-child(4) { width: 27%; }
 .pv-tabelle td:nth-child(5) select { min-width: 132px; }
+.pv-tabelle td:nth-child(6) { min-width: 170px; }
 .pv-pfeil { color: var(--c-muted); text-align: center; width: 18px; }
 .pv-nr { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; color: #fff; font-weight: 700; font-size: .8rem; }
 .pv-offen { margin-top: 10px; }
