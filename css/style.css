@@ -1064,6 +1064,19 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pv-chip { font: inherit; font-size: .74rem; padding: 2px 8px; border-radius: 12px; border: 1px dashed var(--c-border); background: #f8fafc; color: var(--c-navy); cursor: pointer; }
 .pv-chip:hover { border-color: var(--c-primary); color: var(--c-primary); }
 .pb-vergleich { margin-left: 4px; }
+.pv-notiz-knopf { font: inherit; font-size: .8rem; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--c-border); background: #fff; color: var(--c-muted); cursor: pointer; white-space: nowrap; }
+.pv-notiz-knopf.hat { color: var(--c-navy, #1A2644); border-color: #93c5fd; background: #eff6ff; font-weight: 600; }
+.pv-notiz-knopf.offen { border-color: var(--c-primary, #17509E); }
+.pv-notizen-zeile td { background: #f8fafc; }
+.pv-notizen { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.pv-notiz { background: #fff; border: 1px solid var(--c-border); border-radius: 8px; padding: 6px 10px; position: relative; }
+.pv-notiz-wer { font-weight: 600; color: var(--c-navy, #1A2644); }
+.pv-notiz-wann { color: var(--c-muted); font-size: .74rem; }
+.pv-notiz-text { margin-top: 2px; white-space: pre-wrap; }
+.pv-notiz-weg { position: absolute; top: 4px; right: 6px; font: inherit; font-size: .74rem; border: none; background: none; color: var(--c-muted); cursor: pointer; }
+.pv-notiz-weg:hover { color: #b91c1c; }
+.pv-notiz-neu { display: flex; gap: 6px; }
+.pv-notiz-neu input { flex: 1; min-width: 0; }
 .ic-png { margin-left: auto; flex: 0 0 auto; font: inherit; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; }
 .ic-png:hover { border-color: var(--c-primary); color: var(--c-primary); }
 .pb-schritt { margin-top: 4px; font-size: .74rem; color: #b45309; }

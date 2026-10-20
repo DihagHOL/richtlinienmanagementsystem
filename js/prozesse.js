@@ -121,8 +121,8 @@ function _procDokuText(ids, docs, pm, gl) {
 /** Gehört die Zeile zu dem, was _procDokuText schreibt? Alles andere ist Beschreibung und bleibt stehen. */
 function _procIstDokuZeile(z) {
   const t = String(z || '').trim();
-  return /^\[\[rms:(policies|doc|pm|kpi|poc|pockrit|vgl|unter|neben)=/.test(t)
-    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Unterprozesse|Nebenprozesse):/.test(t);
+  return /^\[\[rms:(policies|doc|pm|kpi|poc|pockrit|vgl|vglnotiz|unter|neben)=/.test(t)
+    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Anmerkungen zum Vergleich|Unterprozesse|Nebenprozesse):/.test(t);
 }
 
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
@@ -2413,7 +2413,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Dokument):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Anmerkungen zum Vergleich|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -3119,6 +3119,7 @@ function _procPmAusFormular() {
     analyseAm: (_procPm && _procPm.analyseAm) || '',
     poc: (_procPm && _procPm.poc) || null,
     vergleich: (_procPm && _procPm.vergleich) || [],
+    vergleichNotizen: (_procPm && _procPm.vergleichNotizen) || [],
   }) : null;
   // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
   const kc = document.getElementById('proc-pm-kpi');

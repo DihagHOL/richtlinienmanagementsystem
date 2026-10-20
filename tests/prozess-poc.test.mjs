@@ -118,7 +118,7 @@ ok(run(`_procIstDokuZeile('[[rms:pockrit=x|]]')`) && run(`_procIstDokuZeile('POC
   'Marker und Klartextzeilen erkannt, freier Text bleibt Beschreibung');
 const P = lies('js/prozesse.js');
 ok(/poc: \(_procPm && _procPm\.poc\) \|\| null,/.test(P), 'Der Modeler bearbeitet den POC nicht, behält ihn aber beim Speichern');
-ok(/Prozessmanagement\|Kennzahlen\|POC\|POC-Kriterien\|Vergleich mit dem IST\|Dokument\)/.test(P), 'Die Ansicht zeigt die POC-Zeilen nicht als Beschreibung');
+ok(/Prozessmanagement\|Kennzahlen\|POC\|POC-Kriterien\|Vergleich mit dem IST\|Anmerkungen zum Vergleich\|Dokument\)/.test(P), 'Die Ansicht zeigt die POC-Zeilen nicht als Beschreibung');
 ok(/🧪 POC\$\{poc\.ueber \? ' über ' \+ esc\(poc\.ueber\) : ''\}/.test(P) && /pzPocLuecken\(e\.status, e\.poc\)/.test(P), 'In der Modellansicht als Chip, mit Lücken');
 ok(/Bearbeiten im Backlog unter ✎ Angaben/.test(P), 'Im Modeler lesend, mit Hinweis, wo er gepflegt wird');
 

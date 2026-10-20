@@ -18,6 +18,11 @@
  * Gespeichert wird am SOLL (Hauptprozess), als Marker in seiner BPMN-Datei
  * (pm.vergleich, js/prozessmodell.js). IST sind die IST-Modelle an der Karte
  * des Prozesses (pzKarten), SOLL der Hauptprozess und seine Teilprozesse.
+ *
+ * Gemeinsam arbeiten: Zu jeder Zuordnung können die Beteiligten Anmerkungen
+ * hinterlassen (wer, wann, was). Eine Anmerkung wird sofort gespeichert; was
+ * andere inzwischen geschrieben haben, bleibt dabei erhalten (Zusammenführen
+ * mit dem Stand der Datei). Löschen kann jede und jeder nur die eigenen.
  */
 
 /** Farben der Zuordnungen: gut zu unterscheiden, weiße Schrift darauf lesbar. */
@@ -175,6 +180,30 @@ function pvSvgUntereinander(teile) {
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${breite}" height="${y}" viewBox="0 0 ${breite} ${y}">${innen.join('')}</svg>`;
 }
 
+/** Eine neue Kennung für eine Zuordnung, die es in `zeilen` noch nicht gibt. */
+function pvNeueId(zeilen, zufall) {
+  const z = zufall || Math.random;
+  const vorhanden = new Set((zeilen || []).map(x => x.id));
+  for (;;) {
+    const id = z().toString(36).slice(2, 8);
+    if (/^[a-z0-9]{6}$/.test(id) && !vorhanden.has(id)) return id;
+  }
+}
+
+function pvNotizSchluessel(n) { return [n.zeile, n.am, n.von, n.text].join('|'); }
+
+/**
+ * Anmerkungen beim Speichern zusammenführen: was in der Datei steht (auch von
+ * anderen, inzwischen geschrieben) und was hier dazukam; ohne die, deren
+ * Zuordnung es nicht mehr gibt, und ohne die hier gelöschten.
+ */
+function pvNotizenZusammen(ausDatei, lokal, zeilenIds, weg) {
+  const ids = new Set(zeilenIds || []), ohne = weg || new Set();
+  const alle = (ausDatei || []).concat(lokal || []);
+  const n = (typeof pzVglNotizenNormal === 'function') ? pzVglNotizenNormal(alle) : alle;
+  return n.filter(x => ids.has(x.zeile) && !ohne.has(pvNotizSchluessel(x)));
+}
+
 /** Die Gegenüberstellung als Tabellenzeilen (Word): Nr., IST, SOLL, Änderung, Grund. */
 function pvZeilenFuerWord(zeilen, namen) {
   const n = (typeof pzVglNormal === 'function') ? pzVglNormal(zeilen) : (zeilen || []);
@@ -230,7 +259,11 @@ async function pvOeffnen(id, von) {
     const pm = (typeof procPmAusXml === 'function' ? procPmAusXml(soll[0].xml) : null) || {};
     _pv = { sollId: String(k.kachel.id), titel: k.kachel.name, von: von || 'backlog', ist, soll,
       zeilen: (typeof pzVglNormal === 'function' ? pzVglNormal(pm.vergleich) : []).map(z => Object.assign({}, z)),
+      notizen: (typeof pzVglNotizenNormal === 'function' ? pzVglNotizenNormal(pm.vergleichNotizen) : []),
+      offen: new Set(), weg: new Set(),
       geaendert: false, tab: { ist: 0, soll: 0 }, gross: { ist: false, soll: false } };
+    // Ältere Zuordnungen ohne Kennung bekommen eine; gespeichert wird sie mit der nächsten Änderung.
+    _pv.zeilen.forEach(z => { if (!z.id) z.id = pvNeueId(_pv.zeilen); });
     _pvRender();
   } catch (e) {
     mount.innerHTML = `<div class="field-hint" style="color:#b91c1c">Vergleich nicht ladbar: ${esc(e.message)}</div>`;
@@ -283,6 +316,7 @@ function _pvRender() {
         <div class="pm-kpi"${ab.istZu < ab.istGesamt ? ' style="border-color:#fca5a5"' : ''}><b>${ab.istZu}<span>/${ab.istGesamt}</span></b>IST-Schritte zugeordnet</div>
         <div class="pm-kpi"${ab.sollZu < ab.sollGesamt ? ' style="border-color:#fca5a5"' : ''}><b>${ab.sollZu}<span>/${ab.sollGesamt}</span></b>SOLL-Schritte zugeordnet</div>
         ${kurz ? `<div class="pm-kpi" style="flex:2 1 260px"><b style="font-size:.95rem">${esc(kurz)}</b>Gegenüberstellung</div>` : ''}
+        ${_pv.notizen.length ? `<div class="pm-kpi"><b>💬 ${_pv.notizen.length}</b>Anmerkungen</div>` : ''}
       </div>
       ${_pv.ist.length ? bild('ist', 'IST') : '<div class="field-hint" style="margin:8px 0">Diesem Prozess ist noch kein IST-Modell zugeordnet.</div>'}
       ${bild('soll', 'SOLL')}
@@ -309,7 +343,7 @@ function _pvTabelleHtml(darf) {
   if (!_pv.zeilen.length) return '<div class="field-hint" style="margin:6px 0">Noch keine Zuordnung. Unten stehen die Schritte, die noch offen sind.</div>';
   const arten = (typeof PZ_VGL_ARTEN !== 'undefined') ? PZ_VGL_ARTEN : [];
   return `<div class="table-wrap"><table class="pv-tabelle">
-      <thead><tr><th>Nr.</th><th>IST</th><th></th><th>SOLL</th><th>Änderung</th><th>Grund</th>${darf ? '<th></th>' : ''}</tr></thead>
+      <thead><tr><th>Nr.</th><th>IST</th><th></th><th>SOLL</th><th>Änderung</th><th>Grund</th><th title="Anmerkungen der Beteiligten">💬</th>${darf ? '<th></th>' : ''}</tr></thead>
       <tbody>${_pv.zeilen.map((z, i) => {
         const farbe = pvZeilenFarbe(z, i + 1);
         const art = arten.find(a => a.key === z.art) || { label: z.art, farbe: '#64748b', text: '' };
@@ -324,9 +358,48 @@ function _pvTabelleHtml(darf) {
               `<option value="${a.key}"${a.key === z.art ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}</select>`
             : `<span style="color:${art.farbe};font-weight:600" title="${esc(art.text)}">${esc(art.label)}</span>`}</td>
           <td>${darf ? `<input type="text" aria-label="Grund ${i + 1}" value="${esc(z.grund)}" placeholder="z. B. G3, Medienbruch" oninput="pvZeileSetzen(${i},'grund',this.value)">` : esc(z.grund)}</td>
+          <td>${_pvNotizKnopf(z)}</td>
           ${darf ? `<td><button type="button" class="btn btn-ghost btn-sm" onclick="pvZeileWeg(${i})" aria-label="Zuordnung ${i + 1} entfernen" title="Entfernen">✕</button></td>` : ''}
-        </tr>`;
+        </tr>${_pv.offen.has(z.id) ? `<tr class="pv-notizen-zeile"><td></td><td colspan="${darf ? 7 : 6}">${_pvNotizenHtml(z, darf)}</td></tr>` : ''}`;
       }).join('')}</tbody></table></div>`;
+}
+
+function _pvPerson(upn) {
+  return (typeof lkPersonName === 'function' && upn) ? lkPersonName(upn) : (upn || 'unbekannt');
+}
+
+function _pvZeitpunkt(am) {
+  const m = String(am || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}))?$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}${m[4] ? ' ' + m[4] : ''}` : '';
+}
+
+function _pvIch() {
+  return (typeof State !== 'undefined' && State.user) ? String(State.user.upn || State.user.name || '') : '';
+}
+
+/** Der Knopf in der Zeile: wie viele Anmerkungen es gibt, aufklappen. */
+function _pvNotizKnopf(z) {
+  const n = _pv.notizen.filter(x => x.zeile === z.id).length;
+  return `<button type="button" class="pv-notiz-knopf${n ? ' hat' : ''}${_pv.offen.has(z.id) ? ' offen' : ''}" onclick="pvNotizUmschalten(${jsArg(z.id)})"
+    aria-expanded="${_pv.offen.has(z.id)}" title="${n ? n + ' Anmerkung' + (n > 1 ? 'en' : '') + ' zeigen' : 'Anmerkung schreiben'}">💬${n ? ' ' + n : ''}</button>`;
+}
+
+/** Die Anmerkungen einer Zuordnung, mit Eingabe für alle, die schreiben dürfen. */
+function _pvNotizenHtml(z, darf) {
+  const ich = _pvIch();
+  const liste = _pv.notizen.filter(x => x.zeile === z.id);
+  return `<div class="pv-notizen">
+      ${liste.length ? liste.map(n => `<div class="pv-notiz">
+          <span class="pv-notiz-wer">${esc(_pvPerson(n.von))}</span> <span class="pv-notiz-wann">${esc(_pvZeitpunkt(n.am))}</span>
+          ${darf && n.von && n.von === ich ? `<button type="button" class="pv-notiz-weg" onclick="pvNotizWeg(${jsArg(pvNotizSchluessel(n))})" title="Eigene Anmerkung löschen" aria-label="Anmerkung löschen">✕</button>` : ''}
+          <div class="pv-notiz-text">${esc(n.text)}</div></div>`).join('')
+        : '<div class="field-hint">Noch keine Anmerkung zu dieser Zuordnung.</div>'}
+      ${darf ? `<div class="pv-notiz-neu">
+          <input type="text" id="pv-notiz-${esc(z.id)}" aria-label="Neue Anmerkung" placeholder="Anmerkung, Frage oder Entscheidung …"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();pvNotizNeu(${jsArg(z.id)});}">
+          <button type="button" class="btn btn-primary btn-sm" onclick="pvNotizNeu(${jsArg(z.id)})">Anmerkung speichern</button>
+        </div>` : ''}
+    </div>`;
 }
 
 function _pvOffenHtml(ab, darf) {
@@ -394,13 +467,16 @@ function pvZeileSetzen(i, feld, wert) {
 
 function pvZeileNeu(ist, soll) {
   if (!_pv) return;
-  _pv.zeilen.push({ art: soll && ist ? 'geaendert' : soll ? 'neu' : 'entfaellt', ist: ist ? [String(ist)] : [], soll: soll ? [String(soll)] : [], grund: '' });
+  _pv.zeilen.push({ art: soll && ist ? 'geaendert' : soll ? 'neu' : 'entfaellt', ist: ist ? [String(ist)] : [], soll: soll ? [String(soll)] : [], grund: '', id: pvNeueId(_pv.zeilen) });
   _pv.geaendert = true;
   _pvRender();
 }
 
-function pvZeileWeg(i) {
-  if (!_pv) return;
+async function pvZeileWeg(i) {
+  if (!_pv || !_pv.zeilen[i]) return;
+  const n = _pv.notizen.filter(x => x.zeile === _pv.zeilen[i].id).length;
+  if (n && typeof uiConfirm === 'function' && !await uiConfirm(`Zu dieser Zuordnung gibt es ${n} Anmerkung${n > 1 ? 'en' : ''}. Mit der Zuordnung werden sie beim Speichern entfernt.`,
+    { title: 'Zuordnung entfernen?', okLabel: 'Entfernen', danger: true })) return;
   _pv.zeilen.splice(i, 1);
   _pv.geaendert = true;
   _pvRender();
@@ -410,6 +486,7 @@ function pvVorschlaegeUebernehmen() {
   if (!_pv) return;
   const neu = pvVorschlaege(_pvAlleIst(), _pvAlleSoll(), _pv.zeilen);
   if (!neu.length) return;
+  neu.forEach(z => { z.id = pvNeueId(_pv.zeilen.concat(neu)); });
   _pv.zeilen = _pv.zeilen.concat(neu);
   _pv.geaendert = true;
   _pvRender();
@@ -427,6 +504,8 @@ async function pvSpeichern() {
     const xml = await spGetProcessXml(_pv.sollId);
     const pm = procPmAusXml(xml) || pzPmNormal({});
     pm.vergleich = pzVglNormal(_pv.zeilen);
+    // Was andere inzwischen angemerkt haben, bleibt; Anmerkungen zu entfernten Zuordnungen fallen weg.
+    pm.vergleichNotizen = pvNotizenZusammen(pm.vergleichNotizen, _pv.notizen, pm.vergleich.map(z => z.id), _pv.weg);
     const neu = procXmlDokuNeu(xml, { pm: pzPmNormal(pm) });
     await spSaveProcess(p.title, neu, p.ordner || '');
     try { _processes = await spListProcesses(); } catch (e) { /* dann mit der alten Liste */ }
@@ -434,6 +513,8 @@ async function pvSpeichern() {
     if (q && typeof procLinksMerken === 'function') procLinksMerken(q.itemId + '|' + q.modified, procEintragAusXml(neu));
     _pv.soll[0].xml = neu;
     _pv.zeilen = pm.vergleich.map(z => Object.assign({}, z));
+    _pv.notizen = pm.vergleichNotizen;
+    _pv.weg.clear();
     _pv.geaendert = false;
     toast(`Vergleich gespeichert ✓ (${pzVglKurz(pm.vergleich) || 'leer'})`, 'success');
     _pvRender();
@@ -441,6 +522,43 @@ async function pvSpeichern() {
     toast('Speichern fehlgeschlagen: ' + e.message, 'error');
     if (knopf) knopf.disabled = false;
   }
+}
+
+function pvNotizUmschalten(id) {
+  if (!_pv) return;
+  if (_pv.offen.has(id)) _pv.offen.delete(id); else _pv.offen.add(id);
+  _pvRender();
+  const feld = document.getElementById('pv-notiz-' + id);
+  if (feld && _pv.offen.has(id)) feld.focus();
+}
+
+/**
+ * Eine Anmerkung schreiben. Gespeichert wird sofort, zusammen mit offenen
+ * Änderungen der Gegenüberstellung: Die Anmerkung hängt an ihrer Zuordnung.
+ */
+async function pvNotizNeu(id) {
+  if (!_pv || !_pvDarf()) return;
+  const feld = document.getElementById('pv-notiz-' + id);
+  const text = String((feld && feld.value) || '').trim();
+  if (!text) { if (feld) feld.focus(); return; }
+  const jetzt = new Date();
+  const p2 = (x) => String(x).padStart(2, '0');
+  const am = `${jetzt.getFullYear()}-${p2(jetzt.getMonth() + 1)}-${p2(jetzt.getDate())}T${p2(jetzt.getHours())}:${p2(jetzt.getMinutes())}`;
+  _pv.notizen = pzVglNotizenNormal(_pv.notizen.concat([{ zeile: id, am, von: _pvIch(), text }]));
+  _pv.offen.add(id);
+  _pv.geaendert = true;
+  await pvSpeichern();
+}
+
+/** Eine eigene Anmerkung löschen (sofort gespeichert). */
+async function pvNotizWeg(schluessel) {
+  if (!_pv || !_pvDarf()) return;
+  const n = _pv.notizen.find(x => pvNotizSchluessel(x) === schluessel);
+  if (!n || n.von !== _pvIch()) return;
+  _pv.weg.add(schluessel);
+  _pv.notizen = _pv.notizen.filter(x => pvNotizSchluessel(x) !== schluessel);
+  _pv.geaendert = true;
+  await pvSpeichern();
 }
 
 /** IST und SOLL (die gerade gezeigten) mit den Nummern als ein PNG. */
@@ -472,5 +590,6 @@ async function pvZurueck() {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { PV_FARBEN, PV_ROT, PV_BLAU, pvFarbe, pvZeilenFarbe, pvSchritte, pvWoerter, pvAehnlich, pvVorschlaege, pvAbdeckung,
-    pvMarken, pvBoundsAusXml, pvSvgRand, pvSvgMitMarken, pvSvgUntereinander, pvZeilenFuerWord };
+    pvMarken, pvBoundsAusXml, pvSvgRand, pvSvgMitMarken, pvSvgUntereinander, pvZeilenFuerWord,
+    pvNeueId, pvNotizSchluessel, pvNotizenZusammen };
 }

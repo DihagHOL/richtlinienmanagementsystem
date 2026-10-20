@@ -12,6 +12,8 @@
  *   • Die Art folgt den Seiten: ohne SOLL entfällt ein Schritt, ohne IST ist er neu.
  *   • Vorschläge über gleiche oder ähnliche Namen, jeder Schritt nur einmal.
  *   • Die Freigabe nimmt die Gegenüberstellung in die Word-Beschreibung auf.
+ *   • Anmerkungen je Zuordnung (wer, wann, was): sofort gespeichert, was andere
+ *     inzwischen geschrieben haben, bleibt; löschen nur die eigenen.
  */
 import fs from 'fs';
 import vm from 'vm';
@@ -142,7 +144,9 @@ vm.runInContext(lies('js/prozessvergleich.js'), vctx);
 vm.runInContext(`_pv = { sollId: 'SOLL1', titel: 'E-Rechnung Rechnungseingang', von: 'backlog', geaendert: false, tab: { ist: 0, soll: 0 }, gross: { ist: false, soll: false },
   ist: [{ id: 'IST1', titel: 'Eingang (IST)', xml: '', svg: '', schritte: ${JSON.stringify(ist)} }],
   soll: [{ id: 'SOLL1', titel: 'E-Rechnung Rechnungseingang', xml: '', svg: '', schritte: ${JSON.stringify(soll)} }],
-  zeilen: [{ art: 'entfaellt', ist: ['IST1:T3'], soll: [], grund: 'G7 Doppelablage' }] }; _pvRender();`, vctx);
+  zeilen: [{ art: 'entfaellt', ist: ['IST1:T3'], soll: [], grund: 'G7 Doppelablage', id: 'z1abcd' }],
+  notizen: [{ zeile: 'z1abcd', am: '2026-10-20T09:15', von: 'kollegin@dihag.com', text: 'Ablage passiert künftig im Archiv' }],
+  offen: new Set(), weg: new Set() }; _pvRender();`, vctx);
 const h = mount.innerHTML;
 ok(/⇄ Vergleich IST → SOLL: E-Rechnung Rechnungseingang/.test(h) && /<b>1<span>\/3<\/span><\/b>IST-Schritte zugeordnet/.test(h), 'Kopf und Abdeckung');
 ok(/<span class="pv-nr" style="background:#b91c1c">1<\/span>/.test(h) && /value="G7 Doppelablage"/.test(h), 'Die Zuordnung mit Nummer in ihrer Farbe und Grund');
@@ -156,9 +160,54 @@ vm.runInContext(`pvZeileSetzen(0, 'ist', '')`, vctx);
 ok(vm.runInContext('_pv.zeilen[0].art', vctx) === 'neu', 'Ohne IST ist er neu');
 vm.runInContext(`pvZeileNeu('', '')`, vctx);
 ok(vm.runInContext('_pv.zeilen.length', vctx) === 4, '„+ Zuordnung" legt eine leere Zeile an, die bis zum Speichern stehen bleibt');
+ok(vm.runInContext('_pv.zeilen.every(z => /^[a-z0-9]{6}$/.test(z.id))', vctx) && vm.runInContext('new Set(_pv.zeilen.map(z => z.id)).size', vctx) === 4,
+  'Jede Zuordnung hat eine eigene Kennung, auch übernommene Vorschläge und neue Zeilen');
+
+console.log('Anmerkungen');
+vctx.State = { user: { upn: 'pruefer@dihag.com', name: 'Max Muster' } };
+vm.runInContext('_pvRender()', vctx);
+ok(/class="pv-notiz-knopf hat"[^>]*onclick="pvNotizUmschalten\(&quot;z1abcd&quot;\)"[^>]*>💬 1<\/button>/.test(mount.innerHTML) && /<b>💬 1<\/b>Anmerkungen/.test(mount.innerHTML),
+  'Die Zeile zeigt, wie viele Anmerkungen es gibt, oben steht die Summe');
+vm.runInContext(`pvNotizUmschalten('z1abcd')`, vctx);
+const offen = mount.innerHTML;
+ok(/class="pv-notizen-zeile"/.test(offen) && /kollegin@dihag\.com<\/span> <span class="pv-notiz-wann">20\.10\.2026 09:15<\/span>/.test(offen)
+  && /Ablage passiert künftig im Archiv/.test(offen) && /id="pv-notiz-z1abcd"/.test(offen), 'Aufgeklappt: wer, wann, was, und das Feld für eine neue');
+ok(!/pvNotizWeg/.test(offen), 'Fremde Anmerkungen lassen sich nicht löschen');
+let gespeichert = 0;
+vm.runInContext(`pvSpeichern = async () => { __gespeichert++; }`, vctx);
+vctx.__gespeichert = 0;
+vctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : id === 'pv-notiz-z1abcd' ? { value: '  Einverstanden,   prüfen wir im POC  ' } : null);
+await vm.runInContext(`pvNotizNeu('z1abcd')`, vctx);
+const meine = vm.runInContext(`_pv.notizen.find(n => n.von === 'pruefer@dihag.com')`, vctx);
+ok(meine && meine.text === 'Einverstanden, prüfen wir im POC' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(meine.am) && vctx.__gespeichert === 1,
+  'Eine Anmerkung bekommt Name und Zeitpunkt und wird sofort gespeichert');
+vctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
+vm.runInContext('_pvRender()', vctx);
+ok((mount.innerHTML.match(/pvNotizWeg\(/g) || []).length === 1, 'Die eigene lässt sich löschen, nur die');
+await vm.runInContext(`pvNotizWeg(pvNotizSchluessel(_pv.notizen.find(n => n.von === 'pruefer@dihag.com')))`, vctx);
+ok(vm.runInContext('_pv.notizen.length', vctx) === 1 && vm.runInContext('_pv.weg.size', vctx) === 1 && vctx.__gespeichert === 2, 'Gelöscht und vermerkt, damit sie beim Zusammenführen nicht zurückkommt');
+
+const ausDatei = [{ zeile: 'z1abcd', am: '2026-10-20T09:15', von: 'kollegin@dihag.com', text: 'Ablage passiert künftig im Archiv' },
+  { zeile: 'z1abcd', am: '2026-10-20T10:00', von: 'dritte@dihag.com', text: 'Inzwischen geschrieben' },
+  { zeile: 'weg123', am: '2026-10-20T10:01', von: 'dritte@dihag.com', text: 'Zur entfernten Zuordnung' }];
+globalThis.pzVglNotizenNormal = M.pzVglNotizenNormal;
+const zus = V.pvNotizenZusammen(ausDatei, [{ zeile: 'z1abcd', am: '2026-10-20T10:05', von: 'ich@dihag.com', text: 'Meine' }], ['z1abcd'],
+  new Set([V.pvNotizSchluessel(ausDatei[0])]));
+ok(zus.map(n => n.text).join('|') === 'Inzwischen geschrieben|Meine', 'Zusammenführen: was andere inzwischen schrieben bleibt, gelöschte und verwaiste fallen weg');
+ok(V.pvNeueId([{ id: 'aaaaaa' }], (() => { const f = [0.1, 0.123456789]; let i = 0; return () => f[i++ % 2]; })()).length === 6, 'Neue Kennung: sechs Zeichen');
+ok(/Mit der Zuordnung werden sie beim Speichern entfernt/.test(lies('js/prozessvergleich.js')), 'Wer eine Zuordnung mit Anmerkungen entfernt, wird gefragt');
+const pmN = M.pzPmZeilen({ vergleich: [{ art: 'bleibt', ist: 'a:1', soll: 'b:1', id: 'k3x9q2' }],
+  vergleichNotizen: [{ zeile: 'k3x9q2', am: '2026-10-20T14:05', von: 'a@dihag.com', text: 'Text | mit [Klammern]' }] });
+ok(pmN.includes('[[rms:vgl=bleibt|a:1|b:1||k3x9q2]]') && pmN.includes('Anmerkungen zum Vergleich: 1') && pmN.includes('[[rms:vglnotiz=k3x9q2|2026-10-20T14:05|a@dihag.com|Text mit Klammern]]'),
+  'In der Datei: Kennung an der Zuordnung, je Anmerkung ein Marker');
+ok(JSON.stringify(M.pzPmAusText(pmN.join(NL)).vergleichNotizen) === JSON.stringify(M.pzVglNotizenNormal([{ zeile: 'k3x9q2', am: '2026-10-20T14:05', von: 'a@dihag.com', text: 'Text | mit [Klammern]' }])),
+  'Rundlauf der Anmerkungen');
+ok(/vergleichNotizen: \(_procPm && _procPm\.vergleichNotizen\) \|\| \[\],/.test(lies('js/prozesse.js')), 'Der Modeler behält die Anmerkungen beim Speichern');
+
 vctx.canWriteTab = () => false;
 vm.runInContext('_pvRender()', vctx);
-ok(!/<select/.test(mount.innerHTML) && !/pvSpeichern/.test(mount.innerHTML), 'Nur mit Lesezugriff: keine Auswahl und kein Speichern');
+ok(!/<select/.test(mount.innerHTML) && !/pvSpeichern\(\)/.test(mount.innerHTML) && !/pv-notiz-neu/.test(mount.innerHTML) && /Ablage passiert künftig im Archiv/.test(mount.innerHTML),
+  'Nur mit Lesezugriff: keine Auswahl, kein Speichern, keine neue Anmerkung, aber alle lesbar');
 
 /* ══ 4) Einstiege, Modul, Doku ══ */
 console.log('Einstiege');

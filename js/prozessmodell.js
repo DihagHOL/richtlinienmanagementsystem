@@ -592,10 +592,13 @@ function pzFaellige(daten, werke, heute, modelle) {
    Der Vergleich mit dem IST steht ebenfalls am SOLL, je Zuordnung eine Zeile
    (js/prozessvergleich.js):
 
-     [[rms:vgl=Art|IST-Schritte|SOLL-Schritte|Grund]]
+     [[rms:vgl=Art|IST-Schritte|SOLL-Schritte|Grund|Kennung]]
+     [[rms:vglnotiz=Kennung der Zuordnung|Zeitpunkt|Von|Text]]   (je Anmerkung)
 
    Ein Schritt ist „Modell-Kennung:Element-Kennung", mehrere mit Komma. Bei
-   „entfällt" bleibt die SOLL-Seite leer, bei „neu" die IST-Seite.
+   „entfällt" bleibt die SOLL-Seite leer, bei „neu" die IST-Seite. Die Kennung
+   hält eine Zuordnung fest, auch wenn sich ihre Schritte ändern: An ihr hängen
+   die Anmerkungen der Beteiligten (wer, wann, was).
 
    Was am Modell leer ist, kommt von der Kachel, an der es hängt, und von dort
    wie gehabt von der gleichnamigen Konzernkachel. Hängt es an keiner, zählt
@@ -621,7 +624,9 @@ const PZ_POC_ERGEBNIS = [
 ];
 /** Vergleich mit dem IST: was aus einem Schritt wird. */
 const PZ_VGL_MARKER = /\[\[rms:vgl=([^\]]*)\]\]/g;
+const PZ_VGL_NOTIZ_MARKER = /\[\[rms:vglnotiz=([^\]]*)\]\]/g;
 const PZ_VGL_TEXTZEILE = 'Vergleich mit dem IST: ';
+const PZ_VGL_NOTIZ_TEXTZEILE = 'Anmerkungen zum Vergleich: ';
 const PZ_VGL_ARTEN = [
   { key: 'bleibt',         label: 'bleibt',         farbe: '#64748b', text: 'Der Schritt läuft im SOLL wie bisher.' },
   { key: 'geaendert',      label: 'geändert',       farbe: '#b45309', text: 'Der Schritt bleibt, läuft aber anders: andere Rolle, anderes Werkzeug, andere Regel.' },
@@ -661,6 +666,7 @@ function pzPmNormal(pm) {
     kennzahlen: pzKpiNormal(p.kennzahlen),
     poc: pzPocNormal(p.poc),
     vergleich: pzVglNormal(p.vergleich),
+    vergleichNotizen: pzVglNotizenNormal(p.vergleichNotizen),
   };
 }
 
@@ -686,8 +692,28 @@ function pzVglNormal(liste) {
     if (!soll.length) art = 'entfaellt';
     else if (!ist.length) art = 'neu';
     else if (art === 'entfaellt' || art === 'neu') art = 'geaendert';
-    return { art, ist, soll, grund: _pzFeld(z && z.grund) };
+    const id = /^[a-z0-9]{4,12}$/.test(String((z && z.id) || '')) ? String(z.id) : '';
+    return { art, ist, soll, grund: _pzFeld(z && z.grund), id };
   }).filter(z => z.ist.length || z.soll.length);
+}
+
+/**
+ * Anmerkungen zu Zuordnungen: Kennung der Zuordnung, Zeitpunkt (JJJJ-MM-TTThh:mm),
+ * wer (UPN) und Text. Ohne Kennung oder Text gibt es keine; doppelte zählen einmal.
+ */
+function pzVglNotizenNormal(liste) {
+  const gesehen = new Set();
+  return (Array.isArray(liste) ? liste : []).map(n => ({
+    zeile: /^[a-z0-9]{4,12}$/.test(String((n && n.zeile) || '')) ? String(n.zeile) : '',
+    am: /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(String((n && n.am) || '')) ? String(n.am) : '',
+    von: _pzFeld(n && n.von),
+    text: _pzFeld(n && n.text).replace(/\s+/g, ' '),
+  })).filter(n => {
+    const k = [n.zeile, n.am, n.von, n.text].join('|');
+    if (!n.zeile || !n.text || gesehen.has(k)) return false;
+    gesehen.add(k);
+    return true;
+  }).sort((a, b) => a.am.localeCompare(b.am));
 }
 
 /** Der Vergleich in einer Zeile: „12 Zuordnungen: 4 bleiben, 3 automatisiert, 2 entfallen, 1 neu". */
@@ -704,15 +730,29 @@ function pzVglKurz(liste) {
 function pzVglZeilen(liste) {
   const n = pzVglNormal(liste);
   if (!n.length) return [];
-  return [PZ_VGL_TEXTZEILE + pzVglKurz(n)].concat(n.map(z => '[[rms:vgl=' + [z.art, z.ist.join(','), z.soll.join(','), _pzFeld(z.grund)].join('|') + ']]'));
+  return [PZ_VGL_TEXTZEILE + pzVglKurz(n)].concat(n.map(z => '[[rms:vgl=' + [z.art, z.ist.join(','), z.soll.join(','), _pzFeld(z.grund)].concat(z.id ? [z.id] : []).join('|') + ']]'));
+}
+
+function pzVglNotizZeilen(liste) {
+  const n = pzVglNotizenNormal(liste);
+  if (!n.length) return [];
+  return [PZ_VGL_NOTIZ_TEXTZEILE + n.length].concat(n.map(x => '[[rms:vglnotiz=' + [x.zeile, x.am, x.von, x.text].join('|') + ']]'));
 }
 
 function pzVglAusText(text) {
   const n = [...String(text || '').matchAll(PZ_VGL_MARKER)].map(x => {
     const t = x[1].split('|');
-    return { art: (t[0] || '').trim(), ist: t[1] || '', soll: t[2] || '', grund: (t[3] || '').trim() };
+    return { art: (t[0] || '').trim(), ist: t[1] || '', soll: t[2] || '', grund: (t[3] || '').trim(), id: (t[4] || '').trim() };
   });
   return n.length ? pzVglNormal(n) : null;
+}
+
+function pzVglNotizenAusText(text) {
+  const n = [...String(text || '').matchAll(PZ_VGL_NOTIZ_MARKER)].map(x => {
+    const t = x[1].split('|').map(v => (v || '').trim());
+    return { zeile: t[0], am: t[1], von: t[2], text: t[3] };
+  });
+  return n.length ? pzVglNotizenNormal(n) : null;
 }
 
 /* ── POC am SOLL-Modell ── */
@@ -837,7 +877,7 @@ function pzPocAusText(text) {
 /** Sind die Angaben der pm-Zeile leer? (Die Kennzahlen stehen in eigenen Zeilen.) */
 function _pzPmZeileLeer(n) { return PZ_PM_FELDER.every(f => !n[f]); }
 
-function pzPmLeer(pm) { const n = pzPmNormal(pm); return _pzPmZeileLeer(n) && !n.kennzahlen.length && pzPocLeer(n.poc) && !n.vergleich.length; }
+function pzPmLeer(pm) { const n = pzPmNormal(pm); return _pzPmZeileLeer(n) && !n.kennzahlen.length && pzPocLeer(n.poc) && !n.vergleich.length && !n.vergleichNotizen.length; }
 
 /** Der Marker der pm-Zeile ('' wenn dort nichts gesetzt ist). */
 function pzPmMarker(pm) {
@@ -889,6 +929,7 @@ function pzPmZeilen(pm) {
   }
   zeilen.push(...pzPocZeilen(n.poc));
   zeilen.push(...pzVglZeilen(n.vergleich));
+  zeilen.push(...pzVglNotizZeilen(n.vergleichNotizen));
   return zeilen;
 }
 
@@ -904,8 +945,9 @@ function pzPmAusText(text) {
   }), k => k.name);
   const poc = pzPocAusText(s);
   const vergleich = pzVglAusText(s);
-  if (!zeilen.length && !kpis.length && !poc && !vergleich) return null;
-  const pm = { kennzahlen: kpis, poc, vergleich };
+  const vergleichNotizen = pzVglNotizenAusText(s);
+  if (!zeilen.length && !kpis.length && !poc && !vergleich && !vergleichNotizen) return null;
+  const pm = { kennzahlen: kpis, poc, vergleich, vergleichNotizen };
   const t = _pzFelderZusammen(zeilen);
   PZ_PM_FELDER.forEach((f, i) => { pm[f] = t[i] || ''; });
   return pzPmNormal(pm);
@@ -1025,7 +1067,8 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
       art: 'modell', werk, kachel: { id: m.itemId, name: m.title }, modell: m, host,
       status, eigner, standard, prio, freigeber: pm.freigeber, nachfolger: pm.nachfolger, poc: pm.poc,
       analyseAm: pm.analyseAm, abgeloestAm: pm.abgeloestAm, regelwerke: Number(m.regelwerke) || 0, haupt: [],
-      vergleich: pm.vergleich, vergleichKurz: pm.vergleich.length ? `${pm.vergleich.length} Zuordnung${pm.vergleich.length === 1 ? '' : 'en'}` : '',
+      vergleich: pm.vergleich, vergleichKurz: pm.vergleich.length ? `${pm.vergleich.length} Zuordnung${pm.vergleich.length === 1 ? '' : 'en'}${
+        pm.vergleichNotizen.length ? ` · 💬 ${pm.vergleichNotizen.length}` : ''}` : '',
       pruefung: Object.assign(pzUeberpruefung({ status, naechsteUeberpruefung: termin }, heute), { eigen: !!termin, ueber: null }),
       reifegrad, kennzahlen,
     };
@@ -1035,7 +1078,8 @@ function _pzModellEintraegeEinzeln(daten, modelle, heute) {
 /* Node-Export nur für Tests. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, PZ_VGL_ARTEN, PZ_VGL_TEXTZEILE, pzVglArtInfo, pzVglNormal, pzVglKurz, pzVglZeilen, pzVglAusText,
+    PZ_STATUS, PZ_SPALTEN, PZ_NACHFOLGER_STUFEN, PZ_VGL_ARTEN, PZ_VGL_TEXTZEILE, PZ_VGL_NOTIZ_TEXTZEILE, pzVglArtInfo, pzVglNormal, pzVglKurz, pzVglZeilen, pzVglAusText,
+    pzVglNotizenNormal, pzVglNotizZeilen, pzVglNotizenAusText,
     pzPhase, pzNaechstePhase, PZ_PHASEN, pzKarten, pzKriterien, pzAbloesung, pzNachfolgerKandidaten, pzKinderAusText, pzHauptprozesse,
     PZ_POC_ERGEBNIS, PZ_POC_BEWERTUNG, PZ_POC_TEXTZEILE, PZ_POC_KRIT_TEXTZEILE, pzPocNormal, pzPocLeer, pzPocStand, pzPocKurz,
     pzPocLuecken, pzPocZeilen, pzPocAusText, pzPocWerkeText, pzPocErgebnisInfo, pzPocBewertungInfo,
