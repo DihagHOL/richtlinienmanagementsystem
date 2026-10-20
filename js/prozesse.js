@@ -1892,7 +1892,8 @@ async function openProcessEditor(itemId, seed) {
       <button class="btn btn-outline btn-sm" onclick="prozessSchemaPruefung()" title="Gegen das Hausschema prüfen">🔍 Schema</button>
       <button class="btn btn-outline btn-sm" onclick="prozessHilfeOeffnen()" title="BPMN einfach erklärt: Zeichen, Schreibweise, Handgriffe und Kürzel">❓ Hilfe</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
-      <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als Bild – lässt sich in Word, PowerPoint und Regelwerke einfügen">⬇ Bild</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadProcessPng()" title="Diagramm als PNG, doppelt aufgelöst: für E-Mail, Teams, Word und PowerPoint">⬇ PNG</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadProcessSvg()" title="Diagramm als SVG: bleibt in jeder Größe scharf, für Word, PowerPoint und Regelwerke">⬇ SVG</button>
       ${itemId && canWrite ? `<button class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="deleteProcess()">Löschen</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" id="proc-save-btn" onclick="saveProcess()">💾 Speichern</button>` : ''}
     </div>
@@ -2119,7 +2120,8 @@ async function openProcessAnsicht(itemId) {
             <button type="button" onclick="procAnsichtAktion('out')" title="Verkleinern">－</button>
             <button type="button" onclick="procAnsichtAktion('fit')" title="Ganzes Diagramm zeigen">⤢ Einpassen</button>
             <button type="button" onclick="procAnsichtAktion('voll')" title="Vollbild, Esc beendet">⛶ Vollbild</button>
-            <button type="button" onclick="procAnsichtAktion('svg')" title="Farbiges Bild für Word, PowerPoint und Regelwerke">🖼 Bild</button>
+            <button type="button" onclick="procAnsichtAktion('png')" title="Farbiges Bild als PNG, doppelt aufgelöst: für E-Mail, Teams, Word und PowerPoint">🖼 PNG</button>
+            <button type="button" onclick="procAnsichtAktion('svg')" title="Farbiges Bild als SVG: bleibt in jeder Größe scharf">SVG</button>
             <button type="button" class="dl" onclick="procAnsichtAktion('bpmn')" title="Die BPMN-Datei, unverändert">⬇ BPMN</button>
           </div>
         </div>
@@ -2639,6 +2641,7 @@ function procAnsichtAktion(act) {
   else if (act === 'fit') _procBuehneNeu(true);
   else if (act === 'voll') _procAnsichtVollbild();
   else if (act === 'svg') _procAnsichtBild();
+  else if (act === 'png') _procAnsichtBild('png');
   else if (act === 'bpmn') _procAnsichtDatei();
 }
 
@@ -2703,17 +2706,56 @@ function _procSvgFaerben(svg) {
   return new XMLSerializer().serializeToString(doc);
 }
 
-async function _procAnsichtBild() {
+/** Das Diagramm der Ansicht als Bild, in ihren Farben: SVG oder (`format` 'png') PNG. */
+async function _procAnsichtBild(format) {
   if (!_bpmnModeler) return;
   try {
     const { svg } = await _bpmnModeler.saveSVG();
-    const blob = new Blob([_procSvgFaerben(svg)], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = _procDateiName() + '.svg';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const farbig = _procSvgFaerben(svg);
+    if (format === 'png') _procHerunterladen(await procSvgAlsPng(farbig), _procDateiName() + '.png');
+    else _procHerunterladen(new Blob([farbig], { type: 'image/svg+xml' }), _procDateiName() + '.svg');
     toast('Bild gespeichert ✓', 'success');
   } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/** Eine Datei herunterladen. */
+function _procHerunterladen(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Die Auflösung eines PNG: gewünscht, aber höchstens 12.000 Punkte je Seite
+ * und 80 Millionen insgesamt. Darüber liefern Browser ein leeres Bild.
+ */
+function procPngSkala(breite, hoehe, wunsch) {
+  return Math.max(0.1, Math.min(wunsch || 2, 12000 / breite, 12000 / hoehe, Math.sqrt(80e6 / (breite * hoehe))));
+}
+
+/**
+ * Ein SVG als PNG (Blob), doppelt aufgelöst, damit es auf Folien und im Druck
+ * scharf bleibt, auf weißem Grund. Die Größe kommt aus width/height, sonst
+ * aus der viewBox.
+ */
+async function procSvgAlsPng(svg, skala) {
+  const wurzel = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+  const vb = String(wurzel.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+  let breite = parseFloat(wurzel.getAttribute('width')), hoehe = parseFloat(wurzel.getAttribute('height'));
+  if (!(breite > 0 && hoehe > 0)) { breite = vb[2]; hoehe = vb[3]; }
+  if (!(breite > 0 && hoehe > 0)) throw new Error('Das Diagramm hat keine Größe.');
+  const s = procPngSkala(breite, hoehe, skala);
+  const bild = new Image();
+  bild.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await bild.decode();
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(breite * s); c.height = Math.ceil(hoehe * s);
+  const g = c.getContext('2d');
+  g.fillStyle = '#FFFFFF';
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(bild, 0, 0, c.width, c.height);
+  return new Promise((ok, fehler) => c.toBlob(b => (b ? ok(b) : fehler(new Error('Das Bild ist leer.'))), 'image/png'));
 }
 
 /* Esc beendet das Vollbild des Browsers, ohne dass die Ansicht davon erfährt.
@@ -3522,6 +3564,17 @@ async function downloadProcessSvg() {
   } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
 }
 
+/** Das Diagramm aus dem Modeler als PNG, in den Farben der Ansicht. */
+async function downloadProcessPng() {
+  if (!_bpmnModeler) return;
+  try {
+    const { svg } = await _bpmnModeler.saveSVG();
+    const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
+    _procHerunterladen(await procSvgAlsPng(_procSvgFaerben(svg)), name.replace(/\.bpmn$/i, '') + '.png');
+    toast('Bild gespeichert ✓', 'success');
+  } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
+}
+
 async function deleteProcess() {
   if (!_procEditing || !_procEditing.itemId) return;
   if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
@@ -3810,7 +3863,7 @@ if (typeof module !== 'undefined' && module.exports) {
   // werden sie hier nachgereicht, damit ein `require('./prozesse.js')`
   // dieselbe Umgebung vorfindet wie der Browser.
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
-  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS,
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS, procPngSkala, procSvgAlsPng,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
     procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
     procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden,
