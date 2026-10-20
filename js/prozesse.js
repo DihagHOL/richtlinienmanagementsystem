@@ -2711,11 +2711,44 @@ async function _procAnsichtBild(format) {
   if (!_bpmnModeler) return;
   try {
     const { svg } = await _bpmnModeler.saveSVG();
-    const farbig = _procSvgFaerben(svg);
+    const farbig = _procSvgFaerben(_procSvgMitRahmen(svg));
     if (format === 'png') _procHerunterladen(await procSvgAlsPng(farbig), _procDateiName() + '.png');
     else _procHerunterladen(new Blob([farbig], { type: 'image/svg+xml' }), _procDateiName() + '.svg');
     toast('Bild gespeichert ✓', 'success');
   } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/**
+ * Der Rahmen um alle Formen, Pfeile und Beschriftungen, mit Rand, in
+ * Diagrammkoordinaten. → { x, y, b, h } | null
+ */
+function procDiagrammRahmen(elemente, rand) {
+  const m = rand == null ? 20 : rand;
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  const punkt = (x, y) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y); };
+  (elemente || []).forEach(el => {
+    if (Array.isArray(el.waypoints)) el.waypoints.forEach(p => punkt(p.x, p.y));
+    else if (typeof el.x === 'number' && typeof el.width === 'number' && el.width > 0) { punkt(el.x, el.y); punkt(el.x + el.width, el.y + el.height); }
+  });
+  if (!isFinite(x1)) return null;
+  return { x: Math.floor(x1 - m), y: Math.floor(y1 - m), b: Math.ceil(x2 - x1 + 2 * m), h: Math.ceil(y2 - y1 + 2 * m) };
+}
+
+/**
+ * bpmn-js misst das Bild am gezeichneten Diagramm. Ist es gerade nicht zu
+ * sehen (Fenster im Hintergrund, eingeklappter Bereich), ist es 0 × 0 groß
+ * und das Bild leer. Dann kommt die Größe aus den Formen selbst.
+ */
+function _procSvgMitRahmen(svg) {
+  if (!/<svg\b[^>]*\bwidth="0"/.test(svg) || !_bpmnModeler) return svg;
+  let elemente = [];
+  try { elemente = _bpmnModeler.get('elementRegistry').getAll(); } catch (e) { return svg; }
+  const r = procDiagrammRahmen(elemente);
+  if (!r) return svg;
+  return svg.replace(/<svg\b[^>]*>/, (kopf) => kopf
+    .replace(/\bwidth="[^"]*"/, `width="${r.b}"`)
+    .replace(/\bheight="[^"]*"/, `height="${r.h}"`)
+    .replace(/\bviewBox="[^"]*"/, `viewBox="${r.x} ${r.y} ${r.b} ${r.h}"`));
 }
 
 /** Eine Datei herunterladen. */
@@ -3554,7 +3587,7 @@ async function downloadProcessSvg() {
   try {
     const { svg } = await _bpmnModeler.saveSVG();
     const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
-    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const blob = new Blob([_procSvgMitRahmen(svg)], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = name.replace(/\.bpmn$/i, '') + '.svg';
@@ -3570,7 +3603,7 @@ async function downloadProcessPng() {
   try {
     const { svg } = await _bpmnModeler.saveSVG();
     const name = (document.getElementById('proc-name')?.value || 'prozess').trim() || 'prozess';
-    _procHerunterladen(await procSvgAlsPng(_procSvgFaerben(svg)), name.replace(/\.bpmn$/i, '') + '.png');
+    _procHerunterladen(await procSvgAlsPng(_procSvgFaerben(_procSvgMitRahmen(svg))), name.replace(/\.bpmn$/i, '') + '.png');
     toast('Bild gespeichert ✓', 'success');
   } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
 }
@@ -3863,7 +3896,7 @@ if (typeof module !== 'undefined' && module.exports) {
   // werden sie hier nachgereicht, damit ein `require('./prozesse.js')`
   // dieselbe Umgebung vorfindet wie der Browser.
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
-  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS, procPngSkala, procSvgAlsPng,
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS, procPngSkala, procSvgAlsPng, procDiagrammRahmen,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
     procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
     procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden,

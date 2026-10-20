@@ -53,13 +53,26 @@ let fehler = '';
 try { await vm.runInContext(`procSvgAlsPng('<svg></svg>')`, ctx); } catch (e) { fehler = e.message; }
 ok(/keine Größe/.test(fehler), 'Ohne Größe eine klare Meldung statt eines leeren Bildes');
 
-/* ══ 3) Knöpfe und Doku ══ */
+/* ══ 3) Größe, wenn das Diagramm gerade nicht zu sehen ist ══ */
+console.log('Rahmen');
+const rahmen = vm.runInContext('procDiagrammRahmen', ctx);
+const r = rahmen([{ id: 'root' }, { x: 100, y: 50, width: 36, height: 36 }, { x: 300, y: 40, width: 140, height: 80 }, { waypoints: [{ x: 136, y: 68 }, { x: 300, y: 80 }, { x: 300, y: 260 }] }]);
+ok(r.x === 80 && r.y === 20 && r.b === 380 && r.h === 260, 'Der Rahmen umfasst Formen und Pfeile, mit 20 Punkten Rand');
+ok(rahmen([{ id: 'root' }]) === null, 'Ohne Formen kein Rahmen');
+vm.runInContext(`_bpmnModeler = { get: () => ({ getAll: () => [{ x: 0, y: 0, width: 100, height: 50 }] }) }`, ctx);
+const neu = vm.runInContext(`_procSvgMitRahmen('<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 0 0" version="1.1"><g/></svg>')`, ctx);
+ok(/width="140" height="90" viewBox="-20 -20 140 90"/.test(neu), 'Ein 0 × 0 großes Bild bekommt die Größe aus den Formen');
+const gemessen = '<svg width="640" height="300" viewBox="10 10 640 300"><g/></svg>';
+ok(vm.runInContext(`_procSvgMitRahmen(${JSON.stringify(gemessen)})`, ctx) === gemessen, 'Ein gemessenes Bild bleibt, wie es ist');
+
+/* ══ 4) Knöpfe und Doku ══ */
 console.log('Knöpfe');
 const P = lies('js/prozesse.js');
 ok(/onclick="procAnsichtAktion\('png'\)"[^>]*>🖼 PNG<\/button>/.test(P) && /onclick="procAnsichtAktion\('svg'\)"[^>]*>SVG<\/button>/.test(P), 'Modellansicht: „🖼 PNG" und „SVG"');
 ok(/else if \(act === 'png'\) _procAnsichtBild\('png'\);/.test(P), 'Die Ansicht kennt die Aktion');
 ok(/onclick="downloadProcessPng\(\)"[^>]*>⬇ PNG<\/button>/.test(P) && /onclick="downloadProcessSvg\(\)"[^>]*>⬇ SVG<\/button>/.test(P), 'Modeler: „⬇ PNG" und „⬇ SVG"');
-ok(/procSvgAlsPng\(_procSvgFaerben\(svg\)\)/.test(P) && /procSvgAlsPng\(farbig\)/.test(P), 'Beide PNG in den Farben der Ansicht');
+ok(/procSvgAlsPng\(_procSvgFaerben\(_procSvgMitRahmen\(svg\)\)\)/.test(P) && /const farbig = _procSvgFaerben\(_procSvgMitRahmen\(svg\)\);/.test(P) && /procSvgAlsPng\(farbig\)/.test(P),
+  'Beide PNG in den Farben der Ansicht, mit Größe auch im verdeckten Fenster');
 ok(/„🖼 PNG"/.test(lies('js/dokumentation.js')) && /„⬇ PNG"/.test(lies('js/dokumentation.js')), 'Die Dokumentation nennt beide');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
