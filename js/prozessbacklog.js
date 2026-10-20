@@ -252,6 +252,8 @@ function _pbKarteHtml(e, schreiben) {
       ${pruefText ? `<div class="pb-karte-pruefung"${pruefFarbe ? ` style="color:${pruefFarbe}"` : ''}>${esc(pruefText)}</div>` : ''}
       ${_pbReifeHtml(e)}
       ${_pbAnhangHtml(e)}
+      ${modell && (e.istModelle || []).length && typeof pvOeffnen === 'function' ? `<button type="button" class="pb-angaben pb-vergleich" onclick="pvOeffnen(${jsArg(k.id)}, 'backlog')"
+          title="IST und SOLL gegenüberstellen: was aus jedem Schritt wird, farbig zugeordnet">⇄ Vergleich IST/SOLL${e.vergleichKurz ? ' · ' + esc(e.vergleichKurz) : ''}</button>` : ''}
       ${_pbSchrittHtml(e, schreiben)}
       ${schreiben && modell ? `<button type="button" class="pb-angaben" onclick="pbAngabenDialog(${jsArg(k.id)})"
           title="Phase, Prozesseigner, Freigeber, Review-Termin, Analyse und POC eintragen">✎ Angaben</button>` : ''}

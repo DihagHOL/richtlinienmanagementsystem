@@ -143,6 +143,12 @@ function pfBeschreibungBloecke(o) {
     : `Freigegeben wird der Prozess „${haupt.titel}". Er hat keine Unter- oder Nebenprozesse.` });
   bloecke.push({ art: 'tabelle', kopf: ['Prozess', 'Art', 'Teil von'], breiten: [8.0, 3.4, 5.2],
     zeilen: m.map(x => ['   '.repeat(Math.max(0, x.ebene || 0)) + x.titel, PF_ARTEN[x.art] || x.art, x.oberTitel || '']) });
+  // Was aus dem bisherigen Ablauf wird (js/prozessvergleich.js): die Freigeber sehen, was sich ändert.
+  if (o.vergleich && (o.vergleich.zeilen || []).length) {
+    bloecke.push({ art: 'h2', text: 'Vergleich mit dem IST' });
+    bloecke.push({ art: 'p', text: `Was aus den Schritten des bisherigen Ablaufs wird. ${o.vergleich.kurz || ''}${o.vergleich.kurz ? '.' : ''}`.trim() });
+    bloecke.push({ art: 'tabelle', kopf: ['Nr.', 'IST', 'SOLL', 'Änderung', 'Grund'], breiten: [1.0, 5.0, 5.0, 2.4, 3.2], zeilen: o.vergleich.zeilen });
+  }
   m.forEach((x, i) => {
     bloecke.push({ art: 'h1', text: x.titel, neueSeite: true });
     bloecke.push({ art: 'p', text: (i === 0 ? 'Hauptprozess' : `${PF_ARTEN[x.art] || 'Teil'} von „${x.oberTitel}"`)
@@ -307,17 +313,41 @@ async function _pfBeschreibungErzeugen(titel, umfang) {
       } catch (e) { ohneBild.push(u.titel); }
     } else ohneBild.push(u.titel);
     modelle.push(eintrag);
+    if (i === 0) eintrag.xml = xml;
   }
+  const vergleich = await _pfVergleich(modelle);
+  modelle.forEach(x => { delete x.xml; });
   const haupt = procModellVon(umfang[0].id);
   const wer = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn || '') : '';
   const jetzt = new Date();
   const bloecke = pfBeschreibungBloecke({
     titel, werk: haupt ? _procWerkLabel(haupt) : '', wer,
     datum: jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-    modelle, artTitel: (art) => (typeof PROZESS_ARTEN !== 'undefined' && PROZESS_ARTEN[art]) ? PROZESS_ARTEN[art].titel : '',
+    modelle, vergleich, artTitel: (art) => (typeof PROZESS_ARTEN !== 'undefined' && PROZESS_ARTEN[art]) ? PROZESS_ARTEN[art].titel : '',
   });
   const bytes = bpmnAnleitungDocx(bloecke, bilder, { titel: 'Prozessbeschreibung ' + titel, autor: wer, zeit: jetzt.toISOString().slice(0, 19) + 'Z' });
   return { bytes, ohneBild };
+}
+
+/**
+ * Die Gegenüberstellung IST → SOLL des Hauptprozesses für die Beschreibung:
+ * Schrittnamen aus den Modellen des Umfangs (SOLL) und den IST-Modellen.
+ * → { kurz, zeilen } | null
+ */
+async function _pfVergleich(modelle) {
+  const pm = (modelle[0] && modelle[0].xml && typeof procPmAusXml === 'function') ? procPmAusXml(modelle[0].xml) : null;
+  if (!pm || !(pm.vergleich || []).length || typeof pvZeilenFuerWord !== 'function') return null;
+  const namen = {};
+  modelle.forEach(x => (x.schritte || []).forEach(s => { namen[x.id + ':' + s.id] = `${x.titel} · ${s.nr}. ${s.name || '(ohne Namen)'}`; }));
+  const istIds = [...new Set(pm.vergleich.flatMap(z => z.ist).map(r => r.split(':')[0]))];
+  for (const id of istIds) {
+    try {
+      const m = procModellVon(id);
+      const ablauf = prozessAblauf(await spGetProcessXml(id));
+      ablauf.schritte.forEach(s => { namen[id + ':' + s.id] = `${m ? m.title : 'IST'} · ${s.nr}. ${s.name || '(ohne Namen)'}`; });
+    } catch (e) { /* dann steht die Kennung da */ }
+  }
+  return { kurz: (typeof pzVglKurz === 'function') ? pzVglKurz(pm.vergleich) : '', zeilen: pvZeilenFuerWord(pm.vergleich, namen) };
 }
 
 /** Der Stand, der am Regelwerk festgehalten wird. */

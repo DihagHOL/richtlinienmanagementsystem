@@ -121,8 +121,8 @@ function _procDokuText(ids, docs, pm, gl) {
 /** Gehört die Zeile zu dem, was _procDokuText schreibt? Alles andere ist Beschreibung und bleibt stehen. */
 function _procIstDokuZeile(z) {
   const t = String(z || '').trim();
-  return /^\[\[rms:(policies|doc|pm|kpi|poc|pockrit|unter|neben)=/.test(t)
-    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Unterprozesse|Nebenprozesse):/.test(t);
+  return /^\[\[rms:(policies|doc|pm|kpi|poc|pockrit|vgl|unter|neben)=/.test(t)
+    || /^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Unterprozesse|Nebenprozesse):/.test(t);
 }
 
 // Leeres Start-Diagramm (ein Start-Ereignis) – Basis für „Neuer Prozess".
@@ -2413,7 +2413,7 @@ function _procLead(xml, a) {
   const m = String(xml || '').match(/<bpmn:process\b[^>]*>\s*<bpmn:documentation>([\s\S]*?)<\/bpmn:documentation>/);
   const roh = (m ? m[1] : '').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(Number(n)));
   const text = _xmlUnesc(roh).split('\n').map(z => z.trim())
-    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Dokument):/.test(z))
+    .filter(z => z && !/^\[\[rms:/.test(z) && !/^(Im Einklang mit den Richtlinien|Hinterlegte Dokumente|Unterprozesse|Nebenprozesse|Prozessmanagement|Kennzahlen|POC|POC-Kriterien|Vergleich mit dem IST|Dokument):/.test(z))
     .join(' ').trim();
   if (text) return text;
   const schritte = (a && a.schritte) || [];
@@ -2475,7 +2475,8 @@ function _procAnsichtenLeiste(itemId, herkunft) {
     .filter(k => k.quelle === 'zuordnung' && procModellVon(k.id) && !eindeutig.some(x => x.id === k.id));
   const canWrite = typeof canWriteTab !== 'function' || canWriteTab('prozesse');
   const ab = (typeof pzAbloesung === 'function') ? pzAbloesung(procModellEintraegeAlle(), itemId) : { eol: false, nachfolger: null, vorgaenger: [] };
-  if (!herkunft && !eindeutig.length && !eltern.length && !zugeordnet.length && !ab.eol && !ab.vorgaenger.length && !canWrite) { host.innerHTML = ''; return; }
+  if (!herkunft && !eindeutig.length && !eltern.length && !zugeordnet.length && !ab.eol && !ab.vorgaenger.length && !canWrite
+    && !(typeof pvMoeglich === 'function' && pvMoeglich(itemId))) { host.innerHTML = ''; return; }
   const eigen = procModellVon(itemId);
   // IST und SOLL: das abgelöste IST führt zu seinem SOLL (mit dessen Stand), das SOLL zurück.
   const stufe = (x) => pzStatusInfo(x.status);
@@ -2485,7 +2486,10 @@ function _procAnsichtenLeiste(itemId, herkunft) {
         esc(ab.nachfolger.kachel.name)} · <b style="color:${stufe(ab.nachfolger).farbe}">${esc(stufe(ab.nachfolger).kurz)}</b></button>`
     : ab.eol ? '<span class="pa-chip t-err" title="Ein IST in EOL braucht den SOLL-Prozess, der es ablöst (Backlog → ✎ Angaben oder rechts im Modeler)">↪ kein SOLL verknüpft</span>' : '')
     + ab.vorgaenger.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.kachel.id)})"
-        title="IST-Erfassung, die dieser Prozess ablöst">↩ IST: ${esc(x.kachel.name)}</button>`).join('');
+        title="IST-Erfassung, die dieser Prozess ablöst">↩ IST: ${esc(x.kachel.name)}</button>`).join('')
+    // IST und SOLL nebeneinander: was aus jedem Schritt wird (js/prozessvergleich.js).
+    + ((typeof pvMoeglich === 'function' && pvMoeglich(itemId)) ? `<button type="button" onclick="pvOeffnen(${jsArg(itemId)}, ${jsArg(itemId)})"
+        title="IST und SOLL gegenüberstellen: was aus jedem Schritt wird, farbig zugeordnet">⇄ Vergleich IST/SOLL</button>` : '');
   host.innerHTML = `<span>Ansicht:</span>
     ${herkunft ? `<button type="button" onclick="procZurueck()" title="Zurück in das einbindende Modell">↰ ${esc(herkunft.title)}</button>` : ''}
     ${eltern.map(x => `<button type="button" onclick="procUnterprozessOeffnen(${jsArg(x.modell.itemId)})"
@@ -3111,9 +3115,10 @@ function _procPmAusFormular() {
     freigeber: wert('proc-pm-freigeber') || '',
     nachfolger: status === 'eol' ? (wert('proc-pm-nachfolger') || '') : '',
     abgeloestAm: status === 'eol' ? (wert('proc-pm-abgeloest') || '') : '',
-    // Analyse und POC werden im Backlog gepflegt (✎ Angaben); hier bleiben sie, wie sie sind.
+    // Analyse, POC und Vergleich mit dem IST werden anderswo gepflegt; hier bleiben sie, wie sie sind.
     analyseAm: (_procPm && _procPm.analyseAm) || '',
     poc: (_procPm && _procPm.poc) || null,
+    vergleich: (_procPm && _procPm.vergleich) || [],
   }) : null;
   // Leere Zeilen sind beim Bereinigen weggefallen – die Tabelle muss wieder zur Liste passen.
   const kc = document.getElementById('proc-pm-kpi');

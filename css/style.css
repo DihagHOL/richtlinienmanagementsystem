@@ -1037,6 +1037,30 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pb-karte-person .status-badge { padding: 0 6px; font-size: .66rem; }
 .pb-angaben { font: inherit; font-size: .72rem; font-weight: 600; margin-top: 6px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; }
 .pb-angaben:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.pv-seite { display: flex; flex-direction: column; gap: 10px; }
+.pv-kopf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pv-kopf h2 { margin: 0; font-size: 1.15rem; color: var(--c-navy, #1A2644); }
+.pv-block { border: 1px solid var(--c-border); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.pv-block-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.pv-block-kopf h3 { margin: 0 auto 0 0; font-size: 1rem; color: var(--c-navy, #1A2644); }
+.pv-reiter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.pv-reiter button { font: inherit; font-size: .78rem; padding: 3px 10px; border-radius: 14px; border: 1px solid var(--c-border); background: #f8fafc; cursor: pointer; }
+.pv-reiter button.aktiv { background: var(--c-primary, #17509E); border-color: var(--c-primary, #17509E); color: #fff; }
+.pv-bild { overflow: auto; max-height: 70vh; border: 1px solid var(--c-border); border-radius: 8px; background: #fff; }
+.pv-bild svg { display: block; width: 100%; height: auto; }
+.pv-bild.pv-gross svg { width: auto; max-width: none; }
+.pv-tabelle { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.pv-tabelle th { text-align: left; font-weight: 600; color: var(--c-muted); padding: 4px 6px; border-bottom: 1px solid var(--c-border); }
+.pv-tabelle td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.pv-tabelle select, .pv-tabelle input { width: 100%; min-width: 0; font-size: .8rem; }
+.pv-pfeil { color: var(--c-muted); text-align: center; width: 18px; }
+.pv-nr { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; color: #fff; font-weight: 700; font-size: .8rem; }
+.pv-offen { margin-top: 10px; }
+.pv-offen h4 { margin: 8px 0 4px; font-size: .85rem; color: var(--c-navy, #1A2644); }
+.pv-offen-gruppe { margin: 2px 0 6px; line-height: 2; }
+.pv-chip { font: inherit; font-size: .74rem; padding: 2px 8px; border-radius: 12px; border: 1px dashed var(--c-border); background: #f8fafc; color: var(--c-navy); cursor: pointer; }
+.pv-chip:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.pb-vergleich { margin-left: 4px; }
 .ic-png { margin-left: auto; flex: 0 0 auto; font: inherit; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--c-border); background: #fff; color: var(--c-navy); cursor: pointer; }
 .ic-png:hover { border-color: var(--c-primary); color: var(--c-primary); }
 .pb-schritt { margin-top: 4px; font-size: .74rem; color: #b45309; }
