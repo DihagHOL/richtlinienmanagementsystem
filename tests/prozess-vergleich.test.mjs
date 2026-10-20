@@ -107,8 +107,10 @@ const xml = `<bpmndi:BPMNShape id="T2_di" bpmnElement="T2"><dc:Bounds x="100" y=
 const b = V.pvBoundsAusXml(xml);
 ok(b.T2.x === 100 && b.T2.w === 140 && b.P.h === 300, 'Lage und Größe aus dem BPMN-XML');
 const svg = V.pvSvgMitMarken('<svg width="900" height="300" viewBox="0 0 900 300"><g/></svg>', b, new Map([['T2', [{ nr: 1, farbe: '#17509E' }, { nr: 4, farbe: '#7c3aed' }]]]));
-ok(/viewBox="-24 -24 948 348"/.test(svg) && /<g class="pv-marken"><rect x="94" y="74" width="152" height="92" rx="12" fill="none" stroke="#17509E"/.test(svg)
+ok(/viewBox="-24 -24 948 348"/.test(svg) && /<g class="pv-marken"><rect x="94" y="74" width="152" height="92" rx="12" fill="none" stroke="#17509E" stroke-width="4"/.test(svg)
   && (svg.match(/<circle /g) || []).length === 2 && />4<\/text>/.test(svg), 'Rahmen in der Farbe, je Zuordnung eine Nummer, Platz am Rand');
+const breit = V.pvSvgMitMarken('<svg width="3600" height="900" viewBox="0 0 3600 900"><g/></svg>', b, new Map([['T2', [{ nr: 1, farbe: '#17509E' }]]]));
+ok(/<circle [^>]*r="39"/.test(breit) && /stroke-width="12"/.test(breit) && /viewBox="-72 -72 3744 1044"/.test(breit), 'Bei breiten Diagrammen wachsen Nummern und Rahmen mit (hier dreifach)');
 ok(V.pvSvgMitMarken('<svg width="1" height="1" viewBox="0 0 1 1"></svg>', b, new Map()) === '<svg width="1" height="1" viewBox="0 0 1 1"></svg>', 'Ohne Marken bleibt das Bild unverändert');
 const zwei = V.pvSvgUntereinander([{ titel: 'IST: A & B', svg: '<svg width="400" height="100" viewBox="0 0 400 100"><g/></svg>' },
   { titel: 'SOLL', svg: '<?xml version="1.0"?><svg width="600" height="200" viewBox="10 10 600 200"><rect/></svg>' }]);

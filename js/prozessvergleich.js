@@ -131,21 +131,29 @@ function pvSvgRand(svg, rand) {
   });
 }
 
-/** Die Marken ins Bild: ein Rahmen in der Farbe der Zuordnung und je Zuordnung eine Nummer. */
+/**
+ * Die Marken ins Bild: ein Rahmen in der Farbe der Zuordnung und je Zuordnung
+ * eine Nummer. Sie wachsen mit der Breite des Diagramms, damit sie auch
+ * eingepasst noch zu lesen sind (ein SOLL mit 4.000 Punkten Breite steht auf
+ * dem Bildschirm etwa fünffach verkleinert).
+ */
 function pvSvgMitMarken(svg, bounds, marken) {
+  const vb = ((String(svg).match(/<svg\b[^>]*\bviewBox="([^"]*)"/) || [])[1] || '').split(/[\s,]+/).map(Number);
+  const s = Math.max(1, Math.min(4, (vb.length === 4 && vb[2] > 0 ? vb[2] : 0) / 1200));
+  const r = 13 * s, schrift = 14 * s, linie = 4 * s, luft = 6 * s;
   const teile = [];
   marken.forEach((liste, id) => {
     const b = bounds[id];
     if (!b || !liste.length) return;
-    teile.push(`<rect x="${b.x - 6}" y="${b.y - 6}" width="${b.w + 12}" height="${b.h + 12}" rx="12" fill="none" stroke="${liste[0].farbe}" stroke-width="4"/>`);
+    teile.push(`<rect x="${b.x - luft}" y="${b.y - luft}" width="${b.w + 2 * luft}" height="${b.h + 2 * luft}" rx="${2 * luft}" fill="none" stroke="${liste[0].farbe}" stroke-width="${linie}"/>`);
     liste.forEach((m, i) => {
-      const cx = b.x - 2 + i * 28, cy = b.y - 8;
-      teile.push(`<circle cx="${cx}" cy="${cy}" r="13" fill="${m.farbe}" stroke="#fff" stroke-width="2"/>`
-        + `<text x="${cx}" y="${cy + 5}" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">${m.nr}</text>`);
+      const cx = b.x - 2 * s + i * (2 * r + 2 * s), cy = b.y - 8 * s;
+      teile.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${m.farbe}" stroke="#fff" stroke-width="${2 * s}"/>`
+        + `<text x="${cx}" y="${cy + 5 * s}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${schrift}" font-weight="700" fill="#fff">${m.nr}</text>`);
     });
   });
   if (!teile.length) return svg;
-  return pvSvgRand(svg, 24).replace(/<\/svg>\s*$/, `<g class="pv-marken">${teile.join('')}</g></svg>`);
+  return pvSvgRand(svg, 24 * s).replace(/<\/svg>\s*$/, `<g class="pv-marken">${teile.join('')}</g></svg>`);
 }
 
 /** Mehrere Bilder untereinander, je mit Überschrift: für das PNG des Vergleichs. */
@@ -307,10 +315,10 @@ function _pvTabelleHtml(darf) {
         const art = arten.find(a => a.key === z.art) || { label: z.art, farbe: '#64748b', text: '' };
         return `<tr>
           <td><span class="pv-nr" style="background:${farbe}">${i + 1}</span></td>
-          <td>${darf ? `<select aria-label="IST-Schritt ${i + 1}" onchange="pvZeileSetzen(${i},'ist',this.value)">${_pvOptionen('ist', z.ist[0] || '')}</select>`
+          <td>${darf ? `<select aria-label="IST-Schritt ${i + 1}" title="${esc(z.ist.map(_pvName).join('; '))}" onchange="pvZeileSetzen(${i},'ist',this.value)">${_pvOptionen('ist', z.ist[0] || '')}</select>`
             : esc(z.ist.map(_pvName).join('; ') || '–')}</td>
           <td class="pv-pfeil">→</td>
-          <td>${darf ? `<select aria-label="SOLL-Schritt ${i + 1}" onchange="pvZeileSetzen(${i},'soll',this.value)">${_pvOptionen('soll', z.soll[0] || '')}</select>`
+          <td>${darf ? `<select aria-label="SOLL-Schritt ${i + 1}" title="${esc(z.soll.map(_pvName).join('; '))}" onchange="pvZeileSetzen(${i},'soll',this.value)">${_pvOptionen('soll', z.soll[0] || '')}</select>`
             : esc(z.soll.map(_pvName).join('; ') || '–')}</td>
           <td>${darf ? `<select aria-label="Änderung ${i + 1}" onchange="pvZeileSetzen(${i},'art',this.value)" style="color:${art.farbe};font-weight:600">${arten.map(a =>
               `<option value="${a.key}"${a.key === z.art ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}</select>`
