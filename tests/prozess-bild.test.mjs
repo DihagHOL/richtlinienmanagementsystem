@@ -73,7 +73,30 @@ ok(/else if \(act === 'png'\) _procAnsichtBild\('png'\);/.test(P), 'Die Ansicht 
 ok(/onclick="downloadProcessPng\(\)"[^>]*>⬇ PNG<\/button>/.test(P) && /onclick="downloadProcessSvg\(\)"[^>]*>⬇ SVG<\/button>/.test(P), 'Modeler: „⬇ PNG" und „⬇ SVG"');
 ok(/procSvgAlsPng\(_procSvgFaerben\(_procSvgMitRahmen\(svg\)\)\)/.test(P) && /const farbig = _procSvgFaerben\(_procSvgMitRahmen\(svg\)\);/.test(P) && /procSvgAlsPng\(farbig\)/.test(P),
   'Beide PNG in den Farben der Ansicht, mit Größe auch im verdeckten Fenster');
-ok(/„🖼 PNG"/.test(lies('js/dokumentation.js')) && /„⬇ PNG"/.test(lies('js/dokumentation.js')), 'Die Dokumentation nennt beide');
+ok(/„🖼 PNG"/.test(lies('js/dokumentation.js')) && /„⬇ PNG"/.test(lies('js/dokumentation.js')) && /in der Modell-Liste/.test(lies('js/dokumentation.js')), 'Die Dokumentation nennt alle drei Orte');
+ok(/class="ic-png" onclick="event\.stopPropagation\(\);procModellPng\(\$\{jsArg\(p\.itemId\)\}\)"/.test(P) && /class="pg-knopf" onclick="procModellPng\(\$\{jsArg\(id\)\}\)"/.test(P),
+  'Modell-Liste: „🖼 PNG" an jeder Kachel (ohne sie zu öffnen) und jeder Zeile der Gliederung');
+ok(/const zeichner = new BpmnJS\(\{ container: box, additionalModules: _procSprachmodule\(\) \}\);[\s\S]*?_procFaerben\(zeichner\);[\s\S]*?_procSvgFaerben\(_procSvgMitRahmen\(svg, zeichner\)\)[\s\S]*?zeichner\.destroy\(\)/.test(P),
+  'Gezeichnet wird unsichtbar, in den Farben der Ansicht, der offene Modeler bleibt unberührt');
+
+/* Unsichtbar zeichnen: mit nachgebautem bpmn-js */
+const zctx = { console, JSON, Date, Array, Object, String, Math, Set, Map, Promise, Number, RegExp, encodeURIComponent, jsArg, esc: (s) => String(s ?? ''),
+  localStorage: { getItem: () => null, setItem() {} }, location: { search: '' } };
+zctx.window = zctx; zctx.globalThis = zctx; zctx.module = undefined;
+const entfernt = [];
+zctx.document = { getElementById: () => null, querySelectorAll: () => [], querySelector: () => null, head: { appendChild() {} },
+  body: { appendChild() {} }, createElement: () => ({ style: {}, remove() { entfernt.push('box'); } }) };
+vm.createContext(zctx);
+vm.runInContext(lies('js/util.js'), zctx);
+vm.runInContext(lies('js/prozesse.js'), zctx);
+let zerstoert = false;
+zctx.BpmnJS = class { constructor() {} async importXML() {} get(n) { return n === 'elementRegistry' ? { getAll: () => [{ x: 0, y: 0, width: 200, height: 100 }] } : { addMarker() {}, removeMarker() {} }; }
+  async saveSVG() { return { svg: '<svg width="0" height="0" viewBox="0 0 0 0"><g/></svg>' }; } destroy() { zerstoert = true; } };
+zctx.BpmnJS.prototype.constructor = zctx.BpmnJS;
+vm.runInContext('_bpmnModeler = { offen: true }', zctx);
+const gezeichnet = await vm.runInContext(`procSvgAusXml('<bpmn/>')`, zctx);
+ok(/width="240" height="140"/.test(gezeichnet) && zerstoert && entfernt.length === 1 && vm.runInContext('_bpmnModeler.offen', zctx) === true,
+  'Das unsichtbare Bild hat seine Größe, wird danach weggeräumt, der offene Modeler bleibt');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

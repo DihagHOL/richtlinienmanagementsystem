@@ -71,8 +71,8 @@ ok(Array.isArray(BPMN_DEUTSCH_MODUL.translate) && BPMN_DEUTSCH_MODUL.translate[0
 /* ── 4) Beide Modeler im RMS sprechen Deutsch ── */
 const proz = lies('js/prozesse.js');
 const erzeugt = [...proz.matchAll(/new BpmnJS\((\{.*?\})\);/g)].map(m => m[1]);
-ok(erzeugt.length === 2 && erzeugt.every(a => /additionalModules:\s*_procSprachmodule\(\)/.test(a)),
-  'Editor und Ansicht bekommen die Übersetzung');
+ok(erzeugt.length === 3 && erzeugt.every(a => /additionalModules:\s*_procSprachmodule\(\)/.test(a)),
+  'Editor, Ansicht und der Bildzeichner der Modell-Liste bekommen die Übersetzung');
 ok(/function _procSprachmodule\(\)\s*\{\s*return typeof BPMN_DEUTSCH_MODUL !== 'undefined' \? \[BPMN_DEUTSCH_MODUL\] : \[\];/.test(proz),
   'Fehlt die Tabelle, startet der Modeler englisch statt gar nicht');
 const modul = lies('js/module.js');

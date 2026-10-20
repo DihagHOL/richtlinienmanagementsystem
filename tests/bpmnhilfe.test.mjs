@@ -86,8 +86,8 @@ const proz = lies('js/prozesse.js');
 const erzeugt = [...proz.matchAll(/new BpmnJS\((\{.*?\})\);/g)].map(m => m[1]);
 ok(erzeugt.filter(a => /keyboard:\s*\{\s*bindTo:\s*document\s*\}/.test(a)).length === 1,
   'Der Editor bindet die Tastatur, sonst wirkte nicht einmal Strg+Z');
-ok(erzeugt.length === 2 && erzeugt.filter(a => !/keyboard/.test(a)).length === 1,
-  'Die Ansicht bleibt ohne Tastatur, sie ist zum Lesen da');
+ok(erzeugt.length === 3 && erzeugt.filter(a => !/keyboard/.test(a)).length === 2,
+  'Ansicht und Bildzeichner bleiben ohne Tastatur, sie sind zum Lesen da');
 ok(/on\('keyboard\.keydown',\s*\d+,\s*\(\)\s*=>\s*\(_procTastaturAktiv\(\)/.test(proz),
   'Jedes Kürzel geht durch die Sperre');
 

@@ -302,7 +302,8 @@ function _renderProcCards() {
   }
   const karte = (p) => `
     <div class="item-card" style="cursor:pointer" onclick="openProcessAnsicht(${jsArg(p.itemId)})" title="Ansehen: Diagramm, Schritte und Befunde">
-      <div class="ic-top"><div class="ic-title">🔀 ${esc(p.title)}</div></div>
+      <div class="ic-top"><div class="ic-title">🔀 ${esc(p.title)}</div>
+        <button type="button" class="ic-png" onclick="event.stopPropagation();procModellPng(${jsArg(p.itemId)})" title="Als PNG herunterladen, in den Farben der Ansicht">🖼 PNG</button></div>
       <div class="ic-tags"><span class="ic-tag">.bpmn</span>${p.modifiedBy ? `<span class="ic-tag">${esc(p.modifiedBy)}</span>` : ''}${p.modified ? `<span class="ic-tag">${esc(fmtDate(p.modified))}</span>` : ''}</div>
       <div id="proc-link-${esc(p.itemId)}" style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">…</div>
     </div>`;
@@ -573,6 +574,7 @@ function _procBaumKnoten(id, pfad, kante, gruppe, ctx) {
         <div class="pg-info" data-proc-link="${esc(id)}"></div>
       </div>
       <div class="pg-aktionen">
+        <button type="button" class="pg-knopf" onclick="procModellPng(${jsArg(id)})" title="Als PNG herunterladen, in den Farben der Ansicht">🖼 PNG</button>
         ${!tiefe && typeof pfStatusHtml === 'function' && pfIstHauptprozess(id) ? pfStatusHtml(id) : ''}
         ${ctx.canWrite && !kreis ? `<button type="button" class="pg-knopf" onclick="procGliederungDialog(${jsArg(id)})"
           title="Ein vorhandenes Modell als Unter- oder Nebenprozess zuordnen oder ein neues anlegen">+ Unter-/Nebenprozess</button>` : ''}
@@ -2253,10 +2255,11 @@ function _procFarbStil() {
 const _PROC_FARB_MARKER = () => Object.keys(typeof PROZESS_ARTEN !== 'undefined' ? PROZESS_ARTEN : {}).map(k => 'pa-art-' + k);
 
 /** Jedes Element bekommt die Farbe seiner Art, jede zweite Bahn einen Hauch Grau. */
-function _procFaerben() {
-  if (!_bpmnModeler || typeof prozessArt !== 'function') return;
+function _procFaerben(modeler) {
+  const m = modeler || _bpmnModeler;
+  if (!m || typeof prozessArt !== 'function') return;
   let reg, canvas;
-  try { reg = _bpmnModeler.get('elementRegistry'); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  try { reg = m.get('elementRegistry'); canvas = m.get('canvas'); } catch (e) { return; }
   const marker = _PROC_FARB_MARKER();
   let bahn = 0;
   reg.getAll().forEach(el => {
@@ -2739,10 +2742,11 @@ function procDiagrammRahmen(elemente, rand) {
  * sehen (Fenster im Hintergrund, eingeklappter Bereich), ist es 0 × 0 groß
  * und das Bild leer. Dann kommt die Größe aus den Formen selbst.
  */
-function _procSvgMitRahmen(svg) {
-  if (!/<svg\b[^>]*\bwidth="0"/.test(svg) || !_bpmnModeler) return svg;
+function _procSvgMitRahmen(svg, modeler) {
+  const m = modeler || _bpmnModeler;
+  if (!/<svg\b[^>]*\bwidth="0"/.test(svg) || !m) return svg;
   let elemente = [];
-  try { elemente = _bpmnModeler.get('elementRegistry').getAll(); } catch (e) { return svg; }
+  try { elemente = m.get('elementRegistry').getAll(); } catch (e) { return svg; }
   const r = procDiagrammRahmen(elemente);
   if (!r) return svg;
   return svg.replace(/<svg\b[^>]*>/, (kopf) => kopf
@@ -3593,6 +3597,40 @@ async function downloadProcessSvg() {
     a.href = url; a.download = name.replace(/\.bpmn$/i, '') + '.svg';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Bild gespeichert ✓', 'success');
+  } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
+}
+
+/**
+ * Ein Modell unsichtbar zeichnen und als farbiges SVG holen, wie in der
+ * Ansicht: für die Modell-Liste, ohne das Modell zu öffnen. Der offene Modeler
+ * bleibt unberührt.
+ */
+async function procSvgAusXml(xml) {
+  await _ensureBpmnLib();
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-20000px;top:0;width:1600px;height:1000px;visibility:hidden';
+  document.body.appendChild(box);
+  const zeichner = new BpmnJS({ container: box, additionalModules: _procSprachmodule() });
+  try {
+    await zeichner.importXML(xml);
+    _procFaerben(zeichner);
+    const { svg } = await zeichner.saveSVG();
+    return _procSvgFaerben(_procSvgMitRahmen(svg, zeichner));
+  } finally {
+    try { zeichner.destroy(); } catch (e) { /* egal */ }
+    box.remove();
+  }
+}
+
+/** Aus der Modell-Liste: ein Modell als PNG herunterladen. */
+async function procModellPng(itemId) {
+  const p = procModellVon(itemId);
+  if (!p) { toast('Modell nicht gefunden, bitte neu laden.', 'error'); return; }
+  toast(`${p.title}: Bild wird erzeugt …`);
+  try {
+    const svg = await procSvgAusXml(await spGetProcessXml(itemId));
+    _procHerunterladen(await procSvgAlsPng(svg), String(p.title).replace(/\.bpmn$/i, '') + '.png');
     toast('Bild gespeichert ✓', 'success');
   } catch (e) { toast('Bild-Export fehlgeschlagen: ' + e.message, 'error'); }
 }
