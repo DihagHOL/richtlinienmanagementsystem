@@ -107,6 +107,8 @@ ok(klick('modell', 'HOL', 'SOLL1', 'freigabe', '') === 'freigabe:SOLL1 | ', 'Reg
 ok(klick('modell', 'HOL', 'SOLL1', 'vergleich', '') === 'vergleich:SOLL1:backlog | ', 'Vergleich: der Vergleich IST/SOLL, zurück ins Backlog');
 ok(klick('kachel', 'HOL', 'h-it', 'eigner', '') === 'landkarte:HOL:h-it kachel-editor:h-it | lk-pz-eigner', 'Kachel: Landkarte, Kachel-Editor, Feld Prozesseigner');
 ok(klick('kachel', 'HOL', 'h-it', 'modell', '') === 'landkarte:HOL:h-it | ', 'Kachel ohne Modell: nur die Kachel in der Landkarte');
+ok(/const zeigen = \(feld\) => setTimeout\(\(\) => pbFeldZeigen\(feld\), 80\);/.test(bl) && /setTimeout\(\(\) => \{\s+const f = _modalFocusables\(\)[\s\S]{0,120}\}, 30\);/.test(lies('js/app.js')),
+  'Das Feld wird erst gezeigt, nachdem der Dialog seinen eigenen Fokus gesetzt hat (30 ms), sonst springt er nach oben');
 
 console.log('Feld hervorheben');
 const klassen = new Set(); let fokus = 0, gescrollt = 0;

@@ -384,19 +384,22 @@ const PB_SCHRITT_KACHELFELD = { eigner: 'lk-pz-eigner', prio: 'lk-pz-prio', term
  */
 function pbSchrittOeffnen(art, werk, id, ziel, istId) {
   const z = PZ_SCHRITT_ZIELE[ziel] || { wo: 'kachel' };
+  // Erst nach dem Fokus, den openModal nach 30 ms ins erste Feld setzt: sonst
+  // springt der Dialog wieder nach oben, und das Feld steht außer Sicht.
+  const zeigen = (feld) => setTimeout(() => pbFeldZeigen(feld), 80);
   if (art !== 'modell') {
     pbOeffnen(werk, id);
     const feld = PB_SCHRITT_KACHELFELD[ziel];
-    if (feld && typeof lkKachelBearbeiten === 'function') { lkKachelBearbeiten(id); pbFeldZeigen(feld); }
+    if (feld && typeof lkKachelBearbeiten === 'function') { lkKachelBearbeiten(id); zeigen(feld); }
     return;
   }
   if (z.wo === 'angaben') {
     pbAngabenDialog(ziel === 'abgeloest' && istId ? istId : id, ziel === 'nachfolger' ? 'eol' : undefined);
     if (ziel === 'pocKriterien' && !_pbKriterien.length) pbKriteriumNeu();
-    pbFeldZeigen(PB_SCHRITT_FELD[ziel]);
+    zeigen(PB_SCHRITT_FELD[ziel]);
   } else if (z.wo === 'editor') {
     if (typeof openProcessEditor === 'function') openProcessEditor(id);
-    pbFeldZeigen(PB_SCHRITT_FELD[ziel]);
+    zeigen(PB_SCHRITT_FELD[ziel]);
   } else if (z.wo === 'freigabe') {
     if (typeof pfFreigabeStarten === 'function') pfFreigabeStarten(id);
   } else if (z.wo === 'vergleich') {
