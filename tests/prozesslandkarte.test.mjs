@@ -565,14 +565,14 @@ ok(neuUp && neuUp.nr === 23 && neuUp.band === 'kern' && w("lkUnterprozesse(lkKac
 upFelder = { 'lk-up-suche': { value: 'Auftragserfassung' } };
 gemeldet.length = 0;
 await w("lkUnterprozessAnlegen('produktion')");
-ok(w("lkKacheln().filter(k => k.name === 'Auftragserfassung').length") === 1 && w("lkUnterprozesse(lkKachelVonId('produktion')).map(v => v.kachel.id).includes('auftragserfassung')") && gemeldet.some(t => /gibt es schon \(P-023\) – eingebunden statt doppelt angelegt/.test(t)),
+ok(w("lkKacheln().filter(k => k.name === 'Auftragserfassung').length") === 1 && w("lkUnterprozesse(lkKachelVonId('produktion')).map(v => v.kachel.id).includes('auftragserfassung')") && gemeldet.some(t => /gibt es schon \(P-023\), eingebunden statt doppelt angelegt/.test(t)),
   'Ein zweites Mal denselben Namen: eingebunden statt angelegt – jetzt hängt er in zwei Hauptprozessen, bleibt aber einer');
 w("lkKachelOeffnen('auftragserfassung')");
 ok(w("lkMehrfachVerwendet('HOL', 'auftragserfassung')") && /Wird von 2\s+Hauptprozessen verwendet/.test(modalUp) && /<h3><span class="lk-nr-tag"[^>]*>P-023<\/span> Auftragserfassung/.test(modalUp), 'Und die Kachel weiß, dass sie geteilt ist – mit ihrer Nummer im Titel');
-ok(/P-023/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'auftrag')")) && /gibt es schon – oben einbinden/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'Auftragserfassung')")), 'Die Liste zeigt die Nummer und rät vom Doppel ab');
+ok(/P-023/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'auftrag')")) && /gibt es schon\. Oben einbinden/.test(w("_lkUnterprozessListeHtml(lkKachelVonId('strategie'), 'Auftragserfassung')")), 'Die Liste zeigt die Nummer und rät vom Doppel ab');
 ctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
 ctx.openModal = () => {};
-ok(/Prozess-Nr\. – eindeutig und einmalig/.test(lies('js/dokumentation.js')) && /\+ Unterprozess:/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Nummer und Einbinden');
+ok(/Prozess-Nr\., eindeutig und einmalig/.test(lies('js/dokumentation.js')) && /\+ Unterprozess:/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Nummer und Einbinden');
 ok(/nr: \(typeof lkNrText === 'function'\) \? lkNrText\(k\) : ''/.test(lies('js/verknuepfungen.js')), 'Die Mindmap kennt die Nummer');
 w("delete _lkDaten.karten.SHB; _lkDaten = lkStartbestand(); _lkDaten.historie = [];");
 

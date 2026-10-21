@@ -123,7 +123,7 @@ function renderFaelligkeit() {
   }).join('')}</div>`;
   const regelwerke = !zeigt('regelwerke') ? '' : `
     <div class="view-desc" style="margin:0 0 14px">
-      Interne Überprüfung (Wiedervorlage) der Richtlinien – Grundlage: Feld „Nächste Überprüfung".
+      Interne Überprüfung (Wiedervorlage) der Richtlinien. Grundlage ist das Feld „Nächste Überprüfung".
       <b>ISO 27001 A.5.1</b> verlangt die regelmäßige Überprüfung. „+12 Monate" setzt den nächsten Termin sofort.
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">

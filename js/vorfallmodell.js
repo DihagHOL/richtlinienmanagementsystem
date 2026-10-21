@@ -37,7 +37,7 @@
 
 /** Die Arten von Tickets, wie das Haus sie trennt – und was sie im ISMS sind. */
 const VF_ARTEN = {
-  incident: { key: 'incident', label: 'Vorfälle & Ereignisse', einzahl: 'Vorfall / Ereignis', icon: '🚨', norm: 'ISO 27001 A.5.24–A.5.28 · NIS2 Art. 23' },
+  incident: { key: 'incident', label: 'Vorfälle & Ereignisse', einzahl: 'Vorfall / Ereignis', icon: '🚨', norm: 'ISO 27001 A.5.24 bis A.5.28 · NIS2 Art. 23' },
   change:   { key: 'change',   label: 'Änderungen',            einzahl: 'Änderung',           icon: '🔧', norm: 'ISO 27001 A.8.32' },
   doku:     { key: 'doku',     label: 'Dokumentation',         einzahl: 'Dokumentation',      icon: '📄', norm: 'ISO 27001 A.5.37' },
 };
@@ -45,7 +45,7 @@ const VF_ARTEN = {
 /** Die Beurteilung nach A.5.25: Ereignis (kein Schaden, kein Verstoß) oder Sicherheitsvorfall. */
 const VF_EINSTUFUNG = [
   { key: '',         label: 'nicht beurteilt' },
-  { key: 'ereignis', label: 'Ereignis – kein Vorfall' },
+  { key: 'ereignis', label: 'Ereignis, kein Vorfall' },
   { key: 'vorfall',  label: 'Sicherheitsvorfall' },
 ];
 
@@ -57,13 +57,13 @@ const VF_EINSTUFUNG = [
  */
 const VF_FRISTEN = [
   { key: 'fruehwarnung', label: 'Frühwarnung (NIS2)',       stunden: 24,      ab: 'kenntnis', wenn: 'erheblich',
-    text: 'Verdacht auf rechtswidrige oder böswillige Handlung? Grenzüberschreitende Auswirkung? – an das BSI' },
+    text: 'Verdacht auf rechtswidrige oder böswillige Handlung? Grenzüberschreitende Auswirkung? An das BSI' },
   { key: 'meldung',      label: 'Meldung (NIS2)',           stunden: 72,      ab: 'kenntnis', wenn: 'erheblich',
     text: 'Erste Bewertung: Schweregrad, Auswirkungen, Kompromittierungsindikatoren' },
   { key: 'abschluss',    label: 'Abschlussbericht (NIS2)',  stunden: 24 * 30, ab: 'meldung',  wenn: 'erheblich',
     text: 'Beschreibung, Ursache, ergriffene Maßnahmen, grenzüberschreitende Auswirkungen' },
   { key: 'dsgvo',        label: 'Meldung Aufsichtsbehörde (DSGVO Art. 33)', stunden: 72, ab: 'kenntnis', wenn: 'personendaten',
-    text: 'Art der Verletzung, Kategorien und Zahl der Betroffenen, Folgen, Maßnahmen – an die Landesdatenschutzbehörde' },
+    text: 'Art der Verletzung, Kategorien und Zahl der Betroffenen, Folgen, Maßnahmen. An die Landesdatenschutzbehörde' },
 ];
 
 /** Bis wann ein Ereignis beurteilt sein sollte – danach ist die fehlende Beurteilung eine Lücke, keine Wartezeit. */
@@ -274,28 +274,28 @@ function vfLuecken(ticket, bewertung, opt) {
   if (t.art !== 'incident') return { fehler, hinweise };
   const alter = _vfTage(t.erstellt, o.jetzt);
   if (!b.einstufung) {
-    if (alter !== null && alter > VF_BEURTEILUNG_TAGE) fehler.push(`Nicht beurteilt (A.5.25) – seit ${Math.round(alter)} Tagen: Ereignis oder Sicherheitsvorfall?`);
+    if (alter !== null && alter > VF_BEURTEILUNG_TAGE) fehler.push(`Nicht beurteilt (A.5.25), seit ${Math.round(alter)} Tagen: Ereignis oder Sicherheitsvorfall?`);
     else hinweise.push('Noch nicht beurteilt (A.5.25): Ereignis oder Sicherheitsvorfall?');
     return { fehler, hinweise };
   }
   if (b.einstufung !== 'vorfall') return { fehler, hinweise };
-  if (b.erheblich === null) fehler.push('Erheblichkeit nicht entschieden (NIS2 Art. 23) – erheblich heißt: Frühwarnung binnen 24 h.');
+  if (b.erheblich === null) fehler.push('Erheblichkeit nicht entschieden (NIS2 Art. 23). Erheblich heißt: Frühwarnung binnen 24 h.');
   for (const fr of vfFristen(t, b, o.jetzt)) {
-    if (fr.stand === 'ueberfaellig') fehler.push(`${fr.label} ${vfRestText(fr.restStunden)} – fällig war ${fr.faellig.slice(0, 16).replace('T', ' ')}.`);
+    if (fr.stand === 'ueberfaellig') fehler.push(`${fr.label} ${vfRestText(fr.restStunden)}, fällig war ${fr.faellig.slice(0, 16).replace('T', ' ')}.`);
     else if (fr.stand === 'verspaetet') hinweise.push(`${fr.label} verspätet abgegeben (${fr.erledigt.slice(0, 16).replace('T', ' ')}, fällig war ${fr.faellig.slice(0, 16).replace('T', ' ')}).`);
     else if (fr.stand === 'offen' && fr.restStunden <= 24) hinweise.push(`${fr.label} fällig: ${vfRestText(fr.restStunden)}.`);
   }
-  if (b.stufe === null) hinweise.push('Keine Eskalationsstufe – Störung, Notfall oder Krise? (Krisenstab, A.5.29)');
-  if (b.stufe !== null && b.stufe >= 2) hinweise.push(`Eskalationsstufe ${b.stufe} – der Krisenstab des Werks ist zuständig.`);
+  if (b.stufe === null) hinweise.push('Keine Eskalationsstufe: Störung, Notfall oder Krise? (Krisenstab, A.5.29)');
+  if (b.stufe !== null && b.stufe >= 2) hinweise.push(`Eskalationsstufe ${b.stufe}: Der Krisenstab des Werks ist zuständig.`);
   const massnahmen = (Array.isArray(o.massnahmen) ? o.massnahmen : []).filter(m => m && String(m.herkunftId || '') === `ticket:${t.id}`);
   if (!t.offen || t.abgeschlossen) {
     if (!b.ursache) fehler.push('Ticket erledigt, Ursache nicht festgehalten (A.5.26).');
-    if (!b.lessons) fehler.push('Ticket erledigt, keine Lehre daraus (A.5.27) – was verhindert die Wiederholung?');
-    if (!massnahmen.length) hinweise.push('Keine Korrekturmaßnahme im Wirksamkeits-Register (10.2) – oder es brauchte keine: dann als Lehre festhalten.');
+    if (!b.lessons) fehler.push('Ticket erledigt, keine Lehre daraus (A.5.27). Was verhindert die Wiederholung?');
+    if (!massnahmen.length) hinweise.push('Keine Korrekturmaßnahme im Wirksamkeits-Register (10.2), oder es brauchte keine: dann als Lehre festhalten.');
   } else if (alter !== null && alter > VF_OFFEN_TAGE) {
     hinweise.push(`Seit ${Math.round(alter)} Tagen offen.`);
   }
-  if (!b.beweise && (b.erheblich === true || b.personendaten)) hinweise.push('Beweismittel nicht benannt (A.5.28) – Logs, Screenshots, Forensik-Bericht: wo liegen sie?');
+  if (!b.beweise && (b.erheblich === true || b.personendaten)) hinweise.push('Beweismittel nicht benannt (A.5.28): Logs, Screenshots, Forensik-Bericht: wo liegen sie?');
   return { fehler, hinweise };
 }
 
@@ -363,7 +363,7 @@ function vfBerichtHtml(o) {
   const einstufung = (VF_EINSTUFUNG.find(e => e.key === b.einstufung) || VF_EINSTUFUNG[0]).label;
   const zeile = (k, v) => `<tr><th>${_vfEsc(k)}</th><td>${v || '–'}</td></tr>`;
   const stand = o.stand || new Date().toLocaleString('de-DE');
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Vorfallakte ${_vfEsc(t.id)} – ${_vfEsc(t.titel)}</title>
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Vorfallakte ${_vfEsc(t.id)}: ${_vfEsc(t.titel)}</title>
     <style>*{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:24px;font-size:12px;line-height:1.45}
       h1{font-size:18px;margin:0 0 2px} h2{font-size:13px;margin:16px 0 4px;color:#17509e;border-bottom:1px solid #17509e} .muted{color:#6b7280}
       table{border-collapse:collapse;width:100%;margin-top:4px} th,td{border:1px solid #d1d5db;padding:4px 6px;text-align:left;vertical-align:top} th{background:#f3f4f6;width:220px;font-weight:600}
@@ -371,15 +371,15 @@ function vfBerichtHtml(o) {
       .noprint{margin:14px 0} @media print{.noprint{display:none} body{margin:12px} h2{break-after:avoid} tr{break-inside:avoid}}</style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     ${o.kopf || ''}
-    <h1>Vorfallakte #${_vfEsc(t.id)} – ${_vfEsc(t.titel)}</h1>
-    <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.24–A.5.28 · NIS2 Art. 23 · Stand ${_vfEsc(stand)}</div>
+    <h1>Vorfallakte #${_vfEsc(t.id)}: ${_vfEsc(t.titel)}</h1>
+    <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.24 bis A.5.28 · NIS2 Art. 23 · Stand ${_vfEsc(stand)}</div>
     <h2>Das Ticket</h2>
     <table>${zeile('Ticket', `#${_vfEsc(t.id)}${t.url ? ` · ${_vfEsc(t.url)}` : ''}`)}${zeile('Art / Kategorie', `${_vfEsc(t.artRoh)} / ${_vfEsc(t.kategorie)}`)}${zeile('Werk', _vfEsc(t.werke.includes('ALLE') ? 'konzernweit' : t.werke.join(', ') || t.werkText))}
       ${zeile('Priorität / Status', `${_vfEsc(t.prio)} / ${_vfEsc(t.status)}`)}${zeile('Gemeldet', `${dt(t.erstellt)}${t.melder ? ` von ${_vfEsc(t.melder)}` : ''}`)}${zeile('Bearbeitung', _vfEsc(t.zugewiesen))}${zeile('Erledigt', t.offen ? 'offen' : dt(t.abgeschlossen || t.geaendert))}
       ${zeile('Beschreibung', `<p>${_vfEsc(t.beschreibung)}</p>`)}</table>
     <h2>Beurteilung (A.5.25)</h2>
     <table>${zeile('Einstufung', `<b>${_vfEsc(einstufung)}</b>`)}${zeile('Eskalationsstufe', _vfEsc(stufe))}${zeile('Kenntnis am', dt(b.kenntnisAm || t.erstellt))}
-      ${zeile('Erheblich (NIS2 Art. 23)', b.erheblich === true ? '<span class="rot">ja – meldepflichtig</span>' : b.erheblich === false ? 'nein' : '<span class="gelb">nicht entschieden</span>')}${zeile('Personendaten betroffen (DSGVO Art. 33)', b.personendaten ? '<span class="rot">ja</span>' : 'nein')}
+      ${zeile('Erheblich (NIS2 Art. 23)', b.erheblich === true ? '<span class="rot">ja, meldepflichtig</span>' : b.erheblich === false ? 'nein' : '<span class="gelb">nicht entschieden</span>')}${zeile('Personendaten betroffen (DSGVO Art. 33)', b.personendaten ? '<span class="rot">ja</span>' : 'nein')}
       ${zeile('Beurteilt', b.bewertetVon ? `${_vfEsc(b.bewertetVon)}, ${dt(b.bewertetAm)}` : '')}</table>
     ${fristen.length ? `<h2>Meldungen</h2><table><tr><th>Frist</th><td><b>Fällig</b></td><td><b>Erledigt</b></td><td><b>Stand</b></td></tr>${fristen.map(fr =>
       `<tr><th>${_vfEsc(fr.label)}<div class="muted" style="font-weight:400">${_vfEsc(fr.text)}</div></th><td>${dt(fr.faellig)}</td><td>${dt(fr.erledigt)}</td><td class="${fr.stand === 'ueberfaellig' ? 'rot' : fr.stand === 'erledigt' ? 'gruen' : 'gelb'}">${fr.stand === 'ueberfaellig' ? vfRestText(fr.restStunden) : fr.stand === 'erledigt' ? 'fristgerecht' : fr.stand === 'verspaetet' ? 'verspätet' : vfRestText(fr.restStunden)}</td></tr>`).join('')}</table>
@@ -388,8 +388,8 @@ function vfBerichtHtml(o) {
     <table>${zeile('Ursache', `<p>${_vfEsc(b.ursache)}</p>`)}${zeile('Reaktion / Eindämmung', `<p>${_vfEsc(b.reaktion)}</p>`)}${zeile('Lessons learned', `<p>${_vfEsc(b.lessons)}</p>`)}
       ${zeile('Korrekturmaßnahmen (10.2)', massnahmen.length ? massnahmen.map(m => `${_vfEsc(m.titel)} <span class="muted">(${_vfEsc(m.status)})</span>`).join('<br>') : '')}</table>
     <h2>Beweismittel (A.5.28)</h2>
-    <p>${_vfEsc(b.beweise) || '<span class="muted">nicht benannt – das Ticket selbst mit Anhängen und Kommentaren ist der Nachweis der Bearbeitung.</span>'}</p>
-    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Vorfälle" – deterministisch, ohne KI.</p>
+    <p>${_vfEsc(b.beweise) || '<span class="muted">nicht benannt. Das Ticket selbst mit Anhängen und Kommentaren ist der Nachweis der Bearbeitung.</span>'}</p>
+    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Vorfälle", deterministisch, ohne KI.</p>
     </body></html>`;
 }
 

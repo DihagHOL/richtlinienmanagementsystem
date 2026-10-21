@@ -151,7 +151,7 @@ function renderSoa() {
           <option value="nein"${c.anwendbar === false ? ' selected' : ''}>ausgeschlossen</option>
         </select>`
         : `<span class="ic-tag" style="background:#eef2ff;color:#3730a3"
-            title="Klauseln, Gesetze und Verordnungen stehen nicht zur Wahl – sie gelten.">gilt immer</span>`;
+            title="Klauseln, Gesetze und Verordnungen stehen nicht zur Wahl, sie gelten.">gilt immer</span>`;
       return `<tr${waehlbar && c.anwendbar === false ? ' style="background:#fafafa"' : ''}>
         <td style="white-space:nowrap;vertical-align:top"><b>${esc(it.id)}</b></td>
         <td style="vertical-align:top">${esc(it.label)}
@@ -178,7 +178,7 @@ function renderSoa() {
       Begründung und Umsetzungsstatus. Die Spalte „Abdeckung" (klein, grau) zeigt automatisch, welche Richtlinien
       das Control laut Normbezug abdecken. Für <b>ausgeschlossene</b> Controls ist die Begründung Pflicht.
       <br>Entschieden wird über die <b>${k.total} Annex-A-Controls</b>. Klauseln, NIS2 und die Rechtsnormen
-      (${k.immer} Anforderungen) stehen mit „<b>gilt immer</b>" darin – sie lassen sich nicht ausschließen,
+      (${k.immer} Anforderungen) stehen mit „<b>gilt immer</b>" darin. Sie lassen sich nicht ausschließen,
       ihr Umsetzungsstatus wird aber mitgeführt.
       <br>Blaue Zeilen sind <b>M365-Nachweise</b> aus dem <a href="${esc(sichereUrl(_soaCockpitLink('')))}" target="_blank" rel="noopener">Compliance-Cockpit</a>:
       der jüngste gesicherte Live-Wert aus Microsoft 365 zum Control${_soaM365 && Object.keys(_soaM365).length ? ` (${Object.keys(_soaM365).length} Controls belegt)` : ''}.
@@ -205,7 +205,7 @@ function renderSoa() {
       <button class="btn btn-outline btn-sm" onclick="soaExportCsv()">⬇ CSV</button>
       ${canWrite ? `<button class="btn btn-primary btn-sm" id="soa-save-btn" onclick="soaSave()">${_soaDirty ? '● ' : ''}Speichern</button>` : ''}
     </div>
-    ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> – die SoA kann angesehen, aber nicht geändert werden.</div>'}
+    ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b>. Die SoA kann angesehen, aber nicht geändert werden.</div>'}
     <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem">
       <thead><tr><th>Control</th><th>Bezeichnung / Abdeckung</th><th style="width:130px">Anwendbar</th><th style="width:160px">Umsetzung</th><th style="min-width:220px">Begründung</th></tr></thead>
       <tbody>${groups || '<tr><td colspan="5">Keine Treffer.</td></tr>'}</tbody>
@@ -249,7 +249,7 @@ function soaPrefill() {
   }
   _soaDirty = true;
   renderSoa();
-  if (typeof toast === 'function') toast(`${n} Control(s) vorbelegt – bitte prüfen und speichern.`, 'success');
+  if (typeof toast === 'function') toast(`${n} Control(s) vorbelegt. Bitte prüfen und speichern.`, 'success');
 }
 
 async function soaSave() {
@@ -257,7 +257,7 @@ async function soaSave() {
     if (typeof toast === 'function') toast('Nur Lesezugriff.', 'error'); return;
   }
   const k = _soaKpis();
-  if (k.begrFehlt && !await uiConfirm(`${k.begrFehlt} ausgeschlossene(s) Control(s) haben noch KEINE Begründung (rot markiert) – ISO 27001 verlangt sie. Trotzdem speichern?`, { title: 'Begründung fehlt', okLabel: 'Trotzdem speichern' })) return;
+  if (k.begrFehlt && !await uiConfirm(`${k.begrFehlt} ausgeschlossene(s) Control(s) haben noch KEINE Begründung (rot markiert). ISO 27001 verlangt sie. Trotzdem speichern?`, { title: 'Begründung fehlt', okLabel: 'Trotzdem speichern' })) return;
   const btn = document.getElementById('soa-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
   _soaData.meta = {
@@ -308,7 +308,7 @@ function soaExportReport() {
   }).join('');
 
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>Erklärung zur Anwendbarkeit (SoA) – DIHAG (${esc(stamp)})</title>
+    <title>Erklärung zur Anwendbarkeit (SoA) DIHAG (${esc(stamp)})</title>
     <style>
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:28px;font-size:11px;line-height:1.45}
       h1{font-size:18px;margin:0 0 2px} .muted{color:#6b7280}
@@ -332,7 +332,7 @@ function soaExportReport() {
     </div>
     <table><thead><tr><th>Control</th><th>Bezeichnung</th><th>Anwendbarkeit</th><th>Umsetzung</th><th>Begründung</th><th>Umsetzung durch (Richtlinien)</th></tr></thead>
       <tbody>${rows}</tbody></table>
-    <p class="muted" style="margin-top:16px">Erstellt aus dem DIHAG-Richtlinienmanagement – deterministisch, ohne KI. „(Review)" = Zuordnung aus der ISB-Review, noch nicht im Normbezug gespeichert.</p>
+    <p class="muted" style="margin-top:16px">Erstellt aus dem DIHAG-Richtlinienmanagement, deterministisch, ohne KI. „(Review)" = Zuordnung aus der ISB-Review, noch nicht im Normbezug gespeichert.</p>
     </body></html>`;
   const w = window.open('', '_blank');
   if (!w) { if (typeof toast === 'function') toast('Pop-up-Blocker? Bitte Pop-ups erlauben.', 'error'); return; }

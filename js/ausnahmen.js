@@ -141,7 +141,7 @@ async function initAusnahmen() {
       <b>Ausnahmeregister nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Ausnahmen" liegt wie die Risiken auf der <b>ISMS-Site</b>
         <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
-        ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
+        ersten Zugriff automatisch an. Dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
         <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Ausnahmen</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
@@ -242,17 +242,17 @@ function renderAusnahmen() {
         <td>${_excStatusBadge(a)}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`
-    : emptyState(alle.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch keine Ausnahme erfasst – oben „+ Neue Ausnahme".', alle.length ? '🔍' : '⚖️');
+    : emptyState(alle.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch keine Ausnahme erfasst. Oben „+ Neue Ausnahme".', alle.length ? '🔍' : '⚖️');
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      Dokumentierte, <b>befristete</b> Abweichungen von Richtlinien – nach
+      Dokumentierte, <b>befristete</b> Abweichungen von Richtlinien nach
       <b>Reifegrad R130</b> („Mit Risikobewertung, befristet, Entscheidung dokumentiert, ISB einbeziehen")
       sowie ISO 27001 5.36 (Einhaltung von Richtlinien). Ohne Enddatum, Risikobewertung, ISB-Vermerk und
       Vier-Augen-Entscheidung lässt sich eine Ausnahme hier nicht genehmigen.
     </div>
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
-      <b>⚠ In der Liste „Ausnahmen" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')} – Werte dieser Felder gehen beim Speichern verloren.</div>` : ''}
+      <b>⚠ In der Liste „Ausnahmen" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')}. Werte dieser Felder gehen beim Speichern verloren.</div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi(aktiv.length, 'aktiv gültig', aktiv.length ? '#b45309' : '#15803d')}
       ${kpi(offen.length, 'wartet auf Entscheidung', offen.length ? '#b45309' : '#15803d')}
@@ -262,7 +262,7 @@ function renderAusnahmen() {
     </div>
     ${abgelaufen.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ ${abgelaufen.length} Ausnahme(n) sind abgelaufen.</b> Die Richtlinie gilt dort seit dem Enddatum
-      wieder uneingeschränkt. Entweder ist die Abweichung beendet – dann bitte auf „zurückgezogen" setzen –
+      wieder uneingeschränkt. Entweder ist die Abweichung beendet, dann bitte auf „zurückgezogen" setzen,
       oder sie braucht eine neue Entscheidung.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen (Titel, Richtlinie, Antragsteller) …" value="${esc(_excFilter.q)}"
@@ -369,11 +369,11 @@ function renderAusnahmeEditor() {
             ${pols.map(p => `<option value="${esc(p.id)}"${String(a.richtlinieId) === String(p.id) ? ' selected' : ''}>${esc(p.titel || p.title || p.id)}</option>`).join('')}
           </select>
           ${a.richtlinieId && !pols.some(p => String(p.id) === String(a.richtlinieId))
-            ? `<div class="field-hint" style="color:#b45309">Zugeordnet: ${esc(a.richtlinieTitel || a.richtlinieId)} (nicht in der aktuellen Auswahl – archiviert oder andere Gesellschaft)</div>` : ''}</div>
+            ? `<div class="field-hint" style="color:#b45309">Zugeordnet: ${esc(a.richtlinieTitel || a.richtlinieId)} (nicht in der aktuellen Auswahl: archiviert oder andere Gesellschaft)</div>` : ''}</div>
         <div class="form-group"><label>Abschnitt / Kapitel</label>
           <input type="text" value="${esc(a.abschnitt)}" oninput="_excEditing.abschnitt=this.value" placeholder="z. B. 4.2 Bildschirmsperre"></div>
         <div class="form-group full"><label>Wovon genau wird abgewichen? <span class="req">*</span></label>
-          <textarea oninput="_excEditing.beschreibung=this.value" placeholder="Was die Richtlinie fordert – und was stattdessen geschieht.">${esc(a.beschreibung)}</textarea></div>
+          <textarea oninput="_excEditing.beschreibung=this.value" placeholder="Was die Richtlinie fordert und was stattdessen geschieht.">${esc(a.beschreibung)}</textarea></div>
         <div class="form-group full"><label>Begründung <span class="req">*</span></label>
           <textarea oninput="_excEditing.begruendung=this.value" placeholder="Warum die Abweichung nötig ist und warum die Vorgabe hier nicht erfüllbar ist.">${esc(a.begruendung)}</textarea></div>
         <div class="form-group"><label>Antragsteller (E-Mail) <span class="req">*</span></label>
@@ -393,7 +393,7 @@ function renderAusnahmeEditor() {
 
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
         <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Risikobewertung <span class="req">*</span>
-          <span style="font-weight:400;color:var(--c-muted);font-size:.78rem">– dieselbe 1–5-Skala wie im Risiko-Register</span></div>
+          <span style="font-weight:400;color:var(--c-muted);font-size:.78rem">(dieselbe Skala von 1 bis 5 wie im Risiko-Register)</span></div>
         <div class="form-grid">
           <div class="form-group"><label>Eintrittswahrscheinlichkeit</label>${_excScale('e')}</div>
           <div class="form-group"><label>Auswirkung</label>${_excScale('a')}
@@ -404,7 +404,7 @@ function renderAusnahmeEditor() {
               <option value="">– keins –</option>
               ${risiken.map(r => `<option value="${esc(r.id)}"${String(a.risikoId) === String(r.id) ? ' selected' : ''}>${esc(r.titel)}</option>`).join('')}
             </select>
-            ${!risiken.length ? '<div class="field-hint">Risiko-Register in diesem Browser noch nicht geladen – Reiter „Risiko-Register" einmal öffnen.</div>' : ''}</div>
+            ${!risiken.length ? '<div class="field-hint">Risiko-Register in diesem Browser noch nicht geladen. Reiter „Risiko-Register" einmal öffnen.</div>' : ''}</div>
         </div>
         <div class="form-group full"><label>Kompensierende Maßnahmen${excRisikoWert(a) >= EXC_KOMPENSATION_AB ? ' <span class="req">*</span>' : ''}</label>
           <textarea oninput="_excEditing.kompensation=this.value" placeholder="Was das Risiko stattdessen begrenzt.">${esc(a.kompensation)}</textarea>
@@ -456,7 +456,7 @@ function excPflichtfehler(a) {
   if (!String(a.beschreibung || '').trim()) f.push('Es fehlt, wovon abgewichen wird.');
   if (!String(a.begruendung || '').trim())  f.push('Begründung fehlt.');
   if (!String(a.antragsteller || '').trim()) f.push('Antragsteller fehlt.');
-  if (!a.befristetBis)                      f.push('Befristung fehlt – eine Ausnahme ohne Enddatum ist keine.');
+  if (!a.befristetBis)                      f.push('Befristung fehlt. Eine Ausnahme ohne Enddatum ist keine.');
   return f;
 }
 
@@ -498,7 +498,7 @@ async function saveAusnahme() {
   if (fehler.length) { if (typeof toast === 'function') toast(fehler[0], 'error'); return; }
   const monate = excLaufzeitMonate(a);
   if (monate !== null && monate > EXC_MAX_MONATE && typeof uiConfirm === 'function'
-      && !await uiConfirm(`Die Ausnahme liefe ${Math.round(monate)} Monate – länger als die vorgesehenen ${EXC_MAX_MONATE}. Eine so lange Abweichung gehört meist in die Richtlinie selbst.`,
+      && !await uiConfirm(`Die Ausnahme liefe ${Math.round(monate)} Monate, länger als die vorgesehenen ${EXC_MAX_MONATE}. Eine so lange Abweichung gehört meist in die Richtlinie selbst.`,
           { title: 'Lange Laufzeit', okLabel: 'Trotzdem so speichern' })) return;
   _excVermerk(a, a.id ? `geändert (Status ${a.status})` : 'beantragt');
   await _excSchreiben(a, 'Ausnahme gespeichert ✓');
@@ -525,7 +525,7 @@ async function entscheideAusnahme(neuerStatus) {
     }
     const monate = excLaufzeitMonate(a);
     if (monate !== null && monate > EXC_MAX_MONATE && typeof uiConfirm === 'function'
-        && !await uiConfirm(`Die Ausnahme liefe ${Math.round(monate)} Monate – länger als die vorgesehenen ${EXC_MAX_MONATE}.`,
+        && !await uiConfirm(`Die Ausnahme liefe ${Math.round(monate)} Monate, länger als die vorgesehenen ${EXC_MAX_MONATE}.`,
             { title: 'Lange Laufzeit', okLabel: 'Trotzdem genehmigen' })) return;
   } else {
     const fehler = excPflichtfehler(a);
@@ -537,7 +537,7 @@ async function entscheideAusnahme(neuerStatus) {
   a.status = neuerStatus;
   a.entscheider = upn;
   a.entschiedenAm = new Date().toISOString();
-  _excVermerk(a, `${neuerStatus}${a.entscheidungKommentar ? ' – ' + a.entscheidungKommentar : ''}`);
+  _excVermerk(a, `${neuerStatus}${a.entscheidungKommentar ? ': ' + a.entscheidungKommentar : ''}`);
   await _excSchreiben(a, `Ausnahme ${neuerStatus} ✓`);
 }
 
@@ -562,7 +562,7 @@ async function deleteAusnahme(id) {
   const a = (_excs || []).find(x => String(x.id) === String(id));
   if (!a) return;
   if (typeof uiConfirm === 'function' && !await uiConfirm(
-      `Ausnahme „${a.titel}" endgültig löschen? Für den Nachweis ist „zurückgezogen" meist die bessere Wahl – eine gelöschte Entscheidung lässt sich im Audit nicht mehr zeigen.`,
+      `Ausnahme „${a.titel}" endgültig löschen? Für den Nachweis ist „zurückgezogen" meist die bessere Wahl. Eine gelöschte Entscheidung lässt sich im Audit nicht mehr zeigen.`,
       { title: 'Ausnahme löschen', okLabel: 'Endgültig löschen', danger: true })) return;
   try {
     await spDeleteException(id);
@@ -640,8 +640,8 @@ function _excHinweisInhalt(id) {
   const zeilen = treffer.map(a => {
     const tage = excTageBisAblauf(a);
     const bald = tage !== null && tage <= EXC_WARNUNG_TAGE;
-    return `<li style="margin:3px 0"><b>${esc(a.titel)}</b>
-      – befristet bis <span style="${bald ? 'color:#b45309;font-weight:600' : ''}">${a.befristetBis ? fmtDate(a.befristetBis) : 'ohne Enddatum'}</span>${
+    return `<li style="margin:3px 0"><b>${esc(a.titel)}</b>,
+      befristet bis <span style="${bald ? 'color:#b45309;font-weight:600' : ''}">${a.befristetBis ? fmtDate(a.befristetBis) : 'ohne Enddatum'}</span>${
         bald && tage >= 0 ? ` (noch ${tage} Tage)` : ''}
       · ${(a.werke || []).length ? esc(a.werke.join(', ')) : 'konzernweit'}</li>`;
   }).join('');

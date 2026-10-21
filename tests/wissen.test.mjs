@@ -276,12 +276,12 @@ ok(/data-view="wissen" id="nav-wissen"/.test(idx) && idx.indexOf('data-view="wis
 ok(/if \(view === 'wissen'\) return true;/.test(acc) && /view: 'wissen'/.test(acc) && /show\('nav-wissen',\s+canReadTab\('wissen'\)\)/.test(acc),
   'Lesen dürfen alle; Pflegen vergibt die Reiter-Berechtigung („S")');
 ok(/wissen:\s*\['wissenmodell', 'wissen'\]/.test(mod) && /'wissenmodell',[^\]]*'clevelreport'\]/.test(mod),'Der Reiter lädt nur Modell und Ansicht; das Modell steht im Verwaltungsblock für Cockpit und Report');
-ok(/if \(view === 'wissen'\s+&& typeof initWissen === 'function'\)\s+initWissen\(\);/.test(app) && /ansicht === 'wissen'/.test(app) && /wissen: 'Wissen – Themen, Videos, Awareness'/.test(app),
+ok(/if \(view === 'wissen'\s+&& typeof initWissen === 'function'\)\s+initWissen\(\);/.test(app) && /ansicht === 'wissen'/.test(app) && /wissen: 'Wissen: Themen, Videos, Awareness'/.test(app),
   'Ansicht, Titel und Link ?ansicht=wissen&beitrag=… sind angeschlossen');
 ok(/async function spLoadWissen/.test(lies('js/sharepoint.js')) && /zwischenzeitlich geändert/.test(lies('js/sharepoint.js')), 'wissen.json wird gelesen und mit Änderungsstempel geschrieben');
 ok(/_ckLoadWissen/.test(lies('js/cockpit.js')) && /'Wissen & Awareness'/.test(lies('js/cockpit.js')), 'Das Cockpit hat eine Kachel');
 ok(/ISO A\.6\.3/.test(lies('js/clevelreport.js')) && /m\.wissen = wiKennzahlen/.test(lies('js/clevelreport.js')), 'Der Audit Report hat eine Zeile (A.6.3)');
-ok(/sec\('wissen', 'Wissen – die Bibliothek'/.test(lies('js/dokumentation.js')) && /Für die Pflege/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Lesen und Pflegen');
+ok(/sec\('wissen', 'Wissen: die Bibliothek'/.test(lies('js/dokumentation.js')) && /Für die Pflege/.test(lies('js/dokumentation.js')), 'Die Dokumentation erklärt Lesen und Pflegen');
 ok(/\.wi-karte\b/.test(lies('css/style.css')) && /\.wi-chip\.aktiv/.test(lies('css/style.css')) && /\.wi-artikel/.test(lies('css/style.css')), 'Stil für Karten, Filter und Artikel');
 ok(/PROBELAUF_NAV_BLEIBT = \[[^\]]*'wissen'/.test(lies('js/probelauf.js')), 'Im Probelauf bleibt der Reiter sichtbar – ihn sieht ohnehin jede:r');
 

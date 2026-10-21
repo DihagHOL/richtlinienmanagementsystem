@@ -281,7 +281,7 @@ function spInvalidateInit() {
 /** Eine Abfrage wiederholen, falls sie an veralteten IDs gescheitert ist. */
 async function _spNeuErmitteln(fehler, nochmal) {
   if (!/\(40[04]\)|itemNotFound|nicht gefunden/i.test(fehler && fehler.message || '')) throw fehler;
-  console.warn('[sp] Gespeicherte IDs passen nicht mehr – ermittle neu.');
+  console.warn('[sp] Gespeicherte IDs passen nicht mehr, ermittle neu.');
   spInvalidateInit();
   return nochmal();
 }
@@ -296,7 +296,7 @@ async function spInit() {
 
 async function _spInitDurchfuehren() {
   const token = await acquireToken(SP.scopes);
-  if (!token) throw new Error('Kein Token – Anmeldung erforderlich.');
+  if (!token) throw new Error('Kein Token, Anmeldung erforderlich.');
 
   const cache = _spCacheLesen();
   if (cache) {
@@ -890,7 +890,7 @@ async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
       return items.map(_mapAck);
     } catch (e) {
       console.info('[sp] Serverseitiger Filter auf Bestätigungen nicht möglich '
-        + '(Spalte „BenutzerUPN" indizieren macht es schnell) – lade ungefiltert:', e.message);
+        + '(Spalte „BenutzerUPN" indizieren macht es schnell), lade ungefiltert:', e.message);
       spEnsureAckIndex().catch(() => {});   // wer darf, richtet den Index ein – die nächste Anmeldung ist dann schlank
     }
   }
@@ -932,10 +932,10 @@ async function spEnsureAckIndex() {
     if (!spalte) return 'fehlgeschlagen';
     if (spalte.indexed === true) return 'vorhanden';
     await _patch(`${basis}/${spalte.id}`, token, { indexed: true });
-    console.info('[sp] Index auf „BenutzerUPN" gesetzt – Bestätigungen werden ab jetzt serverseitig gefiltert.');
+    console.info('[sp] Index auf „BenutzerUPN" gesetzt, Bestätigungen werden ab jetzt serverseitig gefiltert.');
     return 'gesetzt';
   } catch (e) {
-    console.warn('[sp] Index auf „BenutzerUPN" konnte nicht gesetzt werden – bitte in den Listeneinstellungen (Indizierte Spalten) anlegen:', e.message);
+    console.warn('[sp] Index auf „BenutzerUPN" konnte nicht gesetzt werden. Bitte in den Listeneinstellungen (Indizierte Spalten) anlegen:', e.message);
     return 'fehlgeschlagen';
   }
 }
@@ -1362,7 +1362,7 @@ async function spEnsureIsmsUserLookupId(email) {
   if (!token) return null;
   const siteId = await _ismsSiteId(token);
   const listId = await _ismsUserInfoListId(siteId, token);
-  if (!listId) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden – Person ggf. direkt in SharePoint setzen.');
+  if (!listId) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden. Person ggf. direkt in SharePoint setzen.');
   let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields($select=id,EMail,UserName,Title)&$top=500`;
   while (url) {
     const resp = await _get(url, token);
@@ -1770,7 +1770,7 @@ async function spGetMyGroups() {
       return _meineGruppen;
     } catch (e) { letzter = e; }
   }
-  console.info('[sp] Gruppen-Mitgliedschaften nicht lesbar – gruppenbasierte Freigaben greifen nicht:',
+  console.info('[sp] Gruppen-Mitgliedschaften nicht lesbar, gruppenbasierte Freigaben greifen nicht:',
     letzter && letzter.message);
   _gruppenLesbar = false;
   _meineGruppen = [];
@@ -1958,7 +1958,7 @@ async function spGetPolicyDocText(driveId, itemId) {
   if (!resp.ok) throw new Error('Dokument-Download fehlgeschlagen (' + resp.status + ').');
   const buf = new Uint8Array(await resp.arrayBuffer());
   const xmlBytes = await _zipEntryBytes(buf, 'word/document.xml');
-  if (!xmlBytes) throw new Error('word/document.xml nicht gefunden – ist das eine gültige .docx?');
+  if (!xmlBytes) throw new Error('word/document.xml nicht gefunden. Ist das eine gültige .docx?');
   return _docxXmlToText(new TextDecoder('utf-8').decode(xmlBytes));
 }
 
@@ -3933,7 +3933,7 @@ async function _fetchRetry(url, options, _attempt = 0) {
   if ((resp.status === 429 || resp.status === 503 || resp.status === 504) && _attempt < 3) {
     const retryAfter = parseFloat(resp.headers.get('Retry-After')) || 0;   // Sekunden, falls gesetzt
     const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(8000, 500 * 2 ** _attempt);
-    console.warn(`[sp] Graph ${resp.status} – Retry ${_attempt + 1}/3 in ${waitMs} ms`);
+    console.warn(`[sp] Graph ${resp.status}, Retry ${_attempt + 1}/3 in ${waitMs} ms`);
     await new Promise(r => setTimeout(r, waitMs));
     return _fetchRetry(url, options, _attempt + 1);
   }

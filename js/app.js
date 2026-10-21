@@ -26,7 +26,7 @@ const State = {
 const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
-  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', wissen: 'Wissen – Themen, Videos, Awareness',
+  meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', wissen: 'Wissen: Themen, Videos, Awareness',
   cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
   ziele: 'Ziele', massnahmen: 'Maßnahmen', kennzahlen: 'Kennzahlen',
   freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
@@ -242,14 +242,14 @@ async function applyDeepLinkOrDefault() {
     const mbDarf = (aktion === 'mb_konform' || aktion === 'mb_nicht_konform') && !!token
       && typeof darfMitbestimmung === 'function'
       && darfMitbestimmung(policyZuId(deepId) || {});
-    if (!canReview && !mbDarf) { await switchView(startAnsicht()); toast('Dieses Regelwerk liegt im Freigabe-Prozess – dafür fehlt Ihnen die Berechtigung.'); return; }
+    if (!canReview && !mbDarf) { await switchView(startAnsicht()); toast('Dieses Regelwerk liegt im Freigabe-Prozess. Dafür fehlt Ihnen die Berechtigung.'); return; }
     // Der Reiter „Freigaben" folgt nicht mehr der Rolle: Wer prüfen darf, aber
     // den Reiter nicht freigegeben hat, erfährt es hier. Die Mitbestimmung
     // braucht den Reiter nicht – ihr Fenster steht über jeder Ansicht.
     const reiterOffen = typeof canReadTab !== 'function' || canReadTab('freigaben');
     if (canReview && !reiterOffen && !mbDarf) {
       await switchView(startAnsicht());
-      toast('Der Reiter „Freigaben" ist für Sie nicht freigegeben – bitte an die Administration wenden.', 'error');
+      toast('Der Reiter „Freigaben" ist für Sie nicht freigegeben. Bitte an die Administration wenden.', 'error');
       return;
     }
     await switchView(canReview && reiterOffen ? 'freigaben' : startAnsicht());
@@ -271,7 +271,7 @@ async function applyDeepLinkOrDefault() {
     // soll die Person erfahren, nicht raten.
     if (typeof canReadTab === 'function' && !canReadTab('meine')) {
       await switchView(startAnsicht());
-      toast('Der Reiter „Meine Regelwerke" ist für Sie nicht freigegeben – bitte an die Administration wenden.', 'error');
+      toast('Der Reiter „Meine Regelwerke" ist für Sie nicht freigegeben. Bitte an die Administration wenden.', 'error');
       return;
     }
     await switchView('meine');
@@ -730,7 +730,7 @@ function startReadGate(seconds) {
   const tick = () => {
     const hint = document.getElementById('read-gate-hint');
     if (left <= 0 || !hint) { unlockReadGate(); return; }
-    hint.textContent = `Bitte zuerst das Dokument lesen … (${left}s) – oder „In SharePoint öffnen" klicken`;
+    hint.textContent = `Bitte zuerst das Dokument lesen … (${left}s) oder „In SharePoint öffnen" klicken`;
     left--;
   };
   tick();
@@ -782,7 +782,7 @@ function renderAckCard(p, a, st) {
       <div class="ack-dot active">1</div>
       <div class="ack-step-body">
         <div class="t">Kenntnisnahme bestätigen</div>
-        ${expired ? '<div class="s" style="color:#b45309">↻ Wiederholung fällig – bitte erneut lesen und bestätigen.</div>' : ''}
+        ${expired ? '<div class="s" style="color:#b45309">↻ Wiederholung fällig. Bitte erneut lesen und bestätigen.</div>' : ''}
         <label class="ack-check" style="margin-top:8px">
           <input type="checkbox" id="ack-cb" disabled onchange="document.getElementById('ack-btn').disabled=!this.checked">
           <span>Ich habe die Richtlinie „${esc(p.title)}" (Version ${esc(p.version)}) gelesen und verstanden.</span>
@@ -858,7 +858,7 @@ async function confirmRead(policyId) {
     });
     await reloadAcks();
     toast(p.quizErforderlich
-      ? 'Kenntnisnahme gespeichert – jetzt den Wissenstest absolvieren.'
+      ? 'Kenntnisnahme gespeichert. Jetzt den Wissenstest absolvieren.'
       : 'Richtlinie abgeschlossen ✓', 'success');
     openDetail(policyId);
   } catch (e) {

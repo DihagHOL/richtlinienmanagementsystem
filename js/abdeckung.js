@@ -19,7 +19,7 @@ let _abdeckungMode = 'heatmap';   // 'heatmap' | 'soa' (Erklärung zur Anwendbar
 function _abModeSwitcher(active) {
   const b = (mode, label) => `<button class="btn btn-sm ${active === mode ? 'btn-primary' : 'btn-outline'}"
     onclick="abdeckungSetMode(${jsArg(mode)})">${label}</button>`;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA – Erklärung zur Anwendbarkeit')}${b('reifegrad', 'Reifegrad IT/OT-Betrieb')}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${b('heatmap', 'Heatmap & Lücken')}${b('soa', 'SoA: Erklärung zur Anwendbarkeit')}${b('reifegrad', 'Reifegrad IT/OT-Betrieb')}</div>`;
 }
 
 function abdeckungSetMode(mode) {
@@ -119,10 +119,10 @@ function renderAbdeckung() {
       const s = savedN(it.id), pr = provN(it.id);
       const kind = s > 0 ? 'saved' : (pr > 0 ? 'prov' : 'luecke');
       const d = data[it.id] || { saved: [], prov: [] };
-      const tip = it.id + ' — ' + it.label + '\n'
+      const tip = it.id + ': ' + it.label + '\n'
         + (d.saved.length ? 'Gespeichert: ' + d.saved.join(', ') + '\n' : '')
         + (d.prov.length  ? 'Vorläufig (Review): ' + d.prov.join(', ') : '')
-        + (!d.saved.length && !d.prov.length ? 'Lücke – von keiner Richtlinie abgedeckt' : '');
+        + (!d.saved.length && !d.prov.length ? 'Lücke: von keiner Richtlinie abgedeckt' : '');
       const badge = s > 1 ? ` <span style="opacity:.75">×${s}</span>` : (kind === 'prov' ? ' <span style="opacity:.75">◔</span>' : '');
       return `<div class="ab-cell" title="${esc(tip)}" onclick="abdeckungShowControl(${jsArg(it.id)})"
         style="${_abColor(kind, s)};border:1px solid;border-radius:6px;padding:5px 7px;font-size:.72rem;cursor:pointer;min-width:0">
@@ -130,7 +130,7 @@ function renderAbdeckung() {
     }).join('');
     return `<div style="margin-bottom:14px">
       <div style="font-size:.8rem;font-weight:700;margin:0 2px 6px">${esc(g.group)}
-        <span style="color:var(--c-muted);font-weight:500">— ${done}/${g.items.length} abgedeckt</span></div>
+        <span style="color:var(--c-muted);font-weight:500">· ${done}/${g.items.length} abgedeckt</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px">${cells}</div>
     </div>`;
   }).join('');
@@ -178,7 +178,7 @@ function abdeckungShowControl(id) {
   if (d.saved.length) parts.push('gespeichert: ' + d.saved.join(', '));
   if (d.prov.length)  parts.push('vorläufig (Review): ' + d.prov.join(', '));
   if (typeof toast === 'function') {
-    toast(parts.length ? `${label} — ${parts.join(' · ')}` : `${label} — Lücke: von keiner Richtlinie abgedeckt.`,
+    toast(parts.length ? `${label}: ${parts.join(' · ')}` : `${label}. Lücke: von keiner Richtlinie abgedeckt.`,
       d.saved.length ? 'success' : (d.prov.length ? 'info' : 'error'), 6000);
   }
 }
@@ -225,8 +225,8 @@ function _abStatusWord(d) {
 /** Konformitäts-Kurzstatus einer Richtlinie (nutzt konformErreicht, falls geladen). */
 function _abKonformStatus(p) {
   if (p.status === 'Veröffentlicht') return 'veröffentlicht';
-  if (p.status === 'Freigabe')       return 'konform – in Freigabe';
-  if (p.status === 'Mitbestimmung')  return 'konform – in Mitbestimmung (BR)';
+  if (p.status === 'Freigabe')       return 'konform, in Freigabe';
+  if (p.status === 'Mitbestimmung')  return 'konform, in Mitbestimmung (BR)';
   if (typeof konformErreicht === 'function' && konformErreicht(p)) return 'konform';
   if (p.status === 'Konformitätsprüfung' || p.status === 'InReview') return 'in Konformitätsprüfung';
   return p.status || '–';
@@ -273,7 +273,7 @@ function abdeckungExportReport() {
   }).join('');
 
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>IMS-Abdeckung & Konformität – DIHAG (${esc(stamp)})</title>
+    <title>IMS-Abdeckung & Konformität DIHAG (${esc(stamp)})</title>
     <style>
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:28px;font-size:12px;line-height:1.45}
       h1{font-size:18px;margin:0 0 2px} h2{font-size:14px;margin:22px 0 8px;border-bottom:2px solid #111827;padding-bottom:3px}
@@ -294,13 +294,13 @@ function abdeckungExportReport() {
       <div><b>${cov(nis2Ids)}/${nis2Ids.length}</b><span class="muted">NIS2 inkl. Review</span></div>
       <div><b>${cov(weitereIds)}/${weitereIds.length}</b><span class="muted">weitere Regelwerke</span></div>
     </div>
-    <h2>1 · Richtlinien – Konformität &amp; Normbezug</h2>
+    <h2>1 · Richtlinien: Konformität &amp; Normbezug</h2>
     <table><thead><tr><th>Richtlinie</th><th>Status</th><th>Konformitätsprüfung / Freigabe</th><th>Normbezug</th></tr></thead>
       <tbody>${policyRows || '<tr><td colspan="4">Keine Richtlinien.</td></tr>'}</tbody></table>
     <h2>2 · Abdeckung der Normanforderungen</h2>
     <table><thead><tr><th>Control</th><th>Bezeichnung</th><th>Status</th><th>Abgedeckt durch</th></tr></thead>
       <tbody>${controlRows}</tbody></table>
-    <p class="muted" style="margin-top:18px">Erstellt aus dem DIHAG-Richtlinienmanagement – deterministisch, ohne KI. „gespeichert" = im Normbezug der Richtlinie hinterlegt; „vorläufig (Review)" = aus der ISB-Review-Zuordnung, noch nicht gespeichert.</p>
+    <p class="muted" style="margin-top:18px">Erstellt aus dem DIHAG-Richtlinienmanagement, deterministisch, ohne KI. „gespeichert" = im Normbezug der Richtlinie hinterlegt; „vorläufig (Review)" = aus der ISB-Review-Zuordnung, noch nicht gespeichert.</p>
     </body></html>`;
 
   const w = window.open('', '_blank');

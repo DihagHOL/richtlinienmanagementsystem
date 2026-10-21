@@ -249,7 +249,7 @@ ok(/nicht haltbar/.test(hb), 'Die Lücke steht auch im Ausdruck – ein Handbuch
 ok(/window\.print\(\)/.test(hb) && /class="noprint"/.test(hb), 'Druckknopf, der beim Drucken verschwindet');
 ok(/ohne Strom, Netz und Anmeldung/.test(hb), 'Das Deckblatt sagt, wofür der Ausdruck ist');
 ok(/Leitung Krisenstab/.test(hb) && /112/.test(hb), 'Der Krisenstab mit externen Stellen ist drin');
-ok(/Eskalationsstufen – wer ruft wann wen\?/.test(hb) && /<th>Meldepflicht<\/th>/.test(hb) && /1 – Störung/.test(hb) && /3 – Krise/.test(hb), 'Die Eskalationsmatrix steht im Handbuch');
+ok(/Eskalationsstufen: Wer ruft wann wen\?/.test(hb) && /<th>Meldepflicht<\/th>/.test(hb) && /1 · Störung/.test(hb) && /3 · Krise/.test(hb), 'Die Eskalationsmatrix steht im Handbuch');
 ok(/Eskalation: bis 4 h Störung · ab 4 h Notfall/.test(hb), 'Und je Plan die Leiter aus seinen Zahlen');
 ok(/⚠ 2 kritische/.test(hb), 'Ein Asset unter zwei kritischen Prozessen ist markiert');
 for (const t of NF_PLAN_TEILE) ok(hb.includes(`<h3>${t.titel}</h3>`), `Planteil „${t.titel}" hat seine Überschrift`);

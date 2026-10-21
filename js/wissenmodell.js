@@ -20,9 +20,9 @@
 
 const WI_ARTEN = [
   { key: 'kurs',    symbol: '🎓', label: 'Schulung',    hinweis: 'Mehrere Module nacheinander, zum Schluss der Wissenstest. Kann Pflicht sein und sich nach Monaten wiederholen.' },
-  { key: 'video',   symbol: '🎬', label: 'Video',       hinweis: 'Stream/SharePoint, YouTube oder Vimeo – wird in der Seite abgespielt, alles andere öffnet in einem neuen Tab.' },
+  { key: 'video',   symbol: '🎬', label: 'Video',       hinweis: 'Stream/SharePoint, YouTube oder Vimeo wird in der Seite abgespielt, alles andere öffnet in einem neuen Tab.' },
   { key: 'artikel', symbol: '📄', label: 'Artikel',     hinweis: 'Kurzer Text zum Lesen. Absätze durch Leerzeile, Aufzählung mit „- ", **fett** mit Sternchen.' },
-  { key: 'link',    symbol: '🔗', label: 'Link',        hinweis: 'Ein Verweis nach draußen – BSI, Datenschutzbehörde, Intranet.' },
+  { key: 'link',    symbol: '🔗', label: 'Link',        hinweis: 'Ein Verweis nach draußen: BSI, Datenschutzbehörde, Intranet.' },
   { key: 'test',    symbol: '❓', label: 'Wissenstest', hinweis: 'Fragen mit genau einer richtigen Antwort. Freiwillig, beliebig oft, die Reihenfolge wird gemischt.' },
 ];
 /* Bereiche, nach denen die Themen in der Leiste gruppiert sind – damit die
@@ -798,7 +798,7 @@ Warten: Stellungnahme des Lieferanten
 Vertrieb: Gutschrift erstellen
 Ende: Reklamation erledigt
 :::
-Nach dem Erzeugen meldet die Prüfung genau einen Befund, **R10**: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie im Modeler rechts unter „Unterprozess – ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf daneben ihn an.
+Nach dem Erzeugen meldet die Prüfung genau einen Befund, **R10**: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie im Modeler rechts unter „Unterprozess: ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf daneben ihn an.
 
 # Muster, die immer wieder vorkommen
 - **Nachbessern:** Der Nein-Zweig muss nicht enden. Ein Pfeil zurück zu dem Schritt, der wiederholt wird, macht aus „abgelehnt" eine Schleife.
@@ -822,7 +822,7 @@ Nach dem Erzeugen meldet die Prüfung genau einen Befund, **R10**: Die ⊞ „Ur
 !! R7 Ein Element hängt lose: Verbinden oder löschen.
 !! R8 Kein Verb oder keine Frage: „Rechnung prüfen" statt „Rechnungsprüfung", „Freigegeben?" mit Fragezeichen.
 !! R9 Kein Regelwerk verknüpft: Rechts unter „Verknüpfte Richtlinien" ankreuzen.
-!! R10 Eine ⊞ bindet nichts ein: Rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen.
+!! R10 Eine ⊞ bindet nichts ein: Rechts unter „Unterprozess: ein Modell einbinden" das Modell wählen.
 
 >✓ Ein roter Rahmen ist ein Verstoß, ein gestrichelter ein Hinweis. Wer die zehn Regeln einhält, hat ein Modell, das im ganzen Haus gleich gelesen wird.` },
   ],

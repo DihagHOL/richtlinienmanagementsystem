@@ -98,7 +98,7 @@ ok(vm.runInContext('spTicketListUrl()', sctx) === 'https://dihag.sharepoint.com/
 /* ── 3) Cockpit, Report, Einstellungen, Doku, Cron, Wirksamkeit ── */
 ok(/tile\('vorfaelle', '🎫', 'Vorfälle & Ereignisse',\s*'vorfaelle'\)/.test(lies('js/cockpit.js')) && /async function _ckLoadVorfaelle/.test(lies('js/cockpit.js')), 'Cockpit-Kachel');
 const cl = lies('js/clevelreport.js');
-ok(/m\.vorfaelle = vfKennzahlen\(/.test(cl) && /add\('ISO A\.5\.24–A\.5\.28', 'Handhabung von Informationssicherheitsvorfällen'/.test(cl) && /add\('NIS2 Art\. 23', 'Meldung erheblicher Sicherheitsvorfälle'/.test(cl) && /add\('ISO A\.8\.32', 'Änderungsmanagement/.test(cl),
+ok(/m\.vorfaelle = vfKennzahlen\(/.test(cl) && /add\('ISO A\.5\.24 bis A\.5\.28', 'Handhabung von Informationssicherheitsvorfällen'/.test(cl) && /add\('NIS2 Art\. 23', 'Meldung erheblicher Sicherheitsvorfälle'/.test(cl) && /add\('ISO A\.8\.32', 'Änderungsmanagement/.test(cl),
   'Audit Report: A.5.24–A.5.28, NIS2 Art. 23, A.8.32');
 const eins = lies('js/einstellungen.js');
 ok(/seg\('vorfaelle', '🎫 Vorfälle'\)/.test(eins) && /function _vorfaelleBereichHtml/.test(eins) && /cfgVorfallKat\(/.test(eins) && /cfgVorfallArt\(/.test(eins) && /vorfallKategorien/.test(eins) && /vorfallArtZuordnung/.test(eins),

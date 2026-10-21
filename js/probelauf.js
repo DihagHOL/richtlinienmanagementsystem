@@ -147,7 +147,7 @@ function probelaufStart() {
     <div class="modal-body">
       <div class="pl-warnung">
         <b>Das wird ein echter Vorgang.</b> Es entstehen echte Einträge in den SharePoint-Listen,
-        und es gehen echte E-Mails raus – nicht simuliert.
+        und es gehen echte E-Mails raus, nicht simuliert.
       </div>
       <p style="margin:14px 0 8px;line-height:1.6">Sinnvoll, solange das System noch nicht ausgerollt ist:
       So zeigt die Vorführung wirklich das, was später passiert, und prüft nebenbei die ganze Kette
@@ -166,7 +166,7 @@ function probelaufStart() {
 
       <div style="font-weight:600;font-size:.84rem;margin:16px 0 6px">Damit nichts zurückbleibt</div>
       <ul style="margin:0;padding-left:19px;font-size:.85rem;line-height:1.65;color:var(--c-muted)">
-        <li>Alles, was entsteht, heißt <code>${esc(PROBELAUF_PRAEFIX)}…</code> – auch im Betreff der Mails.</li>
+        <li>Alles, was entsteht, heißt <code>${esc(PROBELAUF_PRAEFIX)}…</code>, auch im Betreff der Mails.</li>
         <li>Die angelegten Einträge werden mitgeschrieben; <b>„Aufräumen"</b> löscht genau diese wieder.</li>
         <li>Die Belegschaft bekommt davon nichts mit: Unter „Meine Regelwerke" sehen Probelauf-Einträge nur
           Freigeschaltete, die Bekanntgabe geht nur an Sie, und der tägliche Erinnerungslauf lässt sie aus.</li>
@@ -428,7 +428,7 @@ function probelaufAufraeumen() {
         <div class="field-hint">Sie stammen aus einem anderen Browser oder einem früheren Probelauf. Läuft gerade
           an anderer Stelle ein Probelauf, gehören sie dorthin: dann nicht ankreuzen.</div>
       </div>` : ''}
-      <div class="pl-warnung">Versendete E-Mails bleiben in den Postfächern – die lassen sich nicht zurückholen.</div>
+      <div class="pl-warnung">Versendete E-Mails bleiben in den Postfächern. Die lassen sich nicht zurückholen.</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
@@ -501,7 +501,7 @@ async function probelaufLoeschen() {
     if (typeof renderFreigaben === 'function') renderFreigaben();
   } catch (e) { /* Ansicht aktualisiert sich beim nächsten Wechsel */ }
   showSync(false);
-  toast(fehler ? `${weg} gelöscht, ${fehler} nicht löschbar (siehe Konsole).` : `Aufgeräumt – ${weg} Einträge gelöscht ✓`,
+  toast(fehler ? `${weg} gelöscht, ${fehler} nicht löschbar (siehe Konsole).` : `Aufgeräumt: ${weg} Einträge gelöscht ✓`,
     fehler ? 'error' : 'success');
 }
 
@@ -635,7 +635,7 @@ function _plInhaltKonzept(p) {
   return [
     '#Konzept-Skizze (Muster)',
     'Grundlage: Muster „Erstellung von Konzernregelungen".',
-    'Diese Datei gehört zu einem Probelauf – kein echter Regelungsbedarf.',
+    'Diese Datei gehört zu einem Probelauf, kein echter Regelungsbedarf.',
     '',
     `Arbeitstitel: ${(p && p.title) || '-'}`,
     `Dokumentart: ${(p && p.regelwerkTyp) || '-'}`,
@@ -649,7 +649,7 @@ function _plInhaltKonzept(p) {
     ...(_plUmbruch(ko.skizze || '-')),
     '',
     '#3. Entscheidung der Geschäftsleitung',
-    'Annehmen, Zurückstellen oder Ablehnen – direkt aus der E-Mail.',
+    'Annehmen, Zurückstellen oder Ablehnen, direkt aus der E-Mail.',
     'Bei Annahme entsteht daraus automatisch ein Regelwerk-Entwurf.',
   ];
 }
@@ -687,7 +687,7 @@ function _plInhaltRegelwerk(p) {
     '',
     '#2. Warum hängt hier eine Datei?',
     'Prüfer, Betriebsrat und Geschäftsleitung entscheiden anhand des Dokuments.',
-    'Es hängt an der Mail und liegt zugleich in SharePoint – dort mit',
+    'Es hängt an der Mail und liegt zugleich in SharePoint, dort mit',
     'Versionsverlauf und Kommentaren, immer im aktuellen Stand.',
     '',
     '#3. Nächster Schritt',

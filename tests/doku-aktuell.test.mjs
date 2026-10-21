@@ -79,7 +79,7 @@ const FEATURES = [
   { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
   { name: 'Eigene Vorlagen',         code: () => /function lkVorlageSpeichern/.test(read('js/landkarte.js')),   begriffe: ['Eigene Vorlagen sichern', 'ausgeblendet'] },
   { name: 'Abhängigkeiten-Ansicht',  code: () => /function vkHerkunftWege/.test(read('js/verknuepfungen.js')),  begriffe: ['Abhängigkeiten', 'Herkunft', 'geteilter'] },
-  { name: 'Wissen (Bibliothek)',     code: () => /function initWissen/.test(read('js/wissen.js')),             begriffe: ['Wissen – die Bibliothek', 'Ich habe das angesehen', 'Startbestand', 'Für die Pflege'] },
+  { name: 'Wissen (Bibliothek)',     code: () => /function initWissen/.test(read('js/wissen.js')),             begriffe: ['Wissen: die Bibliothek', 'Ich habe das angesehen', 'Startbestand', 'Für die Pflege'] },
   { name: 'BPMN einfach erklärt',    code: () => /function prozessHilfeOeffnen/.test(read('js/bpmnhilfe.js')),  begriffe: ['BPMN einfach erklärt', 'Stufe 1', 'Stufe 2', '❓ Hilfe'] },
   { name: 'Modeler auf Deutsch',     code: () => /additionalModules: _procSprachmodule\(\)/.test(prozesse) && /const BPMN_DEUTSCH\b/.test(read('js/bpmndeutsch.js')),
     begriffe: ['Der Modeler spricht Deutsch', 'Art ändern', 'Aufgabe (Mensch)'] },

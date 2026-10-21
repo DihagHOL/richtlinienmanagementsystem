@@ -725,7 +725,7 @@ const GOVERNABLE_TABS = [
   { view: 'compliance',  label: 'Audit Report' , kurz: 'Audit' },
   // Zwei Links auf andere Apps – keine Ansichten, aber Einträge in der Leiste.
   { view: 'ki',          label: 'KI-Dashboard (Link)', kurz: 'KI' },
-  { view: 'zapp',        label: 'ZAPP – Zuwendungen (Link)', kurz: 'ZAPP' },
+  { view: 'zapp',        label: 'ZAPP: Zuwendungen (Link)', kurz: 'ZAPP' },
 ];
 
 /**

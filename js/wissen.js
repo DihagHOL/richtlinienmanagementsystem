@@ -108,14 +108,14 @@ function renderWissen() {
     .map(b => ({ b, st: wiKursStatus(b, meine) })).filter(x => x.st.key !== 'erledigt');
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      <b>Freiwillig, jederzeit, ohne Nachweispflicht</b> – bis auf die Pflichtschulungen, die sind gekennzeichnet. Kurze Videos,
-      Artikel, Schulungen und Tests rund um Sicherheit, Datenschutz und die Regeln im Haus – zum Nachschlagen, wenn eine Frage
+      <b>Freiwillig, jederzeit, ohne Nachweispflicht</b>, bis auf die Pflichtschulungen, die sind gekennzeichnet. Kurze Videos,
+      Artikel, Schulungen und Tests rund um Sicherheit, Datenschutz und die Regeln im Haus zum Nachschlagen, wenn eine Frage
       auftaucht, oder für fünf Minuten zwischendurch.
       ${sichtbar.length ? `<span style="color:var(--c-faint)">${sichtbar.length} Beiträge${erledigt ? ` · ${erledigt} davon erledigt` : ''}</span>` : ''}
     </div>
     ${pflicht.map(x => `<div class="wi-pflicht${x.st.key === 'faellig' ? ' faellig' : ''}">
         <span class="wi-pflicht-symbol">📋</span>
-        <div style="flex:1;min-width:0"><b>Pflichtschulung${x.st.key === 'faellig' ? ' – Auffrischung fällig' : x.st.key === 'laeuft' ? ' – begonnen' : ''}:</b> ${esc(x.b.titel)}
+        <div style="flex:1;min-width:0"><b>Pflichtschulung${x.st.key === 'faellig' ? ' (Auffrischung fällig)' : x.st.key === 'laeuft' ? ' (begonnen)' : ''}:</b> ${esc(x.b.titel)}
           <span class="field-hint">${x.b.dauer ? `ca. ${x.b.dauer} Min. · ` : ''}${x.b.module.length} Module${x.b.fragen.length ? ' · 1 Wissenstest' : ''}</span></div>
         <button class="btn btn-primary btn-sm" onclick="wiKursStarten(${jsArg(x.b.id)})">${x.st.key === 'laeuft' ? 'Fortsetzen' : x.st.key === 'faellig' ? 'Auffrischen' : 'Starten'}</button>
       </div>`).join('')}
@@ -184,7 +184,7 @@ function _wiListeHtml() {
   if (!rows.length) {
     const alle = wiBeitraegeSichtbar().length;
     if (!alle) return (typeof emptyState === 'function')
-      ? emptyState(wiDarfPflegen() ? 'Noch keine Beiträge – „✎ Pflegen" und dann „+ Beitrag" oder „📋 Startbestand".' : 'Die Bibliothek wird gerade eingerichtet – bald gibt es hier etwas zu lesen.', '📚')
+      ? emptyState(wiDarfPflegen() ? 'Noch keine Beiträge. „✎ Pflegen" und dann „+ Beitrag" oder „📋 Startbestand".' : 'Die Bibliothek wird gerade eingerichtet, bald gibt es hier etwas zu lesen.', '📚')
       : '';
     return (typeof emptyState === 'function') ? emptyState('Keine Treffer.', '🔍') : '';
   }
@@ -265,7 +265,7 @@ function wiLink(id) {
   return `${basis}?ansicht=wissen&beitrag=${encodeURIComponent(id)}`;
 }
 async function wiLinkKopieren(id) {
-  try { await navigator.clipboard.writeText(wiLink(id)); toast('Link kopiert ✓ – für Mails, Aushänge, Schulungen.', 'success'); }
+  try { await navigator.clipboard.writeText(wiLink(id)); toast('Link kopiert ✓ für Mails, Aushänge, Schulungen.', 'success'); }
   catch (e) { toast('Link: ' + wiLink(id), 'info'); }
 }
 
@@ -278,7 +278,7 @@ function _wiDetailHtml(b) {
     inhalt = e && e.art === 'einbetten'
       ? `<div class="lernvideo-rahmen"><iframe src="${esc(e.src)}" title="${esc(b.titel)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
       : e ? `<a class="btn btn-primary" href="${esc(sichereUrl(e.src))}" target="_blank" rel="noopener">▶ Video in neuem Tab öffnen</a>
-            <div class="field-hint" style="margin-top:6px">Dieses Video lässt sich nicht einbetten – es öffnet beim Anbieter.</div>`
+            <div class="field-hint" style="margin-top:6px">Dieses Video lässt sich nicht einbetten, es öffnet beim Anbieter.</div>`
           : '<div class="field-hint">Keine gültige Video-Adresse hinterlegt.</div>';
   } else if (b.art === 'artikel') {
     inhalt = `<div class="wi-artikel">${wiTextHtml(b.text)}</div>`;
@@ -288,7 +288,7 @@ function _wiDetailHtml(b) {
   } else {
     inhalt = `<div id="wi-test">
       <p style="margin:0 0 10px;line-height:1.55">${b.fragen.length} Frage${b.fragen.length > 1 ? 'n' : ''}, bestanden ab ${b.bestehen} % richtig.
-        Freiwillig und beliebig oft – die Reihenfolge der Fragen und Antworten ist jedes Mal anders. Falsche Antworten werden
+        Freiwillig und beliebig oft. Die Reihenfolge der Fragen und Antworten ist jedes Mal anders. Falsche Antworten werden
         nach der Auswertung mit der richtigen Lösung gezeigt: Der Test ist zugleich das Lernmittel.</p>
       ${s.bestanden ? `<div class="wi-stand ok" style="margin-bottom:10px">✓ Bestanden mit ${s.score} % (${_wiDatum(s.am)}). Noch einmal? Gern.</div>` : ''}
       <button class="btn btn-primary" onclick="wiTestStarten(${jsArg(b.id)})">${s.versuche ? 'Noch einmal versuchen' : 'Test starten'}</button>
@@ -298,7 +298,7 @@ function _wiDetailHtml(b) {
   const gesehenKnopf = b.art !== 'test'
     ? (s.gesehen
       ? `<span class="wi-stand ok">✓ Angesehen am ${_wiDatum(s.am)}</span>`
-      : `<button class="btn btn-success btn-sm" onclick="wiGesehen(${jsArg(b.id)})" title="Freiwillig – hält fest, dass Sie den Beitrag angesehen haben">✓ Ich habe das angesehen</button>`)
+      : `<button class="btn btn-success btn-sm" onclick="wiGesehen(${jsArg(b.id)})" title="Freiwillig: hält fest, dass Sie den Beitrag angesehen haben">✓ Ich habe das angesehen</button>`)
     : '';
   return `
     <div class="wi-detail">
@@ -313,7 +313,7 @@ function _wiDetailHtml(b) {
           <span class="wi-art wi-art-${art.key}">${art.symbol} ${esc(art.label)}</span>
           ${t ? `<span class="ic-tag cat" style="cursor:pointer" onclick="wiFilter('thema',${jsArg(t.id)});wiSchliessen()">${esc(t.symbol)} ${esc(t.titel)}</span>` : ''}
           ${b.dauer ? `<span class="ic-tag">⏱ ${b.dauer} min</span>` : ''}
-          ${b.aktiv === false ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">inaktiv – nur im Pflege-Modus sichtbar</span>' : ''}
+          ${b.aktiv === false ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">inaktiv, nur im Pflege-Modus sichtbar</span>' : ''}
         </div>
         <h2 style="margin:6px 0 4px">${esc(b.titel)}</h2>
         ${b.kurz ? `<div class="wi-detail-kurz">${esc(b.kurz)}</div>` : ''}
@@ -405,9 +405,9 @@ async function wiTestAuswerten(id) {
   const neu = kurs && passed ? wiStand(b, _wiMeineAcks()) : null;
   res.innerHTML = `
     <div class="big">${score}%</div>
-    <div class="msg">${correct} von ${total} richtig — ${passed
+    <div class="msg">${correct} von ${total} richtig: ${passed
       ? (kurs ? `bestanden ✓ Schulung abgeschlossen${neu && neu.faelligAm ? `, gültig bis ${_wiDatum(neu.faelligAm)}` : ''}` : 'bestanden ✓')
-      : 'noch nicht bestanden – die richtigen Antworten stehen oben'}</div>
+      : 'noch nicht bestanden, die richtigen Antworten stehen oben'}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       ${passed && kurs ? `<button class="btn btn-success" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button><button class="btn btn-outline" onclick="wiKursZu(${jsArg(b.id)}, 0)">Zur Übersicht</button>` : ''}
       <button class="btn ${passed ? (kurs ? 'btn-ghost' : 'btn-success') : 'btn-primary'}" onclick="wiTestStarten(${jsArg(b.id)})">${passed ? 'Noch einmal' : 'Erneut versuchen'}</button>
@@ -436,9 +436,9 @@ function _wiKursHtml(b) {
 
   if (schritt === 0) {
     const t = _wiThemaVon(b);
-    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? ` – gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button></div>`
-      : st.key === 'faellig' ? `<div class="wi-box warn">🔄 Ihr Abschluss vom ${_wiDatum(st.stand.am)} ist abgelaufen – bitte auffrischen.</div>`
-      : st.key === 'laeuft' ? `<div class="wi-box info">▶ Begonnen – ${gelesen.length} von ${n} Modulen gelesen.</div>` : '';
+    const statusHtml = st.key === 'erledigt' ? `<div class="wi-box ok" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1">✓ Sie haben diese Schulung abgeschlossen${st.stand.am ? ' am ' + _wiDatum(st.stand.am) : ''}${st.stand.faelligAm ? `, gültig bis ${_wiDatum(st.stand.faelligAm)}` : ''}.</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button></div>`
+      : st.key === 'faellig' ? `<div class="wi-box warn">🔄 Ihr Abschluss vom ${_wiDatum(st.stand.am)} ist abgelaufen. Bitte auffrischen.</div>`
+      : st.key === 'laeuft' ? `<div class="wi-box info">▶ Begonnen: ${gelesen.length} von ${n} Modulen gelesen.</div>` : '';
     const knopf = st.key === 'laeuft' && gelesen.length < n ? 'Fortsetzen' : st.key === 'erledigt' ? 'Noch einmal durchgehen' : st.key === 'faellig' ? 'Auffrischen' : 'Schulung starten';
     return kopf + `
     <div class="wi-kurs">
@@ -447,7 +447,7 @@ function _wiKursHtml(b) {
           <span class="wi-art wi-art-kurs">🎓 Schulung</span>
           ${t ? `<span class="ic-tag cat">${esc(t.symbol)} ${esc(t.titel)}</span>` : ''}
           ${b.pflicht ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">📋 Pflichttraining</span>' : ''}
-          ${b.aktiv === false ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">inaktiv – nur im Pflege-Modus sichtbar</span>' : ''}
+          ${b.aktiv === false ? '<span class="ic-tag" style="background:#fef3c7;color:#92400e">inaktiv, nur im Pflege-Modus sichtbar</span>' : ''}
         </div>
         <h2 style="margin:8px 0 6px">${esc(b.titel)}</h2>
         ${b.intro ? `<div class="wi-kurs-intro"><div class="wi-kurs-warum">Warum dieser Kurs?</div>${wiTextHtml(b.intro)}</div>` : (b.kurz ? `<div class="wi-detail-kurz">${esc(b.kurz)}</div>` : '')}
@@ -455,7 +455,7 @@ function _wiKursHtml(b) {
       <div class="wi-meta">
         <div class="wi-meta-kachel"><span class="wi-meta-symbol">⏱</span><div><div class="wi-meta-titel">Dauer</div><div>${b.dauer ? `Ca. ${b.dauer} Minuten · ` : ''}${n} Modul${n === 1 ? '' : 'e'}${mitTest ? ' · 1 Wissenstest' : ''}</div></div></div>
         <div class="wi-meta-kachel"><span class="wi-meta-symbol">🎓</span><div><div class="wi-meta-titel">Zielgruppe</div><div>${esc(b.zielgruppe || 'Alle Mitarbeitenden')}</div></div></div>
-        <div class="wi-meta-kachel"><span class="wi-meta-symbol">📋</span><div><div class="wi-meta-titel">${b.pflicht ? 'Pflichttraining' : 'Freiwillig'}</div><div>${b.pflicht ? 'Diese Schulung ist für die Zielgruppe verpflichtend' : 'Keine Pflicht – aber empfohlen'}</div></div></div>
+        <div class="wi-meta-kachel"><span class="wi-meta-symbol">📋</span><div><div class="wi-meta-titel">${b.pflicht ? 'Pflichttraining' : 'Freiwillig'}</div><div>${b.pflicht ? 'Diese Schulung ist für die Zielgruppe verpflichtend' : 'Keine Pflicht, aber empfohlen'}</div></div></div>
         <div class="wi-meta-kachel"><span class="wi-meta-symbol">🔄</span><div><div class="wi-meta-titel">Wiederholung</div><div>${b.wiederholung ? (b.wiederholung === 12 ? 'Jährliche Auffrischung' : `Alle ${b.wiederholung} Monate`) : 'Keine Wiederholung nötig'}</div></div></div>
       </div>
       ${statusHtml}
@@ -491,8 +491,8 @@ function _wiKursHtml(b) {
       <h2 style="margin:4px 0 12px">${mitTest ? 'Wissenstest: ' + esc(b.titel) : 'Geschafft'}</h2>
       ${mitTest ? `<div id="wi-test">
         <p style="margin:0 0 10px;line-height:1.55">${b.fragen.length} Frage${b.fragen.length > 1 ? 'n' : ''}, bestanden ab ${b.bestehen} % richtig.
-          Die Reihenfolge ist jedes Mal anders; nach der Auswertung sehen Sie die richtigen Antworten. Nicht bestanden heißt: noch einmal – ohne Sperrfrist.</p>
-        ${gelesen.length < n ? `<div class="wi-box info">Sie haben ${gelesen.length} von ${n} Modulen gelesen – der Test geht trotzdem. Die Module stehen jederzeit in der Übersicht.</div>` : ''}
+          Die Reihenfolge ist jedes Mal anders; nach der Auswertung sehen Sie die richtigen Antworten. Nicht bestanden heißt: noch einmal, ohne Sperrfrist.</p>
+        ${gelesen.length < n ? `<div class="wi-box info">Sie haben ${gelesen.length} von ${n} Modulen gelesen. Der Test geht trotzdem. Die Module stehen jederzeit in der Übersicht.</div>` : ''}
         <button class="btn btn-primary" onclick="wiTestStarten(${jsArg(b.id)})">Test starten</button>
       </div>` : `<div class="wi-box ok">Sie haben alle ${n} Module gelesen.</div>
         <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button>` : `<button class="btn btn-success" onclick="wiKursAbschliessen(${jsArg(b.id)})">✓ Schulung abschließen</button>`}</div>`}
@@ -513,7 +513,7 @@ function wiZertifikat(id) {
   if (!s.erledigt) { toast('Die Bescheinigung gibt es nach dem Abschluss.', 'error'); return; }
   const html = wiZertifikatHtml({ kurs: b, stand: s, name: State.user.name, upn: State.user.upn, jetzt: _wiJetzt(), logo: rmsAssetUrl('dihag-logo.png') });
   const w = window.open('', '_blank');
-  if (!w) { toast('Pop-up blockiert – bitte für diese Seite erlauben.', 'error'); return; }
+  if (!w) { toast('Pop-up blockiert. Bitte für diese Seite erlauben.', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
 
@@ -580,7 +580,7 @@ async function wiSpeichern(meldung) {
     return true;
   } catch (e) {
     if (/zwischenzeitlich/i.test(e.message)) {
-      toast('Jemand hat die Bibliothek zwischenzeitlich geändert – sie wird neu geladen, bitte die Änderung wiederholen.', 'error');
+      toast('Jemand hat die Bibliothek zwischenzeitlich geändert. Sie wird neu geladen, bitte die Änderung wiederholen.', 'error');
       await initWissen(true);
     } else toast('Speichern fehlgeschlagen: ' + e.message, 'error');
     return false;
@@ -603,11 +603,11 @@ function wiThemaDialog(id) {
           <input type="text" id="wi-t-titel" value="${esc(_wiEdit.titel)}" placeholder="z. B. Phishing &amp; E-Mail"></div>
       </div>
       <div class="form-group full"><label>Eine Zeile dazu</label>
-        <input type="text" id="wi-t-kurz" value="${esc(_wiEdit.kurz)}" placeholder="Worum es in diesem Thema geht – ein Satz"></div>
+        <input type="text" id="wi-t-kurz" value="${esc(_wiEdit.kurz)}" placeholder="Worum es in diesem Thema geht, in einem Satz"></div>
       <div class="form-group full"><label>Bereich</label>
         <input type="text" id="wi-t-bereich" list="wi-bereiche" value="${esc(_wiEdit.bereich || '')}" placeholder="z. B. Informationssicherheit, Compliance & Verhalten, Arbeitssicherheit">
         <datalist id="wi-bereiche">${WI_BEREICHE.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-        <span class="field-hint">Die Themenleiste gruppiert nach Bereich – so sieht man, dass hier nicht nur IT steht.</span></div>
+        <span class="field-hint">Die Themenleiste gruppiert nach Bereich. So sieht man, dass hier nicht nur IT steht.</span></div>
       ${t ? `<div class="field-hint">${_wi.daten.beitraege.filter(b => b.thema === t.id).length} Beiträge in diesem Thema. Beim Löschen bleiben sie erhalten und stehen unter „Weitere".</div>` : ''}
     </div>
     <div class="modal-footer">
@@ -677,38 +677,38 @@ function _wiBeitragDialogHtml() {
     const status = !String(b.url || '').trim() ? ''
       : b.art === 'link' ? (e ? '<span class="field-hint">↗ öffnet in einem neuen Tab</span>' : '<span class="field-hint" style="color:#b45309">⚠ keine gültige Adresse (https://…)</span>')
       : e && e.art === 'einbetten' ? '<span class="field-hint" style="color:#15803d">▶ wird direkt in der Seite abgespielt</span>'
-      : e ? '<span class="field-hint">↗ nicht einbettbar – öffnet in einem neuen Tab</span>'
+      : e ? '<span class="field-hint">↗ nicht einbettbar, öffnet in einem neuen Tab</span>'
       : '<span class="field-hint" style="color:#b45309">⚠ keine gültige Adresse erkannt</span>';
     artFelder = `
       <div class="form-group full"><label>${b.art === 'video' ? 'Video-Adresse oder Einbetten-Code' : 'Adresse'} <span class="req">*</span></label>
-        <input type="text" id="wi-b-url" value="${esc(b.url)}" placeholder="${b.art === 'video' ? 'Stream/SharePoint: Teilen → Einbetten, Code hier einfügen – oder YouTube/Vimeo-Adresse' : 'https://…'}"
+        <input type="text" id="wi-b-url" value="${esc(b.url)}" placeholder="${b.art === 'video' ? 'Stream/SharePoint: Teilen → Einbetten, Code hier einfügen, oder YouTube/Vimeo-Adresse' : 'https://…'}"
           oninput="wiEditSet('url',this.value)" onchange="wiEditNeu()">
         ${status}</div>
       <div class="form-group full"><label>Quelle${herkunft.extern ? ' <span class="req">*</span>' : ''}</label>
         <input type="text" id="wi-b-quelle" value="${esc(b.quelle)}" placeholder="z. B. Bundesamt für Sicherheit in der Informationstechnik (BSI)" oninput="wiEditSet('quelle',this.value)">
-        ${herkunft.extern && !String(b.quelle || '').trim() ? `<span class="field-hint" style="color:#b45309">⚠ Fremdes Material (${esc(herkunft.dienst)}) – bitte die Quelle angeben.</span>` : ''}</div>`;
+        ${herkunft.extern && !String(b.quelle || '').trim() ? `<span class="field-hint" style="color:#b45309">⚠ Fremdes Material (${esc(herkunft.dienst)}): bitte die Quelle angeben.</span>` : ''}</div>`;
   } else if (b.art === 'kurs') {
     artFelder = `
       <div class="form-group full"><label>Warum dieser Kurs? (Einstieg)</label>
-        <textarea id="wi-b-intro" rows="3" style="width:100%;font-family:inherit;font-size:.9rem;line-height:1.5" placeholder="Zwei, drei Sätze: Warum lohnt sich das – **fett** geht auch." oninput="wiEditSet('intro',this.value)">${esc(b.intro)}</textarea></div>
+        <textarea id="wi-b-intro" rows="3" style="width:100%;font-family:inherit;font-size:.9rem;line-height:1.5" placeholder="Zwei, drei Sätze: Warum lohnt sich das? **fett** geht auch." oninput="wiEditSet('intro',this.value)">${esc(b.intro)}</textarea></div>
       <div class="wi-zeile">
         <div class="form-group" style="flex:1"><label>Zielgruppe</label>
-          <input type="text" value="${esc(b.zielgruppe)}" placeholder="Alle Mitarbeitenden – kein Vorwissen erforderlich" oninput="wiEditSet('zielgruppe',this.value)"></div>
+          <input type="text" value="${esc(b.zielgruppe)}" placeholder="Alle Mitarbeitenden, kein Vorwissen erforderlich" oninput="wiEditSet('zielgruppe',this.value)"></div>
         <div class="form-group" style="flex:0 0 170px"><label>Wiederholung</label>
           <select onchange="wiEditSet('wiederholung',+this.value)">
             ${[[0, 'keine'], [6, 'alle 6 Monate'], [12, 'jährlich'], [24, 'alle 2 Jahre'], [36, 'alle 3 Jahre']].map(([m, l]) => `<option value="${m}"${b.wiederholung === m ? ' selected' : ''}>${l}</option>`).join('')}
           </select></div>
       </div>
-      <label class="ack-check" style="font-weight:600;margin-bottom:8px"><input type="checkbox" ${b.pflicht ? 'checked' : ''} onchange="wiEditSet('pflicht',this.checked)"> Pflichttraining – steht bei allen oben, bis es abgeschlossen ist${b.wiederholung ? ' (und wieder, wenn die Wiederholung fällig ist)' : ''}</label>
+      <label class="ack-check" style="font-weight:600;margin-bottom:8px"><input type="checkbox" ${b.pflicht ? 'checked' : ''} onchange="wiEditSet('pflicht',this.checked)"> Pflichttraining: steht bei allen oben, bis es abgeschlossen ist${b.wiederholung ? ' (und wieder, wenn die Wiederholung fällig ist)' : ''}</label>
       <div class="form-group full"><label>Nach dieser Schulung können Sie … (eine Zeile je Ziel)</label>
         <textarea id="wi-b-ziele" rows="4" style="width:100%;font-family:inherit;font-size:.9rem;line-height:1.5" placeholder="Phishing-E-Mails an typischen Merkmalen erkennen&#10;Im Ernstfall richtig und schnell reagieren" oninput="wiEditSet('ziele',this.value.split('\\n'))">${esc(b.ziele.join('\n'))}</textarea></div>
       <div class="form-group full"><label>Module <span class="req">*</span></label>
         <div id="wi-module">${_wiModuleHtml()}</div>
         <button class="btn btn-ghost btn-sm" onclick="wiModulAdd()">+ Modul</button>
-        <span class="field-hint">Je Modul eine Seite. Schreibweise wie beim Artikel – dazu <code>1. Schritt</code> für nummerierte Schritte,
+        <span class="field-hint">Je Modul eine Seite. Schreibweise wie beim Artikel, dazu <code>1. Schritt</code> für nummerierte Schritte,
           <code>&gt; Hinweis</code>, <code>&gt;! Warnung</code>, <code>&gt;✓ Gut zu wissen</code> als Kästen, <code>!! Titel: Text</code> für ein Warnsignal
           und <code>:::mail … :::</code> für eine nachgebaute E-Mail (Von:/An:/Betreff:/Hinweis:, dann <code>---</code>, dann der Text; <code>[→ Knopf]</code>).</span></div>
-      <div class="form-group full" style="margin-top:6px"><label>Wissenstest zum Schluss <span class="field-hint" style="font-weight:400">(empfohlen – ohne Test gilt die Schulung mit dem letzten Modul als abgeschlossen)</span></label>
+      <div class="form-group full" style="margin-top:6px"><label>Wissenstest zum Schluss <span class="field-hint" style="font-weight:400">(empfohlen, ohne Test gilt die Schulung mit dem letzten Modul als abgeschlossen)</span></label>
         <div class="wi-zeile" style="align-items:center;gap:8px;margin-bottom:6px">
           <label style="margin:0">Bestanden ab</label>
           <input type="number" min="1" max="100" value="${b.bestehen}" style="width:72px" oninput="wiEditSet('bestehen',Math.max(1,Math.min(100,+this.value||${WI_BESTEHEN})))"> %
@@ -751,7 +751,7 @@ function _wiBeitragDialogHtml() {
       <div class="form-group full"><label>Titel <span class="req">*</span></label>
         <input type="text" id="wi-b-titel" value="${esc(b.titel)}" placeholder="z. B. Phishing erkennen in 60 Sekunden" oninput="wiEditSet('titel',this.value)"></div>
       <div class="form-group full"><label>Eine Zeile dazu</label>
-        <input type="text" id="wi-b-kurz" value="${esc(b.kurz)}" placeholder="Was man nach dem Anschauen weiß – ein Satz" oninput="wiEditSet('kurz',this.value)"></div>
+        <input type="text" id="wi-b-kurz" value="${esc(b.kurz)}" placeholder="Was man nach dem Anschauen weiß, in einem Satz" oninput="wiEditSet('kurz',this.value)"></div>
       ${artFelder}
       <div class="form-group full" style="margin-top:8px"><label>Gilt für</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px 14px">
@@ -955,7 +955,7 @@ async function wiAuswertungOeffnen() {
         <span style="flex:1">${esc(x.kurs.titel)}</span>
         <b>${x.soll ? `${x.ist} von ${x.soll} (${x.quote} %)` : `${x.gueltig} gültige Abschlüsse`}</b>
         ${x.kurs.wiederholung ? `<span class="field-hint">Wiederholung alle ${x.kurs.wiederholung} Monate</span>` : ''}
-      </div>`).join('')}${members ? '' : '<div class="field-hint">Ohne Personenliste keine Quote – nur die Zahl der gültigen Abschlüsse.</div>'}</div>`;
+      </div>`).join('')}${members ? '' : '<div class="field-hint">Ohne Personenliste keine Quote, nur die Zahl der gültigen Abschlüsse.</div>'}</div>`;
   }
   body.innerHTML = pflichtHtml + `
     <div class="field-hint" style="margin-bottom:10px">Gezählt werden Personen, nicht Klicks: „angesehen" ist der Knopf unter dem Beitrag, „bestanden" der Test, bei Schulungen zählt der gültige Abschluss.

@@ -139,7 +139,7 @@ ok(fremd.length === 1 && fremd[0].werk === 'KONZERN',
 /* ── 8) SAP nach Prozesstypen: dieselben Ketten in der Form jeder Landkarte ──
    Führung, Kern, Unterstützung als Bänder; jede Kette ein Hauptprozess, ihre
    Schritte Unterprozesse darunter – drei Ebenen, wie das Bild der Mindmap. */
-ok(run(`LK_VORLAGEN.find(v => v.key === 'sap-typen').karte === LK_SAP_TYPEN`), 'Die Vorlage „SAP – nach Prozesstypen" steht zur Wahl');
+ok(run(`LK_VORLAGEN.find(v => v.key === 'sap-typen').karte === LK_SAP_TYPEN`), 'Die Vorlage „SAP nach Prozesstypen" steht zur Wahl');
 ok(run(`LK_SAP_TYPEN.baender.map(b => b.key).join()`) === 'fuehrung,kern,unterstuetzung', 'Drei Bänder: Führung, Kern, Unterstützung');
 const haupt = run(`LK_SAP_TYPEN.kacheln.filter(k => (k.verweise||[]).some(v => v.art === 'unterprozess')).map(k => k.name)`);
 ok(haupt.join('|') === 'Governance|Lead to Cash (Vertrieb)|Design to Operate (Produktion)|Source to Pay (Einkauf)|Recruit to Retire (HR)|IT|Record to Report (Finanzen)',

@@ -112,18 +112,18 @@ function wirkAbschlussfehler(w) {
   if (w.art === 'abweichung') {
     // 10.2 in drei Schritten: Ursache ermitteln, handeln, nachsehen ob es half.
     if (!String(w.ursache || '').trim()) {
-      f.push('Ursache ist nicht ermittelt – ohne sie behandelt die Maßnahme nur das Symptom.');
+      f.push('Ursache ist nicht ermittelt. Ohne sie behandelt die Maßnahme nur das Symptom.');
     }
     const m = Array.isArray(w.massnahmen) ? w.massnahmen : [];
     if (!m.length) f.push('Keine Korrekturmaßnahme erfasst.');
     else if (!m.some(x => x.status === 'erledigt')) f.push('Keine der Maßnahmen ist erledigt.');
     if (!String(w.wirksamkeit || '').trim()) {
-      f.push('Die Wirksamkeit ist nicht bewertet – „erledigt" heißt nicht „hat geholfen".');
+      f.push('Die Wirksamkeit ist nicht bewertet. „Erledigt" heißt nicht „hat geholfen".');
     }
   }
 
   if (w.art === 'audit') {
-    if (!String(w.umfang || '').trim()) f.push('Der Auditumfang fehlt – was wurde geprüft?');
+    if (!String(w.umfang || '').trim()) f.push('Der Auditumfang fehlt: Was wurde geprüft?');
     if (!(w.beteiligte || []).length) f.push('Niemand als Auditor eingetragen.');
     if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten.');
   }
@@ -131,11 +131,11 @@ function wirkAbschlussfehler(w) {
   if (w.art === 'uebung') {
     // Eine Übung ohne Plan prüft nichts; ohne Szenario weiß niemand, was
     // geprobt wurde; ohne Ergebnis war sie umsonst.
-    if (!String(w.prozess || '').trim()) f.push('Kein Prozess gewählt – welcher Notfallplan wurde geübt?');
+    if (!String(w.prozess || '').trim()) f.push('Kein Prozess gewählt: Welcher Notfallplan wurde geübt?');
     if (!String(w.uebungsart || '').trim()) f.push('Übungsart fehlt (Planbesprechung, Stabsübung, Funktionstest, Vollübung).');
-    if (!String(w.umfang || '').trim()) f.push('Szenario fehlt – was wurde angenommen, was war Teil der Übung?');
+    if (!String(w.umfang || '').trim()) f.push('Szenario fehlt: Was wurde angenommen, was war Teil der Übung?');
     if (!(w.beteiligte || []).length) f.push('Keine Teilnehmenden eingetragen.');
-    if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten – hat der Plan gehalten, wo hakte es?');
+    if (!String(w.ergebnis || '').trim()) f.push('Kein Ergebnis festgehalten: Hat der Plan gehalten, wo hakte es?');
   }
 
   if (w.art === 'pruefung') {
@@ -194,7 +194,7 @@ async function initWirksamkeit() {
       <b>Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Wirksamkeit" liegt wie Risiken und Ausnahmen auf der <b>ISMS-Site</b>
         <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
-        ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
+        ersten Zugriff automatisch an. Dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
         <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Wirksamkeit</code>, dann diese Spalten:</div>
@@ -294,12 +294,12 @@ function renderWirksamkeit() {
           : '<span style="color:#15803d;font-weight:600">✓</span>'}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`
-    : emptyState(alle.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch nichts erfasst – oben einen Eintrag anlegen.', alle.length ? '🔍' : '📈');
+    : emptyState(alle.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch nichts erfasst. Oben einen Eintrag anlegen.', alle.length ? '🔍' : '📈');
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
       Nachweise zu <b>ISO 27001 9.2</b> (internes Audit), <b>9.3</b> (Managementbewertung),
-      <b>10.2</b> (Nichtkonformität und Korrekturmaßnahmen) und <b>A.5.30</b> (Notfallübungen) – in einem
+      <b>10.2</b> (Nichtkonformität und Korrekturmaßnahmen) und <b>A.5.30</b> (Notfallübungen) in einem
       Register, weil sie zusammenhängen: Ein Audit oder eine Übung findet Abweichungen, die Bewertung sieht auf alles.
       <b>Abgeschlossen</b> wird ein Eintrag erst, wenn das da ist, was die Norm zum Nachweis verlangt.
     </div>
@@ -314,11 +314,11 @@ function renderWirksamkeit() {
       ${kpi(ohneNachweis, 'ohne Wirksamkeitsbeleg', ohneNachweis ? '#b91c1c' : '#15803d')}
     </div>
     ${!letzteBewertung ? `<div class="col-warning" style="display:block;margin-bottom:12px">
-      <b>Keine Managementbewertung erfasst.</b> ISO 27001 9.3 verlangt sie in geplanten Abständen –
+      <b>Keine Managementbewertung erfasst.</b> ISO 27001 9.3 verlangt sie in geplanten Abständen,
       ohne Aufzeichnung ist sie im Audit nicht vorhanden.</div>` : ''}
     ${ohneNachweis ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ ${ohneNachweis} abgeschlossene Abweichung(en) ohne Wirksamkeitsbewertung.</b>
-      „Maßnahme erledigt" heißt nicht „Problem behoben" – 10.2 verlangt beides getrennt.</div>` : ''}
+      „Maßnahme erledigt" heißt nicht „Problem behoben". 10.2 verlangt beides getrennt.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_wirkFilter.q)}"
         oninput="_wirkFilter.q=this.value;renderWirksamkeit()" style="width:220px">
@@ -338,7 +338,7 @@ function renderWirksamkeit() {
       <button class="btn btn-outline btn-sm" onclick="wirkExportCsv()">⬇ CSV</button>
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'audit')">+ Audit</button>
         <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'bewertung')">+ Bewertung</button>
-        <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'uebung')" title="Notfallübung – prüft einen Notfallplan">+ Übung</button>
+        <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'uebung')" title="Notfallübung: prüft einen Notfallplan">+ Übung</button>
         <button class="btn btn-outline btn-sm" onclick="openWirkEditor(null,'pruefung')" title="Funktionsprüfung: prüft ein System nach einer Änderung">+ Prüfung</button>
         <button class="btn btn-primary btn-sm" onclick="openWirkEditor(null,'abweichung')">+ Abweichung</button>` : ''}
     </div>
@@ -506,7 +506,7 @@ function renderWirkEditor() {
           <input type="text" value="${esc(w.titel)}" oninput="_wirkEditing.titel=this.value"
             placeholder="${w.art === 'audit' ? 'z. B. Internes Audit Zutrittskontrolle WGC'
               : w.art === 'bewertung' ? 'z. B. Managementbewertung 1. Halbjahr'
-              : w.art === 'uebung' ? 'z. B. Übung: Ausfall SAP – Aufträge abwickeln'
+              : w.art === 'uebung' ? 'z. B. Übung: Ausfall SAP, Aufträge abwickeln'
               : w.art === 'pruefung' ? 'z. B. Funktionsprüfung RMS nach dem Update'
               : 'z. B. Zugriffsrechte nach Austritt nicht entzogen'}"></div>
         <div class="form-group"><label>Datum <span class="req">*</span></label>
@@ -546,7 +546,7 @@ function renderWirkEditor() {
             </select></div>
           <div class="form-group full"><label>Ursache <span class="req">*</span></label>
             <textarea oninput="_wirkEditing.ursache=this.value" placeholder="Warum konnte das passieren? Nicht das Symptom, sondern der Grund.">${esc(w.ursache)}</textarea>
-            <div class="field-hint">Ohne Ursache behandelt die Maßnahme nur das Symptom – 10.2 verlangt sie ausdrücklich.</div></div>
+            <div class="field-hint">Ohne Ursache behandelt die Maßnahme nur das Symptom. 10.2 verlangt sie ausdrücklich.</div></div>
         </div>
         <div style="font-weight:700;font-size:.85rem;margin:12px 0 6px">Korrekturmaßnahmen</div>
         ${_wirkMassnahmenHtml()}
@@ -565,7 +565,7 @@ function renderWirkEditor() {
           <textarea oninput="_wirkEditing.umfang=this.value" placeholder="Was wurde geprüft, gegen welche Anforderungen, in welchem Bereich?">${esc(w.umfang)}</textarea></div>
         <div class="form-group full"><label>Ergebnis <span class="req">*</span></label>
           <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Feststellungen, Bewertung, Empfehlungen.">${esc(w.ergebnis)}</textarea></div>
-        ${w.id ? `<div class="field-hint">Gefundene Abweichungen als eigene Einträge anlegen und hier als Herkunft wählen –
+        ${w.id ? `<div class="field-hint">Gefundene Abweichungen als eigene Einträge anlegen und hier als Herkunft wählen,
           dann hängen sie sichtbar zusammen. ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
           <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
@@ -599,15 +599,15 @@ function renderWirkEditor() {
               ${Object.entries(typeof NF_UEBUNGSARTEN !== 'undefined' ? NF_UEBUNGSARTEN : {}).map(([k, a]) =>
                 `<option value="${k}"${w.uebungsart === k ? ' selected' : ''} title="${esc(a.text)}">${esc(a.label)}</option>`).join('')}
             </select>
-            <div class="field-hint">${w.uebungsart && typeof NF_UEBUNGSARTEN !== 'undefined' && NF_UEBUNGSARTEN[w.uebungsart] ? esc(NF_UEBUNGSARTEN[w.uebungsart].text) : 'Vom Leichten zum Schweren – die Planbesprechung ist der Anfang, nicht das Ziel.'}</div></div>
+            <div class="field-hint">${w.uebungsart && typeof NF_UEBUNGSARTEN !== 'undefined' && NF_UEBUNGSARTEN[w.uebungsart] ? esc(NF_UEBUNGSARTEN[w.uebungsart].text) : 'Vom Leichten zum Schweren. Die Planbesprechung ist der Anfang, nicht das Ziel.'}</div></div>
           <div class="form-group full"><label>Szenario und Umfang <span class="req">*</span></label>
             <textarea oninput="_wirkEditing.umfang=this.value" placeholder="Was wurde angenommen (z. B. SAP fällt am Montag 6 Uhr aus)? Welche Teile des Plans wurden geprobt?">${esc(w.umfang)}</textarea></div>
           <div class="form-group full"><label>Ergebnis <span class="req">*</span></label>
-            <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Hat der Plan gehalten? Wo hakte es – fehlende Nummern, unklare Zuständigkeit, Ausweichsystem nicht erreichbar? Wurde die RTO eingehalten?">${esc(w.ergebnis)}</textarea></div>
+            <textarea oninput="_wirkEditing.ergebnis=this.value" placeholder="Hat der Plan gehalten? Wo hakte es? Fehlende Nummern, unklare Zuständigkeit, Ausweichsystem nicht erreichbar? Wurde die RTO eingehalten?">${esc(w.ergebnis)}</textarea></div>
         </div>
         <div style="font-weight:700;font-size:.85rem;margin:12px 0 6px">Verbesserungen aus der Übung</div>
         ${_wirkMassnahmenHtml()}
-        ${w.id ? `<div class="field-hint" style="margin-top:8px">Größere Lücken als eigene Abweichung anlegen – dann bekommen sie Ursache, Frist und Wirksamkeitsprüfung.
+        ${w.id ? `<div class="field-hint" style="margin-top:8px">Größere Lücken als eigene Abweichung anlegen, dann bekommen sie Ursache, Frist und Wirksamkeitsprüfung.
           ${wirkFolgen(w.id).length ? `Bisher: <b>${wirkFolgen(w.id).length}</b>.` : ''}
           <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="wirkAbweichungAus(${jsArg(w.id)})">+ Abweichung daraus</button></div>` : ''}
       </div>` : ''}
@@ -634,7 +634,7 @@ function renderWirkEditor() {
       ${w.id && canWrite ? `<button class="btn btn-ghost btn-sm" onclick="deleteWirk(${jsArg(w.id)})" style="color:#b91c1c">Löschen</button>` : ''}
       <div style="flex:1"></div>
       ${canWrite && w.status !== 'abgeschlossen'
-        ? `<button class="btn btn-outline" onclick="wirkAbschliessen()" ${luecken.length ? 'title="Es fehlt noch etwas – siehe oben"' : ''}>Abschließen</button>` : ''}
+        ? `<button class="btn btn-outline" onclick="wirkAbschliessen()" ${luecken.length ? 'title="Es fehlt noch etwas, siehe oben"' : ''}>Abschließen</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary" id="wirk-save-btn" onclick="saveWirk()">Speichern</button>` : ''}
       <button class="btn btn-ghost" onclick="closeModal()">Schließen</button>
     </div>`;

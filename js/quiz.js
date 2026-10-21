@@ -146,7 +146,7 @@ async function submitQuiz(policyId) {
   res.className = 'quiz-q quiz-result ' + (passed ? 'pass' : 'fail');
   res.innerHTML = `
     <div class="big">${score}%</div>
-    <div class="msg">${correct} von ${total} richtig — ${passed ? 'bestanden ✓' : 'leider nicht bestanden'}</div>
+    <div class="msg">${correct} von ${total} richtig: ${passed ? 'bestanden ✓' : 'leider nicht bestanden'}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       ${passed
         ? `<button class="btn btn-success" onclick="openDetail(${jsArg(p.id)})">Weiter</button>`

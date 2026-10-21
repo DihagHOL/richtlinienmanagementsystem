@@ -117,7 +117,7 @@ function tourSchritte() {
     {
       symbol: '🎬',
       titel: 'Herzlich willkommen',
-      text: 'Wie aus einer Idee ein gültiges Regelwerk wird – in gut fünf Minuten.',
+      text: 'Wie aus einer Idee ein gültiges Regelwerk wird, in gut fünf Minuten.',
       hinweis: 'Kein Testmodus: Hier entsteht ein <b>echter Vorgang</b> mit echten E-Mails. Jeder Schritt wartet, bis Sie ihn wirklich ausgeführt haben. „🧹 Aufräumen" entfernt ihn danach wieder.',
       ziel: null, erfuellt: null,
     },
@@ -135,7 +135,7 @@ function tourSchritte() {
       // ein Konzept erfinden müssen – dafür gibt es „Direkt anlegen".
       symbol: '📥',
       titel: 'Bestehendes Regelwerk aufnehmen',
-      text: 'Nicht jedes Regelwerk ist neu – vorhandene Dokumente kommen ohne Konzept direkt herein.',
+      text: 'Nicht jedes Regelwerk ist neu. Vorhandene Dokumente kommen ohne Konzept direkt herein.',
       hinweis: 'Zum Zeigen: <b>+ Neues Regelwerk</b> öffnen. „Direkt anlegen" ist der Weg für Bestand und Migration, „💡 Konzept erstellen" der für ein neues Thema. Wir gehen gleich den zweiten.',
       ziel: '#btn-new-policy',
       erfuellt: null,
@@ -143,7 +143,7 @@ function tourSchritte() {
     {
       symbol: '💡',
       titel: 'Ein Konzept anlegen',
-      text: 'Jedes Regelwerk beginnt als <b>Konzept</b> – erst entscheidet die Geschäftsleitung.',
+      text: 'Jedes Regelwerk beginnt als <b>Konzept</b>. Erst entscheidet die Geschäftsleitung.',
       hinweis: 'Zum Mitmachen: <b>+ Neues Konzept</b>.',
       ziel: '#btn-new-konzept',
       erfuellt: () => _tourDialog('Regelwerk-Konzept'),
@@ -152,7 +152,7 @@ function tourSchritte() {
     {
       symbol: '✍️',
       titel: 'Konzept ausfüllen',
-      text: 'Arbeitstitel, Dokumentart, Geltungsbereich – und die Frage <i>Warum?</i>',
+      text: 'Arbeitstitel, Dokumentart, Geltungsbereich und die Frage <i>Warum?</i>',
       hinweis: '„✨ Vormachen" füllt das Formular aus und legt eine Skizze an.',
       ziel: '.modal-body',
       platz: 'ecke',
@@ -170,7 +170,7 @@ function tourSchritte() {
         _kEditing.geltungsbereich = ['ALLE'];
         _kEditing.konzept.prioritaet = 'hoch';
         _kEditing.konzept.motivation =
-          'KI-Werkzeuge werden bereits genutzt – ohne Regeln drohen Datenabfluss und Compliance-Risiken.';
+          'KI-Werkzeuge werden bereits genutzt. Ohne Regeln drohen Datenabfluss und Compliance-Risiken.';
         _kEditing.konzept.skizze =
           'Zulässige Werkzeuge, Umgang mit Geschäftsgeheimnissen, Kennzeichnung KI-erzeugter Inhalte, Freigabewege.';
         // Anhang wie im Betrieb: Die Geschäftsleitung entscheidet anhand der Skizze.
@@ -192,9 +192,9 @@ function tourSchritte() {
     },
     {
       symbol: '✉️',
-      titel: 'Die Mail im Postfach – Annehmen, Zurückstellen oder Ablehnen',
+      titel: 'Die Mail im Postfach: Annehmen, Zurückstellen oder Ablehnen',
       text: 'Entschieden wird dort, wo alle ohnehin sind: im Postfach.',
-      hinweis: 'Ein Klick in der Mail genügt – ohne Rückfrage. Mit Anhang und Link nach SharePoint; genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
+      hinweis: 'Ein Klick in der Mail genügt, ohne Rückfrage. Mit Anhang und Link nach SharePoint; genau diese Mail bekommen Geschäftsführung, Prüfer und Betriebsrat.',
       ziel: null,
       // Es geht weiter, sobald die Entscheidung wirklich gefallen ist – egal ob
       // in der Mail oder auf der Karte.
@@ -212,8 +212,8 @@ function tourSchritte() {
       // der Teil, der die Mitarbeitenden später wirklich betrifft.
       symbol: '🎯',
       titel: 'Zielgruppe, Pflichtlektüre, Wissenstest',
-      text: 'Am Entwurf wird festgelegt, wer es lesen muss – und ob ein Wissenstest dazugehört.',
-      hinweis: 'Alles ist vorbelegt: Pflichtlektüre, Wissenstest mit zwei Fragen, jährliche Wiedervorlage und ein Lernvideo. Scrollen Sie ruhig durch – die Sprechblase steht unten links und ist nicht im Weg.',
+      text: 'Am Entwurf wird festgelegt, wer es lesen muss und ob ein Wissenstest dazugehört.',
+      hinweis: 'Alles ist vorbelegt: Pflichtlektüre, Wissenstest mit zwei Fragen, jährliche Wiedervorlage und ein Lernvideo. Scrollen Sie ruhig durch, die Sprechblase steht unten links und ist nicht im Weg.',
       // Der Schritt springt selbst ins Regelwerk: Von hier an geht es nicht mehr
       // um das Konzept, sondern um das, was die Mitarbeitenden später sehen.
       beim: () => { const p = _tourRegelwerk(); if (p) openPolicyEditor(p.id); },
@@ -241,7 +241,7 @@ function tourSchritte() {
           }
           if (!Array.isArray(_editing.videos) || !_editing.videos.length) {
             // Mit Quelle: Ohne sie hielte das Speichern an – und das zu Recht.
-            _editing.videos = [{ titel: 'Regelwerke im Konzern – kurz erklärt',
+            _editing.videos = [{ titel: 'Regelwerke im Konzern, kurz erklärt',
               url: 'https://www.youtube.com/shorts/8hKPmMOMuz8',
               quelle: 'Bundesamt für Sicherheit in der Informationstechnik (BSI)' }];
           }
@@ -252,7 +252,7 @@ function tourSchritte() {
     {
       symbol: '📄',
       titel: 'Aus dem Konzept wird ein Entwurf',
-      text: 'Die Angaben sind übernommen – jetzt kommt das <b>Dokument</b> dazu.',
+      text: 'Die Angaben sind übernommen. Jetzt kommt das <b>Dokument</b> dazu.',
       hinweis: 'Zum Mitmachen: Dokument anhängen (⬆), dann „Zur Konformitätsprüfung →".',
       ziel: '.modal-footer .btn-primary',
       erfuellt: () => { const p = _tourRegelwerk(); return !!(p && p.status === 'Konformitätsprüfung'); },
@@ -297,7 +297,7 @@ function tourSchritte() {
       // Drei Entscheidungen, ein Schritt: Wer sie per Mail trifft, klickt hier
       // nichts – die Führung wartet einfach, bis veröffentlicht ist.
       titel: 'Konformitätsprüfung, Mitbestimmung und Freigabe',
-      text: 'Drei Entscheidungen – jede per Mail, jede mit einem Klick.',
+      text: 'Drei Entscheidungen, jede per Mail und mit einem Klick.',
       hinweis: '„Nicht konform" verlangt immer eine Begründung. Die Freigabe-Mail nennt, wer vorher schon zugestimmt hat. Es geht weiter, sobald das Regelwerk veröffentlicht ist.',
       // Die Warteschlange offen zeigen, während in der Mail entschieden wird.
       beim: () => _tourFreigabenAbschnitt('pruef'),
@@ -318,7 +318,7 @@ function tourSchritte() {
     {
       symbol: '👀',
       titel: 'Meine Regelwerke öffnen',
-      text: 'Ab jetzt steht es bei allen in der Zielgruppe – hier sehen es die Mitarbeitenden.',
+      text: 'Ab jetzt steht es bei allen in der Zielgruppe. Hier sehen es die Mitarbeitenden.',
       hinweis: 'Zum Mitmachen: Reiter <b>Meine Regelwerke</b>. Diesen Reiter sieht jede und jeder im Konzern.',
       ziel: '.nav-item[data-view="meine"]',
       erfuellt: () => _tourAnsicht('meine'),
@@ -327,7 +327,7 @@ function tourSchritte() {
     {
       symbol: '✅',
       titel: 'Kenntnisnahme, Wissenstest und Video',
-      text: 'Lesen, mit einem Klick bestätigen – bei wichtigen Themen folgt der Wissenstest.',
+      text: 'Lesen, mit einem Klick bestätigen. Bei wichtigen Themen folgt der Wissenstest.',
       hinweis: 'Das Lernvideo steht direkt beim Dokument, oberhalb des Wissenstests. Die Bestätigung ist der Nachweis; über die Erinnerungs-Mails kommt sie auch ohne Anmeldung zustande.',
       ziel: null,
       platz: 'ecke',
@@ -344,7 +344,7 @@ function tourSchritte() {
     {
       symbol: '🗂️',
       titel: 'Nachweis im Audit',
-      text: 'Wer wann was entschieden hat – auf Knopfdruck.',
+      text: 'Wer wann was entschieden hat, auf Knopfdruck.',
       hinweis: 'Zum Mitmachen: Regelwerk öffnen, <b>Änderungshistorie</b> aufklappen.',
       ziel: '#nav-verwaltung',
       erfuellt: () => !!_tourEl('#ed-body-hist'),
@@ -361,7 +361,7 @@ function tourSchritte() {
     {
       symbol: '🏁',
       titel: 'Was das für Sie heißt',
-      text: 'Nachsehen, lesen, bestätigen – und mitreden, wenn etwas nicht passt.',
+      text: 'Nachsehen, lesen, bestätigen und mitreden, wenn etwas nicht passt.',
       hinweis: 'Jetzt aufräumen? „🧹 Aufräumen" im Streifen unten löscht genau die Einträge dieses Probelaufs.',
       ziel: null, erfuellt: null,
     },
@@ -433,7 +433,7 @@ function tourEnde(abgeschlossen) {
   document.body.classList.remove('tour-on');
 
   if (abgeschlossen) tourStandVergessen();
-  else if (stand > 0) toast(`Angehalten bei Schritt ${stand + 1} – unten im Streifen geht es weiter.`);
+  else if (stand > 0) toast(`Angehalten bei Schritt ${stand + 1}. Unten im Streifen geht es weiter.`);
   if (typeof probelaufBannerAktualisieren === 'function') probelaufBannerAktualisieren();
 }
 

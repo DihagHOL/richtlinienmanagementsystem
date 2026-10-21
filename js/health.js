@@ -135,7 +135,7 @@ const HC_TERMS = [
   // Veralteter CCO-Name: „Max Muster" → aktuell Max Muster (Chief Compliance Officer).
   // Steht noch im Verhaltenskodex und in „Sicherheitsvorfälle".
   { re: /Max\s+Muster/g, sev: 'warn', text: 'Veralteter CCO-Name „Max Muster"',
-    ersatz: 'aktueller Chief Compliance Officer ist Max Muster – Namen ersetzen' },
+    ersatz: 'aktueller Chief Compliance Officer ist Max Muster. Namen ersetzen' },
   // Falsche Anrede: im Scopedokument steht „Herr Max Muster".
   { re: /Herr(?:n)?\s+Alexandra\s+Muster/gi, sev: 'warn', text: 'Falsche Anrede „Herr Max Muster"',
     ersatz: 'richtig: „Frau Max Muster"' },
@@ -190,7 +190,7 @@ function hcAnalyzeText(text, policyTitle, policy) {
 
   // 2) Platzhalter
   const ph = (text.match(/X{2}\.X{2}(\.X{2,4})?/g) || []).length;
-  if (ph) findings.push({ sev: 'warn', text: `${ph}× Datums-Platzhalter (XX.XX.…) – Freigabetabelle/Termine unausgefüllt` });
+  if (ph) findings.push({ sev: 'warn', text: `${ph}× Datums-Platzhalter (XX.XX.…): Freigabetabelle/Termine unausgefüllt` });
   const tbd = (text.match(/\btbd\b/gi) || []).length;
   if (tbd) findings.push({ sev: 'warn', text: `${tbd}× Platzhalter „tbd"` });
 
@@ -202,7 +202,7 @@ function hcAnalyzeText(text, policyTitle, policy) {
     const m = text.match(term.re);
     if (m && m.length) {
       findings.push({ sev: term.sev || 'warn', kind: 'term',
-        text: `${m.length}× ${term.text}${term.ersatz ? ' – ' + term.ersatz : ''}` });
+        text: `${m.length}× ${term.text}${term.ersatz ? ' → ' + term.ersatz : ''}` });
     }
   }
 
@@ -211,7 +211,7 @@ function hcAnalyzeText(text, policyTitle, policy) {
     const dv = _hcDocVersion(text);
     if (dv && !_hcVersionEq(dv, policy.version)) {
       findings.push({ sev: 'warn', kind: 'version',
-        text: `Version im Dokument (${dv}) weicht von der App-Version (${policy.version}) ab – Metadaten abgleichen` });
+        text: `Version im Dokument (${dv}) weicht von der App-Version (${policy.version}) ab. Metadaten abgleichen` });
     }
   }
 
@@ -251,7 +251,7 @@ async function runHealthCheck() {
       if (!p.naechsteReview) res.findings.push({ sev: 'info', text: 'Kein Review-Termin (Wiedervorlage) gesetzt' });
       if (!p.dokumentDriveId || !p.dokumentItemId) {
         res.status = 'na';
-        res.findings.push({ sev: 'info', text: 'Kein Dokument zugeordnet – Inhaltsprüfung nicht möglich' });
+        res.findings.push({ sev: 'info', text: 'Kein Dokument zugeordnet, Inhaltsprüfung nicht möglich' });
         continue;
       }
       try {
@@ -264,12 +264,12 @@ async function runHealthCheck() {
         res.fileName = meta.name || res.fileName;
         if (!/\.docx$/i.test(meta.name || '')) {
           res.status = 'na';
-          res.findings.push({ sev: 'info', text: `Kein .docx (${esc(meta.name || '?')}) – Inhaltsprüfung übersprungen` });
+          res.findings.push({ sev: 'info', text: `Kein .docx (${esc(meta.name || '?')}), Inhaltsprüfung übersprungen` });
           continue;
         }
         if ((meta.size || 0) > 25 * 1024 * 1024) {
           res.status = 'na';
-          res.findings.push({ sev: 'info', text: 'Dokument > 25 MB – Inhaltsprüfung übersprungen' });
+          res.findings.push({ sev: 'info', text: 'Dokument > 25 MB, Inhaltsprüfung übersprungen' });
           continue;
         }
         // Inhalt direkt über den /content-Endpunkt laden (robust, wie bei den ISMS-Dateien) –
@@ -331,7 +331,7 @@ async function runHealthCheck() {
 ═══════════════════════════════════════════════════ */
 
 const _HC_BADGE = {
-  ok:    ['🟢', 'Dokument geprüft – ohne Befund'],
+  ok:    ['🟢', 'Dokument geprüft, ohne Befund'],
   warn:  ['🟡', 'Hinweise gefunden'],
   error: ['🔴', 'Kritische Befunde'],
   na:    ['⚪', 'Nicht geprüft / nicht prüfbar'],
@@ -371,12 +371,12 @@ function showHealthReport() {
       </ul>` : '<div style="margin:4px 0 0 26px;font-size:.83rem;color:#15803d">Keine Befunde</div>'}
     </div>`).join('');
   openModal(`
-    <div class="modal-header"><h3>🩺 Dokumentprüfung – Ergebnis</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><h3>🩺 Dokumentprüfung: Ergebnis</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:10px">
         ${rows.length} Richtlinien geprüft (${counts.error || 0} kritisch · ${counts.warn || 0} Hinweise · ${counts.na || 0} nicht prüfbar)
-        – geprüft ${HealthState.ranAt ? HealthState.ranAt.toLocaleString('de-DE') : ''}.
-        Prüfumfang: Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe (Terminologie) und Versions-/Metadaten-Abgleich – deterministisch im Browser, ohne externe Dienste.
+        · geprüft ${HealthState.ranAt ? HealthState.ranAt.toLocaleString('de-DE') : ''}.
+        Prüfumfang: Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe (Terminologie) und Versions-/Metadaten-Abgleich, deterministisch im Browser, ohne externe Dienste.
       </div>
       ${body}
     </div>
@@ -390,14 +390,14 @@ function showHealthReport() {
 /** Einen Prüf-Befund in eine handlungsorientierte Korrektur-Zeile übersetzen. */
 function hcFindingAction(f) {
   const t = f.text;
-  if (/identisch mit/i.test(t))            return 'Verwechselte Datei ersetzen – ' + t + ' (korrektes Dokument hochladen).';
-  if (/Titel im Dokument passt nicht/i.test(t)) return 'Falsches Dokument prüfen/austauschen – ' + t;
+  if (/identisch mit/i.test(t))            return 'Verwechselte Datei ersetzen: ' + t + ' (korrektes Dokument hochladen).';
+  if (/Titel im Dokument passt nicht/i.test(t)) return 'Falsches Dokument prüfen/austauschen: ' + t;
   if (/Komformit/i.test(t))                return 'Tippfehler korrigieren: „Komformitätsprüfung" → „Konformitätsprüfung".';
-  if (/Version im Dokument .* weicht/i.test(t)) return 'Versionsangabe/Metadaten im Dokument mit der App-Version abgleichen – ' + t + '.';
-  if (/veraltet|falsche anrede|Chief Compliance|ersetzen|aktualisieren/i.test(t)) return 'Veralteten Begriff/Namen aktualisieren – ' + t + '.';
+  if (/Version im Dokument .* weicht/i.test(t)) return 'Versionsangabe/Metadaten im Dokument mit der App-Version abgleichen: ' + t + '.';
+  if (/veraltet|falsche anrede|Chief Compliance|ersetzen|aktualisieren/i.test(t)) return 'Veralteten Begriff/Namen aktualisieren: ' + t + '.';
   if (/Platzhalter|XX\.XX/i.test(t))       return 'Freigabetabelle und Termine ausfüllen (Datums-Platzhalter ersetzen).';
   if (/\btbd\b/i.test(t))                  return 'Offene „tbd"-Stellen ergänzen.';
-  if (/Kapitel .* ist leer/i.test(t))      return 'Leeres Pflichtkapitel befüllen oder ausdrücklich als „entfällt" kennzeichnen – ' + t + '.';
+  if (/Kapitel .* ist leer/i.test(t))      return 'Leeres Pflichtkapitel befüllen oder ausdrücklich als „entfällt" kennzeichnen: ' + t + '.';
   if (/Review-Termin|Wiedervorlage/i.test(t)) return 'Wiedervorlage-/Review-Termin (Feld „Nächste Überprüfung") setzen.';
   if (/Kein Dokument/i.test(t))            return 'Dokument der Richtlinie zuordnen.';
   return t;
@@ -418,10 +418,10 @@ function proposeFromHealth(id) {
   const vorschlag = `Aus der Dokumentprüfung vom ${datum} ergeben sich folgende zu behebende Punkte:\n`
     + actions.map(a => '• ' + a).join('\n');
   const grund = 'Ergebnis des automatischen Dokument-Health-Checks im Richtlinienmanagement '
-    + '(deterministische Prüfung auf Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe und Versions-/Metadaten-Abgleich – ohne KI).';
+    + '(deterministische Prüfung auf Inhalts-Dubletten, Titel-Abgleich, Platzhalter, leere Kapitel, veraltete Begriffe und Versions-/Metadaten-Abgleich, ohne KI).';
   openProposalModal(p.title, {
     policy: p,
-    betreff: 'Dokumentprüfung – ' + (p.dokumentName || p.title),
+    betreff: 'Dokumentprüfung: ' + (p.dokumentName || p.title),
     vorschlag, grund,
     quelle: 'Health-Check',
   });

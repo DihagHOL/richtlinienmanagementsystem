@@ -254,11 +254,11 @@ function _clevelIsoRows(m) {
   if (m.policies.veroeffentlicht > 0)
     add('ISO 5', 'Führung & Leitlinien', 'ok', `${m.policies.veroeffentlicht} veröffentlichte Richtlinie(n); ${m.policies.imWorkflow} im Genehmigungs-Workflow.`);
   else
-    add('ISO 5', 'Führung & Leitlinien', 'gap', 'Keine veröffentlichte Richtlinie – Leitlinien/Grundsätze fehlen.');
+    add('ISO 5', 'Führung & Leitlinien', 'gap', 'Keine veröffentlichte Richtlinie, Leitlinien/Grundsätze fehlen.');
 
   // Risikomanagement (Kap. 6.1.2 / 8.2 / 8.3, NIS2 Art. 21(2a))
   if (m.risiken) {
-    if (!m.risiken.gesamt) add('ISO 6.1.2', 'Risikomanagement', 'gap', 'Keine Risiken erfasst – Risikobeurteilung nicht nachweisbar.');
+    if (!m.risiken.gesamt) add('ISO 6.1.2', 'Risikomanagement', 'gap', 'Keine Risiken erfasst, Risikobeurteilung nicht nachweisbar.');
     else if (m.risiken.hoch > 0 || m.risiken.mUeber > 0)
       add('ISO 6.1.2', 'Risikomanagement', 'warn', `${m.risiken.offen} offen, davon ${m.risiken.hoch} hoch; ${m.risiken.mUeber} Maßnahme(n) überfällig.`);
     else add('ISO 6.1.2', 'Risikomanagement', 'ok', `${m.risiken.gesamt} Risiken erfasst, ${m.risiken.offen} offen, keine überfälligen Maßnahmen.`);
@@ -283,14 +283,14 @@ function _clevelIsoRows(m) {
   // Bibliothek ist ein Hinweis, keine Lücke – Pflicht steht oben.
   if (m.wissen) {
     const w = m.wissen;
-    if (!w.beitraege) add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', 'warn', 'Die Bibliothek „Wissen" ist noch leer – Videos, Artikel und Wissenstests bereitstellen.');
+    if (!w.beitraege) add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', 'warn', 'Die Bibliothek „Wissen" ist noch leer. Videos, Artikel und Wissenstests bereitstellen.');
     else add('ISO A.6.3', 'Sensibilisierung (Wissensbibliothek)', w.personen ? 'ok' : 'warn',
       `${w.beitraege} Beiträge (${w.kurse} Schulungen, ${w.videos} Videos, ${w.artikel} Artikel, ${w.tests} Tests) in ${w.themen} Themen; ${w.personen} Person(en) mit Nachweis, ${w.testBestanden} Tests bestanden${w.zuletzt ? `, ${w.zuletzt} Nachweise in den letzten ${WI_TAGE} Tagen` : ''}.`);
     // Pflichtschulungen: hier zählt die Quote – wie bei den Pflicht-Regelwerken.
     (m.pflichtKurse || []).forEach(x => {
       const q = x.quote;
       add('ISO 7.2 / A.6.3', `Pflichtschulung „${x.kurs.titel}"`, q === null ? 'warn' : q >= 90 ? 'ok' : q >= 60 ? 'warn' : 'gap',
-        q === null ? `${x.gueltig} gültige Abschlüsse – ohne Personenliste keine Quote.` : `${x.ist} von ${x.soll} Mitarbeitenden mit gültigem Abschluss (${q} %)${x.kurs.wiederholung ? `, Wiederholung alle ${x.kurs.wiederholung} Monate` : ''}.`);
+        q === null ? `${x.gueltig} gültige Abschlüsse, ohne Personenliste keine Quote.` : `${x.ist} von ${x.soll} Mitarbeitenden mit gültigem Abschluss (${q} %)${x.kurs.wiederholung ? `, Wiederholung alle ${x.kurs.wiederholung} Monate` : ''}.`);
     });
   }
 
@@ -319,7 +319,7 @@ function _clevelIsoRows(m) {
         a.gesamt ? `${a.aktiv} befristete Ausnahme(n) gültig, alle mit Risikobewertung und ISB.`
                  : 'Keine Abweichungen von Richtlinien erfasst.');
   } else add('ISO A.5.36', 'Ausnahmen von Richtlinien', 'warn',
-    'Ausnahmeregister nicht auswertbar – Abweichungen sind nicht nachweisbar dokumentiert.');
+    'Ausnahmeregister nicht auswertbar, Abweichungen sind nicht nachweisbar dokumentiert.');
 
   // Ziele (6.2): festgelegt, geplant, bewertet
   if (m.ziele) {
@@ -390,7 +390,7 @@ function _clevelIsoRows(m) {
     else add('ISO A.5.9', 'Inventar der Werte', 'ok', `${a.aktiv} Assets, alle mit Verantwortlichen und Schutzbedarf.`);
     if (a.aktiv && a.ohneKlassifizierung) add('ISO A.5.12', 'Klassifizierung von Informationen', 'warn', `${a.ohneKlassifizierung} von ${a.aktiv} Assets ohne Klassifizierung.`);
     else if (a.aktiv) add('ISO A.5.12', 'Klassifizierung von Informationen', 'ok', 'Alle Assets klassifiziert.');
-  } else add('ISO A.5.9', 'Inventar der Werte', 'warn', 'Assetregister nicht auswertbar – Inventar nicht nachweisbar.');
+  } else add('ISO A.5.9', 'Inventar der Werte', 'warn', 'Assetregister nicht auswertbar, Inventar nicht nachweisbar.');
 
   // Notfallmanagement: A.5.30 will die IKT-Bereitschaft geplant, umgesetzt,
   // aufrechterhalten UND geprüft. Ein Plan, den es nicht gibt, ist die Lücke;
@@ -398,7 +398,7 @@ function _clevelIsoRows(m) {
   // welche Prozesse überhaupt einen Plan bräuchten – auch das ist die Lücke.
   if (m.notfall) {
     const n = m.notfall;
-    if (!n.prozesse) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap', 'Keine Prozesslandkarte – ohne Prozesse keine Business-Impact-Analyse.');
+    if (!n.prozesse) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap', 'Keine Prozesslandkarte, ohne Prozesse keine Business-Impact-Analyse.');
     else if (!n.bewertet) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap',
       `${n.prozesse} Prozesse, keiner mit Business-Impact-Analyse.`);
     else if (n.ohnePlan || n.rtoKonflikte) add('ISO A.5.30', 'IKT-Bereitschaft für Business Continuity', 'gap',
@@ -423,18 +423,18 @@ function _clevelIsoRows(m) {
   // unbeurteiltes ist eine.
   if (m.vorfaelle) {
     const v = m.vorfaelle;
-    if (!v.incidents) add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', `Keine Vorfälle oder Ereignisse im Ticketsystem (${VF_MONATE} Monate) – Kategorien in den Einstellungen prüfen.`);
-    else if (v.unbeurteilt || v.ohneLessons) add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'gap',
+    if (!v.incidents) add('ISO A.5.24 bis A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', `Keine Vorfälle oder Ereignisse im Ticketsystem (${VF_MONATE} Monate). Kategorien in den Einstellungen prüfen.`);
+    else if (v.unbeurteilt || v.ohneLessons) add('ISO A.5.24 bis A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'gap',
       `${v.incidents} Tickets; ${v.unbeurteilt} nicht beurteilt (A.5.25), ${v.ohneLessons} erledigte Vorfälle ohne Lehre (A.5.27).`);
-    else add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', v.offenAelter ? 'warn' : 'ok',
+    else add('ISO A.5.24 bis A.5.28', 'Handhabung von Informationssicherheitsvorfällen', v.offenAelter ? 'warn' : 'ok',
       `${v.incidents} Tickets beurteilt: ${v.ereignisse} Ereignisse, ${v.vorfaelle} Vorfälle${v.offenAelter ? `; ${v.offenAelter} länger als ${VF_OFFEN_TAGE} Tage offen` : ''}.`);
     if (v.erheblich || v.personendaten) add('NIS2 Art. 23', 'Meldung erheblicher Sicherheitsvorfälle', v.fristenUeberfaellig ? 'gap' : 'ok',
       `${v.erheblich} erhebliche Vorfälle, ${v.personendaten} mit Personendaten; ${v.fristenUeberfaellig} Meldefrist(en) überfällig, ${v.fristenOffen} laufend.`);
     else add('NIS2 Art. 23', 'Meldung erheblicher Sicherheitsvorfälle', v.vorfaelle && v.vorfaelle > 0 && v.fehler ? 'warn' : 'ok',
       v.vorfaelle ? `${v.vorfaelle} Vorfälle, keiner als erheblich eingestuft.` : 'Kein meldepflichtiger Vorfall im Zeitraum.');
     add('ISO A.8.32', 'Änderungsmanagement (sicherheitsrelevante Änderungen)', v.changes ? 'ok' : 'warn',
-      v.changes ? `${v.changes} Änderungen mit Sicherheitsbezug im Ticketsystem nachvollziehbar.` : 'Keine sicherheitsrelevanten Änderungen als Ticket – Änderungen laufen am Ticketsystem vorbei?');
-  } else add('ISO A.5.24–A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', 'Ticketsystem nicht auswertbar.');
+      v.changes ? `${v.changes} Änderungen mit Sicherheitsbezug im Ticketsystem nachvollziehbar.` : 'Keine sicherheitsrelevanten Änderungen als Ticket. Laufen Änderungen am Ticketsystem vorbei?');
+  } else add('ISO A.5.24 bis A.5.28', 'Handhabung von Informationssicherheitsvorfällen', 'warn', 'Ticketsystem nicht auswertbar.');
 
   // Überwachung / Reviews (Kap. 9)
   const revOver = (m.faellig ? m.faellig.overdue : 0) + (m.risiken ? m.risiken.revUeber : 0);
@@ -444,7 +444,7 @@ function _clevelIsoRows(m) {
   // Annex-A-Abdeckung
   if (m.abdeckung) {
     const p = m.abdeckung.annexPct;
-    add('ISO Annex A', 'Control-Abdeckung (A.5–A.8)', p >= 90 ? 'ok' : p >= 60 ? 'warn' : 'gap',
+    add('ISO Annex A', 'Control-Abdeckung (A.5 bis A.8)', p >= 90 ? 'ok' : p >= 60 ? 'warn' : 'gap',
       `${p}% der Annex-A-Controls belegt (${m.abdeckung.annexSaved}/${m.abdeckung.annexTotal}).`);
     // NIS2
     const n = m.abdeckung.nis2Pct;
@@ -458,9 +458,9 @@ function _clevelIsoRows(m) {
 function _clevelVerdict(rows) {
   const gaps = rows.filter(r => r.status === 'gap').length;
   const warns = rows.filter(r => r.status === 'warn').length;
-  if (gaps) return { status: 'gap', label: `Handlungsbedarf – ${gaps} Lücke(n), ${warns} Hinweis(e)` };
-  if (warns) return { status: 'warn', label: `Weitgehend konform – ${warns} Hinweis(e)` };
-  return { status: 'ok', label: 'Konform – keine offenen Punkte' };
+  if (gaps) return { status: 'gap', label: `Handlungsbedarf: ${gaps} Lücke(n), ${warns} Hinweis(e)` };
+  if (warns) return { status: 'warn', label: `Weitgehend konform: ${warns} Hinweis(e)` };
+  return { status: 'ok', label: 'Konform, keine offenen Punkte' };
 }
 
 /* ── Rendering ── */
@@ -579,7 +579,7 @@ function _clevelRenderPreview() {
         <label>Empfänger <span style="font-weight:400;color:var(--c-muted)">(Komma/Semikolon trennt mehrere)</span></label>
         <input type="text" id="clevel-to" value="${esc(to)}" placeholder="geschaeftsfuehrung@dihag.com">
       </div>
-      ${to ? '' : '<div class="field-hint" style="padding-bottom:8px">Kein Standard-Empfänger hinterlegt – unter <b>Einstellungen → C-Level-Bericht</b> setzbar.</div>'}
+      ${to ? '' : '<div class="field-hint" style="padding-bottom:8px">Kein Standard-Empfänger hinterlegt. Unter <b>Einstellungen → C-Level-Bericht</b> setzbar.</div>'}
     </div>
     <div style="border:1px solid var(--c-border);border-radius:10px;padding:14px;background:#fff;max-height:52vh;overflow:auto">
       ${_clevelReportHtml(m)}
@@ -605,10 +605,10 @@ async function sendClevelReport() {
   const btn = document.getElementById('clevel-send-btn');
   if (btn) { btn.disabled = true; btn.textContent = '📧 Senden …'; }
   try {
-    const subject = `ISMS-Management-Bericht (C-Level) – DIHAG – ${_clevelData.stamp.toLocaleDateString('de-DE')}`;
+    const subject = `ISMS-Management-Bericht (C-Level) DIHAG, ${_clevelData.stamp.toLocaleDateString('de-DE')}`;
     const ok = await spSendMail(to, subject, _clevelReportHtml(_clevelData));
     if (ok) { toast('C-Level-Bericht gesendet ✓', 'success'); closeModal(); }
-    else { toast('Anmeldung für den Mailversand nötig – bitte erneut versuchen.', 'error'); if (btn) { btn.disabled = false; btn.textContent = '📧 Senden'; } }
+    else { toast('Anmeldung für den Mailversand nötig. Bitte erneut versuchen.', 'error'); if (btn) { btn.disabled = false; btn.textContent = '📧 Senden'; } }
   } catch (e) {
     toast('Senden fehlgeschlagen: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '📧 Senden'; }
@@ -618,7 +618,7 @@ async function sendClevelReport() {
 function printClevelReport() {
   if (!_clevelData) return;
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>ISMS-Management-Bericht (C-Level) – DIHAG</title>
+    <title>ISMS-Management-Bericht (C-Level) DIHAG</title>
     <style>@media print{.noprint{display:none}thead{display:table-header-group}tr,h1,h2,h3{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}} body{margin:24px}</style></head><body>
     <div class="noprint" style="margin-bottom:14px"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     ${druckKopf()}

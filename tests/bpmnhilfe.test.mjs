@@ -60,7 +60,7 @@ const ui = ['js/prozesse.js', 'js/landkarte.js'].map(lies).join('\n');
 const einstiegHtml = H.bpmnEinstiegHtml();
 const knoepfe = [
   '📋 Modelle', '✨ Aus Richtlinie', 'Text auslesen →', 'BPMN-Entwurf erzeugen →', '💾 Speichern',
-  '🔍 Schema', 'Unterprozess – ein Modell einbinden', 'Übergang zu einem anderen Prozess',
+  '🔍 Schema', 'Unterprozess: ein Modell einbinden', 'Übergang zu einem anderen Prozess',
   'Dokumente an diesem Schritt', 'Verknüpfte Richtlinien', 'als neues Modell anlegen', 'Hausschema',
 ];
 for (const k of knoepfe) {
@@ -126,7 +126,7 @@ ok(!/Aus Text erzeugen/.test(doku), 'Den Knopf „✨ Aus Text erzeugen" gibt es
 
 /* ── 6) Schreibweise: keine Gedankenstriche zwischen Sätzen ──
    Ausnahme ist ein Knopf, der selbst einen trägt; den zitiert die Anleitung wörtlich. */
-const texte = lies('js/bpmnhilfe.js').split('„Unterprozess – ein Modell einbinden"').join('');
+const texte = lies('js/bpmnhilfe.js').split('„Unterprozess: ein Modell einbinden"').join('');
 const striche = (texte.match(/\s[–—]\s/g) || []).length;
 ok(striche === 0, `Keine Gedankenstriche in der Anleitung (${striche} gefunden)`);
 

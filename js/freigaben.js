@@ -32,7 +32,7 @@ async function pruefeFremdaenderung(p, aktion) {
     closeModal();
     if (typeof refreshAll === 'function') refreshAll();
     else if (typeof reloadData === 'function') reloadData().then(() => renderAdminList());
-    toast('Abgebrochen – die aktuelle Fassung wurde geladen.');
+    toast('Abgebrochen, die aktuelle Fassung wurde geladen.');
   }
   return weiter;
 }
@@ -65,7 +65,7 @@ function renderFreigaben() {
     (konform, wenn ${getKonformSchwelle() === 'alle' ? '<b>alle</b> zustimmen' : '<b>eine Person</b> zustimmt'}) → <b>1.5 Mitbestimmung</b> (Betriebsrat, nur wenn im Editor als betroffen markiert)
     → <b>2. Freigabe</b> durch die Geschäftsleitung
     ${esc(getGeschaeftsleitung().join(', ') || '– keine GL hinterlegt –')} (${getFreigabeSchwelle() === 'alle' ? '<b>alle</b>' : '<b>eine Person</b>'}) → <b>Veröffentlicht</b>.
-    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben – dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
+    Bei „nicht konform" bleibt die Richtlinie in Prüfung. <i>Einzelne Richtlinien können im Editor eigene Prüfer bzw. Freigeber (und Schwellen) haben. Dann gelten für sie ausschließlich diese.</i> Erinnerungen &amp; Eskalation laufen automatisch.
   </div></div>`;
   // Ausklappbarer Abschnitt (Kopf klickbar).
   const secBlock = (key, title, count, body) => {
@@ -170,7 +170,7 @@ function handleMailAction(id, aktion) {
   const p = policyZuId(id);
   if (!p) { toast('Richtlinie nicht gefunden (evtl. schon bearbeitet).'); return; }
   const bestaetigt = (frage, knopf) => (typeof uiConfirm === 'function')
-    ? uiConfirm(`„${p.title}" – ${frage}`, { title: 'Entscheidung bestätigen', okLabel: knopf })
+    ? uiConfirm(`„${p.title}": ${frage}`, { title: 'Entscheidung bestätigen', okLabel: knopf })
     : Promise.resolve(false);
   setTimeout(async () => {
     if (aktion === 'konform') {
@@ -197,9 +197,9 @@ function _votesHtml(p) {
   const k = (p.konformitaet || []).map(v =>
     `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}${iV(v)}:</b> ${v.entscheidung === 'konform'
       ? '<span style="color:#15803d">konform ✓</span>'
-      : '<span style="color:#b91c1c">nicht konform</span>'}${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+      : '<span style="color:#b91c1c">nicht konform</span>'}${v.anmerkung ? ': ' + esc(v.anmerkung) : ''}</div>`);
   const f = (p.freigaben || []).map(v =>
-    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}${iV(v)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ' – ' + esc(v.anmerkung) : ''}</div>`);
+    `<div style="padding:2px 0"><b>${esc(v.name || v.upn)}${iV(v)}:</b> <span style="color:#15803d">freigegeben ✓</span>${v.anmerkung ? ': ' + esc(v.anmerkung) : ''}</div>`);
   const all = [...k, ...f];
   if (!all.length) return '';
   return `<div style="margin-top:8px;font-size:.8rem;border-top:1px solid var(--c-border-2);padding-top:8px">${all.join('')}</div>`;
@@ -221,7 +221,7 @@ function pruefCardHtml(p) {
     ${fgProzessZeile(p)}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
-    ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional …') : ''}
+    ${kannPruefen ? kommentarFeldHtml(p.id, 'Anmerkung (Pflicht bei „nicht konform", bei „konform" optional) …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
@@ -245,7 +245,7 @@ function mitbestimmungCardHtml(p, kannHandeln) {
       <span class="ic-tag" style="background:#eef2ff;color:#3730a3">🏛️ Betroffen: ${esc(betroffen || '–')}</span></div>
     ${_votesHtml(p)}
     <div class="field-hint" style="margin-top:8px">Das Regelwerk ist konform und wurde zur Mitbestimmungsprüfung an ${ziel || 'die Mitbestimmung'} gesendet. Nach Beteiligung des Betriebsrats hier entscheiden: <b>Konform</b> (weiter) oder <b>Nicht konform</b> (mit Begründung, zurück in die Prüfung).</div>
-    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „nicht konform", bei „konform" optional (z. B. „BR SHB zugestimmt am …") …') : ''}
+    ${kannHandeln ? kommentarFeldHtml(p.id, 'Anmerkung (Pflicht bei „nicht konform", bei „konform" optional, z. B. „BR SHB zugestimmt am …") …') : ''}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
@@ -266,7 +266,7 @@ function freigabeCardHtml(p) {
     ${fgProzessZeile(p)}
     <div class="ic-tags">${p.kategorie ? `<span class="ic-tag cat">${esc(p.kategorie)}</span>` : ''}<span class="ic-tag">v${esc(p.version)}</span></div>
     ${_votesHtml(p)}
-    ${kommentarFeldHtml(p.id, 'Anmerkung – Pflicht bei „zurück", bei „freigeben" optional …')}
+    ${kommentarFeldHtml(p.id, 'Anmerkung (Pflicht bei „zurück", bei „freigeben" optional) …')}
     <div style="display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap">
       ${_policyOpenButtons(p)}
       <div style="flex:1"></div>
@@ -310,7 +310,7 @@ async function markKonform(policyId, konform, opts) {
   let anmerkung = ((opts && opts.grund) || (field ? field.value : '')).trim();
   if (!konform && !anmerkung) {
     if (field) {
-      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      toast('Bitte eine Begründung eingeben. „Nicht konform" muss begründet werden.', 'error');
       field.style.borderColor = '#ef4444'; field.focus();
       return;
     }
@@ -351,8 +351,8 @@ async function markKonform(policyId, konform, opts) {
     await reloadData();
     renderFreigaben();
     toast(konform
-      ? (toBR ? 'Konform – geht jetzt zur Mitbestimmung (Betriebsrat) ✓'
-         : toGL ? 'Konform – geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓')
+      ? (toBR ? 'Konform, geht jetzt zur Mitbestimmung (Betriebsrat) ✓'
+         : toGL ? 'Konform, geht jetzt zur Freigabe ✓' : 'Als konform markiert ✓')
       : 'Als „nicht konform" vermerkt.', 'success');
     if (toBR && typeof notifyMitbestimmung === 'function') notifyMitbestimmung(p);   // KBR/BR benachrichtigen
     if (toGL) notifyGL(p);
@@ -383,7 +383,7 @@ async function markMitbestimmung(policyId, konform, opts) {
   let anmerkung = ((opts && opts.grund) || (field ? field.value : '')).trim();   // opts.grund: Selbsttest
   if (!konform && !anmerkung) {
     if (field) {
-      toast('Bitte eine Begründung eingeben – „nicht konform" muss begründet werden.', 'error');
+      toast('Bitte eine Begründung eingeben. „Nicht konform" muss begründet werden.', 'error');
       field.style.borderColor = '#ef4444'; field.focus();
       return;
     }
@@ -409,7 +409,7 @@ async function markMitbestimmung(policyId, konform, opts) {
     await spSavePolicy(p);
     await reloadData();
     renderFreigaben();
-    toast(konform ? 'Mitbestimmung konform – geht jetzt zur Freigabe ✓' : 'Mitbestimmung: nicht konform – zurück in die Prüfung.', konform ? 'success' : 'error');
+    toast(konform ? 'Mitbestimmung konform, geht jetzt zur Freigabe ✓' : 'Mitbestimmung: nicht konform, zurück in die Prüfung.', konform ? 'success' : 'error');
     if (konform) notifyGL(p);
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
@@ -469,7 +469,7 @@ async function markFreigabe(policyId) {
           }
         }
       } else if (typeof toast === 'function') {
-        toast('Veröffentlicht. Für die Bekanntgabe fehlt ein Verteiler – Einstellungen → Verteiler je Zielgruppe.', 'error');
+        toast('Veröffentlicht. Für die Bekanntgabe fehlt ein Verteiler (Einstellungen → Verteiler je Zielgruppe).', 'error');
       }
     }
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
@@ -544,16 +544,16 @@ function zielgruppeBekanntgabeDialog(p, ziel, opts) {
     const empfaenger = ziel.adressen.map(a => chip('📧 ' + a, '#dcfce7', '#166534')).join('');
     const fehlend = ziel.fehlend.length
       ? `<div class="col-warning" style="display:block;margin-top:10px">
-           Für ${ziel.fehlend.map(f => '<b>' + esc(f) + '</b>').join(', ')} ist <b>kein Verteiler</b> hinterlegt –
+           Für ${ziel.fehlend.map(f => '<b>' + esc(f) + '</b>').join(', ')} ist <b>kein Verteiler</b> hinterlegt,
            diese Gruppe erhält nichts. Nachtragen unter <i>Einstellungen → Verteiler je Zielgruppe</i>.</div>`
       : '';
     const dokument = o.dokumentName
       ? `📎 ${esc(o.dokumentName)} <span class="field-hint">hängt an der Mail</span>`
-      : '<span class="field-hint">kein Anhang – die Mail verlinkt auf das Regelwerk</span>';
+      : '<span class="field-hint">kein Anhang, die Mail verlinkt auf das Regelwerk</span>';
     const wieder = p.bekanntgabeAm
       ? `<div class="field-hint" style="margin-top:10px">⏱ Bereits bekanntgegeben am
-         <b>${typeof fmtDateTime === 'function' ? esc(fmtDateTime(p.bekanntgabeAm)) : esc(p.bekanntgabeAm)}</b> –
-         diese Nachricht geht erneut an alle.</div>`
+         <b>${typeof fmtDateTime === 'function' ? esc(fmtDateTime(p.bekanntgabeAm)) : esc(p.bekanntgabeAm)}</b>.
+         Diese Nachricht geht erneut an alle.</div>`
       : '';
 
     openModal(`
@@ -580,7 +580,7 @@ function zielgruppeBekanntgabeDialog(p, ziel, opts) {
           </div>
         </details>
         <div class="field-hint" style="margin-top:12px">
-          Verschickt wird <b>eine</b> Mail je Verteiler – wer dazugehört, weiß Exchange.
+          Verschickt wird <b>eine</b> Mail je Verteiler. Wer dazugehört, weiß Exchange.
           Zeitpunkt und Empfänger landen in der Historie des Regelwerks.
         </div>
       </div>
@@ -673,7 +673,7 @@ async function notifyZielgruppe(p, opts) {
   if (!adressen.length) {
     if (!still) {
       toast(`Für ${fehlend.length ? '„' + fehlend.join('", „') + '"' : 'diese Zielgruppe'} ist kein Verteiler hinterlegt `
-        + '– Einstellungen → Verteiler je Zielgruppe.', 'error');
+        + '(Einstellungen → Verteiler je Zielgruppe).', 'error');
     }
     wfMailProtokoll(p.id, 'Bekanntgabe an die Zielgruppe', [],
       [`Kein Verteiler hinterlegt${fehlend.length ? ' für ' + fehlend.join(', ') : ''}`]);
@@ -716,7 +716,7 @@ async function zielgruppeInformieren(id) {
   if (!p) { toast('Regelwerk nicht gefunden.', 'error'); return; }
   const { adressen, fehlend } = bekanntgabeZiel(p);
   if (!adressen.length) {
-    toast(`Kein Verteiler hinterlegt für „${fehlend.join('", „')}" – Einstellungen → Verteiler je Zielgruppe.`, 'error');
+    toast(`Kein Verteiler hinterlegt für „${fehlend.join('", „')}" (Einstellungen → Verteiler je Zielgruppe).`, 'error');
     return;
   }
   const att = await spGetDocAttachment(p.dokumentDriveId, p.dokumentItemId, p.dokumentName);
@@ -730,14 +730,14 @@ async function zielgruppeInformieren(id) {
 
 async function notifyPruefer(p) {
   if (typeof isPAPruefung === 'function' && isPAPruefung()) {
-    console.info('[wf] Konformitätsprüfung über Power Automate – App-Prüfer-Mail übersprungen.');
+    console.info('[wf] Konformitätsprüfung über Power Automate, App-Prüfer-Mail übersprungen.');
     return;   // Power Automate verschickt die Genehmigungs-Mail
   }
   const zustaendig = (typeof getPolicyPruefer === 'function') ? getPolicyPruefer(p) : getPruefer();
   // Wer gerade vertreten wird, bekommt die Mail trotzdem – die Vertretung zusätzlich.
   const pruefer = (typeof mitVertretern === 'function') ? mitVertretern(zustaendig) : zustaendig;
   if (!pruefer.length) {
-    toast('Keine Prüfer hinterlegt – bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error');
+    toast('Keine Prüfer hinterlegt. Bitte in den Einstellungen ergänzen (oder pro Regelwerk im Editor).', 'error');
     wfMailProtokoll(p.id, 'Prüfer (Konformitätsprüfung)', [], ['Keine Prüfer hinterlegt']);
     return;
   }
@@ -750,7 +750,7 @@ async function notifyPruefer(p) {
     for (const empf of pruefer) {
       try {
         await spSendMail([empf], `Neues Regelwerk zur Sichtung: ${p.title}`,
-          _wfMailHtml('Neues Regelwerk – bitte um Sichtung und ggf. Anmerkung', p,
+          _wfMailHtml('Neues Regelwerk: bitte um Sichtung und ggf. Anmerkung', p,
             'Bitte prüfe das Regelwerk auf Konformität und markiere „konform" oder „nicht konform" (mit Anmerkung).',
             att ? att.name : '', 'pruefung', empf),
           att ? [att] : []);
@@ -767,7 +767,7 @@ async function notifyPruefer(p) {
 }
 async function notifyGL(p) {
   if (typeof isPAFreigabe === 'function' && isPAFreigabe()) {
-    console.info('[wf] Freigabe über Power Automate – App-GL-Mail übersprungen.');
+    console.info('[wf] Freigabe über Power Automate, App-GL-Mail übersprungen.');
     return;   // Power Automate verschickt die Freigabe-Mail
   }
   const zustaendig = (typeof getPolicyGeschaeftsleitung === 'function') ? getPolicyGeschaeftsleitung(p) : getGeschaeftsleitung();
@@ -780,7 +780,7 @@ async function notifyGL(p) {
     for (const empf of gl) {
       try {
         await spSendMail([empf], `Regelwerk zur Freigabe: ${p.title}`,
-          _wfMailHtml('Regelwerk ist konform – bitte um Freigabe', p,
+          _wfMailHtml('Regelwerk ist konform, bitte um Freigabe', p,
             'Die Konformitätsprüfung ist abgeschlossen. Bitte gib das Regelwerk zur Veröffentlichung frei.',
             att ? att.name : '', 'freigabe', empf),
           att ? [att] : []);
@@ -813,7 +813,7 @@ async function notifyMitbestimmung(p) {
     else fehlt.push(code);
   }
   if (fehlt.length) {
-    toast('Mitbestimmung: keine Mail hinterlegt für ' + fehlt.join(', ') + ' – bitte in den Einstellungen ergänzen.', 'error');
+    toast('Mitbestimmung: keine Mail hinterlegt für ' + fehlt.join(', ') + '. Bitte in den Einstellungen ergänzen.', 'error');
   }
   const erreicht = [], fehl = fehlt.map(x => `${x === 'KBR' ? 'Konzernbetriebsrat' : 'Betriebsrat ' + x}: keine Adresse hinterlegt`);
   if (!recipients.length) { wfMailProtokoll(p.id, 'Mitbestimmung (Betriebsrat)', [], fehl); return; }
@@ -827,7 +827,7 @@ async function notifyMitbestimmung(p) {
   for (const r of recipients) {
     const dom = r.mail.includes('@') ? r.mail.split('@').pop() : '';
     try {
-      await spSendMail([r.mail], `Mitbestimmung – Richtlinie zur Prüfung: ${p.title}`,
+      await spSendMail([r.mail], `Mitbestimmung, Richtlinie zur Prüfung: ${p.title}`,
         _mitMailHtml(p, r.label, att ? att.name : ''),
         att ? [att] : [], null, dom ? [dom] : []);
       sent++; erreicht.push(r.mail);
@@ -840,7 +840,7 @@ async function notifyMitbestimmung(p) {
 /** „Bereits freigegeben"-Block für Workflow-Mails – zeigt dem nächsten Prüfer/Freigeber,
  *  wer bereits zugestimmt hat (Konformitätsprüfung, Mitbestimmung, Freigabe). */
 function _wfApprovalsHtml(p) {
-  const d = (iso) => (typeof fmtDate === 'function' && iso) ? ' – ' + fmtDate(iso) : '';
+  const d = (iso) => (typeof fmtDate === 'function' && iso) ? ', ' + fmtDate(iso) : '';
   const rows = [];
   // Die Freigabe des Konzepts ist die erste Zustimmung im Ablauf – sie gehört
   // in diese Übersicht, aber klar unterscheidbar von der späteren Freigabe des
@@ -884,7 +884,7 @@ function fgProzessZeile(p, mail) {
 function _wfDokumentHtml(p, attachmentName) {
   const zeilen = [];
   if (attachmentName) zeilen.push(`📎 Das Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.`);
-  else if (p.dokumentName) zeilen.push(`📎 Hinterlegtes Dokument: <b>${esc(p.dokumentName)}</b> (nicht angehängt – zu groß oder nicht abrufbar).`);
+  else if (p.dokumentName) zeilen.push(`📎 Hinterlegtes Dokument: <b>${esc(p.dokumentName)}</b> (nicht angehängt, zu groß oder nicht abrufbar).`);
   if (!zeilen.length && !p.dokumentUrl) return '';
   const link = p.dokumentUrl
     ? `<p style="margin:6px 0 0"><a href="${esc(sichereUrl(p.dokumentUrl))}" style="color:#17509e;font-weight:600;text-decoration:none">📄 Dokument in SharePoint öffnen →</a>
@@ -980,7 +980,7 @@ function fremdeGesellschaftHinweis(id) {
   if (typeof regelwerkVerborgen !== 'function' || !regelwerkVerborgen(id)) return '';
   const g = (typeof meineGesellschaft === 'function') ? meineGesellschaft() : null;
   return 'Dieses Regelwerk gehört zu einer anderen Gesellschaft und ist für Sie ausgeblendet'
-    + (g && g.name ? ' – Sie sehen die Regelwerke von ' + g.name : '') + '.';
+    + (g && g.name ? '. Sie sehen die Regelwerke von ' + g.name : '') + '.';
 }
 
 async function _ekRegelwerkHolen(id) {
@@ -1007,7 +1007,7 @@ async function _ekRegelwerkHolen(id) {
   const k = konzeptZuId(id);
   if (k) {
     _ekPanel(`<h3>Das ist noch ein Konzept</h3>
-      <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor – entschieden wird
+      <p style="line-height:1.55">„${esc(k.title)}" liegt als Konzept vor. Entschieden wird
       darüber im Regelwerk Dashboard unter „Konzepte", nicht in der Freigabe.</p>
       <div style="margin-top:16px"><button class="btn btn-primary"
         onclick="closeModal();konzeptOeffnen(${jsArg(String(id))})">Konzept öffnen</button></div>`);
@@ -1021,7 +1021,7 @@ async function _ekRegelwerkHolen(id) {
     _ekPanel(`<h3>Nicht Ihre Gesellschaft</h3>
       <p style="line-height:1.55">${esc(fremd)}</p>
       <p style="line-height:1.55">Ihre Entscheidung ist damit <b>nicht</b> gespeichert. Wenden Sie sich
-      an die Person, die Ihnen die Mail geschickt hat – vermutlich ist der Link an den falschen
+      an die Person, die Ihnen die Mail geschickt hat. Vermutlich ist der Link an den falschen
       Verteiler gegangen.</p>${_ekSchliessen}`);
     return null;
   }
@@ -1052,7 +1052,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
       <p style="line-height:1.55">Angemeldet sind Sie als <b>${esc(ich)}</b>, die Mail ging an
       <b>${esc(adressat)}</b>. Eine Entscheidung stünde sonst unter dem falschen Namen.</p>
       <p style="line-height:1.55">Sind Sie <b>eingesprungen</b>, tragen Sie die Vertretung in den
-      Einstellungen ein und entscheiden im Portal – dann steht es auch so im Protokoll.</p>
+      Einstellungen ein und entscheiden im Portal. Dann steht es auch so im Protokoll.</p>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="authAnmeldenAls(${jsArg(adressat)})">Als ${esc(adressat)} anmelden</button>
         <button class="btn btn-outline" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Im Portal öffnen</button></div>`);
@@ -1065,8 +1065,8 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
 
   if (!erwartet.includes(p.status)) {
     _ekPanel(`<div style="font-size:2rem">✓</div><h3>Schon erledigt</h3>
-      <p style="line-height:1.55">„${esc(p.title)}" steht inzwischen auf <b>${esc(p.status)}</b> –
-      hier ist nichts mehr zu tun.</p>
+      <p style="line-height:1.55">„${esc(p.title)}" steht inzwischen auf <b>${esc(p.status)}</b>.
+      Hier ist nichts mehr zu tun.</p>
       <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Vorgang ansehen</button></div>`);
     return;
   }
@@ -1081,7 +1081,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     _ekPanel(`<h3>Dafür fehlt Ihnen die Berechtigung</h3>
       <p style="line-height:1.55">Für „${esc(p.title)}" ist ${kreis} hinterlegt.
       ${art === 'mitbestimmung'
-        ? 'Erkannt wird die Zugehörigkeit über die Adresse des Betriebsrats aus den Einstellungen – als eigene Adresse oder über die Mitgliedschaft in der hinterlegten Gruppe.'
+        ? 'Erkannt wird die Zugehörigkeit über die Adresse des Betriebsrats aus den Einstellungen, als eigene Adresse oder über die Mitgliedschaft in der hinterlegten Gruppe.'
         : 'Sind Sie eingesprungen, muss die <b>Vertretung</b> in den Einstellungen eingetragen sein.'}</p>${_ekSchliessen}`);
     return;
   }
@@ -1089,7 +1089,7 @@ async function einKlickAktion(id, aktion, token, adressatAusLink) {
     // Kein Drama, nur kein Ein-Klick: Der Link stammt aus einer früheren Runde.
     _ekPanel(`<h3>Dieser Link ist nicht mehr aktuell</h3>
       <p style="line-height:1.55">Zu „${esc(p.title)}" läuft inzwischen eine neue Runde. Bitte den Vorgang
-      öffnen und dort entscheiden – die Angaben sind dann auf dem aktuellen Stand.</p>
+      öffnen und dort entscheiden. Die Angaben sind dann auf dem aktuellen Stand.</p>
       <div style="margin-top:16px"><button class="btn btn-primary" onclick="closeModal();focusPolicyCard(${jsArg(id)})">Vorgang öffnen</button></div>`);
     return;
   }
@@ -1183,7 +1183,7 @@ function _wfMailHtml(headline, p, text, attachmentName, phase, empfaenger) {
     ${_wfDokumentHtml(p, attachmentName)}
     ${_wfApprovalsHtml(p)}
     ${actions ? `<p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p><p>${actions}</p>` : `<p><a href="${esc(sichereUrl(url))}" style="display:inline-block;background:#17509e;color:#fff;text-decoration:none;padding:10px 20px;border-radius:7px;font-weight:600">Richtlinie öffnen &amp; bearbeiten →</a></p>`}
-    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus – ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(sichereUrl(url))}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
+    ${mailFuss(`Der Button meldet Sie still an (SSO) und führt die Entscheidung direkt aus. Ein Klick, kein Suchen. Ein Fehlklick lässt sich auf derselben Seite zurücknehmen. Oder <a href="${esc(sichereUrl(url))}" style="color:#9ca3af">nur ansehen</a>.<br>Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
   `);
 }
 

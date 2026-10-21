@@ -245,7 +245,7 @@ ctx.__t3 = elem('T3', 'Gießen', '');
 ctx.__modeler4 = macheModeler([ctx.__t3], [ctx.__t3], ctx.__root);
 run(`_bpmnModeler = __modeler4; _renderElementUnter(true);`);
 box = felder['proc-unter'].innerHTML;
-ok(!/als neues Modell anlegen/.test(box) && /gibt es schon in .*SHB/.test(box) && /oben einbinden/.test(box),
+ok(!/als neues Modell anlegen/.test(box) && /gibt es schon in .*SHB/.test(box) && /[Oo]ben einbinden/.test(box),
   '„Gießen" gibt es schon (in SHB) – kein zweites Anlegen, sondern einbinden');
 ctx.__modeler5 = macheModeler(ctx.__elemente, [ctx.__elemente[0]], ctx.__root);
 run(`_bpmnModeler = __modeler5; _renderElementUnter(true);`);
@@ -355,7 +355,7 @@ ok(/bus\.on\('selection\.changed', \(e\) => \{ _renderElementSprung\(canWrite\);
 ok(/'bindet ein'/.test(lies('js/verknuepfungen.js')) && /'bindet ein': 'eingebunden in'/.test(lies('js/verknuepfungen.js')),
   'Die Verknüpfungen kennen die Kante „bindet ein"');
 ok(/'bindet ein'/.test(lies('js/mindmapbaum.js')), 'Im Baum hängt das eingebundene Modell unter dem einbindenden');
-ok(/Unterprozesse einbinden – ein Modell im Modell/.test(lies('js/dokumentation.js')) && /Kennung und Name – eindeutig, einmalig/.test(lies('js/dokumentation.js')),
+ok(/Unterprozesse einbinden \(ein Modell im Modell\)/.test(lies('js/dokumentation.js')) && /Kennung und Name, eindeutig und einmalig/.test(lies('js/dokumentation.js')),
   'Die Dokumentation erklärt Einbinden und Kennung');
 ok(/\(Unterprozess\)/.test(lies('js/dokumentation.js')), 'Und die Schreibweise „(Unterprozess)"');
 
@@ -410,7 +410,7 @@ ctx.__t7 = elem('T7', 'Noch eins', '');
 ctx.__modeler15 = macheModeler([ctx.__t7], [ctx.__t7], wurzel('Process_c3'));
 run(`_bpmnModeler = __modeler15;`);
 await run(`procUnterprozessSucheTaste({ key: 'Enter', preventDefault() {} })`);
-ok(gemeldet.some(t => /Modelle passen – Suche eingrenzen/.test(t)) && ctx.__t7.type === 'bpmn:UserTask',
+ok(gemeldet.some(t => /Modelle passen\. Bitte die Suche eingrenzen/.test(t)) && ctx.__t7.type === 'bpmn:UserTask',
   'Bei mehreren Treffern passiert nichts – außer dem Hinweis');
 ok(/position: \{ top: -10, left: 10 \}/.test(lies('js/prozesse.js').split('function procUnterMarker')[1].slice(0, 900)),
   'Das ⊞-Zeichen sitzt oben links – unten in der Mitte zeichnet bpmn-js das eigene ⊞ der Aufrufaktivität');

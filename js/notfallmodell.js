@@ -28,11 +28,11 @@
 /* ── Kritikalität: das Ergebnis der Business-Impact-Analyse ── */
 const NF_KRITIKALITAET = {
   hoch:    { label: 'hoch',    farbe: '#b91c1c',
-             text: 'Ein Ausfall gefährdet Lieferfähigkeit, Sicherheit oder Rechtspflichten – Notfallplan ist Pflicht.' },
+             text: 'Ein Ausfall gefährdet Lieferfähigkeit, Sicherheit oder Rechtspflichten. Ein Notfallplan ist Pflicht.' },
   mittel:  { label: 'mittel',  farbe: '#b45309',
-             text: 'Ein Ausfall ist tagelang tragbar, aber teuer – Plan empfohlen.' },
+             text: 'Ein Ausfall ist tagelang tragbar, aber teuer. Ein Plan wird empfohlen.' },
   niedrig: { label: 'niedrig', farbe: '#15803d',
-             text: 'Ein Ausfall ist wochenlang tragbar – kein eigener Plan nötig.' },
+             text: 'Ein Ausfall ist wochenlang tragbar, ein eigener Plan ist nicht nötig.' },
 };
 
 /* ── Die Teile eines Notfallplans – in der Reihenfolge, in der sie gebraucht werden ── */
@@ -40,20 +40,20 @@ const NF_PLAN_TEILE = [
   { id: 'sofort',          titel: 'Sofortmaßnahmen',            pflicht: true,
     frage: 'Was ist in der ersten Stunde zu tun? Wer wird alarmiert, was wird gesichert, was gestoppt?' },
   { id: 'notbetrieb',      titel: 'Notbetrieb',                 pflicht: true,
-    frage: 'Wie läuft der Prozess ohne das ausgefallene Asset weiter – Handbetrieb, Ausweichsystem, Ersatzlieferant?' },
+    frage: 'Wie läuft der Prozess ohne das ausgefallene Asset weiter: Handbetrieb, Ausweichsystem, Ersatzlieferant?' },
   { id: 'wiederanlauf',    titel: 'Wiederanlauf',               pflicht: true,
     frage: 'In welcher Reihenfolge wird wiederhergestellt, wer gibt frei, woran ist zu erkennen, dass es läuft?' },
   { id: 'rueckkehr',       titel: 'Rückkehr zum Normalbetrieb', pflicht: false,
     frage: 'Wie werden Daten aus dem Notbetrieb nachgetragen, wann endet der Notfall, wer erklärt ihn für beendet?' },
   { id: 'voraussetzungen', titel: 'Voraussetzungen',            pflicht: false,
-    frage: 'Was muss vorher da sein – Ersatzgeräte, Datensicherung, Formulare, Verträge, Zugänge?' },
+    frage: 'Was muss vorher da sein: Ersatzgeräte, Datensicherung, Formulare, Verträge, Zugänge?' },
 ];
 
 /* ── Übungsarten nach BSI 200-4, vom Leichten zum Schweren ── */
 const NF_UEBUNGSARTEN = {
-  planbesprechung: { label: 'Planbesprechung', text: 'Der Plan wird am Tisch durchgegangen – findet Lücken im Text, kostet eine Stunde.' },
+  planbesprechung: { label: 'Planbesprechung', text: 'Der Plan wird am Tisch durchgegangen. Das findet Lücken im Text, kostet eine Stunde.' },
   stabsuebung:     { label: 'Stabsübung',      text: 'Der Krisenstab arbeitet ein Szenario ab, ohne dass etwas abgeschaltet wird.' },
-  funktionstest:   { label: 'Funktionstest',   text: 'Ein Teil wird echt geprüft – Rückspielung einer Sicherung, Ausweichsystem, Alarmierung.' },
+  funktionstest:   { label: 'Funktionstest',   text: 'Ein Teil wird echt geprüft: Rückspielung einer Sicherung, Ausweichsystem, Alarmierung.' },
   volluebung:      { label: 'Vollübung',       text: 'Der Ausfall wird nachgestellt, der Notbetrieb läuft tatsächlich.' },
 };
 
@@ -62,11 +62,11 @@ const NF_STAB_ROLLEN = [
   { rolle: 'Leitung Krisenstab',            pflicht: true,
     aufgabe: 'Erklärt den Notfall und sein Ende, entscheidet, priorisiert.' },
   { rolle: 'Stellvertretung Leitung',       pflicht: true,
-    aufgabe: 'Übernimmt, wenn die Leitung nicht erreichbar ist – ein Krisenstab mit einem Kopf hat keinen.' },
+    aufgabe: 'Übernimmt, wenn die Leitung nicht erreichbar ist. Ein Krisenstab mit einem Kopf hat keinen.' },
   { rolle: 'Lage und Protokoll',            pflicht: false,
     aufgabe: 'Führt Lagebild und Protokoll: wer hat wann was entschieden. Ohne das gibt es hinterher keine Auswertung.' },
   { rolle: 'Kommunikation',                 pflicht: false,
-    aufgabe: 'Belegschaft, Kunden, Behörden, Presse – eine Stimme nach außen.' },
+    aufgabe: 'Belegschaft, Kunden, Behörden, Presse: eine Stimme nach außen.' },
   { rolle: 'IT / OT',                       pflicht: false,
     aufgabe: 'Systeme, Netz, Steuerungen; Wiederanlauf der Technik.' },
   { rolle: 'Produktion / Fachbereich',      pflicht: false,
@@ -104,7 +104,7 @@ const NF_STUFEN = [
     erklaert: 'Schichtleitung / IT-Bereitschaft', alarmiert: 'Prozessverantwortliche',
     mittel: 'Notfallplan: Sofortmaßnahmen und Notbetrieb', meldepflicht: '' },
   { nr: 2, key: 'notfall',  label: 'Notfall',       farbe: '#dc2626',
-    kriterium: 'Ein kritischer Prozess steht länger als seine RTO – oder wird es absehbar, weil das Asset länger braucht, als der Prozess weg sein darf.',
+    kriterium: 'Ein kritischer Prozess steht länger als seine RTO, oder es wird absehbar, weil das Asset länger braucht, als der Prozess weg sein darf.',
     erklaert: 'Leitung Krisenstab, auf Meldung der Prozessverantwortlichen', alarmiert: 'Krisenstab-Kern: Leitung, Stellvertretung, IT/OT, betroffener Fachbereich',
     mittel: 'Notfallplan: Wiederanlauf; Krisenstab in Bereitschaft',
     meldepflicht: 'Bei Sicherheitsvorfall: NIS2-Frühwarnung binnen 24 h; DSGVO binnen 72 h, wenn Personendaten betroffen' },
@@ -270,7 +270,7 @@ function nfPruefung(k, ctx) {
   const hoch = b.kritikalitaet === 'hoch';
 
   if (!b.kritikalitaet) {
-    fehler.push('Kritikalität nicht bewertet – ohne BIA weiß niemand, ob dieser Prozess einen Plan braucht.');
+    fehler.push('Kritikalität nicht bewertet. Ohne BIA weiß niemand, ob dieser Prozess einen Plan braucht.');
     return { fehler, hinweise, rtoKonflikt };
   }
   if (b.kritikalitaet === 'niedrig') return { fehler, hinweise, rtoKonflikt };
@@ -279,16 +279,16 @@ function nfPruefung(k, ctx) {
   const zeit = (was, wert) => {
     if (wert === '') (hoch ? fehler : hinweise).push(`${was} fehlt (Reifegrad R093).`);
   };
-  zeit('MTPD – maximal tolerierbare Ausfallzeit', b.mtpd);
-  zeit('RTO – Wiederanlaufzeit', b.rto);
-  zeit('RPO – tolerierbarer Datenverlust', b.rpo);
+  zeit('MTPD: maximal tolerierbare Ausfallzeit', b.mtpd);
+  zeit('RTO: Wiederanlaufzeit', b.rto);
+  zeit('RPO: tolerierbarer Datenverlust', b.rpo);
 
   if (b.rto !== '' && b.mtpd !== '' && b.rto > b.mtpd) {
-    fehler.push(`RTO ${nfDauerText(b.rto)} liegt über der MTPD ${nfDauerText(b.mtpd)} – der Prozess wäre länger weg, als er weg sein darf.`);
+    fehler.push(`RTO ${nfDauerText(b.rto)} liegt über der MTPD ${nfDauerText(b.mtpd)}. Der Prozess wäre länger weg, als er weg sein darf.`);
   }
 
   if (!b.assets.length) {
-    (hoch ? fehler : hinweise).push('Keine Assets zugeordnet – ohne Abhängigkeiten sagt der Plan nicht, wovor er schützt.');
+    (hoch ? fehler : hinweise).push('Keine Assets zugeordnet. Ohne Abhängigkeiten sagt der Plan nicht, wovor er schützt.');
   }
 
   // Schutzbedarfs-Vererbung (BSI-Maximumprinzip): Ein kritischer Prozess
@@ -301,7 +301,7 @@ function nfPruefung(k, ctx) {
     for (const a of b.assets) {
       const info = c.assetInfo[a.id];
       if (info && info.verfuegbarkeit && rang(info.verfuegbarkeit) >= 0 && rang(info.verfuegbarkeit) < rang(soll)) {
-        hinweise.push(`„${a.title}" ist im Assetregister mit Verfügbarkeit „${info.verfuegbarkeit}" bewertet – dieser Prozess verlangt „${soll}" (Vererbung).`);
+        hinweise.push(`„${a.title}" ist im Assetregister mit Verfügbarkeit „${info.verfuegbarkeit}" bewertet, dieser Prozess verlangt „${soll}" (Vererbung).`);
       }
     }
   }
@@ -323,7 +323,7 @@ function nfPruefung(k, ctx) {
   // echte Abhängigkeit, die niemand kennt, oder ein Pflegefehler. Beides
   // sollte man sehen – als Hinweis, nicht als Lücke.
   for (const a of b.assets) {
-    if (nfAssetFremd(a, c.werk)) hinweise.push(`„${a.title}" steht laut Asset-Liste in ${a.werke.join(', ')}, nicht in ${c.werk} – echte Abhängigkeit oder Pflegefehler?`);
+    if (nfAssetFremd(a, c.werk)) hinweise.push(`„${a.title}" steht laut Asset-Liste in ${a.werke.join(', ')}, nicht in ${c.werk}. Echte Abhängigkeit oder Pflegefehler?`);
   }
 
   const p = b.plan;
@@ -333,17 +333,17 @@ function nfPruefung(k, ctx) {
       else if (hoch) hinweise.push(`Notfallplan: „${t.titel}" fehlt.`);
     }
   }
-  if (hoch && !p.kontakte.length) fehler.push('Notfallplan: keine Kontakte – wen ruft man um drei Uhr nachts an?');
+  if (hoch && !p.kontakte.length) fehler.push('Notfallplan: keine Kontakte. Wen ruft man um drei Uhr nachts an?');
   if (!p.verantwortlich && !String((k && k.verantwortlich) || '').trim()) {
     (hoch ? fehler : hinweise).push('Niemand verantwortet den Plan (Reifegrad R071).');
   }
 
   if (hoch && nfHatPlan(k)) {
     const letzte = nfLetzteUebung(c.uebungen, c.werk, k.id);
-    if (!letzte) hinweise.push(`Nie geübt – ein Plan ohne Übung ist Papier.`);
-    else if (nfUebungFaellig(letzte)) hinweise.push(`Zuletzt geübt am ${String(letzte.datum).slice(0, 10)} – länger als ${NF_UEBUNG_MONATE} Monate her.`);
+    if (!letzte) hinweise.push(`Nie geübt. Ein Plan ohne Übung ist Papier.`);
+    else if (nfUebungFaellig(letzte)) hinweise.push(`Zuletzt geübt am ${String(letzte.datum).slice(0, 10)}, länger als ${NF_UEBUNG_MONATE} Monate her.`);
   }
-  if (b.standAm && _nfMonateHer(b.standAm) > 24) hinweise.push(`BIA-Stand vom ${b.standAm.slice(0, 10)} – älter als zwei Jahre.`);
+  if (b.standAm && _nfMonateHer(b.standAm) > 24) hinweise.push(`BIA-Stand vom ${b.standAm.slice(0, 10)}, älter als zwei Jahre.`);
   return { fehler, hinweise, rtoKonflikt };
 }
 
@@ -361,7 +361,7 @@ function nfStabVon(s) {
     alarmierung: liste(q.alarmierung, ['stufe', 'ausloeser', 'wer', 'tut']).map((x, i) => {
       const nr = _nfStufeNr(x) ?? _nfStufeNr((Array.isArray(q.alarmierung) ? q.alarmierung : [])[i]);
       const st = nfStufe(nr);
-      return Object.assign(x, { nr, stufe: x.stufe || (st ? `${st.nr} – ${st.label}` : '') });
+      return Object.assign(x, { nr, stufe: x.stufe || (st ? `${st.nr} · ${st.label}` : '') });
     }),
     externe: liste(q.externe, ['wer', 'telefon', 'hinweis']),
     treffpunkt: String(q.treffpunkt || ''),
@@ -385,7 +385,7 @@ function nfStabVorlage() {
 
 /** Die drei Stufen als Alarmierungszeilen – Auslöser und Standardrollen aus dem Modell. */
 function nfAlarmierungVorlage() {
-  return NF_STUFEN.filter(x => x.nr >= 1).map(x => ({ nr: x.nr, stufe: `${x.nr} – ${x.label}`, ausloeser: x.kriterium, wer: x.erklaert, tut: x.alarmiert }));
+  return NF_STUFEN.filter(x => x.nr >= 1).map(x => ({ nr: x.nr, stufe: `${x.nr} · ${x.label}`, ausloeser: x.kriterium, wer: x.erklaert, tut: x.alarmiert }));
 }
 
 /**
@@ -417,11 +417,11 @@ function nfStabLuecken(s) {
   if (!leitung.length || !leitung.some(m => m.name.trim())) f.push('Leitung Krisenstab ist nicht benannt.');
   else if (!leitung.some(m => m.name.trim() && nummer(m))) f.push('Leitung Krisenstab ohne Telefonnummer.');
   const vertr = mit.filter(_nfIstVertretung);
-  if (!vertr.length || !vertr.some(m => m.name.trim())) f.push('Stellvertretung der Leitung ist nicht benannt – ein Krisenstab mit einem Kopf hat keinen.');
+  if (!vertr.length || !vertr.some(m => m.name.trim())) f.push('Stellvertretung der Leitung ist nicht benannt. Ein Krisenstab mit einem Kopf hat keinen.');
   else if (!vertr.some(m => m.name.trim() && nummer(m))) f.push('Stellvertretung ohne Telefonnummer.');
   const ohneNummer = mit.filter(m => m.name.trim() && !nummer(m) && !_nfIstLeitung(m) && !_nfIstVertretung(m));
   if (ohneNummer.length) f.push(`${ohneNummer.length} Mitglied(er) ohne Telefonnummer: ${ohneNummer.map(m => m.rolle || m.name).join(', ')}.`);
-  if (!st.alarmierung.length) f.push('Keine Alarmierungskette – wer ruft wen, und wann?');
+  if (!st.alarmierung.length) f.push('Keine Alarmierungskette: Wer ruft wen, und wann?');
   else {
     // Jede Eskalationsstufe braucht jemanden, der sie ausruft. Sonst wird
     // aus einer Störung ein Notfall, ohne dass es jemand sagt.
@@ -432,10 +432,10 @@ function nfStabLuecken(s) {
     }
   }
   if (!st.treffpunkt.trim()) f.push('Kein Treffpunkt.');
-  if (!st.kanal.trim()) f.push('Kein Kommunikationskanal – und der Ausfall von Teams ist ein wahrscheinliches Szenario.');
+  if (!st.kanal.trim()) f.push('Kein Kommunikationskanal, und der Ausfall von Teams ist ein wahrscheinliches Szenario.');
   if (st.kanal.trim() && !st.kanalErsatz.trim()) f.push('Kein Ersatzkanal für den Fall, dass der erste ausfällt.');
-  if (!st.standAm) f.push('Kein Stand – niemand weiß, ob die Nummern noch stimmen.');
-  else if (_nfMonateHer(st.standAm) > NF_STAB_MONATE) f.push(`Stand vom ${st.standAm.slice(0, 10)} – älter als ${NF_STAB_MONATE} Monate. Telefonnummern veralten schneller als Pläne.`);
+  if (!st.standAm) f.push('Kein Stand. Niemand weiß, ob die Nummern noch stimmen.');
+  else if (_nfMonateHer(st.standAm) > NF_STAB_MONATE) f.push(`Stand vom ${st.standAm.slice(0, 10)}, älter als ${NF_STAB_MONATE} Monate. Telefonnummern veralten schneller als Pläne.`);
   return f;
 }
 
@@ -548,16 +548,16 @@ function nfStufeBeiAusfall(daten, assetId, werke, opt) {
     const b = nfBcmVon(x.kachel);
     const name = x.kachel.name;
     if (r !== null && b.mtpd !== '' && r >= Number(b.mtpd)) {
-      nr = 3; gruende.push(`„${name}" wäre länger weg als seine MTPD (${nfDauerText(b.mtpd)}) – das Asset braucht ${nfDauerText(r)}.`);
+      nr = 3; gruende.push(`„${name}" wäre länger weg als seine MTPD (${nfDauerText(b.mtpd)}), das Asset braucht ${nfDauerText(r)}.`);
     } else if (r !== null && b.rto !== '' && r > Number(b.rto)) {
-      nr = Math.max(nr, 2); gruende.push(`„${name}" reißt seine RTO (${nfDauerText(b.rto)}) – das Asset braucht ${nfDauerText(r)}.`);
+      nr = Math.max(nr, 2); gruende.push(`„${name}" reißt seine RTO (${nfDauerText(b.rto)}), das Asset braucht ${nfDauerText(r)}.`);
     } else if (r === null && b.rto !== '') {
-      gruende.push(`Notfall, sobald „${name}" länger als ${nfDauerText(b.rto)} steht – Wiederherstellzeit des Assets nicht gepflegt.`);
+      gruende.push(`Notfall, sobald „${name}" länger als ${nfDauerText(b.rto)} steht. Die Wiederherstellzeit des Assets ist nicht gepflegt.`);
     } else if (r !== null && b.rto !== '') {
       gruende.push(`„${name}" hält: RTO ${nfDauerText(b.rto)}, Wiederherstellung ${nfDauerText(r)}.`);
     }
   }
-  if (krit.length >= 2) { nr = 3; gruende.push(`${krit.length} kritische Prozesse hängen daran – mehr als eine Störung.`); }
+  if (krit.length >= 2) { nr = 3; gruende.push(`${krit.length} kritische Prozesse hängen daran, das ist mehr als eine Störung.`); }
   if (nr === 1) gruende.unshift(`${liste.length} Prozess(e) betroffen, Notbetrieb laut Plan.`);
   return { nr, stufe: nfStufe(nr), gruende, betroffen: liste.length };
 }
@@ -677,7 +677,7 @@ function _nfStabAbschnitte(stab, opt) {
   return `
     ${lu.length ? `<div class="warn"><b>Lücken im Krisenstab (${lu.length}):</b> ${lu.map(_nfEsc).join(' · ')}</div>` : ''}
     <h3>Krisenstab</h3>${mit}
-    <h3>Eskalationsstufen – wer ruft wann wen?</h3>${alarm}
+    <h3>Eskalationsstufen: Wer ruft wann wen?</h3>${alarm}
     <div class="kasten"><b>Treffpunkt:</b> ${_nfEsc(st.treffpunkt) || '<span class="muted">nicht festgelegt</span>'}
       ${st.treffpunktErsatz ? ` &nbsp;·&nbsp; <b>Ersatz:</b> ${_nfEsc(st.treffpunktErsatz)}` : ''}<br>
       <b>Kommunikation:</b> ${_nfEsc(st.kanal) || '<span class="muted">nicht festgelegt</span>'}
@@ -697,7 +697,7 @@ function _nfPlanAbschnitt(werk, k, opt) {
   const kr = NF_KRITIKALITAET[b.kritikalitaet];
   const zeit = (v) => v === '' ? '<span class="muted">–</span>' : `<b>${_nfEsc(nfDauerText(v))}</b>`;
   return `
-    <h2>${_nfEsc(k.name)}${k.unter ? ` <span class="muted" style="font-weight:400;font-size:12px">– ${_nfEsc(k.unter)}</span>` : ''}</h2>
+    <h2>${_nfEsc(k.name)}${k.unter ? ` <span class="muted" style="font-weight:400;font-size:12px">· ${_nfEsc(k.unter)}</span>` : ''}</h2>
     <table><tbody>
       <tr><th style="width:22%">Kritikalität</th><td class="k-${b.kritikalitaet || 'niedrig'}">${kr ? _nfEsc(kr.label) : 'nicht bewertet'}</td>
           <th style="width:22%">Verantwortlich</th><td>${_nfEsc(name(p.verantwortlich || k.verantwortlich || '')) || '–'}${k.vertretung ? ` <span class="muted">· Vertretung ${_nfEsc(name(k.vertretung))}</span>` : ''}</td></tr>
@@ -756,15 +756,15 @@ function nfHandbuchHtml(o) {
       <p class="muted" style="margin-top:14px">ISO/IEC 27001:2022 A.5.29, A.5.30 · ISO 22301 · BSI-Standard 200-4 · NIS2 Art. 21 (2c).
         Dieser Ausdruck ist die Fassung für den Fall, dass nichts anderes mehr geht. Er gehört an einen Ort, den der
         Krisenstab ohne Strom, Netz und Anmeldung erreicht. Die App-Fassung ist die aktuellere.</p>
-      ${o.nurKachel ? '' : `<p><b>Im Ernstfall:</b> Erst Menschen, dann Alarmierung (Abschnitt 1), dann die Prozesse in der Reihenfolge des Abschnitts 2 – das mit der kürzesten RTO zuerst.</p>`}
+      ${o.nurKachel ? '' : `<p><b>Im Ernstfall:</b> Erst Menschen, dann Alarmierung (Abschnitt 1), dann die Prozesse in der Reihenfolge des Abschnitts 2, den mit der kürzesten RTO zuerst.</p>`}
     </div>
     ${o.nurKachel ? '' : `<h2>1 · Krisenstab und Alarmierung</h2>${_nfStabAbschnitte(o.stab, { personName: name })}
-    <h2 class="seite">2 · Kritische Prozesse – nach Wiederanlaufzeit</h2>${uebersicht}
+    <h2 class="seite">2 · Kritische Prozesse nach Wiederanlaufzeit</h2>${uebersicht}
     ${matrix ? `<h3>Wovon sie abhängen</h3>${matrix}` : ''}
     <h2 class="seite">3 · Die Notfallpläne</h2>`}
     ${(o.nurKachel ? kacheln : nachRto).map(k => _nfPlanAbschnitt(werk, k, { personName: name, assetRto: o.assetRto, uebungen: o.uebungen })).join('')}
-    ${!o.nurKachel && !nachRto.length ? '<p class="muted">Keine Pläne – erst die Business-Impact-Analyse, dann der Plan.</p>' : ''}
-    <p class="muted" style="margin-top:18px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Notfall &amp; Krisenstab" – deterministisch, ohne KI.</p>
+    ${!o.nurKachel && !nachRto.length ? '<p class="muted">Keine Pläne. Erst die Business-Impact-Analyse, dann der Plan.</p>' : ''}
+    <p class="muted" style="margin-top:18px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Notfall &amp; Krisenstab", deterministisch, ohne KI.</p>
     </body></html>`;
 }
 
@@ -782,7 +782,7 @@ function nfAlarmkarteHtml(o) {
     <h1>🚨 Alarmkarte ${_nfEsc(o.werkLabel || o.werk)}</h1>
     <div class="muted">Stand ${_nfEsc(stand)} · Aushängen: Pforte, Leitstand, Serverraum, Krisenstab-Raum</div>
     ${_nfStabAbschnitte(o.stab, { personName: name })}
-    ${kritisch.length ? `<h3>Kritische Prozesse – wer ist zuständig?</h3><table class="kontakt"><thead><tr><th>Prozess</th><th>RTO</th><th>Verantwortlich</th><th>Erster Kontakt laut Plan</th></tr></thead><tbody>${
+    ${kritisch.length ? `<h3>Kritische Prozesse: Wer ist zuständig?</h3><table class="kontakt"><thead><tr><th>Prozess</th><th>RTO</th><th>Verantwortlich</th><th>Erster Kontakt laut Plan</th></tr></thead><tbody>${
       kritisch.map(k => { const b = nfBcmVon(k); const e = b.plan.kontakte[0];
         return `<tr><td><b>${_nfEsc(k.name)}</b></td><td>${b.rto === '' ? '–' : _nfEsc(nfDauerText(b.rto))}</td><td>${_nfEsc(name(b.plan.verantwortlich || k.verantwortlich || '')) || '–'}</td><td>${e ? `${_nfEsc(e.rolle)} ${_nfEsc(name(e.name))} <span class="nr">${_nfEsc(e.telefon)}</span>` : '–'}</td></tr>`; }).join('')
     }</tbody></table>` : ''}

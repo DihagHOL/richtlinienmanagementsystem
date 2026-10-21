@@ -64,7 +64,7 @@ function newKonzept() {
 /** Pflichtfelder eines Konzepts prüfen. @returns Meldung oder '' (alles gut) */
 function konzeptPflichtfelderFehlen(k) {
   if (!k) return '';
-  if (!(k.regelwerkTyp || '').trim()) return 'Bitte den Typ (Dokumentart) wählen – z. B. Policy oder Konzernrichtlinie.';
+  if (!(k.regelwerkTyp || '').trim()) return 'Bitte den Typ (Dokumentart) wählen, z. B. Policy oder Konzernrichtlinie.';
   if (!Array.isArray(k.geltungsbereich) || !k.geltungsbereich.length)
     return 'Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.';
   return '';
@@ -165,7 +165,7 @@ function _konzeptCard(k, isGF, canWrite) {
         ${ko.eingereichtAm ? `<span class="ic-tag">📤 eingereicht ${fmtDate(ko.eingereichtAm)}</span>` : ''}
       </div>
       ${ko.motivation ? `<div class="ic-desc">${esc(_kClip(ko.motivation, 180))}</div>` : ''}
-      ${(e.kommentar || e.status) ? `<div class="field-hint" style="margin-top:2px">${st}${e.kommentar ? `: „${esc(e.kommentar)}"` : ''}${e.vonName ? ` – ${esc(e.vonName)}` : ''}${e.am ? `, ${fmtDate(e.am)}` : ''}</div>` : ''}
+      ${(e.kommentar || e.status) ? `<div class="field-hint" style="margin-top:2px">${st}${e.kommentar ? `: „${esc(e.kommentar)}"` : ''}${e.vonName ? ` (${esc(e.vonName)})` : ''}${e.am ? `, ${fmtDate(e.am)}` : ''}</div>` : ''}
       ${actionsRow}
     </div>`;
 }
@@ -174,7 +174,7 @@ function _konzeptCard(k, isGF, canWrite) {
 
 function openKonzeptEditor(id) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
-    toast('Nur Lesezugriff – Konzepte können nicht angelegt/bearbeitet werden.', 'error'); return;
+    toast('Nur Lesezugriff. Konzepte können nicht angelegt/bearbeitet werden.', 'error'); return;
   }
   if (id) {
     const src = konzeptZuId(id);
@@ -204,9 +204,9 @@ function renderKonzeptEditor() {
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:12px">Ein Konzept ist ein <b>Vorschlag</b> für ein mögliches neues Regelwerk – die Idee, wie es aussehen könnte bzw. ob es überhaupt erstellt werden soll. Die <b>Geschäftsleitung</b> entscheidet über Priorität und Umsetzung. Wird es angenommen, entsteht daraus automatisch ein Regelwerk-Entwurf.</div>
+      <div class="field-hint" style="margin-bottom:12px">Ein Konzept ist ein <b>Vorschlag</b> für ein mögliches neues Regelwerk: die Idee, wie es aussehen könnte bzw. ob es überhaupt erstellt werden soll. Die <b>Geschäftsleitung</b> entscheidet über Priorität und Umsetzung. Wird es angenommen, entsteht daraus automatisch ein Regelwerk-Entwurf.</div>
       ${(typeof MUSTER_VORLAGE_URL !== 'undefined') ? `<p style="margin:0 0 12px"><a href="${esc(sichereUrl(MUSTER_VORLAGE_URL))}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600;text-decoration:none">📁 Muster-Vorlage „Erstellung von Konzernregelungen" öffnen →</a></p>` : ''}
-      ${k.id ? `<div style="margin-bottom:12px">Status: ${konzeptStatusBadge(k)}${(ko.entscheidung && ko.entscheidung.kommentar) ? ` <span class="field-hint">– „${esc(ko.entscheidung.kommentar)}" (${esc(ko.entscheidung.vonName || ko.entscheidung.von)})</span>` : ''}</div>` : ''}
+      ${k.id ? `<div style="margin-bottom:12px">Status: ${konzeptStatusBadge(k)}${(ko.entscheidung && ko.entscheidung.kommentar) ? ` <span class="field-hint">„${esc(ko.entscheidung.kommentar)}" (${esc(ko.entscheidung.vonName || ko.entscheidung.von)})</span>` : ''}</div>` : ''}
       <div class="form-grid">
         <div class="form-group full">
           <label>Arbeitstitel <span class="req">*</span></label>
@@ -233,12 +233,12 @@ function renderKonzeptEditor() {
           </select>
         </div>
         <div class="form-group full">
-          <label>Warum? – Motivation / Problem <span class="req">*</span></label>
+          <label>Warum? Motivation / Problem <span class="req">*</span></label>
           <textarea oninput="_kEditing.konzept.motivation=this.value" placeholder="Welches Problem/Risiko soll das Regelwerk adressieren? Warum jetzt?">${esc(ko.motivation)}</textarea>
         </div>
         <div class="form-group full">
-          <label>Wie könnte es aussehen? – Skizze / Inhalt (optional)</label>
-          <textarea oninput="_kEditing.konzept.skizze=this.value" placeholder="Grobe Inhalte, Geltungsbereich, Kernaussagen – als Entwurfsgedanke.">${esc(ko.skizze)}</textarea>
+          <label>Wie könnte es aussehen? Skizze / Inhalt (optional)</label>
+          <textarea oninput="_kEditing.konzept.skizze=this.value" placeholder="Grobe Inhalte, Geltungsbereich, Kernaussagen als Entwurfsgedanke.">${esc(ko.skizze)}</textarea>
         </div>
         <div class="form-group full">
           <label>Anhang (optional)</label>
@@ -252,7 +252,7 @@ function renderKonzeptEditor() {
             ${k.dokumentName ? `<button class="btn btn-ghost btn-sm" onclick="konzeptRemoveAttachment()">✕ Entfernen</button>` : ''}
             <input type="file" id="k-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt,.png,.jpg,.jpeg" style="display:none" onchange="konzeptUploadAttachment(this.files[0]); this.value='';">
           </div>
-          <span class="field-hint">Optionaler Entwurf/Skizze als Datei (z. B. Word/PDF) – zeigt, wie das Regelwerk aussehen könnte. Bei Annahme wird der Anhang als Startdokument des Regelwerks übernommen.</span>
+          <span class="field-hint">Optionaler Entwurf/Skizze als Datei (z. B. Word/PDF). Sie zeigt, wie das Regelwerk aussehen könnte. Bei Annahme wird der Anhang als Startdokument des Regelwerks übernommen.</span>
         </div>
       </div>
       ${(typeof renderGeltungsbereichSection === 'function') ? renderGeltungsbereichSection(k.geltungsbereich, 'kgb') : ''}
@@ -283,7 +283,7 @@ async function konzeptUploadAttachment(file) {
     _kEditing.dokumentDriveId = doc.driveId;
     _kEditing.dokumentItemId = doc.itemId;
     renderKonzeptEditor();
-    toast('Anhang hinzugefügt ✓ – nicht vergessen zu speichern.', 'success');
+    toast('Anhang hinzugefügt ✓. Speichern nicht vergessen.', 'success');
   } catch (e) {
     toast('Upload fehlgeschlagen: ' + e.message, 'error');
   }
@@ -313,7 +313,7 @@ async function konzeptOpenAttachmentOffice() {
 }
 
 async function saveKonzept(submit) {
-  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff – Speichern nicht möglich.', 'error'); return; }
+  if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) { toast('Nur Lesezugriff. Speichern nicht möglich.', 'error'); return; }
   const k = _kEditing;
   if (!k.title.trim()) { toast('Bitte einen Arbeitstitel angeben.', 'error'); return; }
   const fehlt = konzeptPflichtfelderFehlen(k);
@@ -399,7 +399,7 @@ async function konzeptSubmitGF(id) {
   const k = _kClone(id); if (!k) return;
   // Ältere Konzepte (vor der Pflicht) müssen erst vervollständigt werden
   const fehlt = konzeptPflichtfelderFehlen(k);
-  if (fehlt) { toast(fehlt + ' – bitte das Konzept öffnen und ergänzen.', 'error'); openKonzeptEditor(id); return; }
+  if (fehlt) { toast(fehlt + '. Bitte das Konzept öffnen und ergänzen.', 'error'); openKonzeptEditor(id); return; }
   k.konzept.eingereichtAm = new Date().toISOString();
   if (typeof neuerAktionToken === 'function') k.aktionToken = neuerAktionToken('konzept');
   if (!k.konzept.antragstellerUpn && State.user) {
@@ -546,7 +546,7 @@ async function konzeptDecide(id, decision, opts) {
     k.konzept.regelwerkId = rwId;
     await spSavePolicy(k);
     await reloadData();
-    toast('Konzept angenommen – Regelwerk-Entwurf angelegt ✓', 'success');
+    toast('Konzept angenommen, Regelwerk-Entwurf angelegt ✓', 'success');
     notifyKonzeptErsteller(k, 'angenommen');
     // Die Weiche fragt nicht „sind Sie sicher?", sondern „wie weiter?" – die
     // bleibt auch beim Ein-Klick-Weg. Nur der Selbsttest schaltet sie ab.
@@ -618,7 +618,7 @@ function handleKonzeptMailAction(id, aktion, token) {
 async function notifyKonzeptGF(k) {
   const gl = (typeof getGeschaeftsleitung === 'function') ? getGeschaeftsleitung() : [];
   if (!gl.length) {
-    toast('Keine Geschäftsleitung hinterlegt – bitte in den Einstellungen ergänzen.', 'error');
+    toast('Keine Geschäftsleitung hinterlegt. Bitte in den Einstellungen ergänzen.', 'error');
     (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Konzept an die Geschäftsleitung', [], ['Keine Geschäftsleitung hinterlegt']);
     return;
   }
@@ -630,7 +630,7 @@ async function notifyKonzeptGF(k) {
   try {
     await spSendMail(gl, `Neues Regelwerk-Konzept zur Prüfung: ${k.title}`, _konzeptMailHtml(k, !!att, hasDoc), att ? [att] : []);
     // hasDoc && !att = Datei vorhanden, aber zu groß / nicht ladbar → nur im Konzept hinterlegt
-    toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : (hasDoc ? ' (Anhang zu groß – im Konzept hinterlegt)' : '')), 'success');
+    toast('Geschäftsleitung benachrichtigt ✓' + (att ? ' (mit Anhang)' : (hasDoc ? ' (Anhang zu groß, im Konzept hinterlegt)' : '')), 'success');
     (typeof wfMailProtokoll === 'function') && wfMailProtokoll(k.id, 'Konzept an die Geschäftsleitung', gl, []);
   } catch (e) {
     console.warn('Konzept-GF-Mail:', e.message);
@@ -729,7 +729,7 @@ async function konzeptDirektZurPruefung(rwId) {
     if (typeof notifyPruefer === 'function') await notifyPruefer(frisch || p);
     _adminMode = 'regelwerke';
     renderAdminList();
-    toast('In der Konformitätsprüfung – Prüfer benachrichtigt ✓', 'success');
+    toast('In der Konformitätsprüfung, Prüfer benachrichtigt ✓', 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 

@@ -172,7 +172,7 @@ const html = lies('index.html');
 ok(/IMS-Abdeckung/.test(html) && !/ISMS-Abdeckung/.test(html), 'Die Navigation sagt „IMS-Abdeckung"');
 ok(/label: 'IMS-Abdeckung \(inkl\. SoA\)'/.test(lies('js/access.js')), 'Die Reiterliste ebenso');
 ok(/abdeckung: 'IMS-Abdeckung'/.test(lies('js/app.js')), 'Und der Seitentitel');
-ok(/Normen &amp; Recht – Abdeckung durch Regelwerke/.test(html),
+ok(/Normen &amp; Recht: Abdeckung durch Regelwerke/.test(html),
   'Die Überschrift nennt nicht mehr nur ISO 27001 und NIS2');
 const restlich = ['js/abdeckung.js', 'js/soa.js', 'js/reifegrad.js', 'js/cockpit.js',
   'js/dokumentation.js', 'js/clevelreport.js', 'js/prozesse.js', 'docs/BENUTZERHANDBUCH.md']

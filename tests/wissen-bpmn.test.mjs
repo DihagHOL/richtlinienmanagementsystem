@@ -73,10 +73,11 @@ ok(regeln.every(r => new RegExp('^!! ' + r + ' ', 'm').test(K.module[5].text) &&
 
 /* Was die Schulung als Knopf oder Feld nennt, gibt es so im RMS. */
 const prozesse = lies('js/prozesse.js');
-const genannt = ['✨ Aus Richtlinie', 'Text auslesen →', 'BPMN-Entwurf erzeugen →', '🔍 Schema', '❓ Hilfe', 'Verknüpfte Richtlinien', 'Unterprozess – ein Modell einbinden', '📋 Modelle'];
+const genannt = ['✨ Aus Richtlinie', 'Text auslesen →', 'BPMN-Entwurf erzeugen →', '🔍 Schema', '❓ Hilfe', 'Verknüpfte Richtlinien', 'Unterprozess: ein Modell einbinden', '📋 Modelle'];
 const fehlt = genannt.filter(g => !prozesse.includes(g));
 ok(!fehlt.length, 'Jeder genannte Knopf steht wörtlich im Reiter Prozesse' + (fehlt.length ? ': ' + fehlt.join(', ') : ''));
-ok(K.module.every(m => !/Unterprozess: ein Modell einbinden/.test(m.text)), 'Den Kasten im Modeler nennt sie mit seinem echten Namen');
+ok(K.module.every(m => !/Unterprozess [–—-] ein Modell einbinden/.test(m.text)) && K.module.some(m => m.text.includes('„Unterprozess: ein Modell einbinden"')),
+  'Den Kasten im Modeler nennt sie mit seinem echten Namen');
 
 /* ── 4) Der Wissenstest ── */
 const richtig = K.fragen.map(q => q.richtig);

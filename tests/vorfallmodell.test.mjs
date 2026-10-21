@@ -71,7 +71,7 @@ ok(vfRestText(-6) === 'seit 6 h überfällig' && vfRestText(42) === 'noch 42 h' 
 const frisch = Object.assign({}, t, { erstellt: vor(10) });
 ok(vfLuecken(frisch, null, { jetzt }).fehler.length === 0 && vfLuecken(frisch, null, { jetzt }).hinweise.some(x => /Noch nicht beurteilt/.test(x)), 'Ein Ereignis von vorhin: Hinweis, keine Lücke');
 const alt = Object.assign({}, t, { erstellt: vor(24 * (VF_BEURTEILUNG_TAGE + 1)) });
-ok(vfLuecken(alt, null, { jetzt }).fehler.some(x => /Nicht beurteilt \(A\.5\.25\) – seit 3 Tagen/.test(x)), `Nach ${VF_BEURTEILUNG_TAGE} Tagen ohne Beurteilung: Lücke`);
+ok(vfLuecken(alt, null, { jetzt }).fehler.some(x => /Nicht beurteilt \(A\.5\.25\), seit 3 Tagen/.test(x)), `Nach ${VF_BEURTEILUNG_TAGE} Tagen ohne Beurteilung: Lücke`);
 ok(vfLuecken(alt, { einstufung: 'ereignis' }, { jetzt }).fehler.length === 0, 'Als Ereignis beurteilt: nichts mehr offen');
 const lu = vfLuecken(t, { einstufung: 'vorfall' }, { jetzt });
 ok(lu.fehler.some(x => /Erheblichkeit nicht entschieden/.test(x)) && lu.hinweise.some(x => /Eskalationsstufe/.test(x)), 'Ein Vorfall ohne Entscheidung über die Erheblichkeit: Lücke; ohne Stufe: Hinweis');
@@ -105,7 +105,7 @@ ok(vfKennzahlen(tickets, bew, { jetzt, werke: ['HOL'] }).gesamt === 1, 'Mit Sich
 
 /* ── 6) Die Akte ── */
 const html = vfBerichtHtml({ ticket: t, bewertung: { einstufung: 'vorfall', erheblich: true, stufe: 2, ursache: 'Makro', lessons: 'Makros sperren', meldungen: { fruehwarnung: vor(20) } }, jetzt, massnahmen: [{ herkunftId: 'ticket:4711', titel: 'Makros sperren', status: 'offen' }] });
-ok(/<title>Vorfallakte 4711 – Phishing-Mail an Buchhaltung<\/title>/.test(html) && /Sicherheitsvorfall<\/b>/.test(html) && /ja – meldepflichtig/.test(html) && /Frühwarnung \(NIS2\)/.test(html) && /fristgerecht/.test(html) && /noch 42 h/.test(html) && /Makros sperren/.test(html) && /window\.print\(\)/.test(html) && !/\$\{/.test(html),
+ok(/<title>Vorfallakte 4711: Phishing-Mail an Buchhaltung<\/title>/.test(html) && /Sicherheitsvorfall<\/b>/.test(html) && /ja, meldepflichtig/.test(html) && /Frühwarnung \(NIS2\)/.test(html) && /fristgerecht/.test(html) && /noch 42 h/.test(html) && /Makros sperren/.test(html) && /window\.print\(\)/.test(html) && !/\$\{/.test(html),
   'Die Akte: Ticket, Beurteilung, Fristen mit Stand, Lehren, Maßnahme, Druckknopf – ohne Platzhalter');
 ok(/&lt;/.test(vfBerichtHtml({ ticket: Object.assign({}, t, { titel: '<b>x' }), bewertung: null })) , 'Titel werden escaped');
 

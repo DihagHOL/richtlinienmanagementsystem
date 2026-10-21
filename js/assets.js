@@ -48,7 +48,7 @@ function _amHeute() { return new Date().toISOString().slice(0, 10); }
 function _amSpalte(name) { return (typeof spAssetSpaltenBericht === 'function') ? (spAssetSpaltenBericht().find(x => x.erwartet === name) || null) : null; }
 /** Nachschlage- und Personenfelder (Asset-Owner, Standorte) pflegt man in SharePoint – der Editor zeigt sie nur. */
 function _amNurLesen(name) { const b = _amSpalte(name); return !!(b && b.nurLesen); }
-function _amRoHinweis(name) { return _amNurLesen(name) ? `<span class="field-hint">Nachschlagefeld „${esc(_amSpalte(name).anzeige)}" – wird in SharePoint gepflegt.</span>` : ''; }
+function _amRoHinweis(name) { return _amNurLesen(name) ? `<span class="field-hint">Nachschlagefeld „${esc(_amSpalte(name).anzeige)}" wird in SharePoint gepflegt.</span>` : ''; }
 function _amTitelVon(id) { const x = (_am || []).find(y => String(y.id) === String(id)); return x ? (x.titel || x.title || '') : ''; }
 /** Worauf ein Asset liegt: die Titel seiner Abhängigkeiten plus Informationsträger, die kein Asset sind. */
 function _amTraegerText(a) { return a.abhaengigVon.map(_amTitelVon).filter(Boolean).concat(a.traeger || []); }
@@ -90,7 +90,7 @@ async function initAssets() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       <b>Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Das Register ist die Liste <b>„Assets"</b> auf der ISMS-Site:
-        <a href="${esc(sichereUrl(listUrl))}" target="_blank" rel="noopener">${esc(listUrl)}</a>. Gibt es sie nicht, legt die App sie beim ersten Zugriff an –
+        <a href="${esc(sichereUrl(listUrl))}" target="_blank" rel="noopener">${esc(listUrl)}</a>. Gibt es sie nicht, legt die App sie beim ersten Zugriff an,
         dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:8px"><b>Erwartete Spalten</b> (Name genau so, Typ):</div>
       <div style="margin-top:8px;line-height:1.9">${cols.map(c => `<code>${esc(c.name)}</code> <span style="color:var(--c-muted)">(${esc(c.typ)})</span>`).join(' · ')}</div></div>`;
@@ -139,7 +139,7 @@ function _amSb(v) {
   if (!v) return '<span style="color:var(--c-faint)">–</span>';
   const r = amRang(v);
   const col = r === 2 ? '#b91c1c' : r === 1 ? '#b45309' : r === 0 ? '#15803d' : '#6b7280';
-  return `<span style="color:${col};font-weight:700;font-size:.75rem" title="${r < 0 ? 'Bewertung aus der Liste – nicht einzuordnen' : 'Rang: ' + esc(amStufeLabel(r))}">${esc(v)}</span>`;
+  return `<span style="color:${col};font-weight:700;font-size:.75rem" title="${r < 0 ? 'Bewertung aus der Liste, nicht einzuordnen' : 'Rang: ' + esc(amStufeLabel(r))}">${esc(v)}</span>`;
 }
 
 function renderAssets() {
@@ -169,7 +169,7 @@ function renderAssets() {
       const traeger = _amTraegerText(a);
       return `<tr onclick="openAssetEditor(${jsArg(a.id)})" style="cursor:pointer${a.status === 'außer Betrieb' ? ';opacity:.55' : ''}">
         <td><b>${esc(a.titel)}</b>${a.link.url ? ` <a href="${esc(sichereUrl(a.link.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.link.text || a.link.url)}" style="text-decoration:none">🔗</a>` : ''}${a.standort ? `<div style="font-size:.68rem;color:var(--c-faint)">${esc(a.standort)}</div>` : ''}${traeger.length ? `<div style="font-size:.68rem;color:var(--c-faint)" title="Liegt auf / hängt ab von">↳ ${esc(traeger.join(' · '))}</div>` : ''}</td>
-        <td style="white-space:nowrap">${k ? `${esc(k.symbol)} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste – keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
+        <td style="white-space:nowrap">${k ? `${esc(k.symbol)} ${esc(k.label)}` : (a.kategorie ? `<span title="Aus der Liste, keiner Kategorie zugeordnet">${esc(a.kategorie)}</span>` : (a.art ? `<span title="Asset-Typ aus der Liste: ${esc(a.art)}" style="font-size:.75rem;padding:1px 7px;border-radius:999px;background:${a.art === 'primär' ? '#dbeafe' : '#f3f4f6'};color:${a.art === 'primär' ? '#1e40af' : '#374151'}">${a.art === 'primär' ? '◆ primär' : '◇ unterstützend'}</span>` : '<span style="color:#b45309">–</span>'))}</td>
         <td style="white-space:nowrap">${a.werke.length ? (a.werke.includes('ALLE') ? 'konzernweit' : esc(a.werke.join(', '))) : '<span style="color:#b45309">–</span>'}</td>
         <td style="color:var(--c-muted)">${a.verantwortlich ? esc(_amName(a.verantwortlich)) : '<span style="color:#b91c1c">–</span>'}</td>
         <td>${_amSb(a.vertraulichkeit)}</td><td>${_amSb(a.integritaet)}</td><td>${_amSb(a.verfuegbarkeit)}</td>
@@ -181,20 +181,20 @@ function renderAssets() {
         <td>${l.fehler.length ? `<span title="${esc(l.fehler.join(' · '))}" style="color:#b91c1c;font-weight:600">${l.fehler.length}</span>`
           : (l.hinweise.length ? `<span title="${esc(l.hinweise.join(' · '))}" style="color:#b45309">${l.hinweise.length} Hinweis(e)</span>` : '<span style="color:#15803d;font-weight:600">✓</span>')}</td>
       </tr>`; }).join('')}</tbody></table></div>`
-    : emptyState(_am.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch kein Asset erfasst – oben anlegen oder aus der ISMS-Liste „Assets" übernehmen.', _am.length ? '🔍' : '🗂');
+    : emptyState(_am.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch kein Asset erfasst. Oben anlegen oder aus der ISMS-Liste „Assets" übernehmen.', _am.length ? '🔍' : '🗂');
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
       Das Inventar nach <b>ISO 27001 A.5.9</b>: jedes Asset mit Verantwortlichem, <b>Schutzbedarf</b> (Vertraulichkeit, Integrität,
       Verfügbarkeit nach BSI), <b>Klassifizierung</b> (A.5.12), Werk, Wiederherstellzeit, Abhängigkeiten, Lebenszyklus und Lieferant.
-      Risiken und Notfallpläne verweisen hierher – die Wiederherstellzeit hier ist die Zahl, an der jede Prozess-RTO hängt.
+      Risiken und Notfallpläne verweisen hierher. Die Wiederherstellzeit hier ist die Zahl, an der jede Prozess-RTO hängt.
     </div>
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
-      <b>⚠ In der Liste „Assets" fehlen ${missing.length} von ${(typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).length} erwarteten Spalten</b> – was dort nicht steht, kann die App nicht speichern:
+      <b>⚠ In der Liste „Assets" fehlen ${missing.length} von ${(typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).length} erwarteten Spalten</b>. Was dort nicht steht, kann die App nicht speichern:
       <div style="margin-top:6px;line-height:1.9">${missing.map(n => { const c = (typeof ASSET_COLUMNS !== 'undefined' ? ASSET_COLUMNS : []).find(x => x.name === n); return `<code>${esc(n)}</code> <span style="color:var(--c-muted)">(${esc(c ? c.typ : '')})</span>`; }).join(' · ')}</div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <a href="${esc(sichereUrl((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Liste in SharePoint öffnen ↗</a>
-        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="assetsSpaltenAnlegen()" title="Legt genau diese Spalten mit diesen Typen an – nichts Vorhandenes wird verändert">Fehlende Spalten jetzt anlegen</button>` : ''}
+        ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="assetsSpaltenAnlegen()" title="Legt genau diese Spalten mit diesen Typen an, nichts Vorhandenes wird verändert">Fehlende Spalten jetzt anlegen</button>` : ''}
         <span class="field-hint">Vorhandene Spalten mit anderen Namen (Typ, Owner, Schutzbedarf, RTO …) werden zum Lesen weiter erkannt.</span>
       </div></div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
@@ -205,10 +205,10 @@ function renderAssets() {
       ${kpi(z.faellig, `EOL / Vertrag in ${AM_VORLAUF_TAGE} Tagen`, z.faellig ? '#b45309' : '#15803d')}
       ${kpi(z.fehler, 'Lücken gesamt', z.fehler ? '#b45309' : '#15803d')}
     </div>
-    ${(typeof spAssetSpaltenBericht === 'function') ? `<details style="margin-bottom:12px;font-size:.8rem"><summary style="cursor:pointer;color:var(--c-muted)">Spaltenzuordnung – so liest die App Ihre Liste</summary>
+    ${(typeof spAssetSpaltenBericht === 'function') ? `<details style="margin-bottom:12px;font-size:.8rem"><summary style="cursor:pointer;color:var(--c-muted)">Spaltenzuordnung: So liest die App Ihre Liste</summary>
       <div style="overflow-x:auto;margin-top:6px"><table class="tbl" style="font-size:.78rem"><thead><tr><th>Die App erwartet</th><th>Gefunden in der Liste</th><th>Typ</th><th>Auswahl</th></tr></thead><tbody>${
         spAssetSpaltenBericht().map(b => `<tr><td><code>${esc(b.erwartet)}</code></td><td>${b.gefunden ? `${esc(b.anzeige)}${b.anzeige !== b.gefunden ? ` <span style="color:var(--c-faint)">(${esc(b.gefunden)})</span>` : ''}` : '<span style="color:#b45309">fehlt</span>'}</td><td>${esc(b.spaltentyp || b.typ)}</td><td style="color:var(--c-muted)">${esc((b.choices || []).join(' · '))}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
-    ${z.vererbung ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>${z.vererbung} Asset(s) mit zu niedrigem Schutzbedarf</b> – Prozesse, die daran hängen, verlangen mehr (Vererbung nach BSI-Maximumprinzip). Steht in der Spalte „Lücken" als Hinweis.</div>` : ''}
+    ${z.vererbung ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>${z.vererbung} Asset(s) mit zu niedrigem Schutzbedarf</b>. Prozesse, die daran hängen, verlangen mehr (Vererbung nach BSI-Maximumprinzip). Steht in der Spalte „Lücken" als Hinweis.</div>` : ''}
     ${faellig.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Läuft aus:</b> ${faellig.slice(0, 6).map(f => `${esc(f.asset.titel)} (${esc(f.was)} ${f.ueberfaellig ? `seit ${-f.tage} Tagen` : `in ${f.tage} Tagen`})`).join(' · ')}${faellig.length > 6 ? ` · +${faellig.length - 6}` : ''}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_amFilter.q)}" oninput="_amFilter.q=this.value;renderAssets()" style="width:200px">
@@ -229,7 +229,7 @@ function renderAssets() {
       </select>
       <div style="flex:1"></div>
       <button class="btn btn-outline btn-sm" onclick="assetsExportCsv()">⬇ CSV</button>
-      <button class="btn btn-outline btn-sm" onclick="assetsInventarDrucken()" title="Das Inventar als PDF – der Nachweis zu A.5.9">🖨 Inventar</button>
+      <button class="btn btn-outline btn-sm" onclick="assetsInventarDrucken()" title="Das Inventar als PDF, der Nachweis zu A.5.9">🖨 Inventar</button>
       <a href="${esc(sichereUrl((typeof spAssetsListUrl === 'function') ? spAssetsListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Dieselbe Liste in SharePoint">↗ SharePoint</a>
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openAssetEditor(null)">+ Asset</button>` : ''}
     </div>
@@ -272,7 +272,7 @@ function amAbhToggle(id, an) {
   const arr = _amEditing.abhaengigVon.filter(x => x !== k);
   if (an) {
     if (amKreis(_am || [], _amEditing.id || '(neu)', k) && _amEditing.id) {
-      toast('Das ergäbe einen Kreis – das Asset hängt schon (mittelbar) an diesem.', 'error'); renderAssetEditor(); return;
+      toast('Das ergäbe einen Kreis, das Asset hängt schon (mittelbar) an diesem.', 'error'); renderAssetEditor(); return;
     }
     arr.push(k);
   }
@@ -307,7 +307,7 @@ function _amLueckenHtml() {
 
 function _amZusatzHtml(a, ro) {
   const felder = _amFelder();
-  if (!felder.length) return `<div class="field-hint">Keine Zusatzfelder definiert – unter <b>Einstellungen → Assetregister</b> lassen sich eigene anlegen (Text, Zahl, Datum, Auswahl, Ja/Nein).</div>`;
+  if (!felder.length) return `<div class="field-hint">Keine Zusatzfelder definiert. Unter <b>Einstellungen → Assetregister</b> lassen sich eigene anlegen (Text, Zahl, Datum, Auswahl, Ja/Nein).</div>`;
   return `<div class="form-grid">${felder.map(f => {
     const v = (a.zusatz || {})[f.key];
     const w = v === undefined || v === null ? '' : String(v);
@@ -370,7 +370,7 @@ function renderAssetEditor() {
         <div class="form-group"><label>Link zu den Informationen</label>
           <input type="url" value="${esc(a.link.url)}" oninput="amSet('link',{url:this.value,text:_amEditing.link.text})" placeholder="https://…"${ro}>
           <input type="text" value="${esc(a.link.text)}" oninput="amSet('link',{url:_amEditing.link.url,text:this.value})" placeholder="Bezeichnung des Links" style="margin-top:4px"${ro}>
-          <span class="field-hint">Wo die Information liegt oder beschrieben ist – Prozesslandkarte, Ablage, Verfahren.</span></div>
+          <span class="field-hint">Wo die Information liegt oder beschrieben ist: Prozesslandkarte, Ablage, Verfahren.</span></div>
         <div class="form-group full"><label>Beschreibung</label>
           <textarea oninput="amSet('beschreibung',this.value)" placeholder="Was ist es, wofür wird es gebraucht, was ist besonders?"${ro}>${esc(a.beschreibung)}</textarea></div>
         <div class="form-group full"><label>Werke <span class="req">*</span></label>
@@ -384,7 +384,7 @@ function renderAssetEditor() {
           <input type="text" value="${esc(a.tags.join(', '))}" oninput="amSet('tags',this.value.split(',').map(s=>s.trim()).filter(Boolean))" placeholder="frei, durch Komma getrennt"${ro}></div>
       </div>
 
-      <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Verantwortung <span class="field-hint" style="font-weight:400">A.5.9 – ohne Eigentümer kein Inventar</span></div>
+      <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Verantwortung <span class="field-hint" style="font-weight:400">A.5.9: ohne Eigentümer kein Inventar</span></div>
       <div class="form-grid">
         <div class="form-group"><label>Verantwortlich${_amNurLesen('Verantwortlich') ? '' : ' (E-Mail)'} <span class="req">*</span></label>
           <input type="text" list="am-people" value="${esc(a.verantwortlich)}" oninput="amSet('verantwortlich',this.value)" placeholder="name@dihag.com"${ro || (_amNurLesen('Verantwortlich') ? ' disabled' : '')}>
@@ -405,13 +405,13 @@ function renderAssetEditor() {
           <select onchange="amSet('klassifizierung',this.value.toLowerCase())"${ro}><option value=""${!a.klassifizierung ? ' selected' : ''}>–</option>${(wahlVon('Klassifizierung') || AM_KLASSIFIZIERUNG).map(v => `<option value="${esc(v)}"${String(v).toLowerCase() === a.klassifizierung ? ' selected' : ''}>${esc(v)}</option>`).join('')}${a.klassifizierung && !(wahlVon('Klassifizierung') || AM_KLASSIFIZIERUNG).some(v => String(v).toLowerCase() === a.klassifizierung) ? `<option value="${esc(a.klassifizierung)}" selected>${esc(a.klassifizierung)} (aus der Liste)</option>` : ''}</select>
           <span class="field-hint">Pflicht bei Informationen und bei Vertraulichkeit „hoch".</span></div>
         <div class="form-group"><label>Personenbezogene Daten</label>
-          <label class="ack-check" style="font-weight:500;padding-top:6px"><input type="checkbox" ${a.personenbezogen ? 'checked' : ''} onchange="amSet('personenbezogen',this.checked)"${ro}> ja – DSGVO (72-h-Meldung, Verarbeitungsverzeichnis)</label></div>
+          <label class="ack-check" style="font-weight:500;padding-top:6px"><input type="checkbox" ${a.personenbezogen ? 'checked' : ''} onchange="amSet('personenbezogen',this.checked)"${ro}> ja, DSGVO (72-h-Meldung, Verarbeitungsverzeichnis)</label></div>
       </div>
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Betrieb und Wiederanlauf</div>
       <div class="form-grid">
         ${zeit('wiederherstellung', 'Wiederherstellzeit', 'Wie lange braucht die Wiederherstellung? Kein Prozess kann schneller wieder da sein als das Langsamste, wovon er abhängt.', amRang(a.verfuegbarkeit) === 2)}
-        ${zeit('rpo', 'RPO – tolerierbarer Datenverlust', 'Wie alt darf der letzte gesicherte Stand sein?', amRang(a.verfuegbarkeit) === 2)}
+        ${zeit('rpo', 'RPO: tolerierbarer Datenverlust', 'Wie alt darf der letzte gesicherte Stand sein?', amRang(a.verfuegbarkeit) === 2)}
         <div class="form-group full"><label>Datensicherung</label>
           <input type="text" value="${esc(a.backup)}" oninput="amSet('backup',this.value)" placeholder="Verfahren, Intervall, Ort, letzter Rücksicherungstest"${ro}></div>
         <div class="form-group"><label>Inbetriebnahme</label>
@@ -421,7 +421,7 @@ function renderAssetEditor() {
           <span class="field-hint">${AM_VORLAUF_TAGE} Tage vorher mahnt das System.</span></div>
       </div>
 
-      <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Hersteller und Lieferant <span class="field-hint" style="font-weight:400">A.5.19–5.22</span></div>
+      <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Hersteller und Lieferant <span class="field-hint" style="font-weight:400">A.5.19 bis 5.22</span></div>
       <div class="form-grid">
         <div class="form-group"><label>Hersteller</label><input type="text" value="${esc(a.hersteller)}" oninput="amSet('hersteller',this.value)"${ro}></div>
         <div class="form-group"><label>Lieferant / Dienstleister</label><input type="text" value="${esc(a.lieferant)}" oninput="amSet('lieferant',this.value)"${ro}></div>
@@ -430,8 +430,8 @@ function renderAssetEditor() {
       </div>
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 2px">Liegt auf / hängt ab von <span class="field-hint" style="font-weight:400">${a.abhaengigVon.length} Asset(s)${_amSpalte('AbhaengigJson') && _amSpalte('AbhaengigJson').gefunden && _amSpalte('AbhaengigJson').anzeige !== 'AbhaengigJson' ? ` · Spalte „${esc(_amSpalte('AbhaengigJson').anzeige)}"` : ''}</span></div>
-      <div class="field-hint" style="margin-bottom:6px">Fällt eines davon aus, fällt dieses mit – die Ausfall-Sicht im Notfall-Reiter rechnet damit. Und der Schutzbedarf vererbt sich: Was hier liegt, verlangt ihn von dem, worauf es liegt.</div>
-      ${(a.traeger || []).length ? `<div class="col-warning" style="display:block;margin-bottom:6px">Informationsträger aus der Liste, die kein Asset sind: <b>${esc(a.traeger.join(', '))}</b> – als Asset anlegen, dann rechnet die App damit.</div>` : ''}
+      <div class="field-hint" style="margin-bottom:6px">Fällt eines davon aus, fällt dieses mit. Die Ausfall-Sicht im Notfall-Reiter rechnet damit. Und der Schutzbedarf vererbt sich: Was hier liegt, verlangt ihn von dem, worauf es liegt.</div>
+      ${(a.traeger || []).length ? `<div class="col-warning" style="display:block;margin-bottom:6px">Informationsträger aus der Liste, die kein Asset sind: <b>${esc(a.traeger.join(', '))}</b>. Als Asset anlegen, dann rechnet die App damit.</div>` : ''}
       <input type="text" id="am-abh-filter" class="sort-select" placeholder="Assets filtern …" oninput="document.getElementById('am-abh').innerHTML=_amAbhHtml()" style="width:100%;margin-bottom:6px"${ro}>
       <div id="am-abh" style="max-height:180px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:6px 10px">${_amAbhHtml()}</div>
       ${abhaengige.length ? `<div class="field-hint" style="margin-top:6px">Davon hängen ab (auch mittelbar): ${abhaengige.map(x => esc(x.titel)).join(', ')}</div>` : ''}
@@ -441,7 +441,7 @@ function renderAssetEditor() {
 
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Verwendung</div>
       <div style="font-size:.85rem">
-        <div><b>Prozesse:</b> ${pr.length ? pr.map(p => `${esc(p.name)} <span class="field-hint">(${esc(p.werk)}${p.kritikalitaet ? ', ' + esc(p.kritikalitaet) : ''})</span>`).join(' · ') : '<span class="field-hint">keiner – in der Business-Impact-Analyse (Notfall-Reiter) zuordnen</span>'}</div>
+        <div><b>Prozesse:</b> ${pr.length ? pr.map(p => `${esc(p.name)} <span class="field-hint">(${esc(p.werk)}${p.kritikalitaet ? ', ' + esc(p.kritikalitaet) : ''})</span>`).join(' · ') : '<span class="field-hint">keiner. In der Business-Impact-Analyse (Notfall-Reiter) zuordnen</span>'}</div>
         <div style="margin-top:4px"><b>Risiken:</b> ${ri.length ? ri.map(r => esc(r.titel)).join(' · ') : '<span class="field-hint">keine offenen</span>'}</div>
         ${a.url ? `<div style="margin-top:4px" class="field-hint"><a href="${esc(sichereUrl(a.url))}" target="_blank" rel="noopener" style="color:var(--c-primary)">In SharePoint öffnen ↗</a></div>` : ''}
       </div>
@@ -478,7 +478,7 @@ async function saveAsset() {
     _am = null;
     await initAssets();
     const l = _amLuecken(a);
-    toast(l.fehler.length ? `Gespeichert – ${l.fehler.length} Lücke(n) bleiben` : 'Gespeichert ✓', 'success');
+    toast(l.fehler.length ? `Gespeichert, ${l.fehler.length} Lücke(n) bleiben` : 'Gespeichert ✓', 'success');
   } catch (e) {
     a.historie.pop();
     if (btn) { btn.disabled = false; btn.textContent = 'Speichern'; }
@@ -493,7 +493,7 @@ async function deleteAsset(id) {
   const pr = _amProzesseVon(a.id, a.quelleId), ri = _amRisikenVon(a.id, a.quelleId), abh = amAbhaengige(_am || [], a.id);
   const warn = [pr.length ? `${pr.length} Prozess(e) hängen daran` : '', ri.length ? `${ri.length} Risiko/Risiken verweisen darauf` : '', abh.length ? `${abh.length} Asset(s) hängen davon ab` : ''].filter(Boolean).join(', ');
   const ok = (typeof uiConfirm === 'function')
-    ? await uiConfirm(`„${a.titel}" endgültig löschen?${warn ? `\n\n${warn} – die Verweise bleiben als Leerstelle stehen.` : ''}\n\nFür ein ausgemustertes Asset ist „außer Betrieb" meist die bessere Wahl: Das Inventar zeigt dann, was es gab.`,
+    ? await uiConfirm(`„${a.titel}" endgültig löschen?${warn ? `\n\n${warn}. Die Verweise bleiben als Leerstelle stehen.` : ''}\n\nFür ein ausgemustertes Asset ist „außer Betrieb" meist die bessere Wahl: Das Inventar zeigt dann, was es gab.`,
         { title: 'Asset löschen', okLabel: 'Endgültig löschen', danger: true })
     : confirm(`„${a.titel}" löschen?`);
   if (!ok) return;

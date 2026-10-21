@@ -279,7 +279,7 @@ function renderIsmsDocs() {
     mount.innerHTML = `<div class="col-warning" style="display:block">
       In der erkannten Bibliothek <b>„${esc(lib || '?')}"</b> wurden <b>keine Dateien</b> gefunden.
       Falls das nicht die richtige ISMS-Bibliothek ist, hier die passende wählen:
-      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${drivesHtml || '<span class="field-hint">Keine Bibliotheken lesbar – Zugriff auf sites/ISMS prüfen.</span>'}</div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${drivesHtml || '<span class="field-hint">Keine Bibliotheken lesbar. Zugriff auf sites/ISMS prüfen.</span>'}</div>
     </div>`;
     return;
   }
@@ -476,8 +476,8 @@ async function openIsmsDoc(itemId) {
 
 /** Klartext-Hinweis je nach HTTP-Status der Graph-Antwort. */
 function _ismsSaveErrHint(msg) {
-  if (/\(40[13]\)/.test(msg)) return ' – fehlende Schreibrechte auf der ISMS-Site.';
-  if (/\(400\)/.test(msg))    return ' – SharePoint hat den Feldwert abgelehnt.';
+  if (/\(40[13]\)/.test(msg)) return ': fehlende Schreibrechte auf der ISMS-Site.';
+  if (/\(400\)/.test(msg))    return ': SharePoint hat den Feldwert abgelehnt.';
   return '';
 }
 
@@ -514,7 +514,7 @@ async function saveIsmsDocMeta(itemId) {
           const ids = [], names = [];
           for (const p of parts) {
             const email = _ismsResolveEmail(p);
-            if (!email) { toast(`„${p.trim()}" nicht als Person erkannt – übersprungen.`, 'error'); continue; }
+            if (!email) { toast(`„${p.trim()}" nicht als Person erkannt, übersprungen.`, 'error'); continue; }
             const lid = await spEnsureIsmsUserLookupId(email);
             if (!lid) { toast(`„${email}" in SharePoint nicht gefunden (Person muss die ISMS-Site einmal besucht haben).`, 'error'); continue; }
             ids.push(lid);
@@ -758,14 +758,14 @@ async function ismsPreview(driveItemId) {
 function ismsNewVersion(driveItemId, name) {
   const canOffice = !!officeScheme(name);
   openModal(`
-    <div class="modal-header"><h3>Neue Version – ${esc(name)}</h3>
+    <div class="modal-header"><h3>Neue Version: ${esc(name)}</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px;margin-bottom:14px">
         <div style="font-weight:600;font-size:.88rem;margin-bottom:4px">Variante A · Direkt bearbeiten</div>
         <div class="field-hint" style="margin-bottom:8px">${canOffice
           ? 'Öffnet das Dokument in Office. Beim Speichern legt SharePoint automatisch eine neue Version an.'
-          : 'Öffnet das Dokument in SharePoint – dort bearbeiten und speichern (automatische Versionierung).'}</div>
+          : 'Öffnet das Dokument in SharePoint. Dort bearbeiten und speichern (automatische Versionierung).'}</div>
         <button class="btn btn-primary btn-sm" onclick="closeModal();ismsEditOffice(${jsArg(driveItemId)})">✏️ Dokument bearbeiten</button>
       </div>
       <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px">
@@ -780,7 +780,7 @@ function ismsNewVersion(driveItemId, name) {
             <textarea id="isms-ver-note" placeholder="Was wurde geändert? Wird als Versionskommentar gespeichert."></textarea>
           </div>
         </div>
-        <div class="field-hint">Die Notiz wird – sofern die Bibliothek Versionierung nutzt – als
+        <div class="field-hint">Die Notiz wird, sofern die Bibliothek Versionierung nutzt, als
           SharePoint-Versionskommentar abgelegt.</div>
       </div>
     </div>
@@ -816,7 +816,7 @@ async function ismsShowVersions(driveItemId, name) {
     ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
         <a href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
         (über die Graph-API nicht abrufbar).</div>` : '';
-  openModal(`<div class="modal-header"><h3>🕘 Versionen – ${esc(name)}</h3>
+  openModal(`<div class="modal-header"><h3>🕘 Versionen: ${esc(name)}</h3>
     <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body" id="isms-vers-body">${spLink}<div class="doc-loading">Lade Versionen …</div></div>`);
   try {
@@ -859,7 +859,7 @@ async function ismsToRichtlinie(driveItemId) {
   closeModal();
   await switchView('verwaltung');   // wechselt in die Richtlinien-Verwaltung
   renderPolicyEditor();             // öffnet den Editor mit vorbefülltem Dokument
-  toast('Dokument übernommen – bitte Richtlinie vervollständigen und speichern.');
+  toast('Dokument übernommen. Bitte Richtlinie vervollständigen und speichern.');
 }
 
 /* ═══════════════════════════════════════════════════
@@ -962,7 +962,7 @@ function _proposalRecipientLine(ctx, extra) {
   const all = [...new Set([..._proposalRecipients(ctx || {}), ...(extra || [])])];
   return all.length
     ? `Geht per E-Mail an: <b>${all.map(esc).join(', ')}</b>`
-    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt – bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
+    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt. Bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
 }
 
 /** Empfänger-Zeile live aktualisieren, wenn „Weitere Empfänger" getippt wird
@@ -995,7 +995,7 @@ async function proposalOpenOffice() {
     window.location.href = `${scheme}:ofe|u|${fileUrl}`;
     toast('Öffne in Office … Öffnet sich nichts? „Dokument öffnen" nutzen.');
   } else {
-    toast('Datei-URL nicht verfügbar – bitte „Dokument öffnen" nutzen.', 'error');
+    toast('Datei-URL nicht verfügbar. Bitte „Dokument öffnen" nutzen.', 'error');
   }
 }
 
@@ -1006,7 +1006,7 @@ async function sendProposal(keepOpen) {
   const extra = (document.getElementById('prop-cc')?.value || '')
     .split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);   // zusätzlich eingetragene Empfänger
   const recipients = [...new Set([..._proposalRecipients(ctx), ...extra])];
-  if (!recipients.length) { toast('Keine Empfänger – bitte in den Einstellungen ISMS-Verantwortliche hinterlegen oder oben eintragen.', 'error'); return; }
+  if (!recipients.length) { toast('Keine Empfänger. Bitte in den Einstellungen ISMS-Verantwortliche hinterlegen oder oben eintragen.', 'error'); return; }
   const betreff = (document.getElementById('prop-betreff')?.value || '').trim();
   const grund = (document.getElementById('prop-grund')?.value || '').trim();
   const setBusy = (on) => {   // beide Senden-Buttons sperren/entsperren
@@ -1059,10 +1059,10 @@ async function sendProposal(keepOpen) {
     const suffix = stored
       ? ' · im Reiter „Vorschläge" sichtbar'
       : (/\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr)
-          ? '. Nicht in die Liste geschrieben – Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge").'
+          ? '. Nicht in die Liste geschrieben, die Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge").'
           : '. Nicht in die Liste geschrieben.');
     toast((stored ? 'Vorschlag gesendet ✓ (Kopie an Sie)' : 'Vorschlag per E-Mail gesendet ✓ (Kopie an Sie)') + suffix
-      + (keepOpen ? ' – weiteren Vorschlag möglich.' : ''), 'success');
+      + (keepOpen ? ' Ein weiterer Vorschlag ist möglich.' : ''), 'success');
   } catch (e) {
     toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');
     setBusy(false);
@@ -1074,7 +1074,7 @@ function _proposalErrHint(msg) {
   msg = String(msg || '');
   if (/MailboxNotEnabled|REST API is not yet supported|mailbox/i.test(msg)) return ': Das Postfach unterstützt keinen Mailversand. Bitte IT kontaktieren.';
   if (/(\b40[13]\b)|AccessDenied|Authorization|insufficient|consent|scope/i.test(msg)) return ': Keine Berechtigung zum Mailversand (Mail.Send). Beim ersten Mal ggf. die Zustimmung erteilen und erneut versuchen.';
-  if (/quota|throttl|429/i.test(msg)) return ': Zu viele Anfragen – bitte kurz warten und erneut senden.';
+  if (/quota|throttl|429/i.test(msg)) return ': Zu viele Anfragen. Bitte kurz warten und erneut senden.';
   // Kein erkanntes Muster → JSON-Ballast wegkürzen
   const short = msg.replace(/\s*\{[\s\S]*$/, '').trim();
   return short ? ': ' + short : ': Unbekannter Fehler beim Mailversand.';

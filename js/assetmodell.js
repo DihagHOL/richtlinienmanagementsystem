@@ -635,18 +635,18 @@ function amLuecken(roh, ctx) {
   const fehler = [], hinweise = [];
   if (!a.titel) fehler.push('Bezeichnung fehlt.');
   // Führt die Liste nur die Art (primär / unterstützend), ist das die Einteilung des Hauses – keine Lücke.
-  if (!a.kategorie && !a.art) fehler.push('Kategorie fehlt – ohne sie ist das Inventar nicht auswertbar.');
-  if (!a.verantwortlich) fehler.push('Kein Verantwortlicher (A.5.9) – ein Asset ohne Eigentümer pflegt niemand.');
-  if (!a.werke.length) fehler.push('Kein Werk zugeordnet – „konzernweit" ist auch eine Antwort.');
+  if (!a.kategorie && !a.art) fehler.push('Kategorie fehlt. Ohne sie ist das Inventar nicht auswertbar.');
+  if (!a.verantwortlich) fehler.push('Kein Verantwortlicher (A.5.9). Ein Asset ohne Eigentümer pflegt niemand.');
+  if (!a.werke.length) fehler.push('Kein Werk zugeordnet. Auch „konzernweit" ist eine Antwort.');
   const fehlend = [['vertraulichkeit', 'Vertraulichkeit'], ['integritaet', 'Integrität'], ['verfuegbarkeit', 'Verfügbarkeit']].filter(([f]) => !a[f]).map(([, l]) => l);
   if (fehlend.length === 3) fehler.push('Schutzbedarf nicht festgestellt (Vertraulichkeit, Integrität, Verfügbarkeit).');
   else if (fehlend.length) fehler.push(`Schutzbedarf unvollständig: ${fehlend.join(', ')} fehlt.`);
   const katKey = amKategorieKey(a.kategorie, c.kategorien);
   if (!a.klassifizierung && (katKey === 'information' || amRang(a.vertraulichkeit) >= 1)) {
-    fehler.push('Klassifizierung fehlt (A.5.12) – bei Informationen und bei Vertraulichkeit „hoch" Pflicht.');
+    fehler.push('Klassifizierung fehlt (A.5.12). Bei Informationen und bei Vertraulichkeit „hoch" Pflicht.');
   }
   const unklar = [['vertraulichkeit', 'Vertraulichkeit'], ['integritaet', 'Integrität'], ['verfuegbarkeit', 'Verfügbarkeit']].filter(([f]) => a[f] && amRang(a[f]) < 0);
-  if (unklar.length) hinweise.push(`Bewertung nicht einzuordnen: ${unklar.map(([f, l]) => `${l} „${a[f]}"`).join(', ')} – die App kennt normal / hoch / sehr hoch (auch „1–3", „low/high").`);
+  if (unklar.length) hinweise.push(`Bewertung nicht einzuordnen: ${unklar.map(([f, l]) => `${l} „${a[f]}"`).join(', ')}. Die App kennt normal / hoch / sehr hoch (auch „1 bis 3", „low/high").`);
   // Ein primäres Asset (die Information, der Prozess) hat keine eigene Wiederherstellzeit –
   // es erbt sie von seinen Trägern, und das Langsamste zählt. Fehlt sie bei einem Träger, fehlt sie.
   const andere = (Array.isArray(c.liste) ? c.liste : []).map(amVon).filter(x => x.id && x.id !== a.id);
@@ -654,7 +654,7 @@ function amLuecken(roh, ctx) {
   const geerbt = (feld) => { if (a.art !== 'primär' || !unten.length) return ''; const v = unten.map(x => x[feld]); return v.every(x => x !== '') ? Math.max(...v) : ''; };
   const rto = a.wiederherstellung !== '' ? a.wiederherstellung : geerbt('wiederherstellung');
   const rpo = a.rpo !== '' ? a.rpo : geerbt('rpo');
-  if (a.wiederherstellung === '' && rto !== '') hinweise.push(`Wiederherstellzeit über die Informationsträger: ${rto} h – das Langsamste von ${unten.map(x => `„${x.titel}"`).join(', ')}.`);
+  if (a.wiederherstellung === '' && rto !== '') hinweise.push(`Wiederherstellzeit über die Informationsträger: ${rto} h, das Langsamste von ${unten.map(x => `„${x.titel}"`).join(', ')}.`);
   // R093: Wer „sehr hoch" verfügbar sein muss, braucht Wiederherstellzeit und RPO.
   if (amRang(a.verfuegbarkeit) === 2) {
     if (rto === '') fehler.push('Verfügbarkeit „sehr hoch", aber keine Wiederherstellzeit (Reifegrad R093).');
@@ -662,7 +662,7 @@ function amLuecken(roh, ctx) {
   }
   if (a.status !== 'außer Betrieb') {
     const te = amTageBis(a.eol, c.heute), tv = amTageBis(a.vertragsende, c.heute);
-    if (te !== null && te < 0) fehler.push(`Support / EOL abgelaufen seit ${a.eol} – ohne Sicherheitsupdates.`);
+    if (te !== null && te < 0) fehler.push(`Support / EOL abgelaufen seit ${a.eol}, ohne Sicherheitsupdates.`);
     else if (te !== null && te <= AM_VORLAUF_TAGE) hinweise.push(`Support / EOL endet in ${te} Tagen (${a.eol}).`);
     if (tv !== null && tv < 0) fehler.push(`Vertrag abgelaufen seit ${a.vertragsende}.`);
     else if (tv !== null && tv <= AM_VORLAUF_TAGE) hinweise.push(`Vertrag endet in ${tv} Tagen (${a.vertragsende}).`);
@@ -682,10 +682,10 @@ function amLuecken(roh, ctx) {
       hinweise.push(`Schutzbedarfs-Vererbung: ${wer.slice(0, 3).join(', ')}${wer.length > 3 ? ` (+${wer.length - 3})` : ''} liegt hierauf und verlangt ${label} „${amStufeLabel(max)}", eingetragen ist „${a[feld] || 'nichts'}".`);
     }
   }
-  if (a.art === 'primär' && !a.abhaengigVon.length && !a.traeger.length) hinweise.push('Primäres Asset ohne Informationsträger – auf welchem System oder Medium liegt es? Darüber vererbt sich der Schutzbedarf.');
-  if ((katKey === 'cloud' || a.lieferant) && !a.supportKontakt) hinweise.push('Lieferant ohne Support-Kontakt (A.5.19) – wen ruft man nachts an?');
+  if (a.art === 'primär' && !a.abhaengigVon.length && !a.traeger.length) hinweise.push('Primäres Asset ohne Informationsträger: Auf welchem System oder Medium liegt es? Darüber vererbt sich der Schutzbedarf.');
+  if ((katKey === 'cloud' || a.lieferant) && !a.supportKontakt) hinweise.push('Lieferant ohne Support-Kontakt (A.5.19): Wen ruft man nachts an?');
   if (a.personenbezogen && (!a.klassifizierung || a.klassifizierung === 'öffentlich')) hinweise.push('Personenbezogene Daten, aber Klassifizierung fehlt oder „öffentlich".');
-  if (amRang(a.verfuegbarkeit) !== 2 && a.verfuegbarkeit && rto === '') hinweise.push('Keine Wiederherstellzeit – die Prozesse, die daran hängen, können ihre RTO nicht prüfen.');
+  if (amRang(a.verfuegbarkeit) !== 2 && a.verfuegbarkeit && rto === '') hinweise.push('Keine Wiederherstellzeit. Die Prozesse, die daran hängen, können ihre RTO nicht prüfen.');
   return { fehler, hinweise };
 }
 
@@ -819,7 +819,7 @@ function amInventarHtml(o) {
       .noprint{margin:14px 0} @media print{.noprint{display:none} body{margin:12px} thead{display:table-header-group} tr,h2{break-inside:avoid} h2{break-after:avoid}}</style></head><body>
     <div class="noprint"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer">🖨 Drucken / als PDF speichern</button></div>
     ${o.kopf || ''}
-    <h1>Assetinventar${o.werkLabel ? ' – ' + _amEsc(o.werkLabel) : ''}</h1>
+    <h1>Assetinventar${o.werkLabel ? ' ' + _amEsc(o.werkLabel) : ''}</h1>
     <div class="muted">DIHAG · ISO/IEC 27001:2022 A.5.9 (Inventar), A.5.12 (Klassifizierung) · BSI 200-2 Schutzbedarf · Stand ${_amEsc(stand)} · ${liste.length} Assets</div>
     ${[...gruppen.entries()].map(([k, arr]) => `<h2>${_amEsc(kat(k))} (${arr.length})</h2>
       <table><thead><tr><th>Asset</th><th>Werke</th><th>Verantwortlich</th><th>V</th><th>I</th><th>A</th><th>Klassifizierung</th><th>Liegt auf / hängt ab von</th><th>Wiederherst.</th><th>RPO</th><th>Status</th><th>EOL</th><th>Lieferant / Support</th></tr></thead><tbody>${
@@ -828,7 +828,7 @@ function amInventarHtml(o) {
           return `<tr><td><b>${_amEsc(a.titel)}</b>${a.beschreibung ? `<div class="muted">${_amEsc(a.beschreibung.slice(0, 120))}</div>` : ''}${a.link.url || a.link.text ? `<div class="muted">🔗 ${_amEsc(a.link.text || a.link.url)}</div>` : ''}</td><td>${_amEsc(a.werke.includes('ALLE') ? 'konzernweit' : a.werke.join(', ')) || '–'}</td><td>${_amEsc(name(a.verantwortlich)) || '<span class="sh">–</span>'}</td>
             <td>${sb(a.vertraulichkeit)}</td><td>${sb(a.integritaet)}</td><td>${sb(a.verfuegbarkeit)}</td><td>${_amEsc(a.klassifizierung) || '–'}</td><td>${_amEsc(traeger.join(', ')) || '–'}</td><td>${dauer(a.wiederherstellung)}</td><td>${dauer(a.rpo)}</td><td>${_amEsc(a.status)}</td><td>${_amEsc(a.eol) || '–'}</td><td>${_amEsc([a.lieferant || a.hersteller, a.supportKontakt].filter(Boolean).join(' · ')) || '–'}</td></tr>`; }).join('')
       }</tbody></table>`).join('')}
-    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Assetregister" – deterministisch, ohne KI.</p>
+    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement (rms.dihag.de), Reiter „Assetregister", deterministisch, ohne KI.</p>
     </body></html>`;
 }
 

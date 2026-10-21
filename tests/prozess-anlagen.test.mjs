@@ -215,7 +215,7 @@ ok(/const e = procLinksVon\(key\);/.test(pjs) && /if \(e && !e\.alt\)/.test(pjs)
   'Nur ein vollständiger Cache-Eintrag spart den Griff zur Datei – ältere Stände werden nachgelesen');
 ok(/k: !\/<\(bpmn:\)\?definitions/.test(pjs.split('function procEintragAusXml')[1] || ''),
   'Beim Lesen fällt gleich auf, ob die Datei überhaupt ein Diagramm enthält');
-ok(/⚠ kein Diagramm – öffnen und speichern/.test(pjs),
+ok(/⚠ kein Diagramm: öffnen und speichern/.test(pjs),
   'Und die Karte sagt es – sonst müsste man Modell für Modell öffnen');
 ok(!/_setProcessPolicies/.test(pjs), 'Die alte Einzweck-Funktion ist restlos ersetzt');
 

@@ -191,8 +191,8 @@ function prozessModusLeiste(aktiv) {
       onclick="setProzessModus(${jsArg(key)})" title="${titel}">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
-      ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran – Prozesse, Modelle, Regelwerke, Standorte')}
-      ${knopf('matrix', '👤 Matrix', 'Wer ist für welchen Prozess zuständig – und wo fehlt noch etwas')}
+      ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran: Prozesse, Modelle, Regelwerke, Standorte')}
+      ${knopf('matrix', '👤 Matrix', 'Wer ist für welchen Prozess zuständig, und wo fehlt noch etwas')}
       ${knopf('backlog', '📌 Backlog', 'Woran gerade gearbeitet wird: Lebenszyklus, Priorität, Prozesseigner, Überprüfung')}
       ${knopf('liste', '📋 Modelle', 'Alle BPMN-Modelle als Liste')}
     </div>`;
@@ -258,8 +258,8 @@ function renderProzesseList() {
   mount.innerHTML = `
     ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('liste') : ''}
     <div class="view-desc" style="margin:0 0 12px">
-      Prozesse (BPMN 2.0) im Camunda-Stil selbst modellieren und mit Richtlinien verknüpfen –
-      „<b>im Einklang mit den Richtlinien</b>". Gespeichert als <b>.bpmn</b> im Ordner „Prozesse" der ISMS-Bibliothek – je Werk ein Unterordner.
+      Prozesse (BPMN 2.0) im Camunda-Stil selbst modellieren und mit Richtlinien verknüpfen,
+      „<b>im Einklang mit den Richtlinien</b>". Gespeichert als <b>.bpmn</b> im Ordner „Prozesse" der ISMS-Bibliothek, je Werk ein Unterordner.
     </div>
     <div class="view-toolbar">
       <div class="search-box">
@@ -276,7 +276,7 @@ function renderProzesseList() {
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
       ${canWrite && (_processes || []).length ? `<button class="btn btn-outline btn-sm" onclick="prozessPfeilePruefen()" title="Alle Modelle auf Pfeile prüfen, die ins Leere oder durch den eigenen Kasten laufen, und sie korrigieren. Erst nach Rückfrage wird gespeichert.">↪ Pfeile prüfen</button>` : ''}
       ${canWrite && (_processes || []).some(p => !(p.ordner || '')) ? `<button class="btn btn-outline btn-sm" onclick="prozessAblageAufraeumen()" title="Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks verschieben">🗂 Ablage aufräumen</button>` : ''}
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen – überspringt bereits vorhandene">📋 Standard-Prozesse</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen, bereits vorhandene werden übersprungen">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -296,7 +296,7 @@ function _renderProcCards() {
   const rows = q ? all.filter(p => (p.title || '').toLowerCase().includes(q)) : all;
   if (!rows.length) {
     host.innerHTML = typeof emptyState === 'function'
-      ? emptyState(all.length ? 'Keine Treffer.' : 'Noch keine Prozesse – oben „+ Neuer Prozess".', all.length ? '🔍' : '🔀')
+      ? emptyState(all.length ? 'Keine Treffer.' : 'Noch keine Prozesse. Oben „+ Neuer Prozess".', all.length ? '🔍' : '🔀')
       : '<div class="field-hint">Keine Prozesse.</div>';
     return;
   }
@@ -893,12 +893,12 @@ async function prozessAblageAufraeumen() {
   });
   const rest = offen.length - plan.length;
   if (!plan.length) {
-    toast(offen.length ? 'Kein Modell lässt sich eindeutig einem Werk zuordnen – bitte im Modell selbst wählen.' : 'Alle Modelle liegen bereits im Ordner ihres Werks.',
+    toast(offen.length ? 'Kein Modell lässt sich eindeutig einem Werk zuordnen. Bitte im Modell selbst wählen.' : 'Alle Modelle liegen bereits im Ordner ihres Werks.',
       plan.length ? 'success' : 'error');
     return;
   }
   const ok = await uiConfirm(
-    `${plan.length} Modell(e) in den Ordner ihres Werks verschieben?<br><span class="field-hint">Die Kennung der Dateien bleibt erhalten – Landkarte, Mindmap und Regelwerks-Verknüpfungen überstehen den Umzug.${
+    `${plan.length} Modell(e) in den Ordner ihres Werks verschieben?<br><span class="field-hint">Die Kennung der Dateien bleibt erhalten. Landkarte, Mindmap und Regelwerks-Verknüpfungen überstehen den Umzug.${
       rest ? ` ${rest} weitere(s) bleibt liegen${mehrdeutig.length ? `, davon ${mehrdeutig.length} von mehreren Werken verknüpft` : ''}.` : ''}</span>`,
     { title: 'Ablage aufräumen', okLabel: `${plan.length} verschieben`, html: true });
   if (!ok) return;
@@ -999,7 +999,7 @@ function _procKarteZeileHtml(itemId, e) {
   const extra = [status, anlagen, unter, drin].filter(Boolean).join(' ');
   if (kaputt) {
     return `<span class="ic-tag" style="background:#fef3c7;color:#92400e"
-      title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie – die Verknüpfungen bleiben.">⚠ kein Diagramm – öffnen und speichern</span> ${extra}`;
+      title="Die Datei enthält kein Diagramm. Öffnen und speichern repariert sie, die Verknüpfungen bleiben.">⚠ kein Diagramm: öffnen und speichern</span> ${extra}`;
   }
   if (!ids || !ids.length) return `<span style="color:var(--c-faint)">keine Richtlinie verknüpft</span> ${extra}`;
   return '🔗 ' + ids.map(id => {
@@ -1207,7 +1207,7 @@ async function procSprungOeffnen(ziel) {
   const teile = (typeof lkZielTeile === 'function') ? lkZielTeile(ziel) : null;
   if (!teile) return;
   if (typeof lkKachelVonZiel === 'function' && !lkKachelVonZiel(ziel)) {
-    toast('Dieser Prozess steht nicht mehr in der Landkarte – vielleicht wurde er gelöscht.', 'error');
+    toast('Dieser Prozess steht nicht mehr in der Landkarte. Vielleicht wurde er gelöscht.', 'error');
     return;
   }
   if (_procUngespeichert() && typeof uiConfirm === 'function') {
@@ -1241,7 +1241,7 @@ function _renderElementSprung(canWrite) {
   if (!el) {
     const wieviele = procSprungElemente().length;
     host.innerHTML = `<span class="field-hint">${auswahl.length > 1
-      ? 'Mehrere Elemente ausgewählt – bitte genau eines anklicken.'
+      ? 'Mehrere Elemente ausgewählt. Bitte genau eines anklicken.'
       : 'Ein Element im Diagramm anklicken.'}${
       wieviele ? ` Aktuell ${wieviele} Übergang${wieviele > 1 ? 'e' : ''} im Modell.` : ''}</span>`;
     return;
@@ -1545,10 +1545,10 @@ function _procUngespeichert() { return !!(_bpmnModeler && _procDirty); }
 /** In das eingebundene Modell wechseln – der Weg zurück steht dann oben in der Leiste. */
 async function procUnterprozessOeffnen(itemId) {
   const m = procModellVon(itemId);
-  if (!m) { toast('Dieses Modell gibt es nicht mehr – vielleicht wurde es gelöscht.', 'error'); return; }
+  if (!m) { toast('Dieses Modell gibt es nicht mehr. Vielleicht wurde es gelöscht.', 'error'); return; }
   if (_procUngespeichert() && typeof uiConfirm === 'function') {
     const weiter = await uiConfirm(
-      'Im Diagramm gibt es ungespeicherte Änderungen. Der Wechsel in den Unterprozess verwirft sie – vorher „💾 Speichern".',
+      'Im Diagramm gibt es ungespeicherte Änderungen. Der Wechsel in den Unterprozess verwirft sie. Vorher „💾 Speichern".',
       { title: 'Unterprozess öffnen?', okLabel: 'Trotzdem wechseln' });
     if (!weiter) return;
   }
@@ -1593,7 +1593,7 @@ function _procUnterListeHtml(el, filter) {
         procBindetEin(p.itemId).length ? ` <span class="field-hint" title="bindet selbst Unterprozesse ein">⊞ ${procBindetEin(p.itemId).length}</span>` : ''}</span>
       <button class="btn btn-outline btn-sm" onclick="procUnterprozessEinbinden(${jsArg(p.itemId)})">Einbinden</button>
     </div>`).join('');
-  const mehr = kand.length > 12 ? `<div class="field-hint" style="margin-top:4px">… ${kand.length - 12} weitere – Suche eingrenzen.</div>` : '';
+  const mehr = kand.length > 12 ? `<div class="field-hint" style="margin-top:4px">… ${kand.length - 12} weitere, bitte die Suche eingrenzen.</div>` : '';
   const doppel = name ? procNamensDoppel(name, _procEditing && _procEditing.itemId) : [];
   let neu;
   if (name && !doppel.length) {
@@ -1601,7 +1601,7 @@ function _procUnterListeHtml(el, filter) {
       title="Ein eigenes Modell dieses Namens anlegen und hier einbinden">+ „${esc(name)}" als neues Modell anlegen</button>`;
   } else if (name) {
     neu = `<div class="field-hint" style="margin-top:6px">„${esc(name)}" gibt es schon${
-      doppel[0].ordner ? ' in ' + esc(_procWerkLabel(doppel[0])) : ''} – oben einbinden statt ein zweites Mal anlegen.</div>`;
+      doppel[0].ordner ? ' in ' + esc(_procWerkLabel(doppel[0])) : ''}. Oben einbinden statt ein zweites Mal anlegen.</div>`;
   } else {
     neu = '<div class="field-hint" style="margin-top:6px">Eine benannte Aufgabe lässt sich auch als neues Modell anlegen.</div>';
   }
@@ -1627,11 +1627,11 @@ function _renderElementUnter(canWrite) {
       ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${eigene.map(x => chip(procElementModell(x))).join('')}</div>` : '')
     + (oben.length
       ? `<div class="field-hint" style="margin-top:6px">↰ Dieses Modell ist eingebunden in ${oben.map(p =>
-          `<a href="#" onclick="procUnterprozessOeffnen(${jsArg(p.itemId)});return false">${esc(p.title)}</a>`).join(', ')} – eine Änderung hier wirkt dort.</div>` : '');
+          `<a href="#" onclick="procUnterprozessOeffnen(${jsArg(p.itemId)});return false">${esc(p.title)}</a>`).join(', ')}. Eine Änderung hier wirkt dort.</div>` : '');
 
   if (!el) {
     host.innerHTML = `<span class="field-hint">${auswahl.length > 1
-      ? 'Mehrere Elemente ausgewählt – bitte genau eine Aufgabe anklicken.'
+      ? 'Mehrere Elemente ausgewählt. Bitte genau eine Aufgabe anklicken.'
       : 'Eine Aufgabe im Diagramm anklicken.'}${
       eigene.length ? ` Aktuell ${eigene.length} Unterprozess${eigene.length > 1 ? 'e' : ''} eingebunden.` : ''}</span>${fuss}`;
     return;
@@ -1640,7 +1640,7 @@ function _renderElementUnter(canWrite) {
   const kopf = `<div style="font-weight:600;font-size:.82rem;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>`;
   if (!procKannEinbinden(el)) {
     host.innerHTML = kopf + `<span class="field-hint">${el.type === 'bpmn:SubProcess'
-      ? 'Ein ausgeschriebener Unterprozess – besser als eigenes Modell anlegen und von einer Aufgabe aus einbinden: dann gibt es ihn einmal.'
+      ? 'Ein ausgeschriebener Unterprozess: besser als eigenes Modell anlegen und von einer Aufgabe aus einbinden: dann gibt es ihn einmal.'
       : 'Nur eine Aufgabe kann ein Modell einbinden.'}</span>${fuss}`;
     return;
   }
@@ -1650,14 +1650,14 @@ function _renderElementUnter(canWrite) {
     host.innerHTML = kopf + `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="flex:1;min-width:0">⊞ <b>${esc(m ? m.title : 'Modell fehlt')}</b>${
           m && m.ordner ? ` <span class="field-hint">· ${esc(_procWerkLabel(m))}</span>` : ''}${
-          m ? '' : ' <span style="color:#b45309">– gibt es nicht mehr</span>'}</span>
+          m ? '' : ' <span style="color:#b45309">(gibt es nicht mehr)</span>'}</span>
         ${m ? `<button class="btn btn-outline btn-sm" onclick="procUnterprozessOeffnen(${jsArg(itemId)})">Öffnen</button>` : ''}
         ${canWrite ? '<button class="btn btn-ghost btn-sm" onclick="procUnterprozessLoesen()">Lösen</button>' : ''}
       </div>${fuss}`;
     return;
   }
   if (!canWrite) { host.innerHTML = kopf + `<span class="field-hint">Kein Modell eingebunden.</span>${fuss}`; return; }
-  host.innerHTML = kopf + `<input type="text" id="proc-unter-suche" placeholder="Modell suchen – Name, Werk, Kennung …"
+  host.innerHTML = kopf + `<input type="text" id="proc-unter-suche" placeholder="Modell suchen: Name, Werk, Kennung …"
       oninput="procUnterprozessSuche()" onkeydown="procUnterprozessSucheTaste(event)" style="width:100%;margin-bottom:6px">
     <div id="proc-unter-liste">${_procUnterListeHtml(el, '')}</div>${fuss}`;
 }
@@ -1676,7 +1676,7 @@ function procUnterprozessSucheTaste(ev) {
   ev.preventDefault();
   const kand = procEinbindbar((document.getElementById('proc-unter-suche') || {}).value || '');
   if (kand.length === 1) procUnterprozessEinbinden(kand[0].itemId);
-  else if (typeof toast === 'function') toast(kand.length ? `${kand.length} Modelle passen – Suche eingrenzen.` : 'Kein Modell passt zur Suche.', 'error');
+  else if (typeof toast === 'function') toast(kand.length ? `${kand.length} Modelle passen. Bitte die Suche eingrenzen.` : 'Kein Modell passt zur Suche.', 'error');
 }
 
 /** Auswahl im Kasten übernehmen: Element wird ⊞, Marker geschrieben, Zeichen gesetzt. */
@@ -1689,7 +1689,7 @@ async function procUnterprozessEinbinden(itemId) {
   const eigen = String((_procEditing && _procEditing.itemId) || '');
   if (eigen && String(itemId) === eigen) { toast('Ein Modell kann sich nicht selbst einbinden.', 'error'); return; }
   if (eigen && procBindetTransitiv(itemId, eigen)) {
-    toast(`„${m.title}" bindet dieses Modell schon ein – das wäre ein Kreis.`, 'error'); return;
+    toast(`„${m.title}" bindet dieses Modell schon ein, das wäre ein Kreis.`, 'error'); return;
   }
   // Die Prozess-Kennung des Ziels: aus dem Cache, sonst einmal aus der Datei.
   if (!procEintragVon(m)) {
@@ -1701,7 +1701,7 @@ async function procUnterprozessEinbinden(itemId) {
   try { _bpmnModeler.get('selection').select(neu); } catch (e) { /* egal */ }
   procUnterMarker();
   _renderElementUnter(true);
-  toast(`„${m.title}" eingebunden ✓ – Speichern nicht vergessen.`, 'success');
+  toast(`„${m.title}" eingebunden ✓. Speichern nicht vergessen.`, 'success');
 }
 
 /** Das eingebundene Modell vom ausgewählten Element lösen. */
@@ -1712,7 +1712,7 @@ function procUnterprozessLoesen() {
   procUnterprozessSetzen(el, '');
   procUnterMarker();
   _renderElementUnter(true);
-  toast('Gelöst – das Modell selbst bleibt. Die ⊞ wird über das Schraubenschlüssel-Menü wieder zur Aufgabe.', 'success');
+  toast('Gelöst. Das Modell selbst bleibt. Die ⊞ wird über das Schraubenschlüssel-Menü wieder zur Aufgabe.', 'success');
 }
 
 /**
@@ -1725,10 +1725,10 @@ async function procUnterprozessAnlegen() {
   const el = _procAusgewaehlt();
   if (!el || !procKannEinbinden(el)) { toast('Bitte eine Aufgabe im Diagramm auswählen.', 'error'); return; }
   const name = String((el.businessObject && el.businessObject.name) || '').trim();
-  if (!name) { toast('Die Aufgabe braucht erst einen Namen – er wird der Name des Modells.', 'error'); return; }
+  if (!name) { toast('Die Aufgabe braucht erst einen Namen, er wird der Name des Modells.', 'error'); return; }
   const doppel = procNamensDoppel(name, _procEditing && _procEditing.itemId);
   if (doppel.length) {
-    toast(`„${name}" gibt es schon – eingebunden statt doppelt angelegt.`, 'success');
+    toast(`„${name}" gibt es schon, eingebunden statt doppelt angelegt.`, 'success');
     await procUnterprozessEinbinden(doppel[0].itemId);
     return;
   }
@@ -1755,7 +1755,7 @@ async function procUnterprozessAnlegen() {
     procUnterMarker();
     _renderElementUnter(true);
     const st = document.getElementById('proc-status');
-    if (st) st.innerHTML = `<span style="color:#15803d">Unterprozess „${esc(name)}" angelegt und eingebunden ✓ – dieses Modell speichern, damit der Verweis bleibt.</span>`;
+    if (st) st.innerHTML = `<span style="color:#15803d">Unterprozess „${esc(name)}" angelegt und eingebunden ✓. Dieses Modell speichern, damit der Verweis bleibt.</span>`;
     toast(`Unterprozess „${name}" angelegt und eingebunden ✓`, 'success');
   } catch (e) {
     toast('Anlegen fehlgeschlagen: ' + e.message, 'error');
@@ -1821,7 +1821,7 @@ function procKennungSichern() {
  * Aufrufaktivitäten aus einer importierten Datei nennen ihr Ziel nur über
  * `calledElement`, die Prozess-Kennung, und kennen keine Datei des RMS. Gibt es
  * genau ein Modell mit dieser Kennung, wird es eingebunden, wie über
- * „Unterprozess – ein Modell einbinden". So bleiben Modellsätze verbunden, die
+ * „Unterprozess: ein Modell einbinden". So bleiben Modellsätze verbunden, die
  * zusammen importiert werden (oder aus Camunda kommen): erst die Unterprozesse,
  * dann das Modell, das sie aufruft. Was einen Kreis ergäbe, bleibt offen.
  * @returns {number} wie viele neu eingebunden wurden
@@ -1888,9 +1888,9 @@ async function openProcessEditor(itemId, seed) {
       ${itemId ? `<button class="btn btn-outline btn-sm" onclick="procZurAnsicht()"
         title="Zurück zur Ansicht mit Schritten und Befunden">👁 Ansicht</button>` : ''}
       <button class="btn btn-outline btn-sm" id="proc-seite-btn" onclick="prozessSeiteUmschalten()"
-        title="Angaben rechts ein-/ausblenden – im Vollbild gehört die Breite dem Diagramm">▤ Angaben</button>
+        title="Angaben rechts ein-/ausblenden. Im Vollbild gehört die Breite dem Diagramm">▤ Angaben</button>
       <button class="btn btn-outline btn-sm" id="proc-voll-btn" onclick="prozessVollbildUmschalten()"
-        title="Ganzer Bildschirm – Esc beendet">⛶ Vollbild</button>
+        title="Ganzer Bildschirm, Esc beendet">⛶ Vollbild</button>
       <button class="btn btn-outline btn-sm" onclick="prozessSchemaPruefung()" title="Gegen das Hausschema prüfen">🔍 Schema</button>
       <button class="btn btn-outline btn-sm" onclick="prozessHilfeOeffnen()" title="BPMN einfach erklärt: Zeichen, Schreibweise, Handgriffe und Kürzel">❓ Hilfe</button>
       <button class="btn btn-outline btn-sm" onclick="downloadProcessXml()" title="BPMN-Datei herunterladen">⬇ .bpmn</button>
@@ -1913,7 +1913,7 @@ async function openProcessEditor(itemId, seed) {
               `<option value="${esc(w)}"${proc && proc.ordner === w ? ' selected' : ''}>${
                 esc((typeof lkWerkLabel === 'function') ? lkWerkLabel(w) : w)}</option>`).join('')}
           </select>
-          <span class="field-hint">Konzern und Gesellschaften führen je eine eigene Landkarte – die Modelle
+          <span class="field-hint">Konzern und Gesellschaften führen je eine eigene Landkarte. Die Modelle
             liegen im Ordner „Prozesse/&lt;Kürzel&gt;". Beim Wechsel wird die Datei verschoben, ihre Kennung bleibt.</span></div>
         <div class="form-group full"><label>Verknüpfte Richtlinien</label>
           <div id="proc-policy-list" style="max-height:230px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
@@ -1927,7 +1927,7 @@ async function openProcessEditor(itemId, seed) {
               title="Dokument verlinken, das bereits abgelegt ist">🔗 Link</button>
             <input type="file" id="proc-doc-input" style="display:none" onchange="prozessDokHochladen(this)">
           </div>` : ''}
-          <span class="field-hint">Merkblatt, Formular, Kundeninformation – was zum Ablauf gehört, aber nicht ins Diagramm passt.
+          <span class="field-hint">Merkblatt, Formular, Kundeninformation: was zum Ablauf gehört, aber nicht ins Diagramm passt.
             Hochgeladene Dateien liegen in „Prozesse/&lt;Kürzel&gt;/Anlagen"; verknüpft wird ihre Kennung, nicht der Pfad.</span></div>
         <div class="form-group full"><label>Prozessmanagement</label>
           <div id="proc-pm" style="border:1px solid var(--c-border);border-radius:8px;padding:8px"></div>
@@ -1940,17 +1940,17 @@ async function openProcessEditor(itemId, seed) {
         <div class="form-group full"><label>Übergang zu einem anderen Prozess</label>
           <div id="proc-elem-link" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
           <span class="field-hint">Ein Element im Diagramm anklicken und hier den Prozess wählen, in den der Ablauf
-            an dieser Stelle übergeht. Am Element erscheint dann ein ↦ zum Weiterklicken – so steht der Übergang
+            an dieser Stelle übergeht. Am Element erscheint dann ein ↦ zum Weiterklicken. So steht der Übergang
             dort, wo er passiert, und nicht nur an der Kachel.</span></div>
-        <div class="form-group full"><label>Unterprozess – ein Modell einbinden</label>
+        <div class="form-group full"><label>Unterprozess: ein Modell einbinden</label>
           <div id="proc-unter" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
           <span class="field-hint">Eine Aufgabe anklicken und das Modell wählen, das an dieser Stelle im Ganzen läuft.
-            Die Aufgabe wird zur <b>⊞ Aufrufaktivität</b> (BPMN Call Activity); das Modell bleibt eines – einmal gepflegt,
+            Die Aufgabe wird zur <b>⊞ Aufrufaktivität</b> (BPMN Call Activity); das Modell bleibt eines: einmal gepflegt,
             überall eingebunden, ein Klick auf ⊞ öffnet es. Gibt es den Prozess noch nirgends, legt
             „+ als neues Modell anlegen" ihn an.</span></div>
         <div class="form-group full"><label>Hausschema</label>
           <div id="proc-schema" style="border:1px solid var(--c-border);border-radius:8px;padding:8px;min-height:38px"></div>
-          <span class="field-hint">Zehn Bausteine, zehn Regeln – oben „🔍 Schema" prüft das Modell dagegen.
+          <span class="field-hint">Zehn Bausteine, zehn Regeln. Oben „🔍 Schema" prüft das Modell dagegen.
             Ein Modell, das die Prüfung besteht, beantwortet ohne Rückfrage: wer ist zuständig, was läuft
             automatisch, wie geht die Sache aus.</span></div>
         <div id="proc-status" class="field-hint" style="margin-top:8px">Modeler wird geladen …</div>
@@ -2005,7 +2005,7 @@ async function openProcessEditor(itemId, seed) {
     _bpmnModeler.get('canvas').zoom('fit-viewport');
     const st = document.getElementById('proc-status');
     if (st) st.innerHTML = unbrauchbar
-      ? `<span style="color:#b45309">Die Datei enthielt kein BPMN – ein leeres Diagramm wurde geladen.
+      ? `<span style="color:#b45309">Die Datei enthielt kein BPMN, ein leeres Diagramm wurde geladen.
          <b>Speichern</b> repariert sie; Kennung und Verknüpfungen bleiben erhalten.</span>`
       : pfeile.repariert.length ? `<span style="color:#b45309">${esc(_procPfeileSatz(pfeile.repariert.length))}${
           canWrite ? ' <b>Speichern</b> übernimmt die Korrektur in die Datei.' : ' In der Datei steht noch der alte Verlauf.'}</span>`
@@ -2050,7 +2050,7 @@ async function openProcessEditor(itemId, seed) {
     const aufgeloest = canWrite ? procAufrufeAufloesen() : 0;
     if (aufgeloest) {
       _procDirty = true;
-      toast(`${aufgeloest} ⊞ über die Prozess-Kennung eingebunden – zum Behalten speichern.`, 'success');
+      toast(`${aufgeloest} ⊞ über die Prozess-Kennung eingebunden. Zum Behalten speichern.`, 'success');
       prozessSchemaPruefung(true);
     }
     if (!n && !aufgeloest) return;
@@ -2822,7 +2822,7 @@ function prozessSchemaLegende() {
       ${PROZESS_BAUSTEINE.map(b => `<span title="${esc(b.zweck)} · ${esc(b.benennung)}">
         <b style="font-size:.95rem">${b.symbol}</b> ${esc(b.titel)}</span>`).join('')}
     </div>
-    <div class="field-hint" style="margin-top:6px">Noch nicht geprüft – „🔍 Schema" oben.</div>`;
+    <div class="field-hint" style="margin-top:6px">Noch nicht geprüft. Dafür oben „🔍 Schema".</div>`;
 }
 
 /**
@@ -2931,7 +2931,7 @@ async function prozessVollbildUmschalten(an) {
   const btn = document.getElementById('proc-voll-btn');
   if (btn) {
     btn.textContent = ziel ? '⤡ Vollbild beenden' : '⛶ Vollbild';
-    btn.title = ziel ? 'Zurück in die Ansicht – oder Esc' : 'Ganzer Bildschirm – Esc beendet';
+    btn.title = ziel ? 'Zurück in die Ansicht (oder Esc)' : 'Ganzer Bildschirm, Esc beendet';
   }
 
   // Die echte Vollbild-Schnittstelle obendrauf. Sie darf ablehnen (Richtlinie,
@@ -3317,7 +3317,7 @@ function _renderElementDocs(canWrite) {
         <span>📎</span>
         ${d.url ? `<a href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
           : `<span style="flex:1;min-width:0">${esc(d.name)}</span>`}
-        ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px" title="Vom Schritt lösen – die Datei bleibt liegen" onclick="procElementDokEntfernen(${i})">×</button>` : ''}
+        ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px" title="Vom Schritt lösen, die Datei bleibt liegen" onclick="procElementDokEntfernen(${i})">×</button>` : ''}
       </div>`).join('') : '<span class="field-hint">Noch kein Dokument an diesem Schritt.</span>'}
     ${canWrite ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-elem-doc-input').click()" title="Datei hochladen und an diesem Schritt hinterlegen">📎 Datei</button>
@@ -3337,7 +3337,7 @@ function _procElementDokDazu(d) {
   procElementDocsSetzen(el, docs);
   procDokMarker();
   _renderElementDocs(true);
-  toast('Dokument am Schritt hinterlegt – mit „💾 Speichern" sichern.', 'success');
+  toast('Dokument am Schritt hinterlegt. Mit „💾 Speichern" sichern.', 'success');
   return true;
 }
 
@@ -3358,7 +3358,7 @@ async function procElementDokHochladen(input) {
   if (!file) return;
   if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
   if (!_procElementGewaehlt().el) { toast('Bitte zuerst einen Schritt im Diagramm anklicken.', 'error'); return; }
-  if (file.size > 4 * 1024 * 1024) { toast('Die Datei ist größer als 4 MB – bitte in der Bibliothek ablegen und als „🔗 Link" hinterlegen.', 'error'); return; }
+  if (file.size > 4 * 1024 * 1024) { toast('Die Datei ist größer als 4 MB. Bitte in der Bibliothek ablegen und als „🔗 Link" hinterlegen.', 'error'); return; }
   try {
     const werk = (document.getElementById('proc-werk') || {}).value || '';
     const d = await spUploadProcessDoc(werk, file.name, await file.arrayBuffer(), file.type || 'application/octet-stream');
@@ -3394,7 +3394,7 @@ function _renderProcDocs(canWrite) {
         ? `<a href="${esc(sichereUrl(d.url))}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</a>`
         : `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.name)}</span>`}
       ${canWrite ? `<button class="btn btn-ghost btn-sm" style="padding:0 6px"
-        title="Verknüpfung entfernen – die Datei selbst bleibt in der Bibliothek"
+        title="Verknüpfung entfernen, die Datei selbst bleibt in der Bibliothek"
         onclick="prozessDokEntfernen(${i})">×</button>` : ''}
     </div>`).join('');
 }
@@ -3410,7 +3410,7 @@ async function prozessDokHochladen(input) {
   if (!file) return;
   if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
   if (file.size > 4 * 1024 * 1024) {
-    toast('Die Datei ist größer als 4 MB – bitte in der Bibliothek ablegen und hier als „🔗 Link" hinterlegen.', 'error');
+    toast('Die Datei ist größer als 4 MB. Bitte in der Bibliothek ablegen und hier als „🔗 Link" hinterlegen.', 'error');
     return;
   }
   const st = document.getElementById('proc-status');
@@ -3425,7 +3425,7 @@ async function prozessDokHochladen(input) {
     _renderProcDocs(true);
     if (st) st.textContent = '';
     if (_procEditing && _procEditing.itemId) await saveProcess();
-    else toast('Dokument hinterlegt – es wird beim Speichern des Prozesses verknüpft.', 'success');
+    else toast('Dokument hinterlegt. Es wird beim Speichern des Prozesses verknüpft.', 'success');
   } catch (e) {
     if (st) st.textContent = '';
     toast('Hochladen fehlgeschlagen: ' + e.message, 'error');
@@ -3446,7 +3446,7 @@ async function prozessDokLink() {
   _procDocs.push({ name: (name || vorschlag || 'Dokument').trim(), url: url.trim(), driveId: '', itemId: '' });
   _renderProcDocs(true);
   if (_procEditing && _procEditing.itemId) await saveProcess();
-  else toast('Link hinterlegt – er wird beim Speichern des Prozesses verknüpft.', 'success');
+  else toast('Link hinterlegt. Er wird beim Speichern des Prozesses verknüpft.', 'success');
 }
 
 /** Nur die Verknüpfung lösen. Die Datei zu löschen ist eine andere
@@ -3523,7 +3523,7 @@ async function saveProcess() {
   if (!_processes) { try { _processes = await spListProcesses(); } catch (e) { /* dann ohne Doppelprüfung */ } }
   const hier = procNamensDoppel(name, alt.itemId).find(p => (p.ordner || '') === werk);
   if (hier) {
-    toast(`Ein Modell „${hier.title}" gibt es ${werk ? 'in ' + _procWerkLabel(hier) : 'hier'} schon – dort weiterarbeiten oder es als Unterprozess einbinden, statt es ein zweites Mal anzulegen.`, 'error');
+    toast(`Ein Modell „${hier.title}" gibt es ${werk ? 'in ' + _procWerkLabel(hier) : 'hier'} schon. Dort weiterarbeiten oder es als Unterprozess einbinden, statt es ein zweites Mal anzulegen.`, 'error');
     document.getElementById('proc-name')?.focus();
     return;
   }
@@ -3678,7 +3678,7 @@ async function importBpmnFile(input) {
     if (!/<(bpmn:)?definitions[\s>]/i.test(xml)) { toast('Die Datei enthält kein BPMN 2.0 (kein <definitions>).', 'error'); return; }
     const name = file.name.replace(/\.(bpmn|xml)$/i, '');
     await openProcessEditor(null, { name, xml });
-    toast('BPMN importiert – prüfen, ggf. Richtlinien verknüpfen und speichern.', 'success');
+    toast('BPMN importiert. Prüfen, ggf. Richtlinien verknüpfen und speichern.', 'success');
   } catch (e) { toast('Import fehlgeschlagen: ' + e.message, 'error'); }
 }
 
@@ -3717,7 +3717,7 @@ async function createProcessDraft() {
     try { text = await spGetPolicyDocText(p.dokumentDriveId, p.dokumentItemId); }
     catch (e) { err = e.message; }
   } else {
-    err = 'Mit dieser Richtlinie ist kein Word-Dokument verknüpft – Prozesstext bitte manuell einfügen.';
+    err = 'Mit dieser Richtlinie ist kein Word-Dokument verknüpft. Prozesstext bitte manuell einfügen.';
   }
   _procDraftShowText(p, text, err);
 }
@@ -3743,10 +3743,10 @@ function procGenerateFromText(pid) {
   if (!p) { toast('Richtlinie nicht gefunden.', 'error'); return; }
   const text = document.getElementById('proc-draft-text')?.value || '';
   const title = String(p.title || 'Richtlinie').replace(/\.docx?$/i, '');
-  const seed = _bpmnFromText(text, title + ' – Prozess', [String(p.id)]);
+  const seed = _bpmnFromText(text, title + ' (Prozess)', [String(p.id)]);
   closeModal();
   openProcessEditor(null, seed);
-  toast('Prozessentwurf aus dem Richtlinientext erzeugt – anpassen und speichern.', 'success');
+  toast('Prozessentwurf aus dem Richtlinientext erzeugt. Anpassen und speichern.', 'success');
 }
 
 /** XML-Attribut-/Text-Escaping (für generiertes BPMN). */

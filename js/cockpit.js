@@ -28,7 +28,7 @@ function initCockpit() {
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 14px">
-      Alle ISMS-Kennzahlen auf einen Blick – jede Kachel führt in den passenden Reiter.
+      Alle ISMS-Kennzahlen auf einen Blick. Jede Kachel führt in den passenden Reiter.
       <span style="color:var(--c-faint)">Stand: ${new Date().toLocaleString('de-DE')}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
@@ -36,7 +36,7 @@ function initCockpit() {
       ${tile('workflow',  '✅', 'Prüfung & Freigabe',      'freigaben')}
       ${tile('faellig',   '📅', 'Fälligkeiten / Reviews',  'faelligkeit')}
       ${tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
-      ${tile('soa',       '📋', 'SoA – Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
+      ${tile('soa',       '📋', 'SoA: Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
       ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
       ${tile('assets',    '🗂', 'Assetregister',            'assets')}
       ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
@@ -187,7 +187,7 @@ async function _ckLoadAssets(seq) {
     if (typeof amKennzahlen !== 'function' || typeof spGetAssetRegisterLeise !== 'function') { _ckErr('assets', 'Modul nicht geladen.'); return; }
     const liste = await spGetAssetRegisterLeise();
     if (seq !== _cockpitSeq) return;
-    if (!Array.isArray(liste)) { _ckErr('assets', 'Noch kein Register – Reiter öffnen zum Anlegen.'); return; }
+    if (!Array.isArray(liste)) { _ckErr('assets', 'Noch kein Register. Zum Anlegen den Reiter öffnen.'); return; }
     const z = amKennzahlen(liste, { werke: (typeof nfSichtbareWerke === 'function') ? nfSichtbareWerke() : null });
     _ckSet('assets',
       _ckBig(z.aktiv, 'Assets im Inventar', z.aktiv ? '#17509e' : '#b45309') +
@@ -235,7 +235,7 @@ async function _ckLoadAusnahmen(seq) {
     if (!_excs && typeof spGetExceptionsLeise === 'function') {
       const a = await spGetExceptionsLeise();
       if (seq !== _cockpitSeq) return;
-      if (!Array.isArray(a)) { _ckErr('ausnahmen', 'Noch keine Ausnahme erfasst – Reiter öffnen zum Anlegen.'); return; }
+      if (!Array.isArray(a)) { _ckErr('ausnahmen', 'Noch keine Ausnahme erfasst. Zum Anlegen den Reiter öffnen.'); return; }
       _excs = a;
     }
     const alle = (typeof excSichtbare === 'function') ? excSichtbare() : (_excs || []);
@@ -255,7 +255,7 @@ async function _ckLoadWirksamkeit(seq) {
     if (!_wirk && typeof spGetWirkLeise === 'function') {
       const a = await spGetWirkLeise();
       if (seq !== _cockpitSeq) return;
-      if (!Array.isArray(a)) { _ckErr('wirksamkeit', 'Noch nichts erfasst – Reiter öffnen zum Anlegen.'); return; }
+      if (!Array.isArray(a)) { _ckErr('wirksamkeit', 'Noch nichts erfasst. Zum Anlegen den Reiter öffnen.'); return; }
       _wirk = a;
     }
     const alle = (typeof wirkSichtbare === 'function') ? wirkSichtbare() : (_wirk || []);
@@ -309,7 +309,7 @@ async function _ckLoadNotfall(seq) {
     if (typeof nfKennzahlen !== 'function' || typeof spLoadLandkarte !== 'function') { _ckErr('notfall', 'Modul nicht geladen.'); return; }
     const g = (typeof _lkDaten !== 'undefined' && _lkDaten) ? { daten: _lkDaten } : await spLoadLandkarte();
     if (seq !== _cockpitSeq) return;
-    if (!g || !g.daten) { _ckErr('notfall', 'Noch keine Prozesslandkarte – Reiter „Prozesse" öffnen.'); return; }
+    if (!g || !g.daten) { _ckErr('notfall', 'Noch keine Prozesslandkarte. Reiter „Prozesse" öffnen.'); return; }
     let uebungen = Array.isArray(_wirk) ? _wirk : null;
     if (!uebungen && typeof spGetWirkLeise === 'function') { try { uebungen = await spGetWirkLeise(); } catch (e) { uebungen = []; } }
     if (seq !== _cockpitSeq) return;

@@ -20,7 +20,7 @@
  */
 
 const NORMEN = [
-  { group: 'ISO 27001 – Klauseln (Managementsystem)', art: 'klausel', items: [
+  { group: 'ISO 27001: Klauseln (Managementsystem)', art: 'klausel', items: [
     { id: '4.1',  label: 'Verstehen der Organisation und ihres Kontexts' },
     { id: '4.2',  label: 'Erfordernisse und Erwartungen interessierter Parteien' },
     { id: '4.3',  label: 'Festlegen des Anwendungsbereichs des ISMS' },
@@ -45,7 +45,7 @@ const NORMEN = [
     { id: '10.1', label: 'Fortlaufende Verbesserung' },
     { id: '10.2', label: 'Nichtkonformität und Korrekturmaßnahmen' },
   ] },
-  { group: 'Annex A.5 – Organisatorische Controls', art: 'annex', items: [
+  { group: 'Annex A.5: Organisatorische Controls', art: 'annex', items: [
     { id: 'A.5.1',  label: 'Informationssicherheitsrichtlinien' },
     { id: 'A.5.2',  label: 'Informationssicherheitsrollen und -verantwortlichkeiten' },
     { id: 'A.5.3',  label: 'Aufgabentrennung' },
@@ -84,7 +84,7 @@ const NORMEN = [
     { id: 'A.5.36', label: 'Einhaltung von Richtlinien, Regeln und Standards' },
     { id: 'A.5.37', label: 'Dokumentierte Betriebsabläufe' },
   ] },
-  { group: 'Annex A.6 – Personenbezogene Controls', art: 'annex', items: [
+  { group: 'Annex A.6: Personenbezogene Controls', art: 'annex', items: [
     { id: 'A.6.1', label: 'Sicherheitsüberprüfung (Screening)' },
     { id: 'A.6.2', label: 'Beschäftigungs- und Arbeitsvertragsbedingungen' },
     { id: 'A.6.3', label: 'Informationssicherheitsbewusstsein, -ausbildung und -schulung' },
@@ -94,7 +94,7 @@ const NORMEN = [
     { id: 'A.6.7', label: 'Remote-Arbeit (Telearbeit)' },
     { id: 'A.6.8', label: 'Meldung von Informationssicherheitsereignissen' },
   ] },
-  { group: 'Annex A.7 – Physische Controls', art: 'annex', items: [
+  { group: 'Annex A.7: Physische Controls', art: 'annex', items: [
     { id: 'A.7.1',  label: 'Physische Sicherheitsperimeter' },
     { id: 'A.7.2',  label: 'Physischer Zutritt' },
     { id: 'A.7.3',  label: 'Sicherung von Büros, Räumen und Einrichtungen' },
@@ -110,7 +110,7 @@ const NORMEN = [
     { id: 'A.7.13', label: 'Instandhaltung von Geräten' },
     { id: 'A.7.14', label: 'Sichere Entsorgung oder Wiederverwendung von Geräten' },
   ] },
-  { group: 'Annex A.8 – Technologische Controls', art: 'annex', items: [
+  { group: 'Annex A.8: Technologische Controls', art: 'annex', items: [
     { id: 'A.8.1',  label: 'Endgeräte der Benutzer' },
     { id: 'A.8.2',  label: 'Privilegierte Zugangsrechte' },
     { id: 'A.8.3',  label: 'Informationszugangsbeschränkung' },
@@ -147,56 +147,56 @@ const NORMEN = [
     { id: 'A.8.34', label: 'Schutz von Informationssystemen während Audittests' },
   ] },
   { group: 'NIS2 (Richtlinie (EU) 2022/2555)', art: 'nis2', items: [
-    { id: 'NIS2-20',     label: 'Art. 20 – Governance / Verantwortung der Leitungsorgane' },
-    { id: 'NIS2-21.2a',  label: 'Art. 21(2a) – Risikoanalyse & Sicherheit der Informationssysteme' },
-    { id: 'NIS2-21.2b',  label: 'Art. 21(2b) – Bewältigung von Sicherheitsvorfällen' },
-    { id: 'NIS2-21.2c',  label: 'Art. 21(2c) – Business Continuity, Backup, Krisenmanagement' },
-    { id: 'NIS2-21.2d',  label: 'Art. 21(2d) – Sicherheit der Lieferkette' },
-    { id: 'NIS2-21.2e',  label: 'Art. 21(2e) – Sicherheit bei Beschaffung/Entwicklung/Wartung' },
-    { id: 'NIS2-21.2f',  label: 'Art. 21(2f) – Bewertung der Wirksamkeit der Maßnahmen' },
-    { id: 'NIS2-21.2g',  label: 'Art. 21(2g) – Cyberhygiene & Schulung' },
-    { id: 'NIS2-21.2h',  label: 'Art. 21(2h) – Kryptographie und Verschlüsselung' },
-    { id: 'NIS2-21.2i',  label: 'Art. 21(2i) – Personalsicherheit, Zugriffskontrolle, Asset-Mgmt.' },
-    { id: 'NIS2-21.2j',  label: 'Art. 21(2j) – MFA & gesicherte Kommunikation' },
-    { id: 'NIS2-23',     label: 'Art. 23 – Meldepflichten (24 h / 72 h / 1 Monat)' },
+    { id: 'NIS2-20',     label: 'Art. 20: Governance / Verantwortung der Leitungsorgane' },
+    { id: 'NIS2-21.2a',  label: 'Art. 21(2a): Risikoanalyse & Sicherheit der Informationssysteme' },
+    { id: 'NIS2-21.2b',  label: 'Art. 21(2b): Bewältigung von Sicherheitsvorfällen' },
+    { id: 'NIS2-21.2c',  label: 'Art. 21(2c): Business Continuity, Backup, Krisenmanagement' },
+    { id: 'NIS2-21.2d',  label: 'Art. 21(2d): Sicherheit der Lieferkette' },
+    { id: 'NIS2-21.2e',  label: 'Art. 21(2e): Sicherheit bei Beschaffung/Entwicklung/Wartung' },
+    { id: 'NIS2-21.2f',  label: 'Art. 21(2f): Bewertung der Wirksamkeit der Maßnahmen' },
+    { id: 'NIS2-21.2g',  label: 'Art. 21(2g): Cyberhygiene & Schulung' },
+    { id: 'NIS2-21.2h',  label: 'Art. 21(2h): Kryptographie und Verschlüsselung' },
+    { id: 'NIS2-21.2i',  label: 'Art. 21(2i): Personalsicherheit, Zugriffskontrolle, Asset-Mgmt.' },
+    { id: 'NIS2-21.2j',  label: 'Art. 21(2j): MFA & gesicherte Kommunikation' },
+    { id: 'NIS2-23',     label: 'Art. 23: Meldepflichten (24 h / 72 h / 1 Monat)' },
   ] },
 
   /* ── NIS2 in deutschem Recht ──
      Der Katalog zitierte bisher nur die Richtlinie. Geprüft wird nach dem
      Umsetzungsgesetz – die Paragraphen folgen dem BSIG n. F. (NIS2UmsuCG). */
   { group: 'NIS2-Umsetzung Deutschland (BSIG n. F.)', art: 'nis2-de', items: [
-    { id: 'BSIG-28', label: '§ 28 – Besonders wichtige und wichtige Einrichtungen' },
-    { id: 'BSIG-30', label: '§ 30 – Risikomanagementmaßnahmen' },
-    { id: 'BSIG-31', label: '§ 31 – Besondere Anforderungen an Betreiber kritischer Anlagen' },
-    { id: 'BSIG-32', label: '§ 32 – Meldepflichten (Früh-, Folge-, Abschlussmeldung)' },
-    { id: 'BSIG-33', label: '§ 33 – Registrierungspflicht' },
-    { id: 'BSIG-38', label: '§ 38 – Umsetzung, Überwachung und Schulung durch die Geschäftsleitung' },
-    { id: 'BSIG-39', label: '§ 39 – Aufsicht und Durchsetzung' },
+    { id: 'BSIG-28', label: '§ 28: Besonders wichtige und wichtige Einrichtungen' },
+    { id: 'BSIG-30', label: '§ 30: Risikomanagementmaßnahmen' },
+    { id: 'BSIG-31', label: '§ 31: Besondere Anforderungen an Betreiber kritischer Anlagen' },
+    { id: 'BSIG-32', label: '§ 32: Meldepflichten (Früh-, Folge-, Abschlussmeldung)' },
+    { id: 'BSIG-33', label: '§ 33: Registrierungspflicht' },
+    { id: 'BSIG-38', label: '§ 38: Umsetzung, Überwachung und Schulung durch die Geschäftsleitung' },
+    { id: 'BSIG-39', label: '§ 39: Aufsicht und Durchsetzung' },
   ] },
 
   /* ── Datenschutz ──
      Zwei gültige Konzernrichtlinien (Datenschutz, Datenschutz-Organisation)
      hatten bis hierher nur A.5.34 als Anker. */
   { group: 'Datenschutz (DSGVO / BDSG)', art: 'datenschutz', items: [
-    { id: 'DSGVO-5',  label: 'Art. 5 – Grundsätze für die Verarbeitung' },
-    { id: 'DSGVO-6',  label: 'Art. 6 – Rechtmäßigkeit der Verarbeitung' },
-    { id: 'DSGVO-7',  label: 'Art. 7 – Bedingungen für die Einwilligung' },
-    { id: 'DSGVO-9',  label: 'Art. 9 – Besondere Kategorien personenbezogener Daten' },
-    { id: 'DSGVO-12', label: 'Art. 12 – Transparenz und Modalitäten' },
-    { id: 'DSGVO-13', label: 'Art. 13/14 – Informationspflichten bei der Erhebung' },
-    { id: 'DSGVO-15', label: 'Art. 15–22 – Rechte der betroffenen Person' },
-    { id: 'DSGVO-24', label: 'Art. 24 – Verantwortung des Verantwortlichen' },
-    { id: 'DSGVO-25', label: 'Art. 25 – Datenschutz durch Technikgestaltung und Voreinstellungen' },
-    { id: 'DSGVO-26', label: 'Art. 26 – Gemeinsam Verantwortliche' },
-    { id: 'DSGVO-28', label: 'Art. 28 – Auftragsverarbeiter (AVV)' },
-    { id: 'DSGVO-30', label: 'Art. 30 – Verzeichnis von Verarbeitungstätigkeiten' },
-    { id: 'DSGVO-32', label: 'Art. 32 – Sicherheit der Verarbeitung' },
-    { id: 'DSGVO-33', label: 'Art. 33 – Meldung von Datenschutzverletzungen (72 h)' },
-    { id: 'DSGVO-34', label: 'Art. 34 – Benachrichtigung der betroffenen Person' },
-    { id: 'DSGVO-35', label: 'Art. 35 – Datenschutz-Folgenabschätzung' },
-    { id: 'DSGVO-37', label: 'Art. 37–39 – Datenschutzbeauftragter' },
-    { id: 'DSGVO-44', label: 'Art. 44–49 – Übermittlung in Drittländer' },
-    { id: 'BDSG-26',  label: '§ 26 BDSG – Datenverarbeitung im Beschäftigungsverhältnis' },
+    { id: 'DSGVO-5',  label: 'Art. 5: Grundsätze für die Verarbeitung' },
+    { id: 'DSGVO-6',  label: 'Art. 6: Rechtmäßigkeit der Verarbeitung' },
+    { id: 'DSGVO-7',  label: 'Art. 7: Bedingungen für die Einwilligung' },
+    { id: 'DSGVO-9',  label: 'Art. 9: Besondere Kategorien personenbezogener Daten' },
+    { id: 'DSGVO-12', label: 'Art. 12: Transparenz und Modalitäten' },
+    { id: 'DSGVO-13', label: 'Art. 13/14: Informationspflichten bei der Erhebung' },
+    { id: 'DSGVO-15', label: 'Art. 15 bis 22: Rechte der betroffenen Person' },
+    { id: 'DSGVO-24', label: 'Art. 24: Verantwortung des Verantwortlichen' },
+    { id: 'DSGVO-25', label: 'Art. 25: Datenschutz durch Technikgestaltung und Voreinstellungen' },
+    { id: 'DSGVO-26', label: 'Art. 26: Gemeinsam Verantwortliche' },
+    { id: 'DSGVO-28', label: 'Art. 28: Auftragsverarbeiter (AVV)' },
+    { id: 'DSGVO-30', label: 'Art. 30: Verzeichnis von Verarbeitungstätigkeiten' },
+    { id: 'DSGVO-32', label: 'Art. 32: Sicherheit der Verarbeitung' },
+    { id: 'DSGVO-33', label: 'Art. 33: Meldung von Datenschutzverletzungen (72 h)' },
+    { id: 'DSGVO-34', label: 'Art. 34: Benachrichtigung der betroffenen Person' },
+    { id: 'DSGVO-35', label: 'Art. 35: Datenschutz-Folgenabschätzung' },
+    { id: 'DSGVO-37', label: 'Art. 37 bis 39: Datenschutzbeauftragter' },
+    { id: 'DSGVO-44', label: 'Art. 44 bis 49: Übermittlung in Drittländer' },
+    { id: 'BDSG-26',  label: '§ 26 BDSG: Datenverarbeitung im Beschäftigungsverhältnis' },
   ] },
 
   /* ── KI ──
@@ -204,16 +204,16 @@ const NORMEN = [
      ein – ohne Artikel, auf den sich das berufen könnte. DIHAG ist Betreiber,
      nicht Anbieter: die Betreiberpflichten stehen deshalb im Vordergrund. */
   { group: 'KI-Verordnung (VO (EU) 2024/1689)', art: 'ki', items: [
-    { id: 'KIVO-3',  label: 'Art. 3 – Begriffsbestimmungen (KI-System, Betreiber, Anbieter)' },
-    { id: 'KIVO-4',  label: 'Art. 4 – KI-Kompetenz der Beschäftigten' },
-    { id: 'KIVO-5',  label: 'Art. 5 – Verbotene Praktiken im KI-Bereich' },
-    { id: 'KIVO-6',  label: 'Art. 6 + Anhang III – Einstufung als Hochrisiko-KI-System' },
-    { id: 'KIVO-25', label: 'Art. 25 – Verantwortlichkeiten entlang der KI-Wertschöpfungskette' },
-    { id: 'KIVO-26', label: 'Art. 26 – Pflichten der Betreiber von Hochrisiko-KI-Systemen' },
-    { id: 'KIVO-27', label: 'Art. 27 – Grundrechte-Folgenabschätzung' },
-    { id: 'KIVO-50', label: 'Art. 50 – Transparenz, Kennzeichnung KI-erzeugter Inhalte' },
-    { id: 'KIVO-86', label: 'Art. 86 – Recht auf Erläuterung der Einzelfallentscheidung' },
-    { id: 'KIVO-99', label: 'Art. 99 – Sanktionen' },
+    { id: 'KIVO-3',  label: 'Art. 3: Begriffsbestimmungen (KI-System, Betreiber, Anbieter)' },
+    { id: 'KIVO-4',  label: 'Art. 4: KI-Kompetenz der Beschäftigten' },
+    { id: 'KIVO-5',  label: 'Art. 5: Verbotene Praktiken im KI-Bereich' },
+    { id: 'KIVO-6',  label: 'Art. 6 + Anhang III: Einstufung als Hochrisiko-KI-System' },
+    { id: 'KIVO-25', label: 'Art. 25: Verantwortlichkeiten entlang der KI-Wertschöpfungskette' },
+    { id: 'KIVO-26', label: 'Art. 26: Pflichten der Betreiber von Hochrisiko-KI-Systemen' },
+    { id: 'KIVO-27', label: 'Art. 27: Grundrechte-Folgenabschätzung' },
+    { id: 'KIVO-50', label: 'Art. 50: Transparenz, Kennzeichnung KI-erzeugter Inhalte' },
+    { id: 'KIVO-86', label: 'Art. 86: Recht auf Erläuterung der Einzelfallentscheidung' },
+    { id: 'KIVO-99', label: 'Art. 99: Sanktionen' },
   ] },
 
   /* ── Lieferkette ──
@@ -221,71 +221,71 @@ const NORMEN = [
      Management" stehen in der Governance-Mappe als offen – hier ist das Raster,
      an dem sie sich bauen lassen. */
   { group: 'Lieferkette (LkSG)', art: 'lieferkette', items: [
-    { id: 'LKSG-3',  label: '§ 3 – Sorgfaltspflichten' },
-    { id: 'LKSG-4',  label: '§ 4 – Risikomanagement und Zuständigkeit' },
-    { id: 'LKSG-5',  label: '§ 5 – Risikoanalyse' },
-    { id: 'LKSG-6',  label: '§ 6 – Präventionsmaßnahmen, Grundsatzerklärung' },
-    { id: 'LKSG-7',  label: '§ 7 – Abhilfemaßnahmen' },
-    { id: 'LKSG-8',  label: '§ 8 – Beschwerdeverfahren' },
-    { id: 'LKSG-9',  label: '§ 9 – Mittelbare Zulieferer' },
-    { id: 'LKSG-10', label: '§ 10 – Dokumentations- und Berichtspflicht' },
+    { id: 'LKSG-3',  label: '§ 3: Sorgfaltspflichten' },
+    { id: 'LKSG-4',  label: '§ 4: Risikomanagement und Zuständigkeit' },
+    { id: 'LKSG-5',  label: '§ 5: Risikoanalyse' },
+    { id: 'LKSG-6',  label: '§ 6: Präventionsmaßnahmen, Grundsatzerklärung' },
+    { id: 'LKSG-7',  label: '§ 7: Abhilfemaßnahmen' },
+    { id: 'LKSG-8',  label: '§ 8: Beschwerdeverfahren' },
+    { id: 'LKSG-9',  label: '§ 9: Mittelbare Zulieferer' },
+    { id: 'LKSG-10', label: '§ 10: Dokumentations- und Berichtspflicht' },
   ] },
 
   { group: 'Hinweisgeberschutz (HinSchG)', art: 'hinweisgeber', items: [
-    { id: 'HINSCHG-8',  label: '§ 8 – Vertraulichkeitsgebot' },
-    { id: 'HINSCHG-12', label: '§ 12 – Pflicht zur Einrichtung interner Meldestellen' },
-    { id: 'HINSCHG-13', label: '§ 13 – Aufgaben der internen Meldestelle' },
-    { id: 'HINSCHG-16', label: '§ 16 – Interner Meldekanal' },
-    { id: 'HINSCHG-17', label: '§ 17 – Verfahren bei internen Meldungen' },
-    { id: 'HINSCHG-36', label: '§ 36 – Verbot von Repressalien' },
+    { id: 'HINSCHG-8',  label: '§ 8: Vertraulichkeitsgebot' },
+    { id: 'HINSCHG-12', label: '§ 12: Pflicht zur Einrichtung interner Meldestellen' },
+    { id: 'HINSCHG-13', label: '§ 13: Aufgaben der internen Meldestelle' },
+    { id: 'HINSCHG-16', label: '§ 16: Interner Meldekanal' },
+    { id: 'HINSCHG-17', label: '§ 17: Verfahren bei internen Meldungen' },
+    { id: 'HINSCHG-36', label: '§ 36: Verbot von Repressalien' },
   ] },
 
   /* ── Arbeitsschutz ──
      Gießereibetrieb: „Sicherheit und Gesundheit am Arbeitsplatz" und
      „Arbeitsmedizinische Vorsorge" stehen als eigene Konzernregelungen an. */
   { group: 'Arbeitsschutz (ISO 45001 / ArbSchG)', art: 'arbeitsschutz', items: [
-    { id: 'ISO45001-5.4',   label: 'ISO 45001 5.4 – Konsultation und Beteiligung der Beschäftigten' },
-    { id: 'ISO45001-6.1.2', label: 'ISO 45001 6.1.2 – Gefährdungserkennung und Risikobeurteilung' },
-    { id: 'ISO45001-7.2',   label: 'ISO 45001 7.2 – Kompetenz und Unterweisung' },
-    { id: 'ISO45001-8.1.2', label: 'ISO 45001 8.1.2 – Beseitigung von Gefahren, Minderung von Risiken' },
-    { id: 'ISO45001-8.2',   label: 'ISO 45001 8.2 – Notfallplanung und -reaktion' },
-    { id: 'ISO45001-10.2',  label: 'ISO 45001 10.2 – Vorfall, Nichtkonformität, Korrekturmaßnahmen' },
-    { id: 'ARBSCHG-3',      label: '§ 3 ArbSchG – Grundpflichten des Arbeitgebers' },
-    { id: 'ARBSCHG-5',      label: '§ 5 ArbSchG – Gefährdungsbeurteilung' },
-    { id: 'ARBSCHG-6',      label: '§ 6 ArbSchG – Dokumentation' },
-    { id: 'ARBSCHG-12',     label: '§ 12 ArbSchG – Unterweisung' },
-    { id: 'ARBMEDVV-2',     label: '§ 2 ArbMedVV – Arbeitsmedizinische Vorsorge' },
+    { id: 'ISO45001-5.4',   label: 'ISO 45001 5.4: Konsultation und Beteiligung der Beschäftigten' },
+    { id: 'ISO45001-6.1.2', label: 'ISO 45001 6.1.2: Gefährdungserkennung und Risikobeurteilung' },
+    { id: 'ISO45001-7.2',   label: 'ISO 45001 7.2: Kompetenz und Unterweisung' },
+    { id: 'ISO45001-8.1.2', label: 'ISO 45001 8.1.2: Beseitigung von Gefahren, Minderung von Risiken' },
+    { id: 'ISO45001-8.2',   label: 'ISO 45001 8.2: Notfallplanung und -reaktion' },
+    { id: 'ISO45001-10.2',  label: 'ISO 45001 10.2: Vorfall, Nichtkonformität, Korrekturmaßnahmen' },
+    { id: 'ARBSCHG-3',      label: '§ 3 ArbSchG: Grundpflichten des Arbeitgebers' },
+    { id: 'ARBSCHG-5',      label: '§ 5 ArbSchG: Gefährdungsbeurteilung' },
+    { id: 'ARBSCHG-6',      label: '§ 6 ArbSchG: Dokumentation' },
+    { id: 'ARBSCHG-12',     label: '§ 12 ArbSchG: Unterweisung' },
+    { id: 'ARBMEDVV-2',     label: '§ 2 ArbMedVV: Arbeitsmedizinische Vorsorge' },
   ] },
 
   /* ── Umwelt und Nachhaltigkeit ──
      Eine Gießerei ist energie- und stoffintensiv; ISO 50001 gehört deshalb
      dazu, nicht nur ISO 14001. */
   { group: 'Umwelt & Nachhaltigkeit (ISO 14001 / ISO 50001 / CSRD)', art: 'umwelt', items: [
-    { id: 'ISO14001-6.1.2', label: 'ISO 14001 6.1.2 – Umweltaspekte' },
-    { id: 'ISO14001-6.1.3', label: 'ISO 14001 6.1.3 – Bindende Verpflichtungen' },
-    { id: 'ISO14001-8.1',   label: 'ISO 14001 8.1 – Betriebliche Planung und Steuerung' },
-    { id: 'ISO14001-8.2',   label: 'ISO 14001 8.2 – Notfallvorsorge und Gefahrenabwehr' },
-    { id: 'ISO14001-9.1.2', label: 'ISO 14001 9.1.2 – Bewertung der Einhaltung von Verpflichtungen' },
-    { id: 'ISO50001-6.3',   label: 'ISO 50001 6.3 – Energetische Bewertung' },
-    { id: 'KRWG-7',         label: '§ 7 KrWG – Grundpflichten der Kreislaufwirtschaft' },
-    { id: 'ESRS-E1',        label: 'ESRS E1 – Klimawandel' },
-    { id: 'ESRS-E5',        label: 'ESRS E5 – Ressourcennutzung und Kreislaufwirtschaft' },
-    { id: 'ESRS-S1',        label: 'ESRS S1 – Eigene Belegschaft' },
-    { id: 'ESRS-G1',        label: 'ESRS G1 – Unternehmenspolitik und Unternehmenskultur' },
+    { id: 'ISO14001-6.1.2', label: 'ISO 14001 6.1.2: Umweltaspekte' },
+    { id: 'ISO14001-6.1.3', label: 'ISO 14001 6.1.3: Bindende Verpflichtungen' },
+    { id: 'ISO14001-8.1',   label: 'ISO 14001 8.1: Betriebliche Planung und Steuerung' },
+    { id: 'ISO14001-8.2',   label: 'ISO 14001 8.2: Notfallvorsorge und Gefahrenabwehr' },
+    { id: 'ISO14001-9.1.2', label: 'ISO 14001 9.1.2: Bewertung der Einhaltung von Verpflichtungen' },
+    { id: 'ISO50001-6.3',   label: 'ISO 50001 6.3: Energetische Bewertung' },
+    { id: 'KRWG-7',         label: '§ 7 KrWG: Grundpflichten der Kreislaufwirtschaft' },
+    { id: 'ESRS-E1',        label: 'ESRS E1: Klimawandel' },
+    { id: 'ESRS-E5',        label: 'ESRS E5: Ressourcennutzung und Kreislaufwirtschaft' },
+    { id: 'ESRS-S1',        label: 'ESRS S1: Eigene Belegschaft' },
+    { id: 'ESRS-G1',        label: 'ESRS G1: Unternehmenspolitik und Unternehmenskultur' },
   ] },
 
   /* ── Recht und Compliance ──
      Kartellrecht, Exportkontrolle, AntiKorruption, Hinweisgebersystem und der
      Verhaltenskodex sind eigene Konzernregelungen – bisher ohne Normanker. */
   { group: 'Recht & Compliance', art: 'recht', items: [
-    { id: 'AEUV-101',         label: 'Art. 101/102 AEUV – Kartellverbot, Missbrauch einer marktbeherrschenden Stellung' },
-    { id: 'GWB-1',            label: '§ 1 GWB – Verbot wettbewerbsbeschränkender Vereinbarungen' },
-    { id: 'STGB-299',         label: '§§ 299, 331–334 StGB – Bestechlichkeit und Bestechung' },
-    { id: 'ISO37001',         label: 'ISO 37001 – Anti-Bribery-Managementsystem' },
-    { id: 'AWG-AWV',          label: 'AWG / AWV – Außenwirtschaftsrecht, Genehmigungspflichten' },
-    { id: 'DUALUSE-2021-821', label: 'VO (EU) 2021/821 – Güter mit doppeltem Verwendungszweck (Dual Use)' },
-    { id: 'GWG-4',            label: '§§ 4–10 GwG – Geldwäscheprävention, Sorgfaltspflichten' },
-    { id: 'AGG-12',           label: '§ 12 AGG – Maßnahmen und Pflichten des Arbeitgebers' },
+    { id: 'AEUV-101',         label: 'Art. 101/102 AEUV: Kartellverbot, Missbrauch einer marktbeherrschenden Stellung' },
+    { id: 'GWB-1',            label: '§ 1 GWB: Verbot wettbewerbsbeschränkender Vereinbarungen' },
+    { id: 'STGB-299',         label: '§§ 299, 331 bis 334 StGB: Bestechlichkeit und Bestechung' },
+    { id: 'ISO37001',         label: 'ISO 37001: Anti-Bribery-Managementsystem' },
+    { id: 'AWG-AWV',          label: 'AWG / AWV: Außenwirtschaftsrecht, Genehmigungspflichten' },
+    { id: 'DUALUSE-2021-821', label: 'VO (EU) 2021/821: Güter mit doppeltem Verwendungszweck (Dual Use)' },
+    { id: 'GWG-4',            label: '§§ 4 bis 10 GwG: Geldwäscheprävention, Sorgfaltspflichten' },
+    { id: 'AGG-12',           label: '§ 12 AGG: Maßnahmen und Pflichten des Arbeitgebers' },
     { id: 'DCGK',             label: 'Deutscher Corporate Governance Kodex (DCGK)' },
   ] },
 
@@ -293,12 +293,12 @@ const NORMEN = [
      „IKS", „KontraG-Risk Management" und „Funktionstrennung in SAP (SOD)"
      stehen in der Mappe – mit Ankern lassen sie sich prüfen. */
   { group: 'IKS & Risikofrüherkennung', art: 'iks', items: [
-    { id: 'AKTG-91-2',  label: '§ 91 Abs. 2 AktG – Risikofrüherkennungssystem (KonTraG)' },
-    { id: 'AKTG-91-3',  label: '§ 91 Abs. 3 AktG – Internes Kontroll- und Risikomanagementsystem (FISG)' },
-    { id: 'IDW-PS-980', label: 'IDW PS 980 – Compliance-Management-System' },
-    { id: 'IDW-PS-340', label: 'IDW PS 340 – Prüfung des Risikofrüherkennungssystems' },
-    { id: 'COSO-IC',    label: 'COSO Internal Control – Rahmenwerk für das IKS' },
-    { id: 'HGB-289',    label: '§ 289 HGB – Lagebericht, Risikoberichterstattung' },
+    { id: 'AKTG-91-2',  label: '§ 91 Abs. 2 AktG: Risikofrüherkennungssystem (KonTraG)' },
+    { id: 'AKTG-91-3',  label: '§ 91 Abs. 3 AktG: Internes Kontroll- und Risikomanagementsystem (FISG)' },
+    { id: 'IDW-PS-980', label: 'IDW PS 980: Compliance-Management-System' },
+    { id: 'IDW-PS-340', label: 'IDW PS 340: Prüfung des Risikofrüherkennungssystems' },
+    { id: 'COSO-IC',    label: 'COSO Internal Control: Rahmenwerk für das IKS' },
+    { id: 'HGB-289',    label: '§ 289 HGB: Lagebericht, Risikoberichterstattung' },
   ] },
 ];
 
@@ -354,7 +354,7 @@ function normGroupOf(id) {
 }
 
 /** Anzeigetext „ID — Label" (unbekannte IDs bleiben lesbar). */
-function normLabel(id) { return NORMEN_LABEL[id] ? (id + ' — ' + NORMEN_LABEL[id]) : id; }
+function normLabel(id) { return NORMEN_LABEL[id] ? (id + ' (' + NORMEN_LABEL[id] + ')') : id; }
 
 /* ═══════════════════════════════════════════════════
    Seed aus der Review-Mail (Max Muster) – Ein-Klick-Vorbefüllung

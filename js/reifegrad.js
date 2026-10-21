@@ -271,7 +271,7 @@ function _rgRenderBody() {
 function _rgCell(tid, mid, werk, canWrite) {
   const val = _rgRating(mid, werk);
   const s = REIFEGRAD_STUFEN[val];
-  return `<button class="rg-cell" ${canWrite ? '' : 'disabled'} title="${esc(werk + ': ' + s.label)}${canWrite ? ' – klicken zum Ändern' : ''}"
+  return `<button class="rg-cell" ${canWrite ? '' : 'disabled'} title="${esc(werk + ': ' + s.label)}${canWrite ? ', zum Ändern klicken' : ''}"
     onclick="reifegradCycle(${jsArg(tid)},${jsArg(mid)},${jsArg(werk)},this)"
     style="background:${s.bg};border:1px solid ${s.color}55;border-radius:6px;padding:3px 9px;font-size:1rem;cursor:${canWrite ? 'pointer' : 'default'};line-height:1">${s.icon}</button>`;
 }
@@ -290,7 +290,7 @@ function reifegradCycle(tid, mid, werk, btn) {
   // Nur betroffene Zelle + Kennzahlen aktualisieren (kein Scroll-Sprung)
   const s = REIFEGRAD_STUFEN[next];
   if (btn) { btn.textContent = s.icon; btn.style.background = s.bg; btn.style.borderColor = s.color + '55';
-    btn.title = werk + ': ' + s.label + ' – klicken zum Ändern'; }
+    btn.title = werk + ': ' + s.label + ', zum Ändern klicken'; }
   const kp = document.getElementById('rg-kpis'); if (kp) kp.innerHTML = _rgKpisHtml();
   const th = document.getElementById('rg-thdr-' + tid); if (th) th.innerHTML = _rgTopicSummaryHtml(tid);
 }
@@ -371,7 +371,7 @@ async function reifegradRemoveMeasure(tid, mid, isCustom) {
     const i = arr ? arr.findIndex(x => x.id === mid) : -1;
     if (i >= 0) arr.splice(i, 1);
   } else {
-    if (!await uiConfirm('Diese Katalog-Maßnahme ausblenden? Sie zählt dann nicht mehr in die Bewertung – über „ausgeblendete wiederherstellen" reversibel.', { title: 'Maßnahme ausblenden', okLabel: 'Ausblenden' })) return;
+    if (!await uiConfirm('Diese Katalog-Maßnahme ausblenden? Sie zählt dann nicht mehr in die Bewertung. Über „ausgeblendete wiederherstellen" lässt sich das rückgängig machen.', { title: 'Maßnahme ausblenden', okLabel: 'Ausblenden' })) return;
     if (!_reifegrad.removed) _reifegrad.removed = [];
     if (!_reifegrad.removed.includes(mid)) _reifegrad.removed.push(mid);
   }

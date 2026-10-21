@@ -128,7 +128,7 @@ ok(luShp.hinweise.filter(x => /Vererbung/.test(x)).length === 2 && luShp.hinweis
   'Vererbung Asset → Asset: Personaldaten (vertraulich, hoch) liegt auf Sharepoint (intern, normal) → Sharepoint braucht mehr');
 ok(amLuecken(pers, { heute, liste: [pers, shp] }).hinweise.every(x => !/Vererbung/.test(x)), 'Die Information selbst erbt keinen Schutzbedarf von unten …');
 const luPers = amLuecken(pers, { heute, liste: [pers, shp] });
-ok(!luPers.fehler.some(x => /R093/.test(x)) && luPers.hinweise.some(x => /Wiederherstellzeit über die Informationsträger: 4 h – das Langsamste von „Sharepoint"/.test(x)),
+ok(!luPers.fehler.some(x => /R093/.test(x)) && luPers.hinweise.some(x => /Wiederherstellzeit über die Informationsträger: 4 h, das Langsamste von „Sharepoint"/.test(x)),
   '… aber die Wiederherstellzeit und das RPO: Personaldaten sind wieder da, wenn Sharepoint wieder da ist (R093 erfüllt über den Träger)');
 ok(amLuecken(pers, { heute }).fehler.filter(x => /R093/.test(x)).length === 2 && amLuecken(pers, { heute, liste: [pers, Object.assign({}, shp, { wiederherstellung: '' })] }).fehler.some(x => /keine Wiederherstellzeit/.test(x)),
   'Ohne Träger – oder mit einem Träger ohne Zeit – fehlt sie wirklich');

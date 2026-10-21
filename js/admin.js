@@ -267,11 +267,11 @@ const RW_SCHRITTE = [
   },
   {
     kurz: 'Konzept-Entscheidung', was: 'Annehmen oder nicht', wer: 'GL',
-    text: 'Die Geschäftsleitung entscheidet über Priorität und Umsetzung – <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> (mit Begründung), direkt aus der E-Mail. Bei Annahme entsteht automatisch ein Regelwerk-Entwurf; die einreichende Person wird informiert und entscheidet, wie es weitergeht.',
+    text: 'Die Geschäftsleitung entscheidet über Priorität und Umsetzung: <b>Annehmen</b>, <b>Zurückstellen</b> oder <b>Ablehnen</b> (mit Begründung), direkt aus der E-Mail. Bei Annahme entsteht automatisch ein Regelwerk-Entwurf; die einreichende Person wird informiert und entscheidet, wie es weitergeht.',
   },
   {
     kurz: 'Entwurf', was: 'Ausarbeiten', wer: 'Sie',
-    text: 'Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und – falls betroffen – den zuständigen Betriebsrat festlegen. Wer schon alles beisammen hat, überspringt das und gibt den Entwurf direkt weiter.',
+    text: 'Dokument anhängen, Zielgruppe, Pflichtlektüre, Wissenstest, Wiedervorlage und, falls betroffen, den zuständigen Betriebsrat festlegen. Wer schon alles beisammen hat, überspringt das und gibt den Entwurf direkt weiter.',
   },
   {
     kurz: 'Prüfung', was: 'Konformität', wer: 'Prüfer',
@@ -289,7 +289,7 @@ const RW_SCHRITTE = [
   },
   {
     kurz: 'Veröffentlicht', was: 'Kenntnisnahme', wer: 'Zielgruppe',
-    text: 'Das Regelwerk erscheint <b>nur bei den ausgewählten Mitarbeitenden</b> – bestimmt durch Zielgruppe (Rollen/Abteilungen) und Geltungsbereich (Standorte). Erinnerungen laufen automatisch; die Quote und die Änderungshistorie – vom Konzept an – sind der Nachweis fürs Audit.',
+    text: 'Das Regelwerk erscheint <b>nur bei den ausgewählten Mitarbeitenden</b>, bestimmt durch Zielgruppe (Rollen/Abteilungen) und Geltungsbereich (Standorte). Erinnerungen laufen automatisch; die Quote und die Änderungshistorie (vom Konzept an) sind der Nachweis fürs Audit.',
   },
 ];
 
@@ -329,7 +329,7 @@ function renderRwSchritte() {
       ${auf ? `<ol class="rw-liste">
         ${RW_SCHRITTE.map(s => `
           <li>
-            <div class="rw-zeile"><b>${esc(s.kurz)} – ${esc(s.was)}</b>
+            <div class="rw-zeile"><b>${esc(s.kurz)}: ${esc(s.was)}</b>
               ${s.bedingt ? marke('nur wenn betroffen', 'bedingt') : ''}
               ${s.tauschbar ? marke('⇄ Reihenfolge umstellbar', 'tausch') : ''}
               <span class="rw-wer">${esc(s.wer)}</span></div>
@@ -337,7 +337,7 @@ function renderRwSchritte() {
           </li>`).join('')}
       </ol>
       <div class="rw-fuss">
-        <b>⇄</b> Mitbestimmung und Freigabe lassen sich je Regelwerk tauschen – im Editor unter
+        <b>⇄</b> Mitbestimmung und Freigabe lassen sich je Regelwerk tauschen, im Editor unter
         „Freigabe/Mitbestimmung". <b>Gestrichelt</b> = Station findet nur statt, wenn ein Betriebsrat
         zu beteiligen ist. Ausführlich im Reiter <b>Dokumentation</b>.</div>` : ''}
     </div>`;
@@ -369,7 +369,7 @@ function renderAdminList() {
   if (konzeptBtn) konzeptBtn.style.display = readOnly ? 'none' : '';
   // Import nur im Regelwerk-Modus (Konzepte werden nicht aus Dateien importiert)
   if (importBtn) importBtn.style.display = (readOnly || _adminMode === 'konzepte') ? 'none' : '';
-  const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Regelwerk Dashboard" – Anlegen und Bearbeiten sind gesperrt.</div>` : '';
+  const roBanner = readOnly ? `<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> auf „Regelwerk Dashboard". Anlegen und Bearbeiten sind gesperrt.</div>` : '';
   const _colBanner = (liste, miss) => miss.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ In der SharePoint-Liste „${liste}" fehlen ${miss.length} Spalte(n).</b> Werte dieser Felder werden beim Speichern <b>verworfen</b> (bei „Richtlinien" bleibt z. B. die Dokumentzuordnung nicht erhalten; bei „Bestaetigungen" scheitert die Kenntnisnahme/Quiz).<br>
       Bitte in SharePoint anlegen: ${miss.map(c => `<b>${esc(c.name)}</b> <span style="opacity:.75">(${esc(c.typ)})</span>`).join(' · ')}
@@ -379,7 +379,7 @@ function renderAdminList() {
   const djKaputt = (typeof spDatenJsonDefekt === 'function') ? spDatenJsonDefekt() : 0;
   const djBanner = djKaputt ? `<div class="col-warning" style="display:block;margin-bottom:12px">
       <b>⚠ Das Sammelfeld „DatenJson" ist bei ${djKaputt} Regelwerk(en) nicht lesbar.</b>
-      Der Inhalt ist vermutlich abgeschnitten – das passiert, wenn die Spalte als
+      Der Inhalt ist vermutlich abgeschnitten. Das passiert, wenn die Spalte als
       <b>„Einzelne Textzeile"</b> angelegt wurde. Betroffen sind Felder ohne eigene Spalte:
       <b>Lernvideos</b>, der <b>Ein-Klick-Link</b> aus den Freigabe-Mails und der Vermerk der
       <b>Bekanntgabe</b>.<br>
@@ -539,7 +539,7 @@ async function openFolderPickerForUpload(file) {
 
 function fpShell(inner) {
   return `
-    <div class="modal-header"><h3>Zielordner wählen${_fpFile ? ' – „' + esc(_fpFile.name) + '"' : ''}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
+    <div class="modal-header"><h3>Zielordner wählen${_fpFile ? ': „' + esc(_fpFile.name) + '"' : ''}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
     <div class="modal-body" id="fp-body">${inner}</div>
     <div class="modal-footer"><button class="btn btn-ghost" onclick="pickerClose()">Abbrechen</button></div>`;
 }
@@ -564,7 +564,7 @@ async function renderFolderPicker() {
     : `<span class="field-hint">Bitte zuerst eine Bibliothek öffnen.</span>`;
   const versionShortcut = (_editing && _editing.dokumentDriveId && _editing.dokumentItemId)
     ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-         <span class="field-hint" style="flex:1">Es ist bereits ein Dokument zugeordnet (<b>${esc(_editing.dokumentName || '')}</b>). Sie können die Datei als <b>neue Version</b> am bisherigen Speicherort ablegen — dann bleibt der Versionsverlauf erhalten.</span>
+         <span class="field-hint" style="flex:1">Es ist bereits ein Dokument zugeordnet (<b>${esc(_editing.dokumentName || '')}</b>). Sie können die Datei als <b>neue Version</b> am bisherigen Speicherort ablegen. Dann bleibt der Versionsverlauf erhalten.</span>
          <button class="btn btn-success btn-sm" onclick="doUploadAsVersion()">↻ Als neue Version</button></div>`
     : '';
   body.innerHTML = `${versionShortcut}<div class="dp-crumbs">${crumbs}</div>
@@ -629,7 +629,7 @@ async function doUploadAsVersion() {
 async function openDocVersions() {
   if (!_editing || !_editing.dokumentDriveId || !_editing.dokumentItemId) { toast('Diesem Eintrag ist noch kein Dokument zugeordnet.', 'error'); return; }
   pickerMount(`
-    <div class="modal-header"><h3>🕘 Versionsverlauf – ${esc(_editing.dokumentName || 'Dokument')}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
+    <div class="modal-header"><h3>🕘 Versionsverlauf: ${esc(_editing.dokumentName || 'Dokument')}</h3><button class="modal-close" onclick="pickerClose()">×</button></div>
     <div class="modal-body" id="ver-body"><div class="doc-loading">Versionen werden geladen …</div></div>
     <div class="modal-footer">
       ${_editing.dokumentUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(_editing.dokumentUrl))}" target="_blank" rel="noopener">In SharePoint öffnen</a>` : ''}
@@ -799,7 +799,7 @@ function renderPolicyEditor() {
           </select>
           <span class="field-hint">${p.regelwerkTyp && _artHinweis(p.regelwerkTyp)
             ? esc(_artHinweis(p.regelwerkTyp))
-            : 'Ebene der Regelwerkspyramide – gepflegt in der <b>Governance-Struktur</b>.'}</span>
+            : 'Ebene der Regelwerkspyramide, gepflegt in der <b>Governance-Struktur</b>.'}</span>
         </div>
         <div class="form-group">
           <label>Kategorie</label>
@@ -836,13 +836,13 @@ function renderPolicyEditor() {
             ${p.dokumentDriveId && p.dokumentItemId ? `
             <div class="doc-actions-grp">
               <span class="doc-actions-lbl">Bearbeiten</span>
-              ${officeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()" title="In der Desktop-Office-App öffnen – beim Speichern legt SharePoint automatisch eine neue Version an">✏️ In Office</button>` : ''}
-              <button class="btn btn-outline btn-sm" onclick="policyEditWeb()" title="In Office für das Web öffnen – beim Speichern neue Version">🌐 Im Browser</button>
+              ${officeScheme(p.dokumentName) ? `<button class="btn btn-primary btn-sm" onclick="policyEditOffice()" title="In der Desktop-Office-App öffnen. Beim Speichern legt SharePoint automatisch eine neue Version an">✏️ In Office</button>` : ''}
+              <button class="btn btn-outline btn-sm" onclick="policyEditWeb()" title="In Office für das Web öffnen. Beim Speichern entsteht eine neue Version">🌐 Im Browser</button>
               <button class="btn btn-outline btn-sm" onclick="openDocVersions()" title="Versionsverlauf ansehen">🕘 Versionen</button>
             </div>` : ''}
             <input type="file" id="ed-upload-input" accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.odt" style="display:none" onchange="uploadPolicyDocFromEditor(this.files[0]); this.value='';">
           </div>
-          <span class="field-hint">„In Office"/„Im Browser" öffnet die zugeordnete Datei direkt zum Bearbeiten – beim Speichern legt SharePoint automatisch eine neue Version an. „Hochladen" öffnet einen Zielordner-Wähler (bei zugeordnetem Dokument auch als neue Version am selben Ort). Versionsverlauf über „🕘 Versionen".</span>
+          <span class="field-hint">„In Office"/„Im Browser" öffnet die zugeordnete Datei direkt zum Bearbeiten. Beim Speichern legt SharePoint automatisch eine neue Version an. „Hochladen" öffnet einen Zielordner-Wähler (bei zugeordnetem Dokument auch als neue Version am selben Ort). Versionsverlauf über „🕘 Versionen".</span>
         </div>
         <div class="form-group">
           <label class="ack-check" style="font-weight:600"><input type="checkbox" ${p.pflicht ? 'checked' : ''} onchange="_editing.pflicht=this.checked"> Pflichtlektüre</label>
@@ -881,7 +881,7 @@ function renderPolicyEditor() {
     </div>
     <div class="modal-footer">
       ${(typeof canWriteTab === 'function' && !canWriteTab('verwaltung'))
-        ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff – Änderungen können nicht gespeichert werden.</span>
+        ? `<span class="field-hint" style="margin-right:auto">👁 Nur Lesezugriff. Änderungen können nicht gespeichert werden.</span>
            <button class="btn btn-outline" onclick="closeModal()">Schließen</button>`
         : `${p.id ? (darfGeloeschtWerden(p)
              ? `<button class="btn btn-danger btn-sm" onclick="deletePolicyConfirm(${jsArg(p.id)})" style="margin-right:auto">Löschen</button>`
@@ -913,14 +913,14 @@ function renderVideoEditorSection() {
         <button class="btn btn-ghost btn-sm" onclick="vidAdd()">+ Video</button>
       </div>
       <div class="field-hint" style="margin-bottom:10px">
-        Videos erscheinen bei den Mitarbeitenden direkt unter dem Dokument – vor dem Wissenstest.
+        Videos erscheinen bei den Mitarbeitenden direkt unter dem Dokument, vor dem Wissenstest.
         Am einfachsten in Stream/SharePoint auf <b>Teilen → Einbetten</b> klicken und den Code hier
         einfügen; die App holt sich die Adresse heraus. Eine normale Video-Adresse geht auch
         (YouTube und Vimeo werden ebenfalls direkt abgespielt), sonst öffnet ein Knopf das Video
-        in einem neuen Tab. Rechte am Video vergibt SharePoint – wer es nicht sehen darf, sieht es
+        in einem neuen Tab. Rechte am Video vergibt SharePoint. Wer es nicht sehen darf, sieht es
         auch hier nicht.
         <br><b>Fremdes Material braucht eine Quelle.</b> Bei Videos von YouTube, Vimeo oder anderen
-        externen Anbietern ist die Quellenangabe Pflicht – sie steht später unter dem Video.
+        externen Anbietern ist die Quellenangabe Pflicht, sie steht später unter dem Video.
       </div>
       <div id="vid-list">${renderVideoItems()}</div>
     </div>`;
@@ -961,7 +961,7 @@ function renderVideoItems() {
             style="${quelleFehlt ? 'border-color:#f59e0b' : ''}">
         </div>
         ${status}${quelleFehlt
-          ? `<div class="field-hint" style="color:#b45309">⚠ Fremdes Material (${esc(herkunft.dienst)}) – bitte die Quelle angeben.
+          ? `<div class="field-hint" style="color:#b45309">⚠ Fremdes Material (${esc(herkunft.dienst)}): bitte die Quelle angeben.
              Ohne sie lässt sich das Regelwerk nicht speichern.</div>`
           : (v.quelle ? `<div class="field-hint">Quelle: ${esc(v.quelle)}</div>` : '')}
       </div>`;
@@ -1085,7 +1085,7 @@ function renderNormbezugSection() {
         ${_editing.normbezug.length ? `<button class="btn btn-ghost btn-sm" onclick="nbClear()">Leeren</button>` : ''}
       </div>
       <div id="nb-body" style="${open ? '' : 'display:none'}">
-        <div class="field-hint" style="margin-bottom:8px">Welche Anforderungen dieses Regelwerk abdeckt – ISO 27001 (Klauseln, Annex A), NIS2, Datenschutz, KI-Verordnung, Lieferkette, Hinweisgeberschutz, Arbeits- und Umweltschutz, Recht und IKS. Grundlage für die IMS-Abdeckungs-Heatmap.</div>
+        <div class="field-hint" style="margin-bottom:8px">Welche Anforderungen dieses Regelwerk abdeckt: ISO 27001 (Klauseln, Annex A), NIS2, Datenschutz, KI-Verordnung, Lieferkette, Hinweisgeberschutz, Arbeits- und Umweltschutz, Recht und IKS. Grundlage für die IMS-Abdeckungs-Heatmap.</div>
         <input type="text" id="nb-filter" placeholder="Filtern (z. B. „A.8", „Audit", „Krypto") …" oninput="nbRenderList()"
           style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:8px 11px;font-size:.85rem;font-family:inherit;margin-bottom:8px">
         <div id="nb-list" style="max-height:320px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px">${nbListHtml('')}</div>
@@ -1177,7 +1177,7 @@ function renderWorkflowSections() {
   return `
     <div style="margin-top:16px">
       <div style="font-weight:700;font-size:.78rem;color:var(--c-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Freigabe-Workflow</div>
-      <div class="field-hint" style="margin-bottom:4px">Abschnitte per Klick auf die Kopfzeile aus-/einklappen. Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> mit ▲▼ tauschen – gilt nur für dieses Regelwerk.</div>
+      <div class="field-hint" style="margin-bottom:4px">Abschnitte per Klick auf die Kopfzeile aus-/einklappen. Reihenfolge von <b>Freigabe</b> und <b>Mitbestimmung</b> mit ▲▼ tauschen, gilt nur für dieses Regelwerk.</div>
       ${_edCollapsible('pruef', 'Konformitätsprüfung', _edPruefBadge(), renderPruefKonfigInner(), '')}
       ${order.map(k => blocks[k]).join('')}
     </div>`;
@@ -1326,7 +1326,7 @@ function renderMitbestimmungInner() {
     <div class="field-hint" style="margin-bottom:10px">Ist die Mitbestimmung betroffen, wird das Regelwerk beim Einreichen zur Konformitätsprüfung zusätzlich zur Prüfung an den Konzernbetriebsrat bzw. die Betriebsräte der gewählten Werke gesendet (Mailadressen unter <b>Einstellungen → Mitbestimmung</b>).</div>
     <label class="ack-check" style="font-weight:600;margin-bottom:8px">
       <input type="checkbox" ${p.kbrBetroffen ? 'checked' : ''} onchange="_editing.kbrBetroffen=this.checked;renderPolicyEditor()">
-      <span>Konzernbetriebsrat (KBR) betroffen${!kbrHinterlegt ? ' <span style="color:#b45309;font-weight:600">– keine KBR-Mail hinterlegt</span>' : ''}</span>
+      <span>Konzernbetriebsrat (KBR) betroffen${!kbrHinterlegt ? ' <span style="color:#b45309;font-weight:600">(keine KBR-Mail hinterlegt)</span>' : ''}</span>
     </label>
     <div style="font-weight:500;font-size:.82rem;margin:8px 0 6px">Betroffene Betriebsräte (Werke)</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:2px 12px">
@@ -1349,7 +1349,7 @@ function mitEditorToggleWerk(code, on) {
 
 async function savePolicy(newStatus) {
   if (typeof canWriteTab === 'function' && !canWriteTab('verwaltung')) {
-    toast('Nur Lesezugriff auf „Richtlinien Dashboard" – Speichern nicht möglich.', 'error'); return;
+    toast('Nur Lesezugriff auf „Richtlinien Dashboard". Speichern nicht möglich.', 'error'); return;
   }
   const p = _editing;
   if (!p.title.trim()) { toast('Bitte einen Titel angeben.', 'error'); return; }
@@ -1401,7 +1401,7 @@ async function savePolicy(newStatus) {
   else if (aenderungen.length) historieAdd(p, 'Bearbeitet', aenderungen.join('\n'));
   if (newStatus === 'Konformitätsprüfung') {
     historieAdd(p, 'Zur Konformitätsprüfung eingereicht',
-      alt && alt.status === 'Konformitätsprüfung' ? 'Erneut eingereicht – bisherige Prüfvoten zurückgesetzt.' : '');
+      alt && alt.status === 'Konformitätsprüfung' ? 'Erneut eingereicht, bisherige Prüfvoten zurückgesetzt.' : '');
   }
 
   try {
@@ -1457,7 +1457,7 @@ function deletePolicyConfirm(id) {
         <button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
       <div class="modal-body">
         <div class="pl-warnung"><b>„${esc(p.title || '')}" trägt bereits einen Nachweis.</b>
-          Würde es gelöscht, blieben Bestätigungen ohne zugehöriges Regelwerk zurück –
+          Würde es gelöscht, blieben Bestätigungen ohne zugehöriges Regelwerk zurück,
           im Audit eine Lücke, die sich nicht mehr schließen lässt.</div>
         ${gruende.length ? `<p style="margin:14px 0 0;font-size:.87rem;line-height:1.7">Vorhanden:
           ${gruende.join(' · ')}</p>` : ''}
@@ -1476,7 +1476,7 @@ function deletePolicyConfirm(id) {
   openModal(`
     <div class="modal-header"><h3>Regelwerk löschen</h3><button class="modal-close" onclick="renderPolicyEditor()">×</button></div>
     <div class="modal-body"><p style="font-size:.9rem;line-height:1.5">„${esc(p?.title || '')}" wirklich löschen?
-      Es ist ein Entwurf ohne Prüfung, Freigabe oder Kenntnisnahme – es geht kein Nachweis verloren.</p></div>
+      Es ist ein Entwurf ohne Prüfung, Freigabe oder Kenntnisnahme, es geht kein Nachweis verloren.</p></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="renderPolicyEditor()">Abbrechen</button>
       <button class="btn btn-danger" onclick="doDeletePolicy(${jsArg(id)})">Endgültig löschen</button>
@@ -1600,7 +1600,7 @@ function dpSelect(idx) {
   const it = _dpState.items && _dpState.items[idx];
   dbg('dpSelect: idx=' + idx + ' datei=' + (it ? it.name : 'NULL') + ' editorAktiv=' + !!_editing);
   if (!it) { toast('Auswahl fehlgeschlagen (Dokument nicht gefunden).', 'error'); return; }
-  if (!_editing) { toast('Editor nicht aktiv – bitte Richtlinie erneut öffnen.', 'error'); return; }
+  if (!_editing) { toast('Editor nicht aktiv. Bitte Richtlinie erneut öffnen.', 'error'); return; }
   _editing.dokumentDriveId = _dpState.driveId;
   _editing.dokumentItemId  = it.id;
   _editing.dokumentName    = it.name;
@@ -1632,7 +1632,7 @@ function _mitMailHtml(p, label, attachmentName) {
     ? `&t=${encodeURIComponent(p.aktionToken.wert)}` : '';
   const mbBtn = (a, farbe, label) => mailBtn(url + '&aktion=' + a + tok, farbe, label);
   return mailRumpf(`
-    <p><b>Mitbestimmung – Prüfung einer Richtlinie</b></p>
+    <p><b>Mitbestimmung: Prüfung einer Richtlinie</b></p>
     <p>Empfänger: <b>${esc(label)}</b></p>
     <p>Die folgende Richtlinie wird im Rahmen der betrieblichen Mitbestimmung zur Prüfung übermittelt:</p>
     <p style="font-size:16px"><a href="${esc(sichereUrl(url))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(p.title)}</a> (Version ${esc(p.version)}${p.kategorie ? ', ' + esc(p.kategorie) : ''})</p>
@@ -1642,11 +1642,11 @@ function _mitMailHtml(p, label, attachmentName) {
     ${p.beschreibung ? `<p style="color:#374151">${esc(p.beschreibung)}</p>` : ''}
     ${attachmentName
       ? `<p>📎 Das Regelwerkdokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>`
-      : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar) – bitte bei der ISMS-Stelle anfordern.</p>`}
+      : `<p style="color:#b45309">Hinweis: Das Dokument konnte nicht automatisch angehängt werden (zu groß oder nicht verfügbar). Bitte bei der ISMS-Stelle anfordern.</p>`}
     ${(typeof _wfApprovalsHtml === 'function') ? _wfApprovalsHtml(p) : ''}
-    <p style="margin-top:18px"><b>Rückmeldung – ein Klick genügt:</b></p>
+    <p style="margin-top:18px"><b>Rückmeldung, ein Klick genügt:</b></p>
     <p>${mbBtn('mb_konform', MAIL_FARBE.ja, '✓ Konform')}${mbBtn('mb_nicht_konform', MAIL_FARBE.nein, '✗ Nicht konform')}</p>
-    <p style="color:#6b7280;font-size:13px">Bei <b>„Nicht konform"</b> fragt die Seite nach der Begründung – ohne sie
+    <p style="color:#6b7280;font-size:13px">Bei <b>„Nicht konform"</b> fragt die Seite nach der Begründung. Ohne sie
     wird nichts gespeichert. Die Entscheidung wird unter Ihrem Namen protokolliert; angemeldet werden Sie
     dabei mit Ihrem DIHAG-Konto.</p>
     ${mailFuss(`Automatische Nachricht vom DIHAG Regelwerk-Management-System.`)}
@@ -1727,7 +1727,7 @@ function renderFreigabeAudit() {
 
   body.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      Lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat – über alle Richtlinien (auch archivierte), neueste zuerst.
+      Lückenloser Nachweis <b>wer wann was</b> geprüft und freigegeben hat, über alle Richtlinien (auch archivierte), neueste zuerst.
       <b>${rows.length}</b> Ereignis(se).
     </div>
     <div class="card">
@@ -1886,7 +1886,7 @@ function renderComplianceDetail() {
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn btn-outline btn-sm" onclick="remindOpenForCurrent()">⏰ Offene erinnern</button>
           <button class="btn btn-outline btn-sm" onclick="zielgruppeInformierenAktuell()"
-            title="Bekanntgabe an den Verteiler der Zielgruppe – auch nachträglich oder erneut">📣 Zielgruppe informieren</button>
+            title="Bekanntgabe an den Verteiler der Zielgruppe, auch nachträglich oder erneut">📣 Zielgruppe informieren</button>
           <span class="quote-pill ${qCls}">${quote}% erfüllt</span>
         </div>
       </div>
@@ -1929,7 +1929,7 @@ async function remindOpenForCurrent() {
   const probelauf = typeof istProbelaufEintrag === 'function' && istProbelaufEintrag(p);
   const offene = probelauf ? [State.user.upn]
     : [...new Set(rows.filter(r => r.st !== 'abgeschlossen').map(r => r.upn))];
-  if (!offene.length) { toast('Keine offenen Mitarbeiter – nichts zu erinnern.', 'success'); return; }
+  if (!offene.length) { toast('Keine offenen Mitarbeiter, nichts zu erinnern.', 'success'); return; }
   if (!await uiConfirm(probelauf
     ? `Probelauf: Die Erinnerung zu „${p.title}" geht nur an Sie (${State.user.upn}), nicht an die Mitarbeitenden.`
     : `Erinnerungs-Mail an ${offene.length} Mitarbeiter zu „${p.title}" senden?`, { title: 'Erinnerung senden', okLabel: 'Senden' })) return;
@@ -2016,7 +2016,7 @@ async function loadAdDepartments() {
     const depts = Object.keys(byDept).sort((a, b) => a.localeCompare(b, 'de'));
     AdminState.lastDepts = depts;
     if (!depts.length) {
-      host.innerHTML = `<div class="col-warning" style="display:block;margin:0">Im Azure-AD ist bei allen ${members.length} Mitarbeitern das Feld „Abteilung" leer. Automatische Zuordnung greift daher nicht — pflege die Abteilung in den AD-Profilen oder nutze die manuelle Zuordnung unten.</div>`;
+      host.innerHTML = `<div class="col-warning" style="display:block;margin:0">Im Azure-AD ist bei allen ${members.length} Mitarbeitern das Feld „Abteilung" leer. Automatische Zuordnung greift daher nicht. Pflegen Sie die Abteilung in den AD-Profilen oder nutzen Sie die manuelle Zuordnung unten.</div>`;
       return;
     }
     host.innerHTML = depts.map((d, i) => {

@@ -138,9 +138,9 @@ function renderVorfaelle() {
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
-      Aus dem <b>Ticketsystem</b> (Liste „Tickets"), was Informationssicherheit ist – über die Kategorie${kats.length ? `: <b>${kats.map(esc).join(', ')}</b>` : ' <i>(Muster – die Kategorien lassen sich in den Einstellungen festlegen)</i>'}.
+      Aus dem <b>Ticketsystem</b> (Liste „Tickets"), was Informationssicherheit ist, über die Kategorie${kats.length ? `: <b>${kats.map(esc).join(', ')}</b>` : ' <i>(Muster, die Kategorien lassen sich in den Einstellungen festlegen)</i>'}.
       Das Ticket bleibt dort; hier steht, was das ISMS darüber legt: <b>Beurteilung</b> (A.5.25: Ereignis oder Vorfall), <b>Erheblichkeit und Fristen</b> (NIS2 Art. 23: 24 h · 72 h · 1 Monat; DSGVO Art. 33: 72 h),
-      <b>Eskalationsstufe</b> (Krisenstab), <b>Ursache, Lehren, Beweise</b> (A.5.26–A.5.28) und die <b>Korrekturmaßnahme</b> im Wirksamkeits-Register.
+      <b>Eskalationsstufe</b> (Krisenstab), <b>Ursache, Lehren, Beweise</b> (A.5.26 bis A.5.28) und die <b>Korrekturmaßnahme</b> im Wirksamkeits-Register.
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi(z.offeneIncidents, 'Vorfälle / Ereignisse offen', z.offeneIncidents ? '#b45309' : '#15803d')}
@@ -150,7 +150,7 @@ function renderVorfaelle() {
       ${kpi(z.letzte12Monate, 'Meldungen in 12 Monaten', '#17509e')}
       ${kpi(z.dauerMittelTage === null ? '–' : z.dauerMittelTage + ' T', 'Ø Bearbeitungsdauer', '#17509e')}
     </div>
-    ${z.offenListe.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Was drängt:</b> ${z.offenListe.slice(0, 5).map(o => `<a href="#" onclick="openVorfall(${jsArg(o.id)});return false" style="color:inherit">#${esc(o.id)} ${esc(o.titel)}</a> – ${esc(o.fehler[0])}`).join(' · ')}${z.offenListe.length > 5 ? ` · +${z.offenListe.length - 5}` : ''}</div>` : ''}
+    ${z.offenListe.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Was drängt:</b> ${z.offenListe.slice(0, 5).map(o => `<a href="#" onclick="openVorfall(${jsArg(o.id)});return false" style="color:inherit">#${esc(o.id)} ${esc(o.titel)}</a>: ${esc(o.fehler[0])}`).join(' · ')}${z.offenListe.length > 5 ? ` · +${z.offenListe.length - 5}` : ''}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
       <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_vfFilter.q)}" oninput="_vfFilter.q=this.value;renderVorfaelle()" style="width:200px">
       <select class="sort-select" onchange="_vfFilter.werk=this.value;renderVorfaelle()"><option value="">alle Werke</option>${werke.filter(w => !sichtbar || sichtbar.includes(w)).map(w => `<option value="${esc(w)}"${_vfFilter.werk === w ? ' selected' : ''}>${esc(w)}</option>`).join('')}</select>
@@ -160,14 +160,14 @@ function renderVorfaelle() {
       <a href="${esc(sichereUrl((typeof spTicketListUrl === 'function') ? spTicketListUrl() : '#'))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Die Liste im Ticketsystem">↗ Ticketsystem</a>
       <span class="field-hint">${sicher.length} von ${(_vf.tickets || []).length} Tickets der letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate</span>
     </div>
-    ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b> – Beurteilungen kann hier niemand eintragen.</div>'}
-    ${sek('incident', 'Vorfälle &amp; Ereignisse', 'ISO 27001 A.5.24–A.5.28 · NIS2 Art. 23',
+    ${canWrite ? '' : '<div class="col-warning" style="display:block;margin-bottom:12px">👁 <b>Nur-Lese-Zugriff</b>. Beurteilungen kann hier niemand eintragen.</div>'}
+    ${sek('incident', 'Vorfälle &amp; Ereignisse', 'ISO 27001 A.5.24 bis A.5.28 · NIS2 Art. 23',
       tabelle(incidents, '<th>Beurteilung</th><th>Fristen</th><th>Lücken</th>', incZeile, 'Keine Tickets dieser Art in der Auswahl.'))}
-    ${sek('change', 'Änderungen mit Sicherheitsbezug', 'ISO 27001 A.8.32 – geplant, geprüft, freigegeben, dokumentiert',
+    ${sek('change', 'Änderungen mit Sicherheitsbezug', 'ISO 27001 A.8.32: geplant, geprüft, freigegeben, dokumentiert',
       tabelle(changes, '', null, 'Keine Änderungen in der Auswahl.'))}
-    ${sek('doku', 'Dokumentation', 'ISO 27001 A.5.37 – dokumentierte Betriebsabläufe',
+    ${sek('doku', 'Dokumentation', 'ISO 27001 A.5.37: dokumentierte Betriebsabläufe',
       tabelle(dokus, '', null, 'Keine Dokumentationsaufträge in der Auswahl.'))}
-    ${sonstige.length ? sek('', 'Ohne erkannte Art', 'Die Art des Tickets ist keiner Gruppe zugeordnet – in den Einstellungen zuordnen', tabelle(sonstige, '', null, '')) : ''}`;
+    ${sonstige.length ? sek('', 'Ohne erkannte Art', 'Die Art des Tickets ist keiner Gruppe zugeordnet. In den Einstellungen zuordnen', tabelle(sonstige, '', null, '')) : ''}`;
 }
 
 /* ── Der Dialog: das Ticket und seine Beurteilung ── */
@@ -197,7 +197,7 @@ function _vfLueckenHtml() {
 function _vfFristenBlock() {
   const { ticket, bewertung: b } = _vfEditing;
   const ro = vfDarfSchreiben() ? '' : ' disabled';
-  if (b.einstufung !== 'vorfall') return '<div class="field-hint">Fristen laufen erst, wenn es ein Sicherheitsvorfall ist – und bei „erheblich" (NIS2) oder Personendaten (DSGVO).</div>';
+  if (b.einstufung !== 'vorfall') return '<div class="field-hint">Fristen laufen erst, wenn es ein Sicherheitsvorfall ist, und bei „erheblich" (NIS2) oder Personendaten (DSGVO).</div>';
   const fr = vfFristen(ticket, b, _vfJetzt());
   if (!fr.length) return '<div class="field-hint">Nicht erheblich, keine Personendaten: keine Meldepflicht. Bleibt die Entscheidung offen, gilt sie als Lücke.</div>';
   return `<table class="tbl" style="font-size:.8rem"><thead><tr><th>Frist</th><th>Fällig</th><th>Erledigt am</th><th>Stand</th></tr></thead><tbody>${fr.map(x => `<tr>
@@ -221,11 +221,11 @@ function renderVorfallEditor() {
       <div><span class="field-hint">Bearbeitung</span><br>${esc(t.zugewiesen || '–')}${!t.offen ? `<br><span class="field-hint">erledigt ${_vfDt(t.abgeschlossen || t.geaendert)}</span>` : ''}</div>
     </div>
     ${t.beschreibung ? `<div style="font-size:.85rem;white-space:pre-wrap;max-height:140px;overflow:auto;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:var(--c-surface,#fff)">${esc(t.beschreibung)}</div>` : ''}
-    <div style="margin-top:6px"><a href="${esc(sichereUrl(t.url))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Im Ticketsystem öffnen ↗</a> <span class="field-hint">Bearbeitet wird dort – Kommentare, Anhänge, Status.</span></div>`;
+    <div style="margin-top:6px"><a href="${esc(sichereUrl(t.url))}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Im Ticketsystem öffnen ↗</a> <span class="field-hint">Bearbeitet wird dort: Kommentare, Anhänge, Status.</span></div>`;
 
   const bewertung = t.art !== 'incident' ? '' : `
       <div id="vf-luecken" style="margin:12px 0">${_vfLueckenHtml()}</div>
-      <div style="font-weight:700;font-size:.9rem;margin:0 0 6px">Beurteilung <span class="field-hint" style="font-weight:400">A.5.25 – Ereignis oder Sicherheitsvorfall?</span></div>
+      <div style="font-weight:700;font-size:.9rem;margin:0 0 6px">Beurteilung <span class="field-hint" style="font-weight:400">A.5.25: Ereignis oder Sicherheitsvorfall?</span></div>
       <div class="form-grid">
         <div class="form-group"><label>Einstufung</label>
           <select onchange="vfSet('einstufung',this.value)"${ro}>${VF_EINSTUFUNG.map(e => `<option value="${esc(e.key)}"${b.einstufung === e.key ? ' selected' : ''}>${esc(e.label)}</option>`).join('')}</select>
@@ -237,18 +237,18 @@ function renderVorfallEditor() {
           <input type="datetime-local" value="${esc(_vfLokal(b.kenntnisAm || t.erstellt))}" onchange="vfSet('kenntnisAm',this.value?new Date(this.value).toISOString():'')"${ro}>
           <span class="field-hint">Ab hier laufen die Fristen. Vorbelegt mit der Meldung des Tickets.</span></div>
         <div class="form-group"><label>Erheblich (NIS2 Art. 23)</label>
-          <select onchange="vfSetErheblich(this.value)"${ro}><option value=""${b.erheblich === null ? ' selected' : ''}>– nicht entschieden –</option><option value="ja"${b.erheblich === true ? ' selected' : ''}>ja – meldepflichtig</option><option value="nein"${b.erheblich === false ? ' selected' : ''}>nein</option></select>
+          <select onchange="vfSetErheblich(this.value)"${ro}><option value=""${b.erheblich === null ? ' selected' : ''}>– nicht entschieden –</option><option value="ja"${b.erheblich === true ? ' selected' : ''}>ja, meldepflichtig</option><option value="nein"${b.erheblich === false ? ' selected' : ''}>nein</option></select>
           <span class="field-hint">Erheblich: schwere Betriebsstörung oder finanzieller Verlust, oder erheblicher Schaden für andere. Dann Frühwarnung binnen 24 h.</span></div>
-        <div class="form-group full"><label class="ack-check" style="font-weight:500"><input type="checkbox" ${b.personendaten ? 'checked' : ''} onchange="vfSet('personendaten',this.checked)"${ro}> Personenbezogene Daten betroffen – DSGVO Art. 33, Meldung binnen 72 h</label></div>
+        <div class="form-group full"><label class="ack-check" style="font-weight:500"><input type="checkbox" ${b.personendaten ? 'checked' : ''} onchange="vfSet('personendaten',this.checked)"${ro}> Personenbezogene Daten betroffen (DSGVO Art. 33, Meldung binnen 72 h)</label></div>
       </div>
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Meldungen</div>
       <div id="vf-fristen">${_vfFristenBlock()}</div>
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Reaktion und Lehren <span class="field-hint" style="font-weight:400">A.5.26 · A.5.27</span></div>
       <div class="form-grid">
-        <div class="form-group full"><label>Ursache</label><textarea oninput="vfSet('ursache',this.value)" placeholder="Was ist tatsächlich passiert – technisch, organisatorisch, menschlich?"${ro}>${esc(b.ursache)}</textarea></div>
+        <div class="form-group full"><label>Ursache</label><textarea oninput="vfSet('ursache',this.value)" placeholder="Was ist passiert: technisch, organisatorisch, menschlich?"${ro}>${esc(b.ursache)}</textarea></div>
         <div class="form-group full"><label>Reaktion / Eindämmung</label><textarea oninput="vfSet('reaktion',this.value)" placeholder="Was wurde sofort getan, um den Schaden zu begrenzen?"${ro}>${esc(b.reaktion)}</textarea></div>
         <div class="form-group full"><label>Lessons learned</label><textarea oninput="vfSet('lessons',this.value)" placeholder="Was verhindert die Wiederholung? Auch: „nichts nötig, weil …"${ro}>${esc(b.lessons)}</textarea></div>
-        <div class="form-group full"><label>Beweismittel <span class="field-hint" style="font-weight:400">A.5.28</span></label><input type="text" value="${esc(b.beweise)}" oninput="vfSet('beweise',this.value)" placeholder="Logs, Screenshots, Forensik-Bericht – wo liegen sie, wer hat sie gesichert?"${ro}></div>
+        <div class="form-group full"><label>Beweismittel <span class="field-hint" style="font-weight:400">A.5.28</span></label><input type="text" value="${esc(b.beweise)}" oninput="vfSet('beweise',this.value)" placeholder="Logs, Screenshots, Forensik-Bericht: Wo liegen sie, wer hat sie gesichert?"${ro}></div>
       </div>
       <div style="font-weight:700;font-size:.9rem;margin:14px 0 6px">Korrekturmaßnahmen <span class="field-hint" style="font-weight:400">Wirksamkeits-Register, ISO 27001 10.2</span></div>
       <div style="font-size:.85rem">${massnahmen.length ? massnahmen.map(m => `<div>⚠️ <b>${esc(m.titel)}</b> <span class="field-hint">${esc(m.status)}${m.verantwortlich ? ' · ' + esc(m.verantwortlich) : ''}</span></div>`).join('') : '<span class="field-hint">Noch keine Maßnahme zu diesem Ticket.</span>'}
@@ -259,7 +259,7 @@ function renderVorfallEditor() {
     <div class="modal-header"><h3>${VF_ARTEN[t.art] ? VF_ARTEN[t.art].icon + ' ' : '🎫 '}#${esc(t.id)} ${esc(t.titel)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">${kopf}${bewertung}</div>
     <div class="modal-footer">
-      ${t.art === 'incident' ? `<button class="btn btn-ghost btn-sm" onclick="vfAkteDrucken()" title="Die Vorfallakte als PDF – der Nachweis nach A.5.28">🖨 Vorfallakte</button>` : ''}
+      ${t.art === 'incident' ? `<button class="btn btn-ghost btn-sm" onclick="vfAkteDrucken()" title="Die Vorfallakte als PDF, der Nachweis nach A.5.28">🖨 Vorfallakte</button>` : ''}
       <div style="flex:1"></div>
       ${canWrite && t.art === 'incident' ? `<button class="btn btn-primary" id="vf-save-btn" onclick="saveVorfall()">Beurteilung speichern</button>` : ''}
       <button class="btn btn-ghost" onclick="closeModal()">Schließen</button>
@@ -280,7 +280,7 @@ async function saveVorfall() {
     closeModal(); _vfEditing = null;
     renderVorfaelle();
     const l = vfLuecken(t, b, { jetzt: _vfJetzt(), massnahmen: _vfMassnahmen || [] });
-    toast(l.fehler.length ? `Gespeichert – ${l.fehler.length} Lücke(n) bleiben` : 'Beurteilung gespeichert ✓', 'success');
+    toast(l.fehler.length ? `Gespeichert, ${l.fehler.length} Lücke(n) bleiben` : 'Beurteilung gespeichert ✓', 'success');
   } catch (e) {
     b.historie.pop();
     if (btn) { btn.disabled = false; btn.textContent = 'Beurteilung speichern'; }
@@ -303,6 +303,6 @@ function vfAkteDrucken() {
   const { ticket, bewertung } = _vfEditing;
   const html = vfBerichtHtml({ ticket, bewertung, massnahmen: _vfMassnahmen || [], jetzt: _vfJetzt(), kopf: druckKopf() });
   const w = window.open('', '_blank');
-  if (!w) { toast('Pop-up blockiert – bitte für diese Seite erlauben.', 'error'); return; }
+  if (!w) { toast('Pop-up blockiert. Bitte für diese Seite erlauben.', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }

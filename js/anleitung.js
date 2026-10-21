@@ -42,8 +42,8 @@ function anleitungHtml() {
     <div class="view-header" style="margin-bottom:18px">
       <h2>Anleitung &amp; Kurz-Schulung</h2>
       <p class="view-desc">In wenigen Minuten erklärt, wie das Regelwerk-Management und das
-        integrierte KI-Dashboard genutzt werden. Suchen Sie sich den Abschnitt, der zu Ihrer Rolle passt –
-        welche Bereiche sichtbar sind, hängt von Ihren Rechten ab.</p>
+        integrierte KI-Dashboard genutzt werden. Suchen Sie sich den Abschnitt, der zu Ihrer Rolle passt.
+        Welche Bereiche sichtbar sind, hängt von Ihren Rechten ab.</p>
     </div>
 
     <!-- Einstieg: Probelauf mit echtem Vorgang (nur für Freigeschaltete) -->
@@ -52,10 +52,10 @@ function anleitungHtml() {
       padding:18px 22px;margin:0 0 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <div style="font-size:1.8rem;line-height:1">🧪</div>
       <div style="flex:1;min-width:240px">
-        <div style="font-weight:800;color:#b45309;margin-bottom:3px">Probelauf – ein echter Vorgang</div>
+        <div style="font-weight:800;color:#b45309;margin-bottom:3px">Probelauf: ein echter Vorgang</div>
         <div style="color:var(--c-text);line-height:1.55;font-size:.9rem">Derselbe Weg, aber nicht
           nachgestellt: Der Probelauf legt einen <b>echten</b> Vorgang an und schickt <b>echte</b>
-          E-Mails an die hinterlegten Empfänger – mit Dokument im Anhang und Fundstelle in SharePoint.
+          E-Mails an die hinterlegten Empfänger, mit Dokument im Anhang und Fundstelle in SharePoint.
           So sieht man, was im Betrieb tatsächlich passiert, und prüft die Kette gleich mit.
           Alles trägt <b>[Probelauf]</b> im Titel und lässt sich hinterher auf einen Klick wieder löschen.</div>
         <div class="field-hint" style="margin-top:5px">Nur für freigeschaltete Personen
@@ -72,7 +72,7 @@ function anleitungHtml() {
           <div style="color:var(--c-muted);line-height:1.55">
             Aufruf über <a href="https://rms.dihag.de/"
               style="color:var(--c-primary);font-weight:600">rms.dihag.de</a>.
-            Anmeldung mit dem normalen DIHAG-Microsoft-Konto – einmal anmelden genügt, das KI-Dashboard
+            Anmeldung mit dem normalen DIHAG-Microsoft-Konto. Einmal anmelden genügt, das KI-Dashboard
             nutzt dieselbe Anmeldung. Bei Problemen Seite neu laden oder „Erneut versuchen“ klicken.
           </div>
         </div>
@@ -82,7 +82,7 @@ function anleitungHtml() {
     ${_aCard(`
       <h2 style="${h2}">1. Regelwerke lesen &amp; bestätigen ${_aBadge('Für alle', 'all')}</h2>
       <ol style="padding-left:20px;margin:10px 0 0;color:var(--c-text)">
-        <li style="${liStyle}">Reiter <b>„Meine Regelwerke“</b> öffnen – oben sehen Sie Ihre Quote
+        <li style="${liStyle}">Reiter <b>„Meine Regelwerke“</b> öffnen. Oben sehen Sie Ihre Quote
           (zugewiesen / offen / abgeschlossen).</li>
         <li style="${liStyle}">Eine Regelwerk anklicken → das Dokument wird angezeigt.</li>
         <li style="${liStyle}"><b>Kenntnisnahme:</b> kurz lesen, dann „Ich habe gelesen und verstanden“
@@ -94,7 +94,7 @@ function anleitungHtml() {
           selbst senden.</li>
       </ol>
       <div style="margin-top:12px;font-size:.85rem;color:var(--c-muted)">
-        ℹ️ Manche Regelwerke müssen <b>regelmäßig</b> erneut bestätigt werden – sie tauchen dann
+        ℹ️ Manche Regelwerke müssen <b>regelmäßig</b> erneut bestätigt werden. Sie tauchen dann
         automatisch wieder als „offen“ auf.</div>
 
       <h3 style="${h3}">✏️ Eine Änderung vorschlagen</h3>
@@ -133,7 +133,7 @@ function anleitungHtml() {
       <p style="margin:0 0 8px;line-height:1.5;color:var(--c-muted)">Ablauf:
         <b>Entwurf → Konformitätsprüfung → Mitbestimmung (bei Betroffenheit) → Freigabe → Veröffentlicht.</b></p>
       <ul style="padding-left:20px;margin:0;color:var(--c-text)">
-        <li style="${liStyle}"><b>Prüfer:</b> „Konform“ oder „Nicht konform“ markieren – bei
+        <li style="${liStyle}"><b>Prüfer:</b> „Konform“ oder „Nicht konform“ markieren. Bei
           <i>„nicht konform“ ist eine Begründung Pflicht</i>.</li>
         <li style="${liStyle}"><b>Mitbestimmung:</b> Ist im Editor der Konzern-/Betriebsrat als betroffen
           markiert, geht die konforme Regelwerk (mit Dokument) automatisch an den zuständigen Betriebsrat.
@@ -153,7 +153,7 @@ function anleitungHtml() {
           <b>Geltungsbereich</b> (alle Standorte oder einzelne Werke), Zielgruppe (wer es sehen muss),
           Pflicht/optional, Wissenstest und das zugehörige <b>Dokument</b> festlegen.</li>
         <li style="${liStyle}"><b>Komplett neue</b> Regelwerke laufen zuerst als <b>💡 Konzept</b> an die
-          Geschäftsleitung – erst nach deren Zustimmung entsteht ein Entwurf.</li>
+          Geschäftsleitung. Erst nach deren Zustimmung entsteht ein Entwurf.</li>
         <li style="${liStyle}">„Zur Konformitätsprüfung“ startet den Freigabe-Workflow (siehe Abschnitt 3).</li>
         <li style="${liStyle}">Die <b>Änderungshistorie</b> im Editor zeigt, wer wann was geändert oder
           entschieden hat. Veröffentlichte Regelwerke lassen sich <b>archivieren</b> (bleiben für Audits erhalten).</li>
@@ -166,7 +166,7 @@ function anleitungHtml() {
           <b>Auf Konformität geprüft von</b>, <b>Freigabe Geschäftsleitung</b>, <b>Zuletzt angefasst</b>.
           <b>Vertraulichkeit</b> ist direkt in der Liste umstellbar; oben nach Stand filtern.</li>
         <li style="${liStyle}"><b>Status &amp; Freigabe</b> (Bearbeitungsstand, Auf Konformität geprüft von,
-          Freigabe Geschäftsleitung) sind <b>nur Anzeige</b> – das Panel zeigt den aktuellen Stand und
+          Freigabe Geschäftsleitung) sind <b>nur Anzeige</b>. Das Panel zeigt den aktuellen Stand und
           was noch offen ist. Gesetzt werden sie über den Freigabeprozess: Dokument unten per
           <b>„＋ Als Regelwerk übernehmen“</b> einbinden und im Reiter <b>„Freigaben“</b> prüfen/freigeben
           (die Felder werden dann automatisch zurückgeschrieben).</li>
@@ -174,7 +174,7 @@ function anleitungHtml() {
           darunter restliche Metadaten (inkl. <b>Owner</b>) bearbeiten. <b>„👁 Vorschau“</b> öffnet das
           Dokument <b>direkt in der App</b>, dazu Versionsverlauf.</li>
         <li style="${liStyle}"><b>„✏️ In Office bearbeiten“</b> (Desktop) oder <b>„🌐 Im Browser
-          bearbeiten“</b> (ohne installiertes Office) – beim Speichern entsteht automatisch eine
+          bearbeiten“</b> (ohne installiertes Office). Beim Speichern entsteht automatisch eine
           neue Version. Oder <b>„⬆ Neue Version“</b> → geänderte Datei hochladen mit
           Pflicht-<b>Änderungsnotiz</b>.</li>
         <li style="${liStyle}"><b>„＋ Als Regelwerk übernehmen“</b> macht aus einem ISMS-Dokument eine
@@ -200,7 +200,7 @@ function anleitungHtml() {
           nicht aktuell wirkt.</li>
         <li style="${liStyle}"><b>Mobil:</b> Über das Menü-Symbol oben links die Navigation ein-/ausblenden.</li>
         <li style="${liStyle}"><b>Schreibrechte:</b> Das Bearbeiten von ISMS-Dokumenten setzt
-          SharePoint-Schreibrechte auf der ISMS-Site voraus – fehlen sie, erscheint eine klare Meldung
+          SharePoint-Schreibrechte auf der ISMS-Site voraus. Fehlen sie, erscheint eine klare Meldung
           (Anzeige geht trotzdem).</li>
         <li style="${liStyle}"><b>Hilfe:</b> Bei Fehlern Seite neu laden; bleibt es bestehen, an die
           IT/Compliance wenden.</li>

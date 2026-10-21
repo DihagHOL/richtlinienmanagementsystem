@@ -87,14 +87,14 @@ async function initRisiken() {
       <b>Risiko-Register nicht ladbar:</b> ${esc(e.message)}
       <div style="margin-top:10px">Die Liste „Risiken" liegt bewusst auf der <b>ISMS-Site</b>
         <a href="${esc(sichereUrl(ismsUrl))}" target="_blank" rel="noopener">${esc(ismsUrl)}</a>. Die App legt sie beim
-        ersten Zugriff automatisch an – dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
+        ersten Zugriff automatisch an. Dafür braucht Ihr Konto dort das Recht, Listen zu erstellen.</div>
       <div style="margin-top:10px"><b>Manuell anlegen:</b>
         <a href="${esc(sichereUrl(contents))}" target="_blank" rel="noopener">Websiteinhalte der ISMS-Site öffnen ↗</a>
         → „+ Neu" → „Liste" → Name <code>Risiken</code>, dann diese Spalten hinzufügen und „↻ Aktualisieren":</div>
       <div style="margin-top:8px;line-height:1.9">${colList}</div>
       <div style="margin-top:8px;font-size:.8rem;color:var(--c-muted)">
         Interne Namen exakt übernehmen (Groß-/Kleinschreibung, keine Umlaute). „Mehrere Zeilen Text" = einfacher Text.
-        Alternativ: ein Admin gibt Ihrem Konto auf der ISMS-Site das Recht „Listen erstellen" – dann legt die App die Liste selbst an.</div>
+        Alternativ: ein Admin gibt Ihrem Konto auf der ISMS-Site das Recht „Listen erstellen", dann legt die App die Liste selbst an.</div>
     </div>`;
     return;
   }
@@ -212,16 +212,16 @@ function renderRisiken() {
         <td style="white-space:nowrap${revOver ? ';color:#b91c1c;font-weight:600' : ''}">${r.naechsteReview ? fmtDate(r.naechsteReview) : '–'}${revOver ? ' ⚠' : ''}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`
-    : emptyState(all.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch keine Risiken erfasst – oben „+ Neues Risiko".', all.length ? '🔍' : '🛡️');
+    : emptyState(all.length ? 'Keine Treffer für die aktuelle Filterung.' : 'Noch keine Risiken erfasst. Oben „+ Neues Risiko".', all.length ? '🔍' : '🛡️');
 
   mount.innerHTML = `
     <div class="view-desc" style="margin:0 0 12px">
       Risikoregister nach <b>ISO 27001 6.1.2/6.1.3 und 8.2/8.3</b> sowie <b>NIS2 Art. 21(2a)</b>: Bewertung
-      (Eintritt × Auswirkung, 1–5), Behandlung mit Maßnahmenplan, Restrisiko und Wiedervorlage.
+      (Eintritt × Auswirkung, 1 bis 5), Behandlung mit Maßnahmenplan, Restrisiko und Wiedervorlage.
       Verknüpfbar mit ISO-/NIS2-Controls, Richtlinien und betroffenen Assets.
     </div>
     ${missing.length ? `<div class="col-warning" style="display:block;margin-bottom:12px">
-      <b>⚠ In der Liste „Risiken" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')} – Werte dieser Felder gehen beim Speichern verloren. Typ: Zahl bzw. „Mehrere Zeilen Text"/Text/Datum.</div>` : ''}
+      <b>⚠ In der Liste „Risiken" fehlen ${missing.length} Spalte(n):</b> ${missing.map(esc).join(' · ')}. Werte dieser Felder gehen beim Speichern verloren. Typ: Zahl bzw. „Mehrere Zeilen Text"/Text/Datum.</div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi(all.length, 'Risiken gesamt', '#17509e')}
       ${kpi(hoch, 'hoch (offen, effektiv)', hoch ? '#b91c1c' : '#15803d')}
@@ -333,7 +333,7 @@ function renderRiskEditor() {
       </div>
 
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--c-border)">
-        <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Bewertung (1–5)</div>
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Bewertung (1 bis 5)</div>
         <div class="form-grid">
           <div class="form-group"><label>Brutto: Eintrittswahrscheinlichkeit</label>${_rkScale('brutto', 'e')}</div>
           <div class="form-group"><label>Brutto: Auswirkung</label>${_rkScale('brutto', 'a')}
@@ -349,7 +349,7 @@ function renderRiskEditor() {
         <div class="form-grid">
           <div class="form-group"><label>Strategie</label>
             ${_rkSel('behandlung', r.behandlung, RISK_BEHANDLUNG, "_riskEditing.behandlung=this.value", true)}</div>
-          <div class="form-group full"><label>Begründung <span style="font-weight:400;color:var(--c-muted)">(Pflicht bei „akzeptieren" – Risikoakzeptanz durch den Eigner)</span></label>
+          <div class="form-group full"><label>Begründung <span style="font-weight:400;color:var(--c-muted)">(Pflicht bei „akzeptieren": Risikoakzeptanz durch den Eigner)</span></label>
             <textarea oninput="_riskEditing.behandlungBegruendung=this.value">${esc(r.behandlungBegruendung)}</textarea></div>
         </div>
         <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px">Maßnahmenplan</div>
@@ -516,7 +516,7 @@ async function saveRisk() {
     toast('Risikoakzeptanz muss begründet werden (ISO 27001 6.1.3 f).', 'error'); return;
   }
   const nettoScore = riskScore(r.netto.e, r.netto.a), bruttoScore = riskScore(r.brutto.e, r.brutto.a);
-  if (nettoScore > bruttoScore && !await uiConfirm('Das Netto-Risiko ist HÖHER als das Brutto-Risiko – ist das beabsichtigt?', { title: 'Netto > Brutto', okLabel: 'Ja, so speichern' })) return;
+  if (nettoScore > bruttoScore && !await uiConfirm('Das Netto-Risiko ist HÖHER als das Brutto-Risiko. Ist das beabsichtigt?', { title: 'Netto > Brutto', okLabel: 'Ja, so speichern' })) return;
   const wer = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : '';
   (r.historie = r.historie || []).push({
     datum: new Date().toISOString(), wer,
@@ -563,7 +563,7 @@ function risikenExportReport() {
   const hoch = open.filter(r => riskStufe(riskScore(_riskEff(r).e, _riskEff(r).a)) === 'hoch').length;
   const rows = all.map(r => {
     const ms = (r.massnahmen || []).map(m =>
-      `${m.titel}${m.verantwortlich ? ' (' + m.verantwortlich + (m.frist ? ', bis ' + m.frist.slice(0, 10) : '') + ')' : ''} – ${m.status || 'offen'}`).join('<br>');
+      `${m.titel}${m.verantwortlich ? ' (' + m.verantwortlich + (m.frist ? ', bis ' + m.frist.slice(0, 10) : '') + ')' : ''}: ${m.status || 'offen'}`).join('<br>');
     const bs = riskScore(r.brutto.e, r.brutto.a), ns = riskScore(r.netto.e, r.netto.a);
     return `<tr>
       <td><b>${esc(r.titel)}</b>${r.beschreibung ? `<div style="color:#6b7280;font-size:10px">${esc(r.beschreibung)}</div>` : ''}</td>
@@ -579,7 +579,7 @@ function risikenExportReport() {
     </tr>`;
   }).join('');
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>Risikobericht – DIHAG (${esc(stamp)})</title>
+    <title>Risikobericht DIHAG (${esc(stamp)})</title>
     <style>
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:24px;font-size:11px;line-height:1.4}
       h1{font-size:18px;margin:0 0 2px} .muted{color:#6b7280}
@@ -601,7 +601,7 @@ function risikenExportReport() {
     </div>
     <table><thead><tr><th>Risiko</th><th>Kategorie</th><th>Eigner</th><th>Brutto</th><th>Netto</th><th>Behandlung</th><th>Maßnahmen</th><th>Status</th><th>Review</th><th>Controls</th><th>Assets</th></tr></thead>
     <tbody>${rows}</tbody></table>
-    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement – deterministisch, ohne KI.</p>
+    <p class="muted" style="margin-top:14px">Erstellt aus dem DIHAG-Richtlinienmanagement, deterministisch, ohne KI.</p>
     </body></html>`;
   const w = window.open('', '_blank');
   if (!w) { if (typeof toast === 'function') toast('Pop-up-Blocker? Bitte Pop-ups erlauben.', 'error'); return; }

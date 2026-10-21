@@ -188,7 +188,7 @@ function _pmZelle(z, werk) {
     return st.verantwortlich
       ? `<td class="pm-klick" ${klick} title="${esc(st.verantwortlich)}${k.vertretung ? ' · Vertretung: ' + esc(k.vertretung) : ''}">${
           esc(lkPersonName(st.verantwortlich))}</td>`
-      : `<td class="pm-klick pm-fehlt" ${klick} title="Kein Verantwortlicher gepflegt – hier eintragen">—</td>`;
+      : `<td class="pm-klick pm-fehlt" ${klick} title="Kein Verantwortlicher gepflegt, hier eintragen">—</td>`;
   }
   const marke = (an, buchstabe, titel) =>
     `<span class="pm-marke ${an ? 'an' : 'aus'}" title="${esc(titel)}">${buchstabe}</span>`;
@@ -215,7 +215,7 @@ function _pmLegende() {
         Ein Klick öffnet die Kachel dort.</div>`
     : `<div class="field-hint" style="margin-top:8px"><b>V</b> Verantwortliche(r) · <b>M</b> BPMN-Modell ·
         <b>R</b> Regelwerk zugeordnet. Grün = vorhanden, blass = fehlt. „·" heißt: Diese Ebene führt
-        den Prozess nicht – das kann völlig richtig sein.</div>`;
+        den Prozess nicht. Das kann richtig sein.</div>`;
 }
 
 /* ── Bedienung ───────────────────────────────────────────────────────── */
@@ -281,7 +281,7 @@ function pmDrucken() {
   }).join('');
 
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
-    <title>Prozess-${_pmTab === 'zustaendig' ? 'Zuständigkeiten' : 'Abdeckung'} – DIHAG (${esc(stamp)})</title>
+    <title>Prozess-${_pmTab === 'zustaendig' ? 'Zuständigkeiten' : 'Abdeckung'} DIHAG (${esc(stamp)})</title>
     <style>
       *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:24px;font-size:12px;line-height:1.45}
       h1{font-size:18px;margin:0 0 2px} .muted{color:#6b7280}
@@ -297,7 +297,7 @@ function pmDrucken() {
       ${werke.length} Werk${werke.length === 1 ? '' : 'e'}${_pmTab === 'abdeckung' ? ' · V = Verantwortliche(r), M = BPMN-Modell, R = Regelwerk' : ''}</div>
     <table><thead><tr><th>Prozess</th>${werke.map(w => `<th>${esc(lkWerkLabel(w))}</th>`).join('')}</tr></thead>
       <tbody>${reihen || `<tr><td colspan="${werke.length + 1}">Keine Prozesse.</td></tr>`}</tbody></table>
-    <p class="muted" style="margin-top:16px">Erzeugt aus den Prozesslandkarten des RMS – „·" heißt, das Werk führt diesen Prozess nicht.</p>
+    <p class="muted" style="margin-top:16px">Erzeugt aus den Prozesslandkarten des RMS. „·" heißt, das Werk führt diesen Prozess nicht.</p>
     </body></html>`;
   const w = window.open('', '_blank');
   if (!w) { toast('Bitte Pop-ups für diese Seite erlauben.', 'error'); return; }

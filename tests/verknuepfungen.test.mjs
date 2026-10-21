@@ -123,7 +123,7 @@ w("_vkFokus = 'prozess:HOL:vertrieb'; renderVerknuepfungen();");
 html = mount.innerHTML;
 ok(/vkFokus\(&quot;modell:m1&quot;\)/.test(html) && /vkFokus\(&quot;modell:m3&quot;\)/.test(html),
   'Ein Klick auf den Nachbarn rückt ihn in die Mitte – beide Modelle stehen da');
-ok(/2 Modelle – über die Kachel zu öffnen/.test(html),
+ok(/2 Modelle, über die Kachel zu öffnen/.test(html),
   'Bei mehreren Abläufen wäre „das Modell" mehrdeutig – dann führt der Weg über die Kachel');
 const svgTeil = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
 ok(!/Kartellrecht/.test(svgTeil), 'Das Regelwerk hängt am Modell, nicht direkt am Prozess – zwei Klicks');

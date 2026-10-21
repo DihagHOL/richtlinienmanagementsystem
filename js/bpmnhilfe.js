@@ -188,11 +188,11 @@ function bpmnVertiefungHtml() {
         handgriff: `🔧 und ${_bpmnUi('Manual task')}`,
         warten:    `Palette ${_bpmnUi('Create intermediate/boundary event')}, dann 🔧 und ${_bpmnUi('Timer intermediate catch event')} oder ${_bpmnUi('Message intermediate catch event')}`,
         parallel:  `Raute setzen, dann 🔧 und ${_bpmnUi('Parallel gateway')}`,
-        unter:     'Aufgabe anklicken, rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen',
+        unter:     'Aufgabe anklicken, rechts unter „Unterprozess: ein Modell einbinden" das Modell wählen',
       }[z.art]]))}
     <p style="${s.p}">Ein Text, der alles zeigt, was ein Text zeigen kann:</p>
     <pre style="${s.pre}">${esc(BPMN_BEISPIEL_VERTIEFUNG)}</pre>
-    <p style="${s.p}">Bahnen namens <b>System</b>, <b>Automatik</b>, <b>Workflow</b> oder <b>Cron</b> gelten ohnehin als ⚙. Nach dem Erzeugen meldet die Prüfung genau einen Befund, <b>R10</b>: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie rechts unter „Unterprozess – ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf <b>„+ … als neues Modell anlegen"</b> ihn an.</p>
+    <p style="${s.p}">Bahnen namens <b>System</b>, <b>Automatik</b>, <b>Workflow</b> oder <b>Cron</b> gelten ohnehin als ⚙. Nach dem Erzeugen meldet die Prüfung genau einen Befund, <b>R10</b>: Die ⊞ „Ursache analysieren" weiß noch nicht, welches Modell sie einbindet. Das wählen Sie rechts unter „Unterprozess: ein Modell einbinden". Gibt es den Prozess noch nicht, legt der Knopf <b>„+ … als neues Modell anlegen"</b> ihn an.</p>
 
     <div style="${s.h4}">Die Palette links</div>
     ${_bpmnTabelle(['In der Palette', 'Im Hausschema'], [
@@ -231,7 +231,7 @@ function bpmnVertiefungHtml() {
       ['R7', 'Ein Element hängt lose.', 'Verbinden oder löschen.'],
       ['R8', 'Eine Aufgabe endet nicht auf einem Verb, oder eine Raute ist keine Frage.', '„Rechnung prüfen" statt „Rechnungsprüfung", „Freigegeben?" mit Fragezeichen.'],
       ['R9', 'Kein Regelwerk verknüpft.', 'Rechts unter „Verknüpfte Richtlinien" ankreuzen.'],
-      ['R10', 'Eine ⊞ bindet nichts ein.', 'Rechts unter „Unterprozess – ein Modell einbinden" das Modell wählen.'],
+      ['R10', 'Eine ⊞ bindet nichts ein.', 'Rechts unter „Unterprozess: ein Modell einbinden" das Modell wählen.'],
     ])}
 
     <div style="${s.h4}">Tastenkürzel</div>

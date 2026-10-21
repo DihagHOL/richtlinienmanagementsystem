@@ -20,7 +20,7 @@ const GOV_ARTEN = [
   { key: "Konzernfachregelung",       erklaerung: "Fachgerechte Ausführung" },
   { key: "Arbeits-/Prozessanweisung", erklaerung: "Handlungsanleitung Schritt für Schritt" },
   { key: "Leitfaden",                 erklaerung: "Handlungsempfehlungen" },
-  { key: "Weitere",                   erklaerung: "Vorlagen und Muster – außerhalb der Pyramide" },
+  { key: "Weitere",                   erklaerung: "Vorlagen und Muster außerhalb der Pyramide" },
 ];
 
 /** Kategorien des Konzernregelwerk-Fundaments (Reihenfolge wie in der Übersicht). */
@@ -346,7 +346,7 @@ function renderGovStruktur() {
           + (gsDarfStruktur()
             ? ' Zeilen und Spalten lassen sich über ihre Köpfe umbenennen, verschieben und ergänzen.'
             : ' Den <b>Aufbau</b> (Zeilen und Spalten) ändert nur, wer dafür eigens freigeschaltet ist.')
-        : '👁 Nur-Lese-Zugriff – Änderungen sind gesperrt.'}
+        : '👁 Nur-Lese-Zugriff. Änderungen sind gesperrt.'}
       Startbestand aus der Zuständigkeiten-Mappe des Corporate-Governance-Boards,
       <b>Stand ${esc((_gsDaten && _gsDaten.stand) || GOV_STAND)}</b>.
     </div>
@@ -366,7 +366,7 @@ function renderGovStruktur() {
     ? `<div class="gs-verlauf">🕘 Zuletzt geändert: <b>${esc(letzte.was)}</b>
         · ${esc(letzte.name)} · ${esc(gsZeit(letzte.am))}
         <button class="btn btn-ghost btn-sm" onclick="gsVerlaufZeigen()">Versionsverlauf (${verlauf.length})</button></div>`
-    : `<div class="gs-verlauf">🕘 Noch keine Änderung erfasst – der Verlauf beginnt mit der ersten Bearbeitung.</div>`;
+    : `<div class="gs-verlauf">🕘 Noch keine Änderung erfasst. Der Verlauf beginnt mit der ersten Bearbeitung.</div>`;
 
   const trefferHinweis = rows.length !== gesamt
     ? `<div class="field-hint" style="margin-bottom:10px"><b>${rows.length}</b> von ${gesamt} passen zum Filter
@@ -388,7 +388,7 @@ function gsKachel(e, schreiben) {
       ${schreiben ? `onclick="gsBearbeiten(${i})" role="button" tabindex="0"
         draggable="true" ondragstart="gsZiehStart(event,${i})" ondragend="gsZiehEnde(event)"
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gsBearbeiten(${i})}"` : ''}
-      title="${esc(e.statusRoh || st.label)}${stand ? ' · ' + esc(stand) : ''}${e.dokument ? ' · ' + esc(e.dokument) : ''}${schreiben ? ' – anklicken zum Bearbeiten, ziehen zum Verschieben' : ''}">
+      title="${esc(e.statusRoh || st.label)}${stand ? ' · ' + esc(stand) : ''}${e.dokument ? ' · ' + esc(e.dokument) : ''}${schreiben ? '. Anklicken zum Bearbeiten, ziehen zum Verschieben' : ''}">
       <div class="t">${esc(e.titel)}</div>
       <div class="m">
         <span class="o">${esc(e.owner || 'noch offen')}</span>
@@ -474,7 +474,7 @@ function gsWeitereHtml(schreiben) {
   const liste = gsWeitere();
   const bereiche = [...new Set(liste.map(e => e.bereich))];
   return `<details class="gs-legende">
-    <summary>Weitere Regelungsebenen (${liste.length}) – außerhalb der Regelwerkspyramide</summary>
+    <summary>Weitere Regelungsebenen (${liste.length}) außerhalb der Regelwerkspyramide</summary>
     ${bereiche.map(b => `<div style="margin-top:8px"><b>${esc(b)}</b>
       <div class="gs-owner-liste">${liste.filter(e => e.bereich === b).map(e => {
         const i = liste.indexOf(e);
@@ -545,7 +545,7 @@ function gsDialog(entwurf, index) {
           <select id="gs-f-art" style="${_gsFeld}">
             ${gsArten().map(a => `<option value="${esc(a.key)}"${a.key === e.art ? ' selected' : ''}>${esc(a.key)}</option>`).join('')}
           </select>
-          <span class="field-hint">Bestimmt die Spalte – also die Verbindlichkeit.</span>
+          <span class="field-hint">Bestimmt die Spalte, also die Verbindlichkeit.</span>
         </div>
         <div class="form-group">
           <label>Verantwortung</label>
@@ -777,7 +777,7 @@ function gsEbeneDialog(entwurf, index) {
           <label>Bezeichnung <span class="req">*</span></label>
           <input type="text" id="gs-e-key" value="${esc(entwurf.key || '')}" style="${_gsFeld}"
             placeholder="z. B. Konzernrichtlinie">
-          ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Spalte – sie ziehen beim Umbenennen mit.</span>` : ''}
+          ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Spalte, sie ziehen beim Umbenennen mit.</span>` : ''}
         </div>
         <div class="form-group full">
           <label>Erklärung</label>
@@ -892,7 +892,7 @@ function gsKategorieDialog(name, index) {
         <label>Bezeichnung <span class="req">*</span></label>
         <input type="text" id="gs-k-name" value="${esc(name || '')}" style="${_gsFeld}"
           placeholder="z. B. Recht / Steuern / Datenschutz / Versicherungen">
-        ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Zeile – sie ziehen beim Umbenennen mit.</span>` : ''}
+        ${anzahl ? `<span class="field-hint">${anzahl} Regelung(en) stehen in dieser Zeile, sie ziehen beim Umbenennen mit.</span>` : ''}
       </div>
     </div>
     <div class="modal-footer">

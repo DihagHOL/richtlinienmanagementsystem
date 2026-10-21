@@ -202,7 +202,7 @@ function openGovernanceDoc(driveItemId) {
         <button class="btn btn-outline btn-sm" onclick="govShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
         ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
       </div>
-      ${!canWrite ? `<div class="field-hint" style="margin-top:6px">👁 Nur Lesezugriff auf „Governance-Board" – Übernahme als Richtlinie ist gesperrt.</div>` : ''}
+      ${!canWrite ? `<div class="field-hint" style="margin-top:6px">👁 Nur Lesezugriff auf „Governance-Board". Übernahme als Richtlinie ist gesperrt.</div>` : ''}
     </div>
     <div class="modal-footer">
       ${canWrite ? `<button class="btn btn-ghost" onclick="govToRichtlinie(${jsArg(d.driveItemId)})">＋ Als Regelwerk übernehmen</button>` : ''}
@@ -311,7 +311,7 @@ async function govShowVersions(driveItemId, name) {
     ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
         <a href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
         (über die Graph-API nicht abrufbar).</div>` : '';
-  openModal(`<div class="modal-header"><h3>🕘 Versionen – ${esc(name)}</h3>
+  openModal(`<div class="modal-header"><h3>🕘 Versionen: ${esc(name)}</h3>
     <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body" id="gov-vers-body">${spLink}<div class="doc-loading">Lade Versionen …</div></div>`);
   try {
@@ -351,5 +351,5 @@ function govToRichtlinie(driveItemId) {
   closeModal();
   switchView('verwaltung');
   renderPolicyEditor();
-  toast('Entwurf aus dem Governance-Board übernommen – bitte Richtlinie vervollständigen und speichern.');
+  toast('Entwurf aus dem Governance-Board übernommen. Bitte Richtlinie vervollständigen und speichern.');
 }

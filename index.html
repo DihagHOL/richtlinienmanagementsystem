@@ -154,12 +154,12 @@
 
       <!-- Weitere DIHAG-Apps (eigenständig, geteiltes Single Sign-On) -->
       <div class="nav-sep" id="nav-grp-apps">DIHAG-Apps</div>
-      <a class="nav-item" href="https://dfedorov12.github.io/zapp/" target="_blank" rel="noopener" title="Zuwendungs-App – öffnet in neuem Tab" id="nav-zapp">
+      <a class="nav-item" href="https://dfedorov12.github.io/zapp/" target="_blank" rel="noopener" title="Zuwendungs-App, öffnet in neuem Tab" id="nav-zapp">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a2 2 0 00-2 2H4a2 2 0 00-2 2v1a1 1 0 001 1h14a1 1 0 001-1V6a2 2 0 00-2-2h-3a2 2 0 00-2-2H9zm0 2h2a0 0 0 010 0H9z"/><path d="M3 10v5a2 2 0 002 2h4v-7H3zm8 7h4a2 2 0 002-2v-5h-6v7z"/></svg>
-        ZAPP – Zuwendungen
+        ZAPP: Zuwendungen
         <svg viewBox="0 0 20 20" fill="currentColor" style="width:12px;height:12px;margin-left:auto;opacity:.55"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
       </a>
-      <a class="nav-item" href="https://compliance.dihag.de/" target="_blank" rel="noopener" title="Compliance-Cockpit: Microsoft 365, M365-Nachweise, Datenschutz – öffnet in neuem Tab" id="nav-m365-cockpit" style="display:none">
+      <a class="nav-item" href="https://compliance.dihag.de/" target="_blank" rel="noopener" title="Compliance-Cockpit: Microsoft 365, M365-Nachweise, Datenschutz. Öffnet in neuem Tab" id="nav-m365-cockpit" style="display:none">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM13.707 8.707a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
         Compliance-Cockpit
         <svg viewBox="0 0 20 20" fill="currentColor" style="width:12px;height:12px;margin-left:auto;opacity:.55"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
@@ -238,7 +238,7 @@
       <!-- ── VIEW: Cockpit (Admin-Startseite) ── -->
       <section id="view-cockpit" class="view">
         <div class="view-toolbar">
-          <div style="font-weight:700">ISMS-Cockpit – alle Kennzahlen auf einen Blick</div>
+          <div style="font-weight:700">ISMS-Cockpit: alle Kennzahlen auf einen Blick</div>
           <div class="toolbar-spacer"></div>
           <button class="btn btn-sm btn-ghost" onclick="initCockpit()" title="Aktualisieren">↻ Aktualisieren</button>
         </div>
@@ -269,11 +269,11 @@
           </select>
           <div class="toolbar-spacer"></div>
           <button class="btn btn-outline" id="btn-health" onclick="runHealthCheck()"
-            title="Prüft die angehängten Word-Dokumente auf Inhalts-Dubletten, Titel-Abweichungen, Platzhalter und leere Kapitel – deterministisch im Browser, ohne externe Dienste">🩺 Dokumente prüfen</button>
+            title="Prüft die angehängten Word-Dokumente auf Inhalts-Dubletten, Titel-Abweichungen, Platzhalter und leere Kapitel, deterministisch im Browser, ohne externe Dienste">🩺 Dokumente prüfen</button>
           <button class="btn btn-outline" id="btn-import-policy" onclick="openImportDialog()"
             title="Mehrere Word-/PDF-Dateien auf einmal als Entwürfe anlegen (Titel aus dem Dateinamen)">⬆ Importieren</button>
           <button class="btn btn-outline" id="btn-new-konzept" onclick="openKonzeptEditor()"
-            title="Ein Regelwerk-Konzept vorschlagen: Idee/Skizze für ein mögliches neues Regelwerk – die Geschäftsleitung entscheidet über Priorität und Umsetzung">💡 Regelwerk-Konzept</button>
+            title="Ein Regelwerk-Konzept vorschlagen: Idee/Skizze für ein mögliches neues Regelwerk. Die Geschäftsleitung entscheidet über Priorität und Umsetzung">💡 Regelwerk-Konzept</button>
           <button class="btn btn-primary" id="btn-new-policy" onclick="newRegelwerkGate()">+ Neues Regelwerk</button>
         </div>
         <div id="rw-schritte"></div>
@@ -329,7 +329,7 @@
       <!-- ── VIEW: IMS-Abdeckung (Admin) ── -->
       <section id="view-abdeckung" class="view">
         <div class="view-toolbar">
-          <div style="font-weight:700">Normen &amp; Recht – Abdeckung durch Regelwerke</div>
+          <div style="font-weight:700">Normen &amp; Recht: Abdeckung durch Regelwerke</div>
           <div class="toolbar-spacer"></div>
           <button class="btn btn-sm btn-ghost" onclick="renderAbdeckung()" title="Aktualisieren">↻ Aktualisieren</button>
         </div>

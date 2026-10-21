@@ -88,7 +88,7 @@ function _rollenBereichHtml() {
       ${roleCard('genehmiger', 'Genehmiger (einfache Freigabe, optional)')}
       ${roleCard('pruefer', 'Konformitätsprüfer')}
       ${roleCard('geschaeftsleitung', 'Geschäftsleitung (Freigabe zur Veröffentlichung)')}
-      ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard) – leer = Genehmiger-Liste gilt')}
+      ${roleCard('kiGenehmiger', 'KI-Gremium (KI-Dashboard), leer = Genehmiger-Liste gilt')}
       ${roleCard('ismsVerantwortlich', 'ISMS-Verantwortliche (Empfänger für Änderungsvorschläge)')}
       ${roleCard('vorschlagEmpfaenger', 'Vorschlags-Empfänger (zusätzlich, eigene Adressen)')}
       ${roleCard('govStrukturKoepfe', 'Governance-Struktur: Zeilen &amp; Spalten ändern (Aufbau der Systematik)')}
@@ -98,7 +98,7 @@ function _rollenBereichHtml() {
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">
             Wird ein Regelwerk veröffentlicht, geht die Bekanntgabe an den <b>Verteiler</b> der
-            Zielgruppe – eine Mail statt hunderter Einzelnachrichten. Eingetragen wird die
+            Zielgruppe: eine Mail statt hunderter Einzelnachrichten. Eingetragen wird die
             <b>Adresse einer Verteiler- oder Sicherheitsgruppe</b> (z. B. <code>produktion@dihag.com</code>);
             wer dazugehört, pflegt Exchange. Ohne Verteiler erscheint beim Veröffentlichen ein Hinweis,
             und die Bekanntgabe lässt sich später über <b>„📣 Zielgruppe informieren"</b> nachholen.
@@ -113,7 +113,7 @@ function _rollenBereichHtml() {
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">
             Solange der Zeitraum läuft, bekommt die <b>Vertretung alle Mails mit</b> und darf
-            entscheiden – prüfen, freigeben, Konzepte annehmen. Die vertretene Person bleibt
+            entscheiden: prüfen, freigeben, Konzepte annehmen. Die vertretene Person bleibt
             weiterhin zuständig und wird weiter angeschrieben. Im Protokoll steht dann ausdrücklich
             <b>„in Vertretung für …"</b>. Ohne Datum gilt die Vertretung unbefristet; nur
             <b>von</b> heißt „ab dann", nur <b>bis</b> heißt „bis dahin".
@@ -152,7 +152,7 @@ function _rollenBereichHtml() {
       </div>
 
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><h2>Genehmigungsverfahren – Schwellen</h2></div>
+        <div class="card-header"><h2>Genehmigungsverfahren: Schwellen</h2></div>
         <div class="card-body">
           <div class="field-hint" style="margin-bottom:10px">Ablauf: Entwurf → Konformitätsprüfung → Freigabe → Veröffentlicht.</div>
           <div class="form-grid">
@@ -168,7 +168,7 @@ function _rollenBereichHtml() {
               </select></div>
             <div class="form-group full"><label>Genehmigung über Power Automate</label>
               <select onchange="cfgSetPAScope(this.value)">
-                <option value="aus"  ${_cfgEdit.genehmigungPAScope === 'aus' || (!_cfgEdit.genehmigungPAScope && !_cfgEdit.genehmigungPA) ? 'selected' : ''}>Aus – App versendet die Mails (Standard)</option>
+                <option value="aus"  ${_cfgEdit.genehmigungPAScope === 'aus' || (!_cfgEdit.genehmigungPAScope && !_cfgEdit.genehmigungPA) ? 'selected' : ''}>Aus: App versendet die Mails (Standard)</option>
                 <option value="gl"   ${_cfgEdit.genehmigungPAScope === 'gl' ? 'selected' : ''}>Nur Freigabe (Geschäftsleitung) über Power Automate</option>
                 <option value="alle" ${_cfgEdit.genehmigungPAScope === 'alle' || (!_cfgEdit.genehmigungPAScope && _cfgEdit.genehmigungPA) ? 'selected' : ''}>Prüfung + Freigabe über Power Automate</option>
               </select></div>
@@ -223,17 +223,17 @@ function _rollenBereichHtml() {
           <div class="field-hint" style="margin-bottom:10px">
             Diese Werte steuern den zeitgesteuerten Versand (GitHub-Actions-Cron). Erinnert wird an noch
             offene Prüfer bzw. Geschäftsleitung. <b>Zugangsdaten</b> (Client Secret usw.) bleiben aus
-            Sicherheitsgründen in den GitHub-Secrets – siehe <code>docs/ERINNERUNGEN-GITHUB-ACTIONS.md</code>.
+            Sicherheitsgründen in den GitHub-Secrets, siehe <code>docs/ERINNERUNGEN-GITHUB-ACTIONS.md</code>.
           </div>
           <div class="form-grid">
             <div class="form-group"><label>Erinnerungen aktiv</label>
               <select onchange="_cfgEdit.erinnerungenAktiv=(this.value==='ja')">
-                <option value="ja" ${_cfgEdit.erinnerungenAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
-                <option value="nein" ${_cfgEdit.erinnerungenAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+                <option value="ja" ${_cfgEdit.erinnerungenAktiv !== false ? 'selected' : ''}>Ja, automatisch senden</option>
+                <option value="nein" ${_cfgEdit.erinnerungenAktiv === false ? 'selected' : ''}>Nein, pausiert</option>
               </select></div>
             <div class="form-group"><label>Absender-Postfach</label>
               <input type="email" value="${esc(_cfgEdit.mailSender || '')}" oninput="_cfgEdit.mailSender=this.value" placeholder="pruefer@dihag.com">
-              <div class="field-hint">Nur Rückfall: Im Betrieb sendet der Cron immer als das Postfach aus dem GitHub-Secret <code>MAIL_SENDER</code>. Ein abweichender Eintrag hier wird ignoriert – sonst könnte, wer diese Einstellungen ändert, als beliebiges Postfach senden.</div></div>
+              <div class="field-hint">Nur Rückfall: Im Betrieb sendet der Cron immer als das Postfach aus dem GitHub-Secret <code>MAIL_SENDER</code>. Ein abweichender Eintrag hier wird ignoriert, sonst könnte, wer diese Einstellungen ändert, als beliebiges Postfach senden.</div></div>
             <div class="form-group"><label>Erste Erinnerung nach (Tagen)</label>
               <input type="number" min="1" value="${esc(_cfgEdit.erinnerungErsteNachTagen || 7)}" onchange="_cfgEdit.erinnerungErsteNachTagen=parseInt(this.value,10)||7"></div>
             <div class="form-group"><label>Danach alle (Tagen)</label>
@@ -251,13 +251,13 @@ function _rollenBereichHtml() {
               Erinnert die <b>Mitarbeitenden</b> daran, dass ein veröffentlichtes Regelwerk noch zu lesen
               und zu bestätigen ist (samt Wissenstest, falls gefordert). Gezählt wird ab Veröffentlichung;
               jede Person bekommt <b>eine</b> Mail über <b>alle</b> ihre offenen Regelwerke, nicht eine je Regelwerk.
-              Betroffen ist nur, wer laut Zielgruppe gemeint ist – und nur solange die Bestätigung fehlt.
+              Betroffen ist nur, wer laut Zielgruppe gemeint ist, und nur solange die Bestätigung fehlt.
             </div>
             <div class="form-grid">
               <div class="form-group"><label>Kenntnisnahme-Erinnerungen</label>
                 <select onchange="_cfgEdit.kenntnisErinnerungAktiv=(this.value==='ja')">
-                  <option value="ja" ${_cfgEdit.kenntnisErinnerungAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
-                  <option value="nein" ${_cfgEdit.kenntnisErinnerungAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+                  <option value="ja" ${_cfgEdit.kenntnisErinnerungAktiv !== false ? 'selected' : ''}>Ja, automatisch senden</option>
+                  <option value="nein" ${_cfgEdit.kenntnisErinnerungAktiv === false ? 'selected' : ''}>Nein, pausiert</option>
                 </select></div>
               <div class="form-group"><label>Erste Erinnerung nach (Tagen)</label>
                 <input type="number" min="1" value="${esc(_cfgEdit.kenntnisErsteNachTagen || 7)}" onchange="_cfgEdit.kenntnisErsteNachTagen=parseInt(this.value,10)||7"></div>
@@ -271,7 +271,7 @@ function _rollenBereichHtml() {
             <div class="field-hint" style="margin-top:10px">
               Die Eskalation ist eine <b>Sammelmeldung</b> an eine Stelle (nicht an Vorgesetzte): welches Regelwerk
               wie lange offen ist und wer noch fehlt. Voraussetzung ist, dass das Cron-Konto die Mitarbeitenden
-              lesen darf (Graph-Anwendungsrecht <code>User.Read.All</code>) – sonst überspringt der Lauf diesen Teil
+              lesen darf (Graph-Anwendungsrecht <code>User.Read.All</code>), sonst überspringt der Lauf diesen Teil
               und schreibt es ins Protokoll.
             </div>
             <div style="font-weight:700;font-size:.9rem;margin:16px 0 6px">Pflichtschulungen (Reiter „Wissen")</div>
@@ -282,8 +282,8 @@ function _rollenBereichHtml() {
             <div class="form-grid">
               <div class="form-group"><label>Schulungs-Erinnerungen</label>
                 <select onchange="_cfgEdit.schulungErinnerungAktiv=(this.value==='ja')">
-                  <option value="ja" ${_cfgEdit.schulungErinnerungAktiv !== false ? 'selected' : ''}>Ja – automatisch senden</option>
-                  <option value="nein" ${_cfgEdit.schulungErinnerungAktiv === false ? 'selected' : ''}>Nein – pausiert</option>
+                  <option value="ja" ${_cfgEdit.schulungErinnerungAktiv !== false ? 'selected' : ''}>Ja, automatisch senden</option>
+                  <option value="nein" ${_cfgEdit.schulungErinnerungAktiv === false ? 'selected' : ''}>Nein, pausiert</option>
                 </select></div>
               <div class="form-group"><label>Offen: erste Erinnerung nach (Tagen)</label>
                 <input type="number" min="1" value="${esc(_cfgEdit.schulungErsteNachTagen || 7)}" onchange="_cfgEdit.schulungErsteNachTagen=parseInt(this.value,10)||7"></div>
@@ -321,7 +321,7 @@ function _rollenBereichHtml() {
       <div class="card" style="margin-bottom:14px">
         <div class="card-header"><h2>Mitarbeiter-Rollen (manuell)</h2></div>
         <div class="card-body">
-          <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch — hier können Sie einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
+          <div class="field-hint" style="margin-bottom:10px">Optional. Die Abteilung aus dem Azure-AD-Profil greift automatisch. Hier können Sie einzelnen Personen zusätzliche Rollen zuweisen (z. B. wenn die AD-Abteilung abweicht oder fehlt).</div>
           <div id="cfg-userroles"></div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <input type="email" id="cfg-input-ur" placeholder="name@dihag.com"
@@ -341,7 +341,7 @@ function cfgAddRoleNamed(i) {
   renderRolesList();
   renderUserRolesList();
   loadAdDepartments();
-  toast('Rolle „' + name + '" hinzugefügt – noch speichern.', 'success');
+  toast('Rolle „' + name + '" hinzugefügt. Noch speichern.', 'success');
 }
 
 function roleCard(role, title) {
@@ -384,11 +384,11 @@ function _reiterBereichHtml() {
   if (typeof GOVERNABLE_TABS === 'undefined') return '';
   return `
     <div class="col-warning" style="display:block">
-      <b>Von sich aus sieht jede:r nur „Wissen".</b> Jeder andere Reiter – auch
+      <b>Von sich aus sieht jede:r nur „Wissen".</b> Jeder andere Reiter (auch
       <b>„Meine Regelwerke"</b>, Anleitung, Dokumentation, <b>Freigaben</b> und <b>Vorschläge</b>
       (die Rolle als Genehmiger, Prüfer, Geschäftsleitung oder Vorschlags-Empfänger zeigt den Reiter
-      nicht mehr von allein) sowie die Links zu KI-Dashboard und ZAPP – wird hier freigegeben: für einzelne Personen, <b>für Gruppen</b> (Sicherheits-, Verteiler-
-      und Microsoft-365-Gruppen) und <b>für ganze Gesellschaften</b> (E-Mail-Domäne, 🏭 – ein
+      nicht mehr von allein) sowie die Links zu KI-Dashboard und ZAPP) wird hier freigegeben: für einzelne Personen, <b>für Gruppen</b> (Sicherheits-, Verteiler-
+      und Microsoft-365-Gruppen) und <b>für ganze Gesellschaften</b> (E-Mail-Domäne, 🏭: ein
       Eintrag reicht). <b>Admins</b> haben immer Zugriff, <b>Schreiben</b> schließt <b>Lesen</b> ein
       (nur Lesen = Reiter sichtbar, aber nicht bearbeitbar); bei „Wissen" bedeutet „S" pflegen.
       „Einstellungen" bleibt bewusst Admins vorbehalten.
@@ -412,7 +412,7 @@ function _reiterBereichHtml() {
           <button class="btn btn-outline btn-sm" onclick="rrAddUser()">+ Person</button>
           <button class="btn btn-outline btn-sm" onclick="rrPicker()">👥 + Gruppe</button>
           <button class="btn btn-outline btn-sm" onclick="cfgBereichZuDomaenen()"
-            title="Eine ganze Gesellschaft berechtigen – weiter unten bei der Trennung nach Gesellschaft">🏭 + Gesellschaft</button>
+            title="Eine ganze Gesellschaft berechtigen (die Sperre steht weiter unten bei der Trennung nach Gesellschaft)">🏭 + Gesellschaft</button>
         </div>
         <div id="rr-picker" style="display:none;margin-top:12px;border:1px solid var(--c-border);border-radius:10px;padding:12px"></div>
         <div class="field-hint" id="rr-gruppen-status" style="margin-top:12px">${_rrGruppenStatus()}</div>
@@ -423,11 +423,11 @@ function _reiterBereichHtml() {
       <div class="card-body">
         <div class="field-hint" style="margin-bottom:10px">
           Die Freigaben oben <b>geben</b> etwas dazu. Hier wird <b>getrennt</b>: Ist bei einem Reiter
-          mindestens eine Gesellschaft angehakt, sehen ihn nur noch Konten aus diesen Domänen –
+          mindestens eine Gesellschaft angehakt, sehen ihn nur noch Konten aus diesen Domänen,
           auch dann, wenn ihnen der Reiter oben freigegeben wurde. Ohne Haken bleibt der Reiter
           offen für alle. Maßgeblich ist die Domäne des Kontos (Anmeldename und Mailadresse),
           nicht ein gepflegtes Feld: Sie lässt sich nicht vergessen.
-          <b>Administratoren sind ausgenommen</b> – sonst käme niemand mehr in die Einstellungen,
+          <b>Administratoren sind ausgenommen</b>, sonst käme niemand mehr in die Einstellungen,
           um eine falsch gesetzte Trennung zurückzunehmen.
         </div>
         <div id="rr-domaenen"></div>
@@ -438,11 +438,11 @@ function _reiterBereichHtml() {
       <div class="card-header"><h2>Inhalte nach Gesellschaft trennen</h2></div>
       <div class="card-body">
         <div class="field-hint" style="margin-bottom:10px">
-          Die Sperre oben trennt die <b>Reiter</b>. Sie sagt nicht, was jemand dort sieht – wer das
+          Die Sperre oben trennt die <b>Reiter</b>. Sie sagt nicht, was jemand dort sieht. Wer das
           Dashboard öffnen darf, sieht bisher die Regelwerke <b>aller</b> Gesellschaften. Mit diesem
           Schalter sieht jede Gesellschaft nur noch, was für <b>ihre Werke</b> gilt, plus alles
           Konzernweite. Dieselbe Trennung greift für die Prozesslandkarten.
-          <br><br>Die Brücke ist der <b>Geltungsbereich</b>, den jedes Regelwerk ohnehin trägt –
+          <br><br>Die Brücke ist der <b>Geltungsbereich</b>, den jedes Regelwerk ohnehin trägt,
           deshalb bekommt oben jede Gesellschaft ihre Werke zugeordnet. Ohne zugeordnete Werke
           ändert sich für sie nichts: Sie sieht weiter alles.
           <br><br><b>Ehrlich dazugesagt:</b> Das trennt die <b>Sicht</b>, nicht den Zugriff. Alle
@@ -473,11 +473,11 @@ function _rrGruppenStatus() {
   const lesbar = (typeof spGruppenLesbar === 'function') ? spGruppenLesbar() : null;
   const n = ((typeof State !== 'undefined' && State.myGroups) || []).length;
   if (lesbar === false) {
-    return '⚠ Die Gruppen-Mitgliedschaften Ihres Kontos konnten nicht gelesen werden – '
-      + 'gruppenbasierte Freigaben greifen dann nicht. Freigaben an einzelne Personen sind davon unberührt.';
+    return '⚠ Die Gruppen-Mitgliedschaften Ihres Kontos konnten nicht gelesen werden. '
+      + 'Gruppenbasierte Freigaben greifen dann nicht. Freigaben an einzelne Personen sind davon unberührt.';
   }
   if (lesbar === true) {
-    return `Gruppen-Auswertung aktiv – Ihr Konto gehört zu ${n} Gruppe(n) `
+    return `Gruppen-Auswertung aktiv: Ihr Konto gehört zu ${n} Gruppe(n) `
       + '(Sicherheits-, Verteiler- und Microsoft-365-Gruppen). Dynamische Verteilerlisten aus '
       + 'Exchange lassen sich nicht berechtigen: Sie existieren nur dort, nicht im Verzeichnis.';
   }
@@ -555,7 +555,7 @@ function rrRenderBody() {
   if (!host) return;
   const alle = _rrEintraege();
   if (!alle.length) {
-    host.innerHTML = '<div class="field-hint">Noch niemand zusätzlich berechtigt – unten eine Person '
+    host.innerHTML = '<div class="field-hint">Noch niemand zusätzlich berechtigt. Unten eine Person '
       + 'oder eine Gruppe hinzufügen, dann in der Zeile die Reiter freigeben.</div>';
     return;
   }
@@ -734,7 +734,7 @@ function rrTrennungSchalten(an) {
  */
 function rrTrennungStatusHtml() {
   const an = !!(_cfgEdit && _cfgEdit.trennungInhalte);
-  if (!an) return '<div class="field-hint">Aus – alle sehen alle Regelwerke und Landkarten (wie bisher).</div>';
+  if (!an) return '<div class="field-hint">Aus: Alle sehen alle Regelwerke und Landkarten (wie bisher).</div>';
   const doms = _rrDomaenen();
   const mitWerken = doms.filter(d => (gesellschaftDatenEntwurf(d).werke || []).length);
   const ohne = doms.filter(d => !(gesellschaftDatenEntwurf(d).werke || []).length);
@@ -743,13 +743,13 @@ function rrTrennungStatusHtml() {
   zeilen.push(mitWerken.length
     ? `<b>${mitWerken.length}</b> Gesellschaft(en) sind auf ihre Werke beschränkt: `
       + mitWerken.map(d => `${esc(gesellschaftDatenEntwurf(d).name)} (${esc(gesellschaftDatenEntwurf(d).werke.join(', '))})`).join(' · ')
-    : '<b>Noch keine Gesellschaft hat Werke</b> – der Schalter bewirkt damit nichts. Oben in der Tabelle zuordnen.');
+    : '<b>Noch keine Gesellschaft hat Werke</b>, der Schalter bewirkt damit nichts. Oben in der Tabelle zuordnen.');
   if (ohne.length) zeilen.push(`Ohne zugeordnete Werke und deshalb unverändert: ${
     ohne.map(d => esc(gesellschaftDatenEntwurf(d).name)).join(' · ')}`);
   zeilen.push(konzern
     ? `<b>${konzern}</b> Person(en) mit Konzernsicht sehen weiterhin alles.`
     : '<b>Niemand hat Konzernsicht.</b> Damit sieht auch die Konzern-Governance nur noch ihre eigene '
-      + 'Gesellschaft – wer über alle Gesellschaften hinweg arbeitet, gehört unten eingetragen.');
+      + 'Gesellschaft. Wer über alle Gesellschaften hinweg arbeitet, gehört unten eingetragen.');
   return `<div class="col-warning" style="display:block">${zeilen.join('<br>')}</div>`;
 }
 
@@ -830,7 +830,7 @@ async function rrDomaenenScan() {
     rrRenderDomaenen();
     if (!_rrGefunden.length) toast('Keine weiteren Domänen gefunden.', 'success');
   } catch (e) {
-    if (host) host.innerHTML = `<span class="field-hint">Verzeichnis nicht lesbar: ${esc(e.message)} – Domäne bitte von Hand eintragen.</span>`;
+    if (host) host.innerHTML = `<span class="field-hint">Verzeichnis nicht lesbar: ${esc(e.message)}. Domäne bitte von Hand eintragen.</span>`;
   }
 }
 
@@ -844,7 +844,7 @@ function rrRenderDomaenen() {
   const eigen = (typeof meineDomaene === 'function') ? meineDomaene() : '';
 
   const vorschlaege = _rrGefunden.length
-    ? `<div class="field-hint" style="margin-top:10px">Im Verzeichnis gefunden – anklicken zum Übernehmen:
+    ? `<div class="field-hint" style="margin-top:10px">Im Verzeichnis gefunden, zum Übernehmen anklicken:
         ${_rrGefunden.slice(0, 12).map(g => `<button type="button" class="btn btn-ghost btn-sm"
           onclick="rrAddDomaene(${jsArg(g.domaene)})">${esc(g.domaene)} <span style="opacity:.6">· ${g.anzahl}</span></button>`).join(' ')}</div>`
     : '';
@@ -854,12 +854,12 @@ function rrRenderDomaenen() {
         onkeydown="if(event.key==='Enter')rrAddDomaene()" style="flex:1;min-width:200px;${_rrFeldStil}">
       <button class="btn btn-outline btn-sm" onclick="rrAddDomaene()">+ Gesellschaft</button>
       <button class="btn btn-outline btn-sm" onclick="rrDomaenenScan()"
-        title="Zählt die Domänen der Mitarbeiterliste – ohne zusätzliche Berechtigung">🔍 Im Verzeichnis suchen</button>
+        title="Zählt die Domänen der Mitarbeiterliste, ohne zusätzliche Berechtigung">🔍 Im Verzeichnis suchen</button>
     </div>
     <div id="rr-domaenen-scan"></div>${vorschlaege}`;
 
   if (!doms.length) {
-    host.innerHTML = '<div class="field-hint">Noch keine Gesellschaft gepflegt – unten eine Domäne '
+    host.innerHTML = '<div class="field-hint">Noch keine Gesellschaft gepflegt. Unten eine Domäne '
       + 'eintragen. Solange keine da ist, bleibt jeder Reiter offen für alle.</div>' + werkzeug;
     return;
   }
@@ -889,7 +889,7 @@ function rrRenderDomaenen() {
           style="width:100%;${_rrFeldStil}"></td>
         <td style="padding:4px 8px;vertical-align:top">${werkeZellen(d)}</td>
         <td style="padding:4px 4px;text-align:right;vertical-align:top"><button class="btn btn-ghost btn-sm"
-          onclick="rrGesellschaftEntfernen(${jsArg(d)})" title="Gesellschaft entfernen – ihre Freigaben und Sperren gehen mit">✕</button></td>
+          onclick="rrGesellschaftEntfernen(${jsArg(d)})" title="Gesellschaft entfernen, ihre Freigaben und Sperren gehen mit">✕</button></td>
       </tr>`).join('')}</tbody></table>`;
 
   const kopf = `<tr style="text-align:left;color:var(--c-muted);font-size:.75rem">
@@ -917,7 +917,7 @@ function rrRenderDomaenen() {
          <thead>${kopf}</thead><tbody>${zeilen}</tbody></table></div>`
     + `<div class="field-hint" style="margin-top:8px">${wieviele
         ? `<b>${wieviele}</b> Reiter sind auf bestimmte Gesellschaften beschränkt.`
-        : 'Kein Reiter ist beschränkt – alles offen für alle.'}</div>`
+        : 'Kein Reiter ist beschränkt, alles ist offen für alle.'}</div>`
     + werkzeug;
 }
 
@@ -976,7 +976,7 @@ async function rrGruppenSuche() {
     // Ohne Verzeichnis-Leserecht: wenigstens die eigenen Gruppen anbieten.
     const eigen = ((typeof State !== 'undefined' && State.myGroups) || []);
     treffer = eigen.filter(g => String(g.name || '').toLowerCase().includes(q.toLowerCase()));
-    hinweis = 'Dieses Konto darf das Verzeichnis nicht durchsuchen – gezeigt werden Ihre eigenen Gruppen. '
+    hinweis = 'Dieses Konto darf das Verzeichnis nicht durchsuchen. Gezeigt werden Ihre eigenen Gruppen. '
       + 'Andere Gruppen unten per Objekt-ID eintragen.';
   }
   const schon = new Set(_rrEintraege().filter(e => e.art === 'gruppe').map(e => gruppenIdVon(e.key)));
@@ -992,7 +992,7 @@ async function rrGruppenSuche() {
             : `<button class="btn btn-outline btn-sm"
                 onclick="rrAddGruppe(${jsArg(g.id)},${jsArg(g.name || g.id)},${jsArg(g.art || '')})">+ Übernehmen</button>`}
         </div>`).join('')
-      : '<div class="field-hint">Keine Gruppe gefunden – auch nicht unter dieser Adresse.</div>');
+      : '<div class="field-hint">Keine Gruppe gefunden, auch nicht unter dieser Adresse.</div>');
 }
 
 function rrAddGruppe(id, name, art) {
@@ -1010,7 +1010,7 @@ function rrAddGruppe(id, name, art) {
   const host = document.getElementById('rr-picker');
   if (host) host.style.display = 'none';
   rrRenderBody();
-  toast(`Gruppe „${name || gid}" hinzugefügt – Reiter freigeben und speichern.`, 'success');
+  toast(`Gruppe „${name || gid}" hinzugefügt. Reiter freigeben und speichern.`, 'success');
 }
 
 function rrAddGruppeManuell() {
@@ -1060,7 +1060,7 @@ function renderZielgruppenMails() {
   host.innerHTML = zeile(alle, 'Alle Mitarbeitenden', 'gilt, sobald ein Regelwerk „für alle" ist')
     + (rollen.length
       ? rollen.map(r => zeile(r, r, '')).join('')
-      : '<div class="field-hint">Noch keine Rollen angelegt – weiter unten unter „Verfügbare Rollen / Abteilungen".</div>');
+      : '<div class="field-hint">Noch keine Rollen angelegt. Weiter unten unter „Verfügbare Rollen / Abteilungen".</div>');
 
   // Vorschläge: die eigenen Gruppen mit Mailadresse (spart Tippen und Tippfehler)
   const dl = document.getElementById('cfg-eigene-gruppen');
@@ -1265,14 +1265,14 @@ function _assetsBereichHtml() {
   return `
     <div class="item-card" style="margin-bottom:14px">
       <div style="font-weight:700;margin-bottom:4px">Zusatzfelder</div>
-      <div class="field-hint" style="margin-bottom:8px">Was das Register nicht von sich aus kennt – Inventarnummer, Kostenstelle, Wartungsfenster, Raum –, steht hier. Jedes Feld erscheint im Asset-Editor, im CSV-Export und in der Suche; die Werte liegen als JSON am Asset, es braucht keine neue SharePoint-Spalte. Der Schlüssel bleibt stabil, auch wenn der Name sich ändert.</div>
+      <div class="field-hint" style="margin-bottom:8px">Was das Register nicht von sich aus kennt (Inventarnummer, Kostenstelle, Wartungsfenster, Raum), steht hier. Jedes Feld erscheint im Asset-Editor, im CSV-Export und in der Suche; die Werte liegen als JSON am Asset, es braucht keine neue SharePoint-Spalte. Der Schlüssel bleibt stabil, auch wenn der Name sich ändert.</div>
       <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Bezeichnung</th><th>Schlüssel</th><th>Typ</th><th>Optionen (bei Auswahl)</th><th>Pflicht</th><th></th></tr></thead>
         <tbody>${feldRows || '<tr><td colspan="6" style="color:var(--c-muted)">Noch keine Zusatzfelder.</td></tr>'}</tbody></table></div>
       <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="cfgAssetFeldHinzu()">+ Zusatzfeld</button>
     </div>
     <div class="item-card">
       <div style="font-weight:700;margin-bottom:4px">Kategorien</div>
-      <div class="field-hint" style="margin-bottom:8px">Standard nach BSI-Strukturanalyse. Wer das Haus mit anderen Worten beschreibt, ändert sie hier – der Schlüssel bleibt an den Assets, nur die Beschriftung wechselt. Der Schlüssel <code>information</code> hat eine Bedeutung: Für ihn ist die Klassifizierung Pflicht (A.5.12).</div>
+      <div class="field-hint" style="margin-bottom:8px">Standard nach BSI-Strukturanalyse. Wer das Haus mit anderen Worten beschreibt, ändert sie hier. Der Schlüssel bleibt an den Assets, nur die Beschriftung wechselt. Der Schlüssel <code>information</code> hat eine Bedeutung: Für ihn ist die Klassifizierung Pflicht (A.5.12).</div>
       <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Symbol</th><th>Bezeichnung</th><th>Schlüssel</th><th></th></tr></thead>
         <tbody>${katRows}</tbody></table></div>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline btn-sm" onclick="cfgAssetKatHinzu()">+ Kategorie</button>
@@ -1330,16 +1330,16 @@ function _vorfaelleBereichHtml() {
   return `
     <div class="item-card" style="margin-bottom:14px">
       <div style="font-weight:700;margin-bottom:4px">Welche Tickets sind Informationssicherheit?</div>
-      <div class="field-hint" style="margin-bottom:8px">Die Kategorien der Liste „Tickets" (Site „ticket") der letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate, mit Anzahl. Angehakt wird, was in den Reiter „Vorfälle" gehört – Störungen, Änderungen und Dokumentationsaufträge dieser Kategorien. Ohne Auswahl gilt ein Muster (Sicherheit, Phishing, Malware, Datenschutz …).</div>
-      ${!tk ? '<div class="doc-loading">Lade Tickets …</div>' : tk.fehler ? '<div class="col-warning" style="display:block">Ticketsystem nicht erreichbar – Kategorien lassen sich trotzdem frei eintragen.</div>' : ''}
+      <div class="field-hint" style="margin-bottom:8px">Die Kategorien der Liste „Tickets" (Site „ticket") der letzten ${typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24} Monate, mit Anzahl. Angehakt wird, was in den Reiter „Vorfälle" gehört: Störungen, Änderungen und Dokumentationsaufträge dieser Kategorien. Ohne Auswahl gilt ein Muster (Sicherheit, Phishing, Malware, Datenschutz …).</div>
+      ${!tk ? '<div class="doc-loading">Lade Tickets …</div>' : tk.fehler ? '<div class="col-warning" style="display:block">Ticketsystem nicht erreichbar. Kategorien lassen sich trotzdem frei eintragen.</div>' : ''}
       <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th style="width:40px">zählt</th><th>Kategorie</th><th style="text-align:right">Tickets</th></tr></thead>
         <tbody>${katRows || '<tr><td colspan="3" style="color:var(--c-muted)">Noch keine Kategorien bekannt.</td></tr>'}</tbody></table></div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="text" id="cfg-vf-kat-frei" placeholder="Kategorie von Hand (z. B. IT-Sicherheit; Datenschutz)" style="flex:1"><button class="btn btn-outline btn-sm" onclick="cfgVorfallKatFrei(document.getElementById('cfg-vf-kat-frei').value)">+ Hinzufügen</button></div>
-      <div class="field-hint" style="margin-top:6px">${gewaehlt.length ? `Gewählt: <b>${gewaehlt.map(esc).join(', ')}</b>` : 'Nichts gewählt – es gilt das Muster.'}</div>
+      <div class="field-hint" style="margin-top:6px">${gewaehlt.length ? `Gewählt: <b>${gewaehlt.map(esc).join(', ')}</b>` : 'Nichts gewählt, es gilt das Muster.'}</div>
     </div>
     <div class="item-card">
       <div style="font-weight:700;margin-bottom:4px">Art des Tickets → Gruppe</div>
-      <div class="field-hint" style="margin-bottom:8px">Incident, Change und Doku erkennt die App von selbst – auch als „Störung", „Änderung", „Dokumentation". Nutzt das Haus andere Worte, steht hier, was sie meinen.</div>
+      <div class="field-hint" style="margin-bottom:8px">Incident, Change und Doku erkennt die App von selbst, auch als „Störung", „Änderung", „Dokumentation". Nutzt das Haus andere Worte, steht hier, was sie meinen.</div>
       <div style="overflow-x:auto"><table class="tbl" style="font-size:.82rem;width:100%"><thead><tr><th>Art in der Liste</th><th style="text-align:right">Tickets</th><th>Gruppe</th></tr></thead>
         <tbody>${artRows || '<tr><td colspan="3" style="color:var(--c-muted)">Noch keine Arten bekannt.</td></tr>'}</tbody></table></div>
     </div>`;

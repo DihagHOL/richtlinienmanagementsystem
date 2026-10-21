@@ -539,7 +539,7 @@ function _pbNachfolgerOptionen(eigeneId, gewaehlt) {
 function pbAngabenDialog(itemId, status) {
   if (typeof lkDarfSchreiben === 'function' && !lkDarfSchreiben()) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
   const p = (typeof procModellVon === 'function') ? procModellVon(itemId) : null;
-  if (!p) { toast('Modell nicht gefunden – bitte neu laden.', 'error'); return; }
+  if (!p) { toast('Modell nicht gefunden. Bitte neu laden.', 'error'); return; }
   const e = (typeof procEintragVon === 'function') ? procEintragVon(p) : null;
   const pm = pzPmNormal((e && e.m) || {});
   if (status) pm.status = status;
@@ -688,7 +688,7 @@ function pbAngabenTermin() {
 async function pbAngabenSpeichern(itemId) {
   if (typeof lkDarfSchreiben === 'function' && !lkDarfSchreiben()) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
   const p = (typeof procModellVon === 'function') ? procModellVon(itemId) : null;
-  if (!p || typeof spGetProcessXml !== 'function' || typeof procXmlDokuNeu !== 'function') { toast('Modell nicht gefunden – bitte neu laden.', 'error'); return; }
+  if (!p || typeof spGetProcessXml !== 'function' || typeof procXmlDokuNeu !== 'function') { toast('Modell nicht gefunden. Bitte neu laden.', 'error'); return; }
   const wert = (id) => String((document.getElementById(id) || {}).value || '').trim();
   const knopf = document.getElementById('pb-a-speichern');
   if (knopf) knopf.disabled = true;
@@ -769,14 +769,14 @@ async function pbStatusSetzen(werk, id, status) {
   }
   const karte = (_lkDaten && _lkDaten.karten && _lkDaten.karten[werk]) || null;
   const k = karte && Array.isArray(karte.kacheln) ? karte.kacheln.find(x => x.id === id) : null;
-  if (!k) { toast('Prozess nicht gefunden – bitte neu laden.', 'error'); return; }
+  if (!k) { toast('Prozess nicht gefunden. Bitte neu laden.', 'error'); return; }
   const vorher = { status: k.status, naechsteUeberpruefung: k.naechsteUeberpruefung };
   const text = pzStatusSetzen(k, status);
   if (!text) return;
   // Der Verlauf merkt sich das Werk der offenen Landkarte – hier ist es das der Karte.
   const offen = _lkWerk;
   _lkWerk = werk;
-  const gut = await lkSpeichern(`${k.name}: ${pzStatusInfo(status).label} ✓`, `„${k.name}" – ${text}`);
+  const gut = await lkSpeichern(`${k.name}: ${pzStatusInfo(status).label} ✓`, `„${k.name}": ${text}`);
   _lkWerk = offen;
   if (!gut) {
     k.status = vorher.status;
@@ -803,7 +803,7 @@ async function pbModellStatusSetzen(itemId, status) {
   if (status === 'eol') { renderProzessBacklog(); pbAngabenDialog(itemId, 'eol'); return; }
   const p = (typeof procModellVon === 'function') ? procModellVon(itemId) : null;
   if (!p || typeof spGetProcessXml !== 'function' || typeof procXmlDokuNeu !== 'function') {
-    toast('Modell nicht gefunden – bitte neu laden.', 'error'); return;
+    toast('Modell nicht gefunden. Bitte neu laden.', 'error'); return;
   }
   try {
     const xml = await spGetProcessXml(itemId);
