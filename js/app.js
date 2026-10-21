@@ -36,10 +36,10 @@ const PAGE_TITLES = {
    Boot
 ═══════════════════════════════════════════════════ */
 
-const APP_VERSION = 'v-453ffa7d';
+const APP_VERSION = 'v-a8e06983';
 /* Tag dieses Builds. Setzt die Action cache-bust.yml wie die Version. Die
    Fälligkeiten erinnern damit an eine Funktionsprüfung nach dem Update. */
-const APP_STAND = '2026-10-20';
+const APP_STAND = '2026-10-21';
 
 /* Temporärer sichtbarer Diagnose-Streifen (für Fehlersuche Dokumentwähler). */
 let _dbgOn = false;
