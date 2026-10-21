@@ -307,7 +307,33 @@ async function openAusnahmeEditor(id) {
       if (dl) dl.innerHTML = m.map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('');
     }).catch(() => { _excMembers = []; });
   }
+  // Das verknüpfte Risiko steht im Risiko-Register. Ist das in diesem Browser
+  // noch nicht geladen, wird es nachgeholt: Sonst stünde im Editor „keins",
+  // obwohl eins verknüpft ist.
+  if (typeof _risks !== 'undefined' && !Array.isArray(_risks) && typeof spGetRisks === 'function') {
+    spGetRisks().then(l => { if (!Array.isArray(_risks)) _risks = l; _excRisikoAuswahlNeu(); })
+      .catch(() => { _excRisikoAuswahlNeu('Risiko-Register nicht lesbar. Die Verknüpfung bleibt erhalten.'); });
+  }
   renderAusnahmeEditor();
+}
+
+/** Die Auswahl des verknüpften Risikos. Ein verknüpftes Risiko, das (noch) nicht in der Liste steht, steht mit seiner Nummer da. */
+function _excRisikoOptionen(a, risiken) {
+  const id = String((a && a.risikoId) || '');
+  const da = risiken.some(r => String(r.id) === id);
+  return `<option value=""${!id ? ' selected' : ''}>– keins –</option>`
+    + (id && !da ? `<option value="${esc(id)}" selected>Risiko Nr. ${esc(id)}${risiken.length ? ' (nicht gefunden)' : ''}</option>` : '')
+    + risiken.map(r => `<option value="${esc(r.id)}"${String(r.id) === id ? ' selected' : ''}>Nr. ${esc(r.id)} · ${esc(r.titel)}</option>`).join('');
+}
+
+/** Nach dem Nachladen nur die Auswahl neu füllen; was im Editor schon getippt ist, bleibt. */
+function _excRisikoAuswahlNeu(meldung) {
+  if (typeof document === 'undefined' || !_excEditing) return;
+  const s = document.getElementById('exc-risiko');
+  const h = document.getElementById('exc-risiko-hinweis');
+  const risiken = (typeof _risks !== 'undefined' && Array.isArray(_risks)) ? _risks : [];
+  if (s) s.innerHTML = _excRisikoOptionen(_excEditing, risiken);
+  if (h) { h.textContent = meldung || ''; h.style.display = meldung ? '' : 'none'; }
 }
 
 function _excScale(key) {   // key: 'e' | 'a'
@@ -400,11 +426,8 @@ function renderAusnahmeEditor() {
             <div style="margin-top:6px">Risiko der Abweichung: <span id="exc-score">${
               (typeof _riskScoreBadge === 'function') ? _riskScoreBadge(a.risiko.e, a.risiko.a) : esc(String(excRisikoWert(a) || '–'))}</span></div></div>
           <div class="form-group"><label>Verknüpftes Risiko (optional)</label>
-            <select onchange="_excEditing.risikoId=this.value">
-              <option value="">– keins –</option>
-              ${risiken.map(r => `<option value="${esc(r.id)}"${String(a.risikoId) === String(r.id) ? ' selected' : ''}>${esc(r.titel)}</option>`).join('')}
-            </select>
-            ${!risiken.length ? '<div class="field-hint">Risiko-Register in diesem Browser noch nicht geladen. Reiter „Risiko-Register" einmal öffnen.</div>' : ''}</div>
+            <select id="exc-risiko" onchange="_excEditing.risikoId=this.value">${_excRisikoOptionen(a, risiken)}</select>
+            <div class="field-hint" id="exc-risiko-hinweis"${risiken.length ? ' style="display:none"' : ''}>Risiko-Register wird geladen …</div></div>
         </div>
         <div class="form-group full"><label>Kompensierende Maßnahmen${excRisikoWert(a) >= EXC_KOMPENSATION_AB ? ' <span class="req">*</span>' : ''}</label>
           <textarea oninput="_excEditing.kompensation=this.value" placeholder="Was das Risiko stattdessen begrenzt.">${esc(a.kompensation)}</textarea>
@@ -420,8 +443,14 @@ function renderAusnahmeEditor() {
           <div class="form-group"><label>ISB einbezogen am</label>
             <input type="date" value="${esc((a.isbAm || '').slice(0, 10))}"
               onchange="_excEditing.isbAm=this.value?new Date(this.value+'T00:00:00Z').toISOString():''"></div>
+          ${canWrite && (a.status === 'beantragt' || eff === 'genehmigt') ? `
+          <div class="form-group"><label>Entschieden von (E-Mail)</label>
+            <input type="text" id="exc-entscheider" list="exc-people" value="${esc(a._entscheiderNeu || '')}" oninput="_excEditing._entscheiderNeu=this.value" placeholder="leer = Sie selbst">
+            <div class="field-hint">Wer entschieden hat, etwa per Mail. Erfasst wird unter Ihrem Namen, das steht im Verlauf.</div></div>
+          <div class="form-group"><label>Entschieden am</label>
+            <input type="date" id="exc-entschieden-am" value="${esc(a._entschiedenAmNeu || excHeute())}" max="${esc(excHeute())}" onchange="_excEditing._entschiedenAmNeu=this.value"></div>` : ''}
           <div class="form-group full"><label>Kommentar zur Entscheidung</label>
-            <textarea oninput="_excEditing.entscheidungKommentar=this.value" placeholder="Auflagen, Bedingungen, Vorbehalte.">${esc(a.entscheidungKommentar)}</textarea></div>
+            <textarea oninput="_excEditing.entscheidungKommentar=this.value" placeholder="Auflagen, Bedingungen, Vorbehalte, Nachweis (z. B. Mail vom …).">${esc(a.entscheidungKommentar)}</textarea></div>
         </div>
         ${a.entscheider ? `<div class="field-hint">Entschieden von <b>${esc(a.entscheider)}</b>${a.entschiedenAm ? ' am ' + fmtDate(a.entschiedenAm) : ''} · Status: ${esc(a.status)}</div>` : ''}
       </div>
@@ -517,8 +546,22 @@ async function entscheideAusnahme(neuerStatus) {
   }
   const a = _excEditing;
   const upn = (typeof State !== 'undefined' && State.user) ? State.user.upn : '';
+  // Wer entschieden hat, ist nicht immer, wer es einträgt: Eine Freigabe per
+  // Mail erfasst oft der ISB. Ohne Angabe gilt die angemeldete Person.
+  const entscheider = String(a._entscheiderNeu || '').trim() || upn;
+  const tag = /^\d{4}-\d{2}-\d{2}$/.test(String(a._entschiedenAmNeu || '')) ? a._entschiedenAmNeu : '';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(entscheider)) {
+    if (typeof toast === 'function') toast('Bitte bei „Entschieden von" eine E-Mail-Adresse eintragen.', 'error');
+    return;
+  }
+  if (tag && tag > excHeute()) {
+    if (typeof toast === 'function') toast('Das Datum der Entscheidung liegt in der Zukunft.', 'error');
+    return;
+  }
+  const fremd = entscheider.toLowerCase() !== String(upn || '').toLowerCase();
+  const tagText = tag ? tag.split('-').reverse().join('.') : '';
   if (neuerStatus === 'genehmigt') {
-    const fehler = excGenehmigungsfehler(a, upn);
+    const fehler = excGenehmigungsfehler(a, entscheider);
     if (fehler.length) {
       if (typeof toast === 'function') toast('Genehmigung nicht möglich: ' + fehler[0], 'error');
       return;
@@ -532,12 +575,14 @@ async function entscheideAusnahme(neuerStatus) {
     if (fehler.length) { if (typeof toast === 'function') toast(fehler[0], 'error'); return; }
   }
   if (typeof uiConfirm === 'function' && !await uiConfirm(
-      `Ausnahme „${a.titel}" auf „${neuerStatus}" setzen?`,
+      `Ausnahme „${a.titel}" auf „${neuerStatus}" setzen?${fremd ? ` Entschieden von ${entscheider}${tagText ? ' am ' + tagText : ''}, erfasst unter Ihrem Namen.` : ''}`,
       { title: 'Entscheidung festhalten', okLabel: 'Ja, festhalten' })) return;
   a.status = neuerStatus;
-  a.entscheider = upn;
-  a.entschiedenAm = new Date().toISOString();
-  _excVermerk(a, `${neuerStatus}${a.entscheidungKommentar ? ': ' + a.entscheidungKommentar : ''}`);
+  a.entscheider = entscheider;
+  a.entschiedenAm = tag ? new Date(tag + 'T12:00:00Z').toISOString() : new Date().toISOString();
+  delete a._entscheiderNeu;
+  delete a._entschiedenAmNeu;
+  _excVermerk(a, `${neuerStatus}${fremd ? ` (entschieden von ${entscheider}${tagText ? ' am ' + tagText : ''})` : ''}${a.entscheidungKommentar ? ': ' + a.entscheidungKommentar : ''}`);
   await _excSchreiben(a, `Ausnahme ${neuerStatus} ✓`);
 }
 
@@ -688,5 +733,5 @@ function ausnahmenExportCsv() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { EXC_STATUS, EXC_MAX_MONATE, EXC_KOMPENSATION_AB, EXC_WARNUNG_TAGE };
+  module.exports = { EXC_STATUS, EXC_MAX_MONATE, EXC_KOMPENSATION_AB, EXC_WARNUNG_TAGE, _excRisikoOptionen };
 }

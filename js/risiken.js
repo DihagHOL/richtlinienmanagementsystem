@@ -30,6 +30,7 @@ let _riskFilter = { q: '', status: '', behandlung: '', cell: null, basis: 'netto
 let _riskMembers = null;      // Mitarbeiter für die Eigner-Auswahl
 let _riskAssets = null;       // Assets aus der ISMS-Liste „Assets" (Cache); null = noch nicht geladen
 let _riskAssetsError = null;  // Fehlermeldung, falls Assets-Liste nicht ladbar
+let _rkAusnahmen = null;      // Ausnahmen, falls das Ausnahmeregister nicht geladen ist; null = noch nicht gelesen
 
 /* ── Scoring ── */
 
@@ -272,7 +273,33 @@ async function openRiskEditor(id) {
     lader().then(a => { _riskAssets = a; _riskAssetsError = null; rkRenderAssets(); })
       .catch(e => { _riskAssets = []; _riskAssetsError = e.message || 'Assets nicht ladbar.'; rkRenderAssets(); });
   }
+  // Ausnahmen verweisen auf ihr Risiko (risikoId). Damit man das auch vom
+  // Risiko aus sieht, werden sie gelesen, wenn das Register nicht ohnehin da ist.
+  if (_riskEditing.id && _rkAusnahmen === null && !(typeof _excs !== 'undefined' && Array.isArray(_excs))
+      && typeof spGetExceptionsLeise === 'function') {
+    spGetExceptionsLeise().then(l => { _rkAusnahmen = Array.isArray(l) ? l : []; rkRenderAusnahmen(); }).catch(() => { _rkAusnahmen = []; });
+  }
   renderRiskEditor();
+}
+
+/** Die Ausnahmen, die auf dieses Risiko verweisen, mit Status und Frist. Nur mit Leserecht auf das Ausnahmeregister. */
+function _rkAusnahmenHtml(id) {
+  if (!id || (typeof canReadTab === 'function' && !canReadTab('ausnahmen'))) return '';
+  const quelle = (typeof _excs !== 'undefined' && Array.isArray(_excs)) ? _excs : (_rkAusnahmen || []);
+  const upn = (typeof State !== 'undefined' && State.user) ? State.user.upn : '';
+  const liste = quelle.filter(a => String(a.risikoId || '') === String(id)
+    && (typeof geltungSichtbar !== 'function' || geltungSichtbar(a.werke, upn)));
+  if (!liste.length) return '';
+  const status = (a) => (typeof excEffektiverStatus === 'function') ? excEffektiverStatus(a) : a.status;
+  return `<div style="font-weight:600;font-size:.85rem;margin:10px 0 4px">⚖️ Ausnahmen zu diesem Risiko</div>
+    ${liste.map(a => `<div style="font-size:.82rem;padding:2px 0">Nr. ${esc(a.id)} · <b>${esc(a.titel)}</b> · ${esc(status(a))}${
+      a.befristetBis ? ', befristet bis ' + fmtDate(a.befristetBis) : ''}${a.entscheider ? ', entschieden von ' + esc(a.entscheider) : ''}</div>`).join('')}
+    <div class="field-hint">Gepflegt wird die Ausnahme im Reiter „Ausnahmen".</div>`;
+}
+
+function rkRenderAusnahmen() {
+  const el = (typeof document !== 'undefined') ? document.getElementById('rk-ausnahmen') : null;
+  if (el && _riskEditing) el.innerHTML = _rkAusnahmenHtml(_riskEditing.id);
 }
 
 function _rkSel(name, val, opts, onchange, allowEmpty) {
@@ -352,6 +379,7 @@ function renderRiskEditor() {
           <div class="form-group full"><label>Begründung <span style="font-weight:400;color:var(--c-muted)">(Pflicht bei „akzeptieren": Risikoakzeptanz durch den Eigner)</span></label>
             <textarea oninput="_riskEditing.behandlungBegruendung=this.value">${esc(r.behandlungBegruendung)}</textarea></div>
         </div>
+        <div id="rk-ausnahmen">${_rkAusnahmenHtml(r.id)}</div>
         <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px">Maßnahmenplan</div>
         <div id="rk-massnahmen">${_rkMassnahmenHtml()}</div>
         <button class="btn btn-ghost btn-sm" onclick="rkAddMassnahme()">+ Maßnahme</button>

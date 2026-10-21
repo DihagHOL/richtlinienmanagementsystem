@@ -473,7 +473,8 @@ function _dokuSections() {
       ${tbl([
         ['Risikobewertung', 'Eintritt × Auswirkung auf derselben Skala von 1 bis 5 wie im Risiko-Register. Optional mit einem Risiko dort verknüpfbar. Ab Wert <b>15 („hoch")</b> sind zusätzlich <b>kompensierende Maßnahmen</b> zu benennen.'],
         ['Befristung', 'Ein Enddatum ist <b>Pflicht</b>, ohne lässt sich nicht einmal speichern. Über <b>12 Monate</b> fragt das System nach: Eine so lange Abweichung gehört meist in die Richtlinie selbst.'],
-        ['Entscheidung', 'Person und Zeitpunkt werden festgehalten, der Kommentar wandert in den Verlauf. <b>Vier-Augen-Prinzip:</b> Wer beantragt hat, kann nicht selbst genehmigen.'],
+        ['Entscheidung', 'Person und Zeitpunkt werden festgehalten, der Kommentar wandert in den Verlauf. Hat jemand anderes entschieden, etwa per Mail, stehen <b>„Entschieden von"</b> und <b>„Entschieden am"</b> im Editor; erfasst wird unter dem eigenen Namen, und der Verlauf nennt beide. <b>Vier-Augen-Prinzip:</b> Wer beantragt hat, kann nicht selbst genehmigen, auch nicht über einen anderen Erfasser.'],
+        ['Risiko', 'Das verknüpfte Risiko steht im Editor mit Nummer, auch wenn das Risiko-Register im Browser noch nicht geladen war. Umgekehrt zeigt das Risiko im Risiko-Register die Ausnahmen, die auf es verweisen.'],
         ['ISB', 'Der Informationssicherheitsbeauftragte wird vor der Genehmigung mit Namen und Datum vermerkt.'],
       ])}
       <div style="${h3}">Status</div>
