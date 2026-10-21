@@ -422,7 +422,7 @@ function pbFeldZeigen(feldId, versuch) {
   // Hervorgehoben wird das Feld mit seiner Beschriftung, wenn es allein in seiner Gruppe steht.
   const gruppe = el.closest ? el.closest('.form-group') : null;
   const ziel = gruppe && gruppe.querySelectorAll('input,select,textarea').length <= 1 ? gruppe : el;
-  if (ziel.scrollIntoView) ziel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (ziel.scrollIntoView) ziel.scrollIntoView({ block: 'center' });   // ohne „smooth": läuft auch, wenn das Fenster im Hintergrund ist
   if (ziel.classList) {
     ziel.classList.add('pb-hervor');
     setTimeout(() => ziel.classList.remove('pb-hervor'), 2600);
