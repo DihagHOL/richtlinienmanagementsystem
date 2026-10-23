@@ -276,7 +276,7 @@ function renderProzesseList() {
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
       ${canWrite && (_processes || []).length ? `<button class="btn btn-outline btn-sm" onclick="prozessPfeilePruefen()" title="Alle Modelle auf Pfeile prüfen, die ins Leere oder durch den eigenen Kasten laufen, und sie korrigieren. Erst nach Rückfrage wird gespeichert.">↪ Pfeile prüfen</button>` : ''}
       ${canWrite && (_processes || []).some(p => !(p.ordner || '')) ? `<button class="btn btn-outline btn-sm" onclick="prozessAblageAufraeumen()" title="Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks verschieben">🗂 Ablage aufräumen</button>` : ''}
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Alle ${RMS_PROCESS_SEEDS.length} dokumentierten RMS-Abläufe (Regelwerk-Lebenszyklus & -Allgemein, Konzept, Kenntnisnahme, Änderungsvorschlag, Risiko, KI-Antrag, Health-Check, Abdeckung/SoA, Fälligkeit, Governance-Übernahme, Audit-Report, Archivierung) als BPMN-Entwürfe anlegen, bereits vorhandene werden übersprungen">📋 Standard-Prozesse</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Die Prozesse des RMS selbst als BPMN-Modelle anlegen: ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length + ' Modelle, ' : ''}13 Hauptprozesse mit Unter- und Nebenprozessen, in der Ablage des Konzerns. Vorhandene werden übersprungen oder auf Wunsch aktualisiert.">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -3803,133 +3803,65 @@ function _bpmnFromText(text, name, policyIds, docs) {
   });
 }
 
-/* ── Standard-Prozesse aus den dokumentierten RMS-Abläufen ──
-   Jeder Seed ist ein nummerierter Ablauf; „…?"/Schlüsselwörter werden zu
-   Entscheidungs-Gateways. Wird per Button als BPMN-Entwurf angelegt und ist
-   danach im Modeler frei anpassbar. */
-const RMS_PROCESS_SEEDS = [
-  { name: 'Regelwerk-Lebenszyklus (RMS)', steps: `
-1. Regelwerk-Entwurf erstellen
-2. Dokument zuordnen
-3. Zur Konformitätsprüfung einreichen
-4. Konform?
-5. Mitbestimmung (Betriebsverfassung) einholen
-6. Freigabe durch die Geschäftsleitung
-7. Freigegeben?
-8. Regelwerk veröffentlichen
-9. Wiedervorlage/Review terminieren` },
-  { name: 'Regelwerk-Konzept (RMS)', steps: `
-1. Konzept (Idee/Skizze) erfassen
-2. Optionalen Entwurf als Anhang hinterlegen
-3. Zur Prüfung an die Geschäftsleitung einreichen
-4. Vom GF angenommen?
-5. Regelwerk-Entwurf aus dem Konzept erstellen
-6. In den Regelwerk-Lebenszyklus überführen` },
-  { name: 'Kenntnisnahme & Wissenstest (RMS)', steps: `
-1. Mitarbeiter: Veröffentlichtes Regelwerk lesen
-2. Kenntnisnahme bestätigen
-3. Wissenstest erforderlich?
-4. Wissenstest absolvieren
-5. Bestanden?
-6. Nachweis dokumentiert
-7. Wiederholung fällig?` },
-  { name: 'Änderungsvorschlag ISMS-Dokument (RMS)', steps: `
-1. Mitarbeiter: Änderungsvorschlag erfassen
-2. Mail an die ISMS-Verantwortlichen
-3. ISMS-Team: Vorschlag prüfen
-4. Umsetzen?
-5. Dokument aktualisieren (neue Version)
-6. Rückmeldung an den Einreicher` },
-  { name: 'Risiko-Management (RMS)', steps: `
-1. Risiko erfassen
-2. Schutzziele (CIA) und Assets zuordnen
-3. Eintritt und Auswirkung bewerten
-4. Maßnahmen erforderlich?
-5. Maßnahmen festlegen und umsetzen
-6. Restrisiko bewerten
-7. Zur Wiedervorlage terminieren` },
-  { name: 'KI-System beantragen (RMS)', steps: `
-1. Mitarbeiter: KI-System-Antrag erfassen
-2. Risikoklasse einschätzen
-3. Antrag einreichen
-4. KI-Gremium: Antrag prüfen
-5. Genehmigt?
-6. KI-System freigeben und dokumentieren` },
-  { name: 'Dokument-Health-Check (RMS)', steps: `
-1. Dokumente-Prüfung starten
-2. Befunde sichten (Dubletten, Platzhalter, leere Kapitel)
-3. Handlungsbedarf?
-4. Dokument korrigieren (neue Version)
-5. Prüfung wiederholen
-6. Dokumente in Ordnung` },
-  { name: 'IMS-Abdeckung & SoA (RMS)', steps: `
-1. ISO-27001-Controls sichten
-2. Abdeckung je Control bewerten
-3. Lücke vorhanden?
-4. Regelwerk/Maßnahme zuordnen
-5. Statement of Applicability (SoA) aktualisieren
-6. Abdeckung dokumentiert` },
-  { name: 'Fälligkeit / Wiedervorlage (RMS)', steps: `
-1. Wiedervorlage-Termine überwachen
-2. Review fällig?
-3. Regelwerk inhaltlich prüfen
-4. Aktualisierung nötig?
-5. Regelwerk aktualisieren (neue Version)
-6. Nächsten Review-Termin setzen` },
-  { name: 'Governance-Übernahme (RMS)', steps: `
-1. Legal: Entwurf im Governance-Board bearbeiten
-2. Entwurf finalisiert?
-3. Als Regelwerk übernehmen
-4. Zur Prüfung einreichen
-5. In den Regelwerk-Lebenszyklus überführen` },
-  { name: 'Audit-Report / C-Level (RMS)', steps: `
-1. Kennzahlen und Reifegrad zusammenstellen
-2. ISO-27001-Abgleich durchführen
-3. C-Level-Bericht erstellen
-4. Freigeben und versenden?
-5. Bericht per Mail an die Geschäftsleitung senden
-6. Bericht archiviert` },
-  { name: 'Regelwerk – Allgemein (RMS)', steps: `
-1. Bedarf für ein Regelwerk feststellen
-2. Verantwortlichen (Owner) benennen
-3. Regelwerk erstellen
-4. Fachlich prüfen
-5. Prüfung bestanden?
-6. Freigeben
-7. Veröffentlichen und kommunizieren
-8. Regelmäßig überprüfen` },
-  { name: 'Regelwerk außer Kraft setzen / Archivierung (RMS)', steps: `
-1. Ablösung oder Wegfall feststellen
-2. Nachfolge-Regelwerk vorhanden?
-3. Nachfolge-Regelwerk verlinken
-4. Außerkraftsetzung freigeben lassen
-5. Regelwerk archivieren
-6. Betroffene informieren` },
-];
+/* ── Die Prozesse des RMS ──
+   Der Katalog steht in js/rmsprozesse.js: 13 Hauptprozesse mit ihren Unter-
+   und Nebenprozessen, nach Hausschema, mit Bahnen, Beschreibung und
+   Normbezug. Angelegt wird in der Ablage des Konzerns, von unten nach oben:
+   Ein Modell kann nur einbinden und zuordnen, was schon eine Datei-Kennung
+   hat. Die 13 flachen Schrittlisten, die hier bis Oktober 2026 standen, sind
+   darin aufgegangen. */
 
-/** Die dokumentierten RMS-Abläufe als BPMN-Entwürfe anlegen (überspringt bereits vorhandene). */
+/** Die Prozesse des RMS anlegen: was fehlt, und auf Wunsch die vorhandenen auf den Stand des Katalogs bringen. */
 async function seedStandardProcesses() {
   if (typeof canWriteTab === 'function' && !canWriteTab('prozesse')) { toast('Nur Lesezugriff auf „Prozesse".', 'error'); return; }
-  const norm = (s) => String(s || '').toLowerCase().replace(/\.bpmn$/, '').trim();
-  const existing = new Set((_processes || []).map(p => norm(p.title)));
-  const todo = RMS_PROCESS_SEEDS.filter(s => !existing.has(norm(s.name)));
-  const skip = RMS_PROCESS_SEEDS.length - todo.length;
-  if (!todo.length) { toast('Alle Standard-Prozesse sind bereits angelegt.', 'success'); return; }
-  const ok = await uiConfirm(
-    `${todo.length} Standard-Prozess(e) aus den dokumentierten RMS-Abläufen als BPMN-Entwurf anlegen${skip ? ` (${skip} bereits vorhanden, werden übersprungen)` : ''}? Danach im Modeler frei anpassbar.`,
-    { title: 'Standard-Prozesse anlegen', okLabel: `${todo.length} anlegen` });
+  if (typeof RMS_PROZESSE === 'undefined' || typeof rmsReihenfolge !== 'function') {
+    toast('Der Katalog der RMS-Prozesse ist nicht geladen. Bitte die Seite neu laden.', 'error'); return;
+  }
+  // Frisch lesen: Was es schon gibt, entscheidet über Anlegen oder Aktualisieren.
+  try { _processes = await spListProcesses(); } catch (e) { toast('Modelle nicht lesbar: ' + e.message, 'error'); return; }
+  const ablage = RMS_PROZESS_ABLAGE;
+  const ablageName = typeof lkWerkLabel === 'function' ? lkWerkLabel(ablage) : ablage;
+  // Verglichen wird, wie SharePoint die Datei benennt: Zwei Namen mit derselben
+  // Datei wären dasselbe Modell.
+  const norm = (s) => spProzessDateiname(String(s || '').replace(/\.bpmn$/i, '')).toLowerCase();
+  const vorhanden = new Map();
+  (_processes || []).filter(p => (p.ordner || '') === ablage).forEach(p => vorhanden.set(norm(p.title), String(p.itemId)));
+  const reihe = rmsReihenfolge();
+  const ids = {};
+  reihe.forEach(p => { const id = vorhanden.get(norm(p.name)); if (id) ids[p.name] = id; });
+  const neu = reihe.filter(p => !ids[p.name]);
+  const da = reihe.length - neu.length;
+  const ok = await uiConfirm(`<p style="margin:0 0 8px">Die Prozesse des RMS als BPMN-Modelle anlegen: <b>${reihe.length} Modelle</b>,
+      davon <b>${rmsHauptprozesse().length} Hauptprozesse</b> mit ihren Unter- und Nebenprozessen. Jedes nach Hausschema, mit Bahnen,
+      Beschreibung und Normbezug; eingebundene Unterprozesse (⊞) zeigen auf ihr Modell, die Gliederung steht beim übergeordneten.</p>
+    <p style="margin:0">Ablage: <b>${esc(ablageName)}</b>. ${neu.length ? `Neu angelegt werden <b>${neu.length}</b>.` : 'Neu anzulegen ist nichts.'}
+      ${da ? ` <b>${da}</b> gibt es dort schon; was mit ihnen geschieht, fragt der nächste Schritt.` : ''}</p>`,
+    { title: 'Prozesse des RMS anlegen', okLabel: neu.length ? `${neu.length} anlegen` : 'Weiter', html: true });
   if (!ok) return;
-  let done = 0, fail = 0;
-  for (const s of todo) {
+  let aktualisieren = false;
+  if (da) {
+    aktualisieren = await uiConfirm(`${da} der Modelle gibt es schon. Sollen sie auf den Stand des Katalogs gebracht werden? `
+      + 'SharePoint behält die bisherige Fassung im Versionsverlauf, eigene Änderungen an diesen Modellen würden aber überschrieben. '
+      + 'Übersprungene bleiben, wie sie sind; dann fehlen ihnen womöglich neue Unter- und Nebenprozesse.',
+      { title: 'Vorhandene Modelle', okLabel: 'Aktualisieren', cancelLabel: 'Überspringen' });
+  }
+  if (!neu.length && !aktualisieren) { toast('Nichts zu tun: Alle Prozesse des RMS sind angelegt.', 'success'); return; }
+  toast(`Die Prozesse des RMS werden angelegt …`);
+  let angelegt = 0, aktualisiert = 0;
+  const fehler = [];
+  for (const p of reihe) {
+    const gab = !!ids[p.name];
+    if (gab && !aktualisieren) continue;
     try {
-      const { xml } = _bpmnFromText(s.steps, s.name, []);
-      await spSaveProcess(s.name, xml);
-      done++;
-    } catch (e) { console.warn('Standard-Prozess fehlgeschlagen:', s.name, e.message); fail++; }
+      const datei = await spSaveProcess(p.name, rmsModellXml(p, ids), ablage);
+      if (datei && datei.id) ids[p.name] = String(datei.id);
+      if (gab) aktualisiert++; else angelegt++;
+    } catch (e) { console.warn('RMS-Prozess nicht gespeichert:', p.name, e.message); fehler.push(p.name); }
   }
   _processes = null; _procLinkCache = {};
   await initProzesse();
-  toast(`${done} Standard-Prozess(e) angelegt${fail ? `, ${fail} fehlgeschlagen` : ''} ✓`, fail ? 'error' : 'success');
+  toast(`Prozesse des RMS: ${angelegt} angelegt${aktualisiert ? `, ${aktualisiert} aktualisiert` : ''}${
+    fehler.length ? `. Nicht gespeichert: ${fehler.join(', ')}` : ''} ✓`, fehler.length ? 'error' : 'success');
 }
 
 /* Node-Export nur für Tests. */
@@ -3940,7 +3872,7 @@ if (typeof module !== 'undefined' && module.exports) {
   // werden sie hier nachgereicht, damit ein `require('./prozesse.js')`
   // dieselbe Umgebung vorfindet wie der Browser.
   if (typeof prozessXmlAusText === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
-  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, RMS_PROCESS_SEEDS, procPngSkala, procSvgAlsPng, procDiagrammRahmen,
+  module.exports = { _parseSteps, _bpmnFromText, _clipLabel, procPngSkala, procSvgAlsPng, procDiagrammRahmen,
     _parseProcessDocs, _procDokuText, _procDocMarker, _docFeld, _xmlUnesc,
     procXmlDokuNeu, procPmAusXml, procSchrittDocsAusText, procSchrittDokuText,
     procEintragAusXml, procKennungAusXml, procUnterAusXml, procLeeresBpmn, procEintragLaden, procEintraegeLaden,

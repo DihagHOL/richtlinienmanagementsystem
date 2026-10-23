@@ -46,6 +46,8 @@ const FEATURES = [
   { name: 'Muster-Vorlage',          code: () => /MUSTER_VORLAGE_URL/.test(admin),                   begriffe: ['Muster-Vorlage'] },
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
+  { name: 'Prozesse des RMS',        code: () => /const RMS_PROZESSE/.test(read('js/rmsprozesse.js')), begriffe: ['Die Prozesse des RMS', '13 Hauptprozesse', 'Nebenprozesse, die mit eigenem Ablauf', 'Ablage des Konzerns'] },
+  { name: 'Sprünge im Hausschema',   code: () => /function _psRueckWeg/.test(read('js/prozessschema.js')), begriffe: ['| Ende: Text', '| zurück: Schritt', '| weiter: Schritt', 'Zurück: Schritt'] },
   { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
   { name: 'IST, SOLL und EOL',       code: () => /key: 'eol'/.test(read('js/prozessmodell.js')), begriffe: ['IST-Modell eines anderen Prozesses (EOL)', 'noch in Benutzung', 'Außer Betrieb seit', 'kein Prozess verknüpft', 'wer gibt frei? offen', '✎ Angaben', 'Rubriken', 'Review ab dem POC'] },
   { name: 'Vergleich IST/SOLL',      code: () => /function pvOeffnen\(/.test(read('js/prozessvergleich.js')), begriffe: ['⇄ Vergleich IST/SOLL', 'Gegenüberstellung', 'Delta- oder Gap-Analyse', 'Nummer und Farbe', 'Vorschläge übernehmen', 'Vergleich mit dem IST', 'Anmerkungen je Zuordnung', 'Name und Zeitpunkt', 'nur die eigenen'] },

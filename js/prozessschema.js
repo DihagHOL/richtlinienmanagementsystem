@@ -113,6 +113,16 @@ const PROZESS_REGELN = [
    meint kein Handanlegen. */
 const PS_AUTO_BAHNEN = /^(system|automatik|automatisch|it-system|workflow|cron)$/i;
 
+/* Aufgabentyp aus einer Klammer am Ende: „(automatisch)", „(manuell)",
+   „(Unterprozess)". → { text ohne Klammer, typ ('' wenn keine) } */
+function _psTypAus(text) {
+  const s = String(text || '').trim();
+  const tm = s.match(/\s*\((automatisch|automatik|system|manuell|handisch|unterprozess|teilprozess)\)\s*$/i);
+  if (!tm) return { text: s, typ: '' };
+  const typ = /manuell|handisch/i.test(tm[1]) ? 'manual' : /unterprozess|teilprozess/i.test(tm[1]) ? 'unter' : 'service';
+  return { text: s.slice(0, tm.index).trim(), typ };
+}
+
 /**
  * Eine Zeile lesen.
  *
@@ -127,6 +137,13 @@ const PS_AUTO_BAHNEN = /^(system|automatik|automatisch|it-system|workflow|cron)$
  * Vor dem Doppelpunkt steht die Bahn, dahinter der Schritt. Ein Fragezeichen
  * macht eine Entscheidung daraus, `(automatisch)` bzw. `(manuell)` überschreibt
  * den Aufgabentyp, `| nein: …` benennt den zweiten Zweig.
+ *
+ * Wie der Nein-Zweig ausgeht, steht dahinter: `| Ende: Antrag abgelehnt` gibt
+ * ihm ein Ergebnis mit Namen (sonst heißt es „Beendet" bzw. „Nachbessern"),
+ * `| zurück: Antrag prüfen` führt ihn zu einem früheren Schritt zurück,
+ * `| weiter: Bestellung auslösen` zu einem späteren; dort treffen sich die
+ * Wege wieder. Ohne `nein: …` geht der Zweig ohne eigenen Schritt dorthin.
+ * Eine Zeile `Zurück: Antrag prüfen` tut dasselbe für den Hauptweg.
  */
 function prozessZeileLesen(zeile) {
   let l = String(zeile || '').trim();
@@ -144,24 +161,34 @@ function prozessZeileLesen(zeile) {
   if (kopf === 'start' || kopf === 'auslöser' || kopf === 'ausloeser') return { kind: 'start', label: l, bahn: '' };
   if (kopf === 'ende' || kopf === 'ergebnis') return { kind: 'ende', label: l, bahn: '' };
   if (kopf === 'warten' || kopf === 'warten auf') return { kind: 'warten', label: l, bahn: '' };
+  if (kopf === 'zurück' || kopf === 'zurueck') return { kind: 'zurueck', label: l, bahn: '' };
 
-  // Zweitname eines Entscheidungszweigs.
-  let nein = '';
-  const nm = l.match(/\|\s*nein\s*:\s*(.+)$/i);
-  if (nm) { nein = nm[1].trim(); l = l.slice(0, nm.index).trim(); }
+  // Der Nein-Zweig einer Entscheidung, hinter senkrechten Strichen. Gelesen
+  // wird nur, was ein bekanntes Wort trägt; ein Strich in gewöhnlichem Text
+  // bleibt stehen.
+  let nein = '', neinTyp = '', neinEnde = '', neinZurueck = '', neinOhne = false;
+  const teile = l.split('|').map(t => t.trim());
+  if (teile.length > 1) {
+    let erkannt = false;
+    teile.slice(1).forEach(t => {
+      let x;
+      if ((x = /^nein\s*:\s*(.+)$/i.exec(t))) { nein = x[1].trim(); erkannt = true; }
+      else if (/^nein$/i.test(t)) { neinOhne = true; erkannt = true; }
+      else if ((x = /^(?:ende|ergebnis)\s*:\s*(.+)$/i.exec(t))) { neinEnde = x[1].trim(); erkannt = true; }
+      else if ((x = /^(?:zur(?:ü|ue)ck|weiter)\s*:\s*(.+)$/i.exec(t))) { neinZurueck = x[1].trim(); erkannt = true; }
+    });
+    if (erkannt) l = teile[0];
+  }
+  if (nein) { const n = _psTypAus(nein); nein = n.text; neinTyp = n.typ; }
 
   // Aufgabentyp: ausdrücklich in Klammern, sonst über die Bahn, sonst Mensch.
   // „(Unterprozess)" meint: hier läuft ein eigener Prozess – im Modeler wird
   // dann das Modell gewählt, das eingebunden wird.
-  let typ = '';
-  const tm = l.match(/\s*\((automatisch|automatik|system|manuell|handisch|unterprozess|teilprozess)\)\s*$/i);
-  if (tm) {
-    typ = /manuell|handisch/i.test(tm[1]) ? 'manual' : /unterprozess|teilprozess/i.test(tm[1]) ? 'unter' : 'service';
-    l = l.slice(0, tm.index).trim();
-  }
-  if (!typ) typ = PS_AUTO_BAHNEN.test(bahn) ? 'service' : 'user';
+  const t = _psTypAus(l);
+  l = t.text;
+  const typ = t.typ || (PS_AUTO_BAHNEN.test(bahn) ? 'service' : 'user');
 
-  if (/\?\s*$/.test(l)) return { kind: 'frage', label: l, bahn, nein };
+  if (/\?\s*$/.test(l)) return { kind: 'frage', label: l, bahn, nein, neinTyp, neinEnde, neinZurueck, neinOhne };
   return { kind: typ, label: l, bahn, nein: '' };
 }
 
@@ -238,16 +265,25 @@ function prozessXmlBauen(o) {
   const reiheZweig = (b) => bahnY[b] + 180;     // Mitte der unteren Reihe
 
   const knoten = [], fluesse = [], zweigEnden = [];
+  const untenBelegt = new Set();   // Rauten, unter denen ihr Nein-Zweig sitzt
+  const untenBis = {};             // je Bahn: bis wohin die untere Reihe belegt ist
   let n = 0;
   const neu = (typ, name, bahn, x, y, w, h) => {
     const id = typ.replace(/^./, c => c.toUpperCase()) + '_' + (++n);
     knoten.push({ id, typ, name: name || '', bahn: bahn || standardBahn, x, y, w, h });
     return id;
   };
-  const fluss = (von, nach, name) => {
+  const fluss = (von, nach, name, weg) => {
     if (!von || !nach) return;
-    fluesse.push({ id: 'Flow_' + (fluesse.length + 1), von, nach, name: name || '' });
+    fluesse.push({ id: 'Flow_' + (fluesse.length + 1), von, nach, name: name || '', weg: weg || '' });
   };
+  // Das Ziel eines Rücksprungs: der erste Schritt dieses Namens, kein Auslöser.
+  const zielVon = (label) => {
+    const soll = _psKurz(label, '').toLowerCase();
+    return soll ? knoten.find(k => k.typ !== 'startEvent' && k.name.toLowerCase() === soll) || null : null;
+  };
+  const typVon = (kind) => kind === 'service' ? 'serviceTask' : kind === 'manual' ? 'manualTask'
+    : kind === 'unter' ? 'callActivity' : 'userTask';
 
   // Der Auslöser: entweder ausdrücklich geschrieben oder stillschweigend davor.
   // 60 Punkte Luft zum Bahnkopf: Die Beschriftung des Auslösers ist breiter als
@@ -284,7 +320,31 @@ function prozessXmlBauen(o) {
       continue;
     }
 
+    // Der Hauptweg führt zu einem früheren Schritt zurück und endet hier.
+    // Findet sich der Schritt nicht, läuft der Weg weiter, als stünde die
+    // Zeile nicht da: ein Ende ist besser als ein Pfeil ins Leere.
+    if (s.kind === 'zurueck') {
+      const ziel = zielVon(s.label);
+      if (ziel && vorher) {
+        fluss(vorher, ziel.id, vorherWarFrage ? 'ja' : '', 'zurueck');
+        vorher = null; vorherWarFrage = false;
+      }
+      continue;
+    }
+
     if (s.kind === 'frage') {
+      const benannt = !!_psKurz(s.nein, '');
+      const direkt = !benannt && !!(s.neinOhne || s.neinEnde || s.neinZurueck);
+      // Die untere Reihe der Bahn ist womöglich noch belegt: vom Ergebnis des
+      // vorigen Nein-Zweigs, das rechts neben seinem Schritt sitzt. Dann rückt
+      // diese Raute weiter, sonst läge ihr Zweig darauf.
+      const links = direkt ? x - 23 : x - 50;
+      if (untenBis[bahn] && links < untenBis[bahn] + 10) x += untenBis[bahn] + 10 - links;
+      // Kommt der Weg aus einer Raute einer anderen Bahn, führt er links an
+      // dieser vorbei senkrecht herein: Dort darf das Ergebnis des vorigen
+      // Nein-Zweigs nicht stehen.
+      const vor = vorherWarFrage ? knoten.find(k => k.id === vorher) : null;
+      if (vor && vor.bahn !== bahn && untenBis[vor.bahn] && x - 30 < untenBis[vor.bahn]) x = untenBis[vor.bahn] + 30;
       const id = neu('exclusiveGateway', _psKurz(s.label, 'Entscheidung?'), bahn, x, reiheHaupt(bahn) - 25, 50, 50);
       fluss(vorher, id, vorherWarFrage ? 'ja' : '');
       // Der Nein-Zweig bleibt in derselben Bahn – wer entscheidet, trägt auch
@@ -292,18 +352,30 @@ function prozessXmlBauen(o) {
       // Wer den Zweig benennt, meint einen regulären Ausgang; wer ihn offen
       // lässt, meint eine Nachbesserung. Nicht jede Nein-Antwort ist ein Fehler –
       // bei „Kann der Kunde betroffen sein?" wäre „Abweichung behandeln" falsch.
-      const benannt = !!_psKurz(s.nein, '');
-      const zweig = neu('userTask', _psKurz(s.nein, '') || 'Abweichung behandeln', bahn,
-        x - 50, reiheZweig(bahn) - 35, 150, 70);
-      zweigEnden.push({ id: zweig, name: benannt ? 'Beendet' : 'Nachbessern' });
-      fluss(id, zweig, 'nein');
+      if (direkt) {
+        // Ohne eigenen Schritt: Die Raute führt direkt zum Ergebnis oder zurück.
+        zweigEnden.push({ id, name: s.neinEnde || 'Beendet', zurueck: s.neinZurueck || '', direkt: true });
+        // Ein Ergebnis unter der Raute reicht mit seiner Beschriftung bis hier.
+        if (!s.neinZurueck) untenBis[bahn] = x + 73;
+      } else {
+        // Ein benannter Schritt in einer Automatik-Bahn läuft von selbst; der
+        // unbenannte „Abweichung behandeln" bleibt Sache eines Menschen.
+        const zTyp = benannt ? typVon(s.neinTyp || (PS_AUTO_BAHNEN.test(bahn) ? 'service' : 'user')) : 'userTask';
+        const zweig = neu(zTyp, _psKurz(s.nein, '') || 'Abweichung behandeln', bahn,
+          x - 50, reiheZweig(bahn) - 35, 150, 70);
+        zweigEnden.push({ id: zweig, name: s.neinEnde || (benannt ? 'Beendet' : 'Nachbessern'), zurueck: s.neinZurueck || '' });
+        fluss(id, zweig, 'nein');
+        // Bis wohin der Zweig unten reicht: sein Schritt, und ohne Rücksprung
+        // das Ergebnis rechts daneben samt Beschriftung.
+        untenBis[bahn] = s.neinZurueck ? x + 100 : x + 206;
+      }
+      if (!s.neinZurueck || benannt) untenBelegt.add(id);
       vorher = id; vorherWarFrage = true;
       x += PS_SCHRITT_X;
       continue;
     }
 
-    const typ = s.kind === 'service' ? 'serviceTask' : s.kind === 'manual' ? 'manualTask'
-      : s.kind === 'unter' ? 'callActivity' : 'userTask';
+    const typ = typVon(s.kind);
     const id = neu(typ, _psKurz(s.label, 'Schritt'), bahn, x, reiheHaupt(bahn) - 35, 150, 70);
     fluss(vorher, id, vorherWarFrage ? 'ja' : '');
     vorher = id; vorherWarFrage = false;
@@ -318,12 +390,22 @@ function prozessXmlBauen(o) {
     x += 110;
   }
 
-  // Jeder Nein-Zweig braucht seinerseits ein Ergebnis (R7).
+  // Jeder Nein-Zweig braucht seinerseits ein Ergebnis (R7) oder führt zurück.
   zweigEnden.forEach(z => {
-    if (fluesse.some(f => f.von === z.id)) return;
     const k = knoten.find(y => y.id === z.id);
     if (!k) return;
-    const id = neu('endEvent', z.name, k.bahn, k.x + k.w + 40, k.y + k.h / 2 - 18, 36, 36);
+    if (!z.direkt && fluesse.some(f => f.von === z.id)) return;
+    const ziel = z.zurueck ? zielVon(z.zurueck) : null;
+    if (ziel) { fluss(k.id, ziel.id, z.direkt ? 'nein' : '', 'zurueck'); return; }
+    if (z.direkt) {
+      // Das Ergebnis sitzt unter der Raute, wo sonst der Schritt des Zweigs stünde.
+      const id = neu('endEvent', _psKurz(z.name, 'Beendet'), k.bahn, k.x + k.w / 2 - 18, reiheZweig(k.bahn) - 18, 36, 36);
+      fluss(k.id, id, 'nein');
+      enden.push(id);
+      untenBelegt.add(k.id);
+      return;
+    }
+    const id = neu('endEvent', _psKurz(z.name, 'Beendet'), k.bahn, k.x + k.w + 40, k.y + k.h / 2 - 18, 36, 36);
     fluss(k.id, id);
     enden.push(id);
   });
@@ -366,11 +448,21 @@ ${knoten.filter(k => k.bahn === b).map(k => `        <bpmn:flowNodeRef>${k.id}</
   });
   const beiId = {};
   knoten.forEach(k => { beiId[k.id] = k; });
+  const ruecklaeufe = {};   // je Bahn: wie viele Rücksprünge schon unten entlanglaufen
+  const zielSpuren = {};    // je Ziel: wie viele Sprünge schon hineinführen
   fluesse.forEach(f => {
     const a = beiId[f.von], b = beiId[f.nach];
     if (!a || !b) return;
+    let weg;
+    if (f.weg === 'zurueck') {
+      // Unten an der Bahn entlang, unter dem Nein-Zweig: Dort steht nichts.
+      // Jeder weitere Rücksprung derselben Bahn läuft eine Spur höher.
+      const i = ruecklaeufe[a.bahn] = (ruecklaeufe[a.bahn] || 0) + 1;
+      const j = zielSpuren[b.id] = (zielSpuren[b.id] || 0) + 1;
+      weg = _psRueckWeg(a, b, bahnY[a.bahn] + PS_BAHN_H - 6 - 7 * ((i - 1) % 3), untenBelegt.has(a.id), j - 1);
+    } else weg = _psPfeilWeg(a, b);
     di.push(`      <bpmndi:BPMNEdge id="${f.id}_di" bpmnElement="${f.id}">${
-      _psPfeilWeg(a, b).map(p => `<di:waypoint x="${Math.round(p[0])}" y="${Math.round(p[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
+      weg.map(p => `<di:waypoint x="${Math.round(p[0])}" y="${Math.round(p[1])}" />`).join('')}</bpmndi:BPMNEdge>`);
   });
 
   const name = opt.name || 'Prozess';
@@ -408,14 +500,66 @@ ${di.join('\n')}
 function _psPfeilWeg(a, b) {
   const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
   const tiefer = my(b) > my(a);
+  // Eine Aufgabe ist breit genug für getrennte Ein- und Ausgänge: hinein links
+  // der Mitte, hinaus rechts davon. Wechselt ein Ablauf kurz in eine andere
+  // Bahn und kommt zurück, lägen Hin- und Rückweg sonst auf einer Linie.
+  const breit = (k) => k.w >= 100;
   // Der Nein-Zweig sitzt genau unter seiner Raute: senkrecht hinunter.
   if (a.typ === 'exclusiveGateway' && b.y > a.y + 60 && Math.abs(mx(a) - mx(b)) < 5) return [[mx(a), a.y + a.h], [mx(a), b.y]];
-  // Von einer Raute in eine andere Bahn: rechts heraus und von oben oder unten
-  // hinein. Unten heraus führte der Pfeil durch den Nein-Zweig.
-  if (a.typ === 'exclusiveGateway' && Math.abs(my(a) - my(b)) > 30) return [[a.x + a.w, my(a)], [mx(b), my(a)], [mx(b), tiefer ? b.y : b.y + b.h]];
-  // Sonst in die Richtung der Zielbahn heraus, sonst liefe er durch den eigenen Kasten.
-  if (Math.abs(my(a) - my(b)) > 30) return [[mx(a), tiefer ? a.y + a.h : a.y], [mx(a), my(b)], [b.x, my(b)]];
+  if (Math.abs(my(a) - my(b)) > 30) {
+    // Von einer Raute in eine andere Bahn: rechts heraus, unten heraus liefe
+    // der Pfeil durch den Nein-Zweig. In eine Aufgabe von oben oder unten
+    // hinein; in eine Raute oder ein Ereignis von links, denn über und unter
+    // ihnen stehen Beschriftung oder Nein-Zweig.
+    if (a.typ === 'exclusiveGateway') {
+      if (breit(b)) { const ex = b.x + b.w * 0.3; return [[a.x + a.w, my(a)], [ex, my(a)], [ex, tiefer ? b.y : b.y + b.h]]; }
+      // Von unten kommend links am Nein-Zweig des Ziels vorbei, der unter ihm
+      // sitzt und bis 50 Punkte nach links reicht.
+      const lx = b.x - (tiefer ? 20 : 65);
+      return [[a.x + a.w, my(a)], [lx, my(a)], [lx, my(b)], [b.x, my(b)]];
+    }
+    // Ein Ereignis trägt seine Beschriftung darunter: rechts heraus.
+    if (!breit(a)) {
+      const rx = a.x + a.w + 15;
+      return [[a.x + a.w, my(a)], [rx, my(a)], [rx, my(b)], [b.x, my(b)]];
+    }
+    // Sonst in die Richtung der Zielbahn heraus, sonst liefe er durch den eigenen Kasten.
+    const sx = a.x + a.w * 0.7;
+    return [[sx, tiefer ? a.y + a.h : a.y], [sx, my(b)], [b.x, my(b)]];
+  }
   return [[a.x + a.w, my(a)], [b.x, my(b)]];
+}
+
+/**
+ * Der Weg eines Rücksprungs von a zurück zu einem früheren Schritt b, entlang
+ * der Höhe ry am unteren Rand der Bahn von a. In jeder Spalte steht nur ein
+ * Knoten; der senkrechte Teil unter oder über b trifft deshalb nichts.
+ * Hinaus geht es unten, außer dort sitzt ein Nein-Zweig, dann rechts. Hinein
+ * geht es in eine Aufgabe von unten (oder von oben, liegt sie tiefer), und
+ * zwar neben der Mitte, auf der Seite, von der der Sprung kommt: Durch die
+ * Mitte läuft womöglich schon ein Pfeil in eine andere Bahn. In Rauten und
+ * Ereignisse geht es von links, denn über und unter ihnen stehen
+ * Beschriftung oder Nein-Zweig.
+ */
+function _psRueckWeg(a, b, ry, untenBelegt, nr) {
+  const my = (k) => k.y + k.h / 2, mx = (k) => k.x + k.w / 2;
+  // Der wievielte Sprung auf dasselbe Ziel: Jeder bekommt eine eigene Spur.
+  const k = nr || 0;
+  // Unter einer Raute sitzt ihr Nein-Zweig, sein Ergebnis reicht samt
+  // Beschriftung bis 206 Punkte rechts von ihr: rechts daran vorbei.
+  const rx = a.x + a.w + 170;
+  const raus = untenBelegt
+    ? [[a.x + a.w, my(a)], [rx, my(a)], [rx, ry]]
+    : [[mx(a), a.y + a.h], [mx(a), ry]];
+  if (/Task$|^callActivity$/.test(b.typ)) {
+    // Außen an der Aufgabe: Bei 0,3 und 0,7 ihrer Breite liegen schon die
+    // Pfeile, die aus anderen Bahnen hinein- und hinausführen.
+    const zurueck = mx(a) > mx(b);
+    const ex = b.x + b.w * (zurueck ? 0.88 - 0.06 * (k % 3) : 0.12 + 0.06 * (k % 3));
+    return raus.concat([[ex, ry], [ex, b.y > ry ? b.y : b.y + b.h]]);
+  }
+  const lx = b.x - 14 - 7 * (k % 3);
+  return raus.concat([[lx, ry], [lx, my(b)], [b.x, my(b)]]);
 }
 
 /* ── 4b) Alte Pfeile in gespeicherten Modellen ─────────────────────────────

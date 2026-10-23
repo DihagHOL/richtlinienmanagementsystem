@@ -239,6 +239,71 @@ ok((doku.match(/>R\d+</g) || []).length === PROZESS_REGELN.length, 'Die Regeltab
 ok(doku.includes('Bedarf gemeldet'), 'Und die Schreibvorlage steht zum Abschreiben da');
 ok(/dokumentation:\s*\['prozessschema',[^\]]*'dokumentation'\]/.test(lies('js/module.js')),
   'Der Doku-Reiter lädt das Schema mit – sonst blieben seine Tabellen leer');
+ok(doku.includes('| Ende: Text') && doku.includes('| zurück: Schritt') && doku.includes('| weiter: Schritt') && doku.includes('Zurück: Schritt'),
+  'Die Schreibweise für Ergebnis, Rücksprung und Sprung nach vorn steht in der Tabelle');
+
+/* ── 10) Wie der Nein-Zweig ausgeht: Ergebnis, Rücksprung, Sprung nach vorn ──
+   Bis Oktober 2026 kannte der Generator nur Zweige, die enden, und zwar in
+   „Beendet" oder „Nachbessern". Der Freigabe-Workflow eines Regelwerks ist
+   aber eine Schleife: nicht konform, überarbeiten, wieder in die Prüfung.
+   Ohne Rücksprung ließ er sich nicht wahrheitsgemäß zeichnen. */
+const zw = (t) => prozessTextLesen(t)[0];
+ok(zw('Leitung: Genehmigt? | nein: Ablehnung begründen | Ende: Antrag abgelehnt').neinEnde === 'Antrag abgelehnt',
+  '„| Ende: …" benennt das Ergebnis des Nein-Zweigs');
+ok(zw('Prüfer: Vollständig? | nein: Angaben nachfordern | zurück: Antrag prüfen').neinZurueck === 'Antrag prüfen',
+  '„| zurück: …" nennt den Schritt, zu dem der Zweig zurückführt');
+ok(zw('Prüfer: Vollständig? | nein: Angaben nachfordern | zurueck: Antrag prüfen').neinZurueck === 'Antrag prüfen'
+  && zw('Leitung: Ab 5.000 €? | nein | weiter: Bestellen').neinZurueck === 'Bestellen', 'Auch „zurueck" und „weiter" werden gelesen');
+ok(zw('Leitung: Ab 5.000 €? | nein | weiter: Bestellen').neinOhne === true, '„| nein" ohne Text heißt: kein eigener Schritt im Zweig');
+ok(zw('System: Frist? | nein: Erinnerung senden').neinTyp === '' && zw('Leitung: Frist? | nein: Mahnung senden (automatisch)').neinTyp === 'service',
+  'Der Schritt im Nein-Zweig kann seinen Typ in Klammern tragen');
+ok(zw('Einkauf: Teile A | B zählen').label === 'Teile A | B zählen', 'Ein Strich in gewöhnlichem Text bleibt stehen');
+ok(zw('Zurück: Antrag prüfen').kind === 'zurueck', '„Zurück:" ist eine eigene Zeile für den Hauptweg');
+
+const schleife = prozessXmlBauen({ name: 'Schleife', schritte: prozessTextLesen(`Start: Antrag geht ein
+Fachbereich: Antrag erfassen
+Prüfer: Antrag prüfen
+Prüfer: Antrag vollständig? | nein: Angaben nachfordern | zurück: Antrag prüfen
+Leitung: Antrag genehmigen? | nein: Ablehnung begründen | Ende: Antrag abgelehnt
+System: Ab 5.000 €? | nein | weiter: Bestellung auslösen
+Leitung: Zweite Freigabe erteilen
+System: Bestellung auslösen
+System: Lieferung pünktlich? | nein | Ende: Lieferung angemahnt
+Warten: Rechnung geht ein
+Buchhaltung: Rechnung korrekt? | nein | zurück: Rechnung geht ein
+Buchhaltung: Rechnung buchen
+Zurück: Antrag erfassen`) }).xml;
+const prS = prozessSchemaPruefen(schleife, {});
+ok(prS.fehler.length === 0 && prS.hinweise.length === 0, 'Ein Modell mit Schleifen und Sprüngen besteht die Prüfung ohne Befund');
+const fl = (von, nach) => new RegExp(`<bpmn:sequenceFlow id="[^"]+"(?: name="([^"]*)")? sourceRef="${von}" targetRef="${nach}"`).exec(schleife);
+// Namen wie „Ab 5.000 €?" taugen nicht als regulärer Ausdruck: verglichen wird der Text.
+const idVon = (name) => ([...schleife.matchAll(/<bpmn:\w+ id="([^"]+)" name="([^"]*)"/g)].find(m => m[2] === name) || [])[1];
+ok(fl(idVon('Angaben nachfordern'), idVon('Antrag prüfen')), 'Der Nein-Schritt führt zurück zu „Antrag prüfen"');
+ok(/<bpmn:endEvent id="[^"]+" name="Antrag abgelehnt"/.test(schleife), 'Das Ergebnis des Nein-Zweigs trägt seinen Namen');
+ok(S.prozessArt('endEvent', 'Antrag abgelehnt') === 'abbruch', '… und wird als negatives Ende rot');
+const weiter = fl(idVon('Ab 5.000 €?'), idVon('Bestellung auslösen'));
+ok(weiter && weiter[1] === 'nein', 'Ohne eigenen Schritt geht der Nein-Ausgang direkt weiter; die Wege treffen sich');
+const angemahnt = fl(idVon('Lieferung pünktlich?'), idVon('Lieferung angemahnt'));
+ok(angemahnt && angemahnt[1] === 'nein', '„| nein | Ende: …" führt die Raute direkt in das Ergebnis');
+ok(fl(idVon('Rechnung korrekt?'), idVon('Rechnung geht ein')), 'Ein Rücksprung kann auch auf ein Warten zeigen');
+ok(fl(idVon('Rechnung buchen'), idVon('Antrag erfassen')), '„Zurück:" schließt den Hauptweg zu einem früheren Schritt');
+ok(!/name="(Beendet|Nachbessern)"/.test(schleife), 'Kein Ergebnis heißt mehr pauschal „Beendet"');
+ok(S.prozessPfeileReparieren(schleife).repariert.length === 0, 'Die Pfeile der Sprünge setzen sauber an und ab, die Reparatur findet nichts');
+ok(_ueberschneidungen(schleife).length === 0, 'Nichts liegt aufeinander');
+ok(S.prozessAblauf(schleife).zahlen.unerreichbar === 0, 'In der Schrittliste ist jeder Schritt vom Auslöser aus erreichbar');
+
+/* Ein Sprungziel, das es nicht gibt, darf kein Pfeil ins Leere werden. */
+const ohneZiel = prozessXmlBauen({ schritte: prozessTextLesen('Start: A\nX: Frage? | nein: Prüfen | zurück: Gibt es nicht\nX: Weiter machen') }).xml;
+ok(prozessSchemaPruefen(ohneZiel, {}).fehler.length === 0 && /<bpmn:endEvent id="[^"]+" name="Beendet"/.test(ohneZiel),
+  'Fehlt das Sprungziel, endet der Zweig wie bisher, statt ins Leere zu zeigen');
+
+/* Zwei Entscheidungen hintereinander in einer Bahn: Das Ergebnis des ersten
+   Zweigs lag auf dem Schritt des zweiten. Jetzt rückt die zweite Raute. */
+const zweiInEiner = prozessXmlBauen({ schritte: prozessTextLesen(`Start: A
+Leitung: Erste Frage? | nein: Erstes erledigen | Ende: Erstes Ergebnis
+Leitung: Zweite Frage? | nein: Zweites erledigen | Ende: Zweites Ergebnis
+Leitung: Weiter arbeiten`) }).xml;
+ok(_ueberschneidungen(zweiInEiner).length === 0, 'Zwei Nein-Zweige nebeneinander in einer Bahn liegen nicht aufeinander');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

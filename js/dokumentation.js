@@ -60,6 +60,7 @@ const _DOKU_TOC = [
   ['bpmn',          'BPMN einfach erklärt'],
   ['prozesse',      'Prozesse (BPMN 2.0)'],
   ['prozessschema', 'Prozesse niederschreiben (Hausschema)'],
+  ['rmsprozesse',   'Die Prozesse des RMS'],
   ['vorschlaege',   'Vorschläge bearbeiten'],
   ['compliance',    'Audit Report'],
   ['einstellungen', 'Einstellungen'],
@@ -67,6 +68,38 @@ const _DOKU_TOC = [
   ['glossar',       'Begriffe & Normbezug'],
   ['faq',           'Häufige Fragen & Hilfe'],
 ];
+
+/**
+ * Die Prozesse des RMS aus dem Katalog (js/rmsprozesse.js): je Hauptprozess
+ * die Beschreibung, darunter sein Baum. Gelesen wird aus denselben Daten, aus
+ * denen „📋 Standard-Prozesse" die Modelle baut; eine abgeschriebene Liste
+ * liefe beim ersten geänderten Ablauf auseinander. Ein Prozess, der unter
+ * mehreren steht, wird beim ersten Mal beschrieben und danach nur genannt.
+ */
+function _dokuRmsProzesse(li, ol, h3) {
+  if (typeof RMS_PROZESSE === 'undefined' || typeof rmsHauptprozesse !== 'function') return '';
+  const gezeigt = new Set();
+  const kurz = (n) => esc(rmsKurzname(n));
+  const zweig = (p) => {
+    const k = rmsKinder(p);
+    const kinder = [...k.aufrufe.map(n => ['⊞', n]), ...k.unter.map(n => ['↳', n]), ...k.neben.map(n => ['⇢', n])];
+    if (!kinder.length) return '';
+    return `<ul style="${ol}">${kinder.map(([zeichen, n]) => {
+      const c = rmsProzess(n);
+      if (!c) return '';
+      if (gezeigt.has(c.name)) return `<li style="${li}">${zeichen} <b>${kurz(c.name)}</b> <span style="color:var(--c-muted)">(steht weiter oben)</span></li>`;
+      gezeigt.add(c.name);
+      return `<li style="${li}">${zeichen} <b>${kurz(c.name)}</b>: ${esc((c.beschreibung || [])[0] || '')}${zweig(c)}</li>`;
+    }).join('')}</ul>`;
+  };
+  return rmsHauptprozesse().map((p, i) => {
+    gezeigt.add(p.name);
+    return `<div style="${h3}">${i + 1}. ${kurz(p.name)}</div>
+      <p style="margin:0 0 4px;line-height:1.55">${(p.beschreibung || []).map(esc).join(' ')}</p>
+      <div style="font-size:.8rem;color:var(--c-muted)">Normbezug: ${esc(p.norm || '')}</div>
+      ${zweig(p)}`;
+  }).join('');
+}
 
 /* ── Bausteine der einzelnen Abschnitte (auch für den Druck genutzt) ── */
 function _dokuSections() {
@@ -800,8 +833,8 @@ function _dokuSections() {
         <li style="${li}">Die Ansicht liest beim Öffnen alle Modelle einmal ein (dafür der kurze Ladehinweis) und legt <b>keine eigenen Daten</b> an. Zuordnungen schreibt sie dorthin, wo sie hingehören: in die <b>BPMN-Datei</b>, dieselbe Stelle, die auch der Prozess-Editor beschreibt.</li>
       </ul>
       <div style="${h3}">📋 Standard-Prozesse</div>
-      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt die <b>13 dokumentierten RMS-Abläufe</b> als BPMN-Entwürfe an: Regelwerk-Lebenszyklus und -Allgemein, Regelwerk-Konzept, Kenntnisnahme &amp; Wissenstest, Änderungsvorschlag, Risiko-Management, KI-Antrag, Dokument-Health-Check, IMS-Abdeckung &amp; SoA, Fälligkeit/Wiedervorlage, Governance-Übernahme, Audit-Report sowie Außerkraftsetzung/Archivierung.</p>
-      <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: bereits vorhandene Prozesse werden übersprungen, angelegt wird erst nach Bestätigung. Die Diagramme sind saubere <b>Startvorlagen</b> mit Aufgaben und Entscheidungs-Gateways, danach frei anpassbar.</div>
+      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt <b>die Prozesse des RMS selbst</b> als BPMN-Modelle an: <b>13 Hauptprozesse</b> mit ihren Unter- und Nebenprozessen, zusammen ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length : 61} Modelle, vom Regelwerk über Unterweisung, Risiken, Vorfälle und Notfallvorsorge bis zum Betrieb des RMS. Jedes ist nach Hausschema gebaut, mit Bahnen, Beschreibung und Normbezug; eingebundene Unterprozesse (⊞) zeigen auf ihr Modell, zugeordnete Unter- und Nebenprozesse stehen in der Gliederung beim übergeordneten. Abgelegt wird in der <b>Ablage des Konzerns</b>. Was die Prozesse im Einzelnen tun, steht unter „Die Prozesse des RMS".</p>
+      <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: Angelegt wird erst nach Bestätigung, von unten nach oben. Gibt es Modelle schon, fragt ein zweiter Schritt, ob sie auf den Stand des Katalogs gebracht oder übersprungen werden; SharePoint behält die vorige Fassung im Versionsverlauf. Danach sind die Modelle frei anpassbar.</div>
       <div style="${h3}">„Aus Regelwerk": So entsteht der Entwurf</div>
       <ul style="${ol}">
         <li style="${li}">Regelwerk wählen → die App liest den <b>Text des Word-Dokuments</b> aus (direkt im Browser, ohne Server/KI) und zeigt ihn <b>editierbar</b> an.</li>
@@ -840,6 +873,10 @@ function _dokuSections() {
         ['<code>… (Unterprozess)</code>', 'Macht ⊞ daraus: ein eigener Prozess, der an dieser Stelle im Ganzen läuft. Im Modeler wird dann das Modell gewählt, das eingebunden wird. Bis dahin meldet die Prüfung R10.'],
         ['<code>Frage?</code>', 'Ein Fragezeichen macht eine Entscheidung ◇ daraus.'],
         ['<code>Frage? | nein: Text</code>', 'Benennt den Nein-Zweig. <b>Mit</b> Angabe endet er in „Beendet", <b>ohne</b> in „Nachbessern", denn nicht jede Nein-Antwort ist ein Fehler.'],
+        ['<code>Frage? | nein: Text | Ende: Text</code>', 'Gibt dem Nein-Zweig ein Ergebnis mit Namen, etwa „Antrag abgelehnt". Ein Wort wie „abgelehnt" oder „nicht freigegeben" färbt es rot.'],
+        ['<code>Frage? | nein: Text | zurück: Schritt</code>', 'Führt den Nein-Zweig zu einem früheren Schritt zurück, etwa nach „nicht konform" wieder in die Prüfung. Der Schritt muss genau so heißen wie dort.'],
+        ['<code>Frage? | nein | weiter: Schritt</code>', 'Ohne eigenen Schritt im Zweig: Die Raute führt direkt zu einem späteren Schritt, dort treffen sich die Wege wieder. <code>| nein | Ende: Text</code> führt sie direkt in ein Ergebnis.'],
+        ['<code>Zurück: Schritt</code>', 'Schließt den Hauptweg zu einem früheren Schritt, etwa bei einer Wiedervorlage, die immer wieder kommt.'],
         ['<code>Start: …</code> / <code>Ende: …</code>', 'Auslöser und Ergebnis. Fehlen sie, ergänzt der Generator sie.'],
         ['<code>Warten: …</code>', 'Der Prozess ruht ⏱, bis eine Frist abläuft oder eine Nachricht kommt.'],
         ['<code>A: eins → B: zwei</code>', 'Pfeile trennen mehrere Schritte einer Zeile.'],
@@ -851,6 +888,11 @@ function _dokuSections() {
       </tr>`).join('')}</tbody></table>
       <div style="${hint}">Die Prüfung unterscheidet <b>Fehler</b> (verletzt eine Regel) und <b>Hinweise</b> (Empfehlung, begründet übergehbar), etwa wenn eine Bahn wie ein Personenname aussieht: Sicher sagen lässt sich das nicht. Ein Modell, das die Prüfung besteht, beantwortet ohne Rückfrage: <b>wer ist zuständig</b>, <b>was läuft automatisch</b>, <b>wie geht die Sache aus</b>.</div>`,
       'ISO 27001 Klausel 4.4 (Managementsystem und seine Prozesse), 5.3 (Rollen und Verantwortlichkeiten), 7.5 (dokumentierte Information); ISO 9001 4.4 verlangt dasselbe für alle Prozesse. Notation: OMG BPMN 2.0.'),
+
+    sec('rmsprozesse', 'Die Prozesse des RMS', 'all', `
+      <p style="margin:0 0 8px;line-height:1.55">Was das RMS tut, steht hier als Prozesse nach dem Hausschema: <b>13 Hauptprozesse</b>, darunter die Unterprozesse, die ein Schritt einbindet (⊞) oder die dazugehören (↳), und die Nebenprozesse, die mit eigenem Ablauf daneben herlaufen (⇢). Ein Unterprozess, der in mehreren Hauptprozessen steht, ist einmal beschrieben. Als BPMN-Modelle mit Diagramm und Schrittliste legt sie <b>„📋 Standard-Prozesse"</b> im Reiter „Prozesse" an.</p>
+      ${_dokuRmsProzesse(li, ol, h3)}`,
+      'ISO 27001 Klausel 4.4 (das Managementsystem und seine Prozesse samt Wechselwirkungen), 7.5 (dokumentierte Information); ISO 9001 Abschnitt 4.4.'),
 
     sec('vorschlaege', 'Vorschläge bearbeiten', 'admin', `
       <p style="margin:0;line-height:1.55">Reiter <b>„Vorschläge"</b> sammelt alle Änderungsvorschläge (auch die aus dem Health-Check, erkennbar am 🩺-Merkmal). Eine Zeile öffnet ein Seitenpanel: Vorschlag samt Dokument-Link lesen, <b>Status</b> setzen (Offen / In Bearbeitung / Erledigt / Abgelehnt) und einen <b>Bearbeiter-Kommentar</b> hinterlegen. Sichtbar für Admins, ISMS-Verantwortliche und Vorschlags-Empfänger.</p>`),

@@ -58,11 +58,11 @@ const MODUL_ANSICHTEN = {
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
-  notfall:       MODUL_ADMIN.concat(['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'notfall']),
+  notfall:       MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'notfall']),
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
   // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.
@@ -97,7 +97,7 @@ const MODUL_ANSICHTEN = {
   // Auskunft. bpmnhilfe liefert den Abschnitt „BPMN einfach erklärt", den auch
   // der Modeler als Hilfe zeigt. bpmndeutsch nennt ihr die deutschen Texte des
   // Modelers, bpmnanleitung baut daraus die Word-Fassung zum Weitergeben.
-  dokumentation: ['prozessschema', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'dokumentation'],
+  dokumentation: ['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'dokumentation'],
 };
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)
