@@ -32,6 +32,11 @@ ok(RMS_PROZESSE.length === 61, `61 Modelle im Katalog (ist ${RMS_PROZESSE.length
 ok(new Set(RMS_PROZESSE.map(p => p.name)).size === RMS_PROZESSE.length, 'Jeder Name kommt einmal vor');
 ok(new Set(RMS_PROZESSE.map(p => p.kennung)).size === RMS_PROZESSE.length, 'Jede Prozess-Kennung kommt einmal vor');
 ok(RMS_PROZESSE.every(p => /\(RMS\)$/.test(p.name)), 'Alle Namen enden auf „(RMS)"');
+// SharePoint ersetzt solche Zeichen im Dateinamen durch „_" (spProzessDateiname):
+// Aus „Reifegrad IT/OT bewerten" wurde in der Liste „IT_OT", der Pool im Modell
+// hieß anders als die Datei.
+ok(RMS_PROZESSE.every(p => !/[#%&{}\\<>*?/$!'":@+`|=]/.test(p.name)),
+  'Kein Name trägt ein Zeichen, das SharePoint im Dateinamen ersetzen würde');
 ok(RMS_PROZESSE.every(p => S.prozessKennungGueltig(p.kennung) && /^Process_RMS_/.test(p.kennung)),
   'Die Kennungen sind gültig und sprechend (Process_RMS_…), keine „Process_1"');
 ok(RMS_PROZESSE.every(p => Array.isArray(p.beschreibung) && p.beschreibung.length >= 2 && p.norm),

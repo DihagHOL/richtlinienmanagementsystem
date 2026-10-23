@@ -491,7 +491,7 @@ Ende: Beitrag veröffentlicht` },
 Administration: Kennzahlen im Cockpit verfolgen
 Administration: Normabdeckung bewerten (Unterprozess)
 Administration: Erklärung zur Anwendbarkeit pflegen (Unterprozess)
-Administration: Reifegrad IT/OT bewerten (Unterprozess)
+Administration: Reifegrad IT und OT bewerten (Unterprozess)
 System: Audit Report aus allen Registern zusammenstellen
 Administration: Lücken im Audit Report sichten
 Administration: Lücken geschlossen oder geplant? | nein: Maßnahme umsetzen (Unterprozess) | zurück: Lücken im Audit Report sichten
@@ -533,7 +533,7 @@ System: SoA mit Version, Person und Zeitpunkt speichern
 Administration: SoA-Report als Nachweis drucken
 Ende: SoA aktuell` },
 
-  { name: 'Reifegrad IT/OT bewerten (RMS)', kennung: 'Process_RMS_reifegrad',
+  { name: 'Reifegrad IT und OT bewerten (RMS)', kennung: 'Process_RMS_reifegrad',
     beschreibung: [
       'Gap- und Reifegradbewertung des Betriebs-Katalogs „IT und OT Betrieb" je Maßnahme und Werk mit einer Ampel: funktioniert, teilweise, nicht gelebt oder keine Einschätzung.',
       'Beim ersten Öffnen ist die Ampel aus dem Dokument vorbelegt und gilt für alle Werke gleich; danach wird je Werk verfeinert. Eigene Maßnahmen und Themen lassen sich ergänzen, Katalog-Maßnahmen umkehrbar ausblenden.',
