@@ -102,16 +102,22 @@ const MODUL_ANSICHTEN = {
 
 const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene Lauf)
 
+/* Die Prüfsummen der nachladbaren Dateien. scripts/cache-version.mjs schreibt
+   diese Zeile nach jedem Push neu, von Hand ändert sie niemand. */
+/** @type {Record<string, string>} */
+const MODUL_VERSIONEN = {};
+
 /**
- * Die Version aus dem bereits geladenen Kern übernehmen.
+ * Die Version eines Moduls.
  *
- * Das Cache-Busting (cache-bust.yml) ersetzt bei jedem Push die `?v=`-Parameter
- * in der index.html. Nachgeladene Dateien müssen dieselbe tragen, sonst hält
- * ein Browser die alte Fassung fest – genau der Fehler, den das Busting
- * verhindern soll. Abgelesen wird sie deshalb aus einem Tag, der schon dasteht,
- * statt sie irgendwo zu wiederholen.
+ * Jede Datei trägt die Prüfsumme ihres Inhalts (cache-bust.yml). So holt der
+ * Browser nach einem Push nur, was sich geändert hat. Fehlt ein Modul in der
+ * Tabelle, ist es neu und der Bot-Commit steht noch aus. Dann gilt die Version
+ * des Kerns, abgelesen aus einem Tag, der schon dasteht: Ohne `?v=` hielte ein
+ * Browser die alte Fassung fest.
  */
-function _modulVersion() {
+function _modulVersion(name) {
+  if (MODUL_VERSIONEN[name]) return MODUL_VERSIONEN[name];
   const tag = document.querySelector('script[src*="js/app.js"]');
   const treffer = tag && /\?v=([A-Za-z0-9]+)/.exec(tag.getAttribute('src') || '');
   return treffer ? treffer[1] : '';
@@ -122,7 +128,7 @@ function modulLaden(name) {
   if (MODUL_KERN.includes(name)) return Promise.resolve();
   if (_modulGeladen.has(name)) return _modulGeladen.get(name);
   const p = new Promise((fertig, fehler) => {
-    const v = _modulVersion();
+    const v = _modulVersion(name);
     const el = document.createElement('script');
     el.src = 'js/' + name + '.js' + (v ? '?v=' + v : '');
     el.async = false;   // Reihenfolge einhalten: die Dateien bauen aufeinander auf
@@ -137,14 +143,19 @@ function modulLaden(name) {
 /**
  * Alles laden, was eine Ansicht braucht.
  *
- * Der Reihe nach, nicht gleichzeitig: Die Dateien greifen beim Laden schon
- * aufeinander zu (`reifegrad-seed` erwartet `reifegrad`), und `async = false`
- * allein garantiert die Reihenfolge nur für Tags, die im selben Zug entstehen.
+ * Gleichzeitig holen, der Reihe nach ausführen: Alle Tags entstehen im selben
+ * Zug, `async = false` hält dann die Reihenfolge ein, und keine Datei wartet
+ * auf das Holen der vorigen. Der Reiter Prozesse hängt an 37 Dateien, einzeln
+ * nacheinander waren das 37 Wartezeiten.
+ *
+ * Scheitert eine Datei, laufen die übrigen trotzdem durch. Das schadet nicht,
+ * weil keine Datei beim Laden eine andere braucht (der Test prüft das), und der
+ * nächste Versuch holt nur die gescheiterte.
  */
 async function modulFuerAnsicht(view) {
   const liste = MODUL_ANSICHTEN[view];
   if (!liste || !liste.length) return;
-  for (const name of liste) await modulLaden(name);
+  await Promise.all(liste.map(name => modulLaden(name)));
 }
 
 /** Sind alle Module einer Ansicht schon da? (Für Aufrufer, die nicht warten wollen.) */

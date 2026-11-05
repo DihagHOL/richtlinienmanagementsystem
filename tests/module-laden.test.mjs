@@ -140,9 +140,18 @@ vm.createContext(lctx);
 vm.runInContext(lies('js/module.js'), lctx);
 const lauf = (s) => vm.runInContext(s, lctx);
 
+/* Die Tabelle schreibt der Bot nach jedem Push. Der Test setzt sie selbst, damit
+   er vor und nach dem Bot-Commit dasselbe prüft. */
+lauf(`for (const n in MODUL_VERSIONEN) delete MODUL_VERSIONEN[n]; MODUL_VERSIONEN.notfall = 'eigen123';`);
+
+await lauf(`modulLaden('notfall')`);
+ok(geholt.length === 1 && geholt[0] === 'js/notfall.js?v=eigen123',
+  'Ein Modul wird mit seiner eigenen Prüfsumme geholt, unveränderte Dateien behalten so ihre Adresse');
+
+geholt.length = 0;
 await lauf(`modulLaden('risiken')`);
 ok(geholt.length === 1 && geholt[0] === 'js/risiken.js?v=abc123',
-  'Ein Modul wird mit der Version des Kerns geholt – sonst hielte der Browser die alte Fassung fest');
+  'Fehlt es in der Tabelle, gilt die Version des Kerns: Ohne Parameter hielte der Browser die alte Fassung fest');
 
 await lauf(`modulLaden('risiken')`);
 await lauf(`modulLaden('risiken')`);
@@ -163,6 +172,58 @@ geholt.length = 0;
 await lauf(`modulFuerAnsicht('abdeckung')`);
 ok(geholt.join('|').indexOf('reifegrad-katalog') < geholt.join('|').indexOf('reifegrad.js'),
   'Die Reihenfolge der bisherigen Skript-Tags bleibt erhalten');
+
+/* Gleichzeitig holen: Alle Tags müssen im selben Zug entstehen. Nur dann hält
+   `async = false` die Reihenfolge ein, und nur dann wartet keine Datei auf die
+   vorige. Der Lauf ist hier bewusst noch nicht abgewartet. */
+geholt.length = 0;
+const imSelbenZug = lauf(`modulFuerAnsicht('dokumentation')`);
+const gruppeDok = MODUL_ANSICHTEN.dokumentation.length;
+ok(geholt.length === gruppeDok, `Alle ${gruppeDok} Module einer Ansicht werden im selben Zug eingehängt`);
+await imSelbenZug;
+
+/* Eine Datei fällt aus: Die Ansicht meldet sie, die übrigen sind da, und der
+   nächste Versuch holt nur die eine. */
+let bruch = true;
+lctx.document.head.appendChild = (el) => {
+  geholt.push(el.src);
+  setTimeout(() => (bruch && /normen/.test(el.src) ? el.onerror() : el.onload()), 0);
+};
+lauf(`_modulGeladen.clear()`);   // normen und risiken stehen von oben schon da
+geholt.length = 0;
+let gemeldet = false;
+try { await lauf(`modulFuerAnsicht('risiken')`); } catch (e) { gemeldet = /normen/.test(e.message); }
+ok(gemeldet && geholt.length === 2, 'Fällt eine Datei aus, meldet die Ansicht sie mit Namen');
+await new Promise(r => setTimeout(r, 5));
+bruch = false;
+geholt.length = 0;
+await lauf(`modulFuerAnsicht('risiken')`);
+ok(geholt.length === 1 && /normen/.test(geholt[0]), 'Der nächste Versuch holt nur die gescheiterte Datei');
+
+/* Darauf ruht das gleichzeitige Holen: Fällt eine Datei aus, laufen die übrigen
+   ohne sie durch. Das geht nur, solange keine Datei schon beim Ausführen eine
+   andere braucht. Jede läuft deshalb allein auf dem Kern, in einem eigenen
+   Kontext mit nachgebautem Browser. */
+const nichts = () => new Proxy(function () {}, {
+  get: (_, p) => (p === Symbol.toPrimitive ? () => '' : nichts()), apply: () => nichts(), set: () => true,
+});
+const browser = ['document', 'localStorage', 'sessionStorage', 'navigator', 'location', 'history', 'addEventListener',
+  'removeEventListener', 'matchMedia', 'CustomEvent', 'Event', 'MutationObserver', 'requestAnimationFrame'];
+const kernSkripte = MODUL_KERN.map(f => new vm.Script(quelle.get(f)));
+const brauchtAndere = [];
+for (const f of alleModule) {
+  const c = { console, setTimeout: () => 0, setInterval: () => 0, clearTimeout: () => {}, URL, URLSearchParams, Intl };
+  for (const n of browser) c[n] = nichts();
+  c.window = c; c.globalThis = c; c.self = c;
+  vm.createContext(c);
+  for (const s of kernSkripte) { try { s.runInContext(c); } catch (e) { /* Der Kern braucht mehr Browser als hier nachgebaut */ } }
+  try { vm.runInContext(quelle.get(f), c); } catch (e) { brauchtAndere.push(`${f} (${e.message})`); }
+}
+ok(brauchtAndere.length === 0, brauchtAndere.length
+  ? `braucht beim Ausführen schon eine andere Datei: ${brauchtAndere.join(' · ')}`
+  : `Keines der ${alleModule.length} Module braucht beim Ausführen ein anderes`);
+
+lctx.document.head.appendChild = (el) => { geholt.push(el.src); setTimeout(() => el.onload(), 0); };
 
 /* Fehlschlag: der Merker muss zurück, sonst bliebe ein gescheitertes Modul
    für immer „geladen" und der zweite Versuch käme nie. */

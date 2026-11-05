@@ -77,9 +77,10 @@ async function checkPage(label, pageUrl, mustContain) {
      js/module.js gelesen und jede Datei einzeln angefragt. */
   const modulTag = (page.body.match(/src="(js\/module\.js\?v=[A-Za-z0-9]+)"/) || [])[1];
   if (modulTag) {
-    let karte = null;
+    let karte = null, versionen = {};
     try {
       const m = await get(new URL(modulTag, pageUrl).href);
+      versionen = JSON.parse((m.body.match(/const MODUL_VERSIONEN = (\{[^}]*\});/) || [])[1] || '{}');
       const namen = new Set();
       for (const t of (m.body.match(/'[a-z][a-z-]*'/g) || [])) namen.add(t.slice(1, -1));
       // Nur Namen, zu denen es auch eine Datei gibt: Die Datei enthaelt auch
@@ -91,7 +92,7 @@ async function checkPage(label, pageUrl, mustContain) {
       const version = (modulTag.match(/\?v=([A-Za-z0-9]+)/) || [])[1];
       let gut = 0, schlecht = 0;
       for (const n of karte) {
-        const url = new URL(`js/${n}.js?v=${version}`, pageUrl).href;
+        const url = new URL(`js/${n}.js?v=${versionen[n] || version}`, pageUrl).href;
         try {
           const r = await get(url);
           if (r.status === 200) gut++;
@@ -99,7 +100,7 @@ async function checkPage(label, pageUrl, mustContain) {
           else { fail(`Nachgeladenes Modul HTTP ${r.status}: js/${n}.js`); schlecht++; }
         } catch (e) { fail(`Nachgeladenes Modul nicht erreichbar: js/${n}.js (${e.message})`); schlecht++; }
       }
-      if (!schlecht) ok(`alle ${gut} nachladbaren Module ausgeliefert (?v=${version})`);
+      if (!schlecht) ok(`alle ${gut} nachladbaren Module ausgeliefert`);
     }
   }
   return page;

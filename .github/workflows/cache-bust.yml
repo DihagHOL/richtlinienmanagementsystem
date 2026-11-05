@@ -1,6 +1,6 @@
-# Cache-Busting: ersetzt bei jedem Push die ?v=…-Parameter in den index.html
-# durch den Commit-SHA. Damit lädt der Browser nach jedem Deploy garantiert
-# frisches JS/CSS — manuelles Hochzählen entfällt.
+# Cache-Busting: setzt bei jedem Push die Build-Nummer in js/app.js und je Datei
+# die Prüfsumme als ?v=… (scripts/cache-version.mjs). Der Browser holt nach einem
+# Deploy nur, was sich geändert hat. Manuelles Hochzählen entfällt.
 # Loop-Schutz: der Bot-Commit trägt [skip ci] und der Job skippt Bot-Pushes.
 name: Cache-Busting
 
@@ -19,18 +19,18 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0 – auf den Commit festgelegt, ein verschobenes Tag kann nichts einschleusen
 
-      - name: "?v=… durch Commit-SHA ersetzen"
+      - name: "Build-Nummer und ?v=… je Datei setzen"
         run: |
           SHA="${GITHUB_SHA::8}"
-          sed -i -E "s/\?v=[A-Za-z0-9]+/?v=${SHA}/g" index.html ki/index.html
           sed -i -E "s/const APP_VERSION = '[^']*';/const APP_VERSION = 'v-${SHA}';/" js/app.js
           sed -i -E "s/const APP_STAND = '[^']*';/const APP_STAND = '$(date -u +%F)';/" js/app.js
+          node scripts/cache-version.mjs
 
       - name: Commit & Push (nur bei Änderung)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html ki/index.html js/app.js
+          git add index.html ki/index.html js/app.js js/module.js
           git diff --cached --quiet && { echo "Keine Änderung."; exit 0; }
           git commit -m "chore: cache-bust ${GITHUB_SHA::8} [skip ci]"
           git push
