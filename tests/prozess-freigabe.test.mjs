@@ -142,7 +142,7 @@ const ctx = {
   fmtDate: (d) => String(d || ''), toast: (t) => gemeldet.push(String(t)), uiConfirm: async () => true,
   openModal: (h) => { ctx.__modal = h; }, closeModal: () => { ctx.__modal = ''; }, canWriteTab: () => true, policyZuId: () => null,
   workflowBadge: (s) => `<span class="status-badge">${s}</span>`,
-  State: { user: { name: 'Max Muster', upn: 'pruefer@dihag.com' }, policies: [] },
+  State: { user: { name: 'Max Muster', upn: 'max.muster@dihag.com' }, policies: [] },
   spGetProcessXml: async (id) => ctx.__xml[id],
   spListProcesses: async () => ctx.__liste.map(p => ({ ...p })),
   spSaveProcess: async (name, xml, werk) => { gespeichertM.push({ name, xml, werk }); const p = ctx.__liste.find(x => x.title === name); if (p) { ctx.__xml[p.itemId] = xml; p.modified += '+'; } return { id: p && p.itemId }; },

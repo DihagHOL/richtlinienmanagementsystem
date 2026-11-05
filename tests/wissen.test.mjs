@@ -298,7 +298,7 @@ ok(K.module.map(m => m.titel).join('|') === 'Was ist Phishing?|Arten von Phishin
 ok(K.fragen[0].optionen[K.fragen[0].richtig] === 'Gezielter Angriff auf eine bestimmte Person oder Abteilung' && K.fragen[4].optionen[K.fragen[4].richtig] === 'E-Mail ignorieren, IT-Security informieren und den Link nicht klicken',
   'Die richtigen Antworten sind die der Vorlage');
 ok(/Spear-Phishing/.test(K.module[1].text) && /Smishing/.test(K.module[1].text), 'Das Modul „Arten" erklärt, wonach der Test fragt');
-ok(/ticket@dihag\.com/.test(K.module[4].text) && /\[Telefonnummer IT-Security]/.test(K.module[4].text), 'Die Kontaktwege des Hauses stehen im Modul „Richtig reagieren"');
+ok(/ticket@dihag\.com/.test(K.module[4].text) && /Telefonnummer IT-Security/.test(K.module[4].text), 'Die Kontaktwege des Hauses stehen im Modul „Richtig reagieren"');
 
 const m3 = M.wiTextHtml(K.module[2].text);
 ok(/<div class="wi-mail"><div class="wi-mail-kopf"><div><span>Von:<\/span> IT-Support &lt;support@diihag\.com&gt;<\/div>/.test(m3), 'Die nachgebaute Mail: Kopfzeilen, entschärft');

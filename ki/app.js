@@ -583,11 +583,11 @@ async function boot() {
       console.log('✓ Berechtigungen aus RMS access-config:',
         `admin=${isAdmin}, gremium=${isGremium}, genehmiger=${rmsCfg.genehmiger.join(', ')}`);
     } catch(eCfg) {
-      // Config nicht lesbar → FAIL-CLOSED: nur die Notfall-Admins bekommen Rechte.
+      // Config nicht lesbar → FAIL-CLOSED: niemand bekommt Rechte.
       // Bewusst NICHT aus der Lizenz-Leseberechtigung ableiten – sonst würde jeder,
       // der die Lizenzliste lesen darf, zum Gremium (sähe alle Anträge + Entscheid-Buttons).
       console.warn('RMS access-config nicht lesbar, nutze Defaults:', eCfg.message);
-      const defAdmins = ['pruefer@dihag.com', 'pruefer@dihag.com'];
+      const defAdmins = [];
       _rmsAdmins = defAdmins;
       isAdmin    = defAdmins.some(a => a.toLowerCase().trim() === _myUpn);
       isGremium  = isAdmin;
@@ -853,13 +853,48 @@ async function refreshCurrentView() {
 // ANTRAG FORM
 // ═══════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════
-// KI-RICHTLINIE MODAL (CO-10-01 – Version 1.0, Inkrafttreten 01.06.2026)
+// KI-RICHTLINIE MODAL (CO-10-01)
 // ═══════════════════════════════════════════════════════════════════
-function openRichtlinieModal() {
-  $id('modal-title').textContent = 'KI-Richtlinie CO-10-01 – Richtlinie zur Nutzung von KI-Anwendungen';
+// Richtlinie und Verhaltenskodex stehen nicht im Code, sondern in
+// Richtlinienmanagement/ki-texte.json auf SharePoint: Dieses Programm liegt
+// öffentlich, die Texte samt Ansprechpartnern nicht.
+let _kiTexte = null;
+
+/** HTML aus SharePoint entschärfen: Was dort steht, darf hier keinen Code ausführen. */
+function _kiTextSauber(html) {
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  doc.querySelectorAll('script,style,iframe,object,embed,link,meta,base,form').forEach(n => n.remove());
+  doc.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => {
+    if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name);
+  }));
+  return doc.body.innerHTML;
+}
+
+async function _kiTextZeigen(titel, schluessel) {
+  $id('modal-title').textContent = titel;
   $id('modal-card').classList.add('modal-wide');
-  $id('modal-body').innerHTML = '';
+  $id('modal-body').innerHTML = '<div class="rdoc">Wird geladen …</div>';
   $id('modal-overlay').classList.remove('hidden');
+  try {
+    if (!_kiTexte) {
+      const driveId = await getAppDriveId();
+      _kiTexte = await gGet(`/drives/${driveId}/root:/Richtlinienmanagement/ki-texte.json:/content`);
+    }
+    if (!_kiTexte?.[schluessel]) throw new Error('Text fehlt');
+    $id('modal-body').innerHTML = _kiTextSauber(_kiTexte[schluessel]);
+    $id('modal-body').querySelectorAll('[data-ki-text="kodex"]').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeModal();
+      openVerhaltenskodexModal();
+    }));
+  } catch (e) {
+    console.warn('KI-Text nicht ladbar:', e.message);
+    $id('modal-body').innerHTML = '<div class="rdoc">Der Text konnte nicht geladen werden. Bitte später erneut versuchen.</div>';
+  }
+}
+
+function openRichtlinieModal() {
+  _kiTextZeigen('KI-Richtlinie CO-10-01 – Richtlinie zur Nutzung von KI-Anwendungen', 'richtlinie');
 }
 
 function closeModal(e) {
@@ -868,13 +903,10 @@ function closeModal(e) {
   $id('modal-card').classList.remove('modal-wide');
 }
 
-// VERHALTENSKODEX MODAL (CO-01-01 – Version 1.2, Inkrafttreten 01.06.2026)
+// VERHALTENSKODEX MODAL (CO-01-01)
 // ═══════════════════════════════════════════════════════════════════
 function openVerhaltenskodexModal() {
-  $id('modal-title').textContent = 'Verhaltenskodex CO-01-01 – DIHAG Holding GmbH';
-  $id('modal-card').classList.add('modal-wide');
-  $id('modal-body').innerHTML = '';
-  $id('modal-overlay').classList.remove('hidden');
+  _kiTextZeigen('Verhaltenskodex CO-01-01 – DIHAG Holding GmbH', 'kodex');
 }
 
 function renderAntragForm() {

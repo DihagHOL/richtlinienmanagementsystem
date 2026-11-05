@@ -36,12 +36,12 @@ const docx = G('bpmnAnleitungDocx');
 const S = { lesen: G('prozessTextLesen'), bauen: G('prozessXmlBauen'), pruefen: G('prozessSchemaPruefen') };
 
 /* ── 1) Ansprechpartner ── */
-const mit = inhalt({ kontakt: { name: 'Max Muster', mail: 'pruefer@dihag.com' }, datum: '05.10.2026' });
+const mit = inhalt({ kontakt: { name: 'Max Muster', mail: 'max.muster@dihag.com' }, datum: '05.10.2026' });
 const ohne = inhalt({});
 const text = (bl) => JSON.stringify(bl);
-ok(/Max Muster \(pruefer@dihag\.com\)/.test(text(mit)) && /Stand 05\.10\.2026/.test(text(mit)),
+ok(/Max Muster \(max\.muster@dihag\.com\)/.test(text(mit)) && /Stand 05\.10\.2026/.test(text(mit)),
   'Wer die Datei erzeugt, steht als Ansprechpartner darin, mit Datum');
-ok((text(mit).match(/pruefer@dihag\.com/g) || []).length >= 3,
+ok((text(mit).match(/max\.muster@dihag\.com/g) || []).length >= 3,
   'und zwar oben, im Vorgehen und in der Vorlage, wohin sie zurückgeht');
 ok(!/undefined|null/.test(text(ohne)) && /an die Person schicken, die Sie um die Beschreibung gebeten hat/.test(text(ohne)),
   'Ohne Anmeldung bleibt kein Loch: Dann heißt es „die Person, die Sie gebeten hat"');

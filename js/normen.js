@@ -357,7 +357,7 @@ function normGroupOf(id) {
 function normLabel(id) { return NORMEN_LABEL[id] ? (id + ' (' + NORMEN_LABEL[id] + ')') : id; }
 
 /* ═══════════════════════════════════════════════════
-   Seed aus der Review-Mail (Max Muster) – Ein-Klick-Vorbefüllung
+   Seed aus der Review-Mail – Ein-Klick-Vorbefüllung
 ═══════════════════════════════════════════════════ */
 const NORMBEZUG_SEED = {
   leitlinie:        ['5.1', '5.2', '5.3', '10.1', '10.2', 'A.5.1', 'A.5.4', 'NIS2-20', 'NIS2-21.2a'],

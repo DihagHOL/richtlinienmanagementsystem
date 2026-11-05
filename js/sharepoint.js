@@ -1984,7 +1984,7 @@ async function spLoadLandkarte() {
   const resp = await fetch(`${basis}:/content`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
-  if (!resp.ok) return null;
+  if (!resp.ok) throw new Error(`Governance-Struktur nicht lesbar (HTTP ${resp.status})`);
   return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
 }
 
@@ -2276,12 +2276,13 @@ async function spLoadGovStruktur() {
   try {
     meta = await _get(`${basis}?$select=lastModifiedDateTime`, token);
   } catch (e) {
-    return null;      // 404 = noch nie gespeichert → Startbestand gilt
+    if (/\(404\)/.test(e.message || '')) return null;      // noch nie gespeichert → Startbestand gilt
+    throw e;
   }
   const resp = await fetch(`${basis}:/content`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
-  if (!resp.ok) return null;
+  if (!resp.ok) throw new Error(`Governance-Struktur nicht lesbar (HTTP ${resp.status})`);
   return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
 }
 
@@ -2379,7 +2380,8 @@ async function spLoadReifegrad() {
   if (!_sp.appDriveId) return null;
   const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/reifegrad-config.json:/content`;
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-  if (!resp.ok) return null; // 404 = noch nicht angelegt
+  if (resp.status === 404) return null; // noch nicht angelegt
+  if (!resp.ok) throw new Error(`Reifegrad nicht lesbar (HTTP ${resp.status})`);
   return resp.json();
 }
 

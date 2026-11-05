@@ -13,6 +13,7 @@
 let _reifegrad = null;          // { ratings:{mid:{werk:stufe}}, kommentare:{mid:text}, meta:{} }
 let _reifegradLoading = false;
 let _reifegradDirty = false;
+let _reifegradLadefehler = false;   // true → Bewertung nicht lesbar, Speichern überschriebe sie
 let _rgFilter = { q: '', stufe: '', werk: '' };   // werk='' → alle Werke
 const RG_CYCLE = ['weiss', 'gruen', 'gelb', 'rot'];   // Klick-Reihenfolge einer Zelle
 let _rgOpen = {};               // { topicId: false } → eingeklappt (Standard: offen)
@@ -29,7 +30,7 @@ async function initReifegrad() {
   _reifegradLoading = true;
   let cfg = null;
   try { cfg = (typeof spLoadReifegrad === 'function') ? await spLoadReifegrad() : null; }
-  catch (e) { console.warn('Reifegrad laden:', e.message); }
+  catch (e) { console.warn('Reifegrad laden:', e.message); _reifegradLadefehler = true; }
   _reifegrad = {
     ratings:    (cfg && cfg.ratings && typeof cfg.ratings === 'object') ? cfg.ratings : {},
     kommentare: (cfg && cfg.kommentare && typeof cfg.kommentare === 'object') ? cfg.kommentare : {},
@@ -393,6 +394,7 @@ function reifegradRestoreHidden() {
 
 async function saveReifegrad() {
   if (!_rgCanWrite()) { toast('Nur Lesezugriff auf „IMS-Abdeckung".', 'error'); return; }
+  if (_reifegradLadefehler) { toast('Die Bewertung konnte nicht geladen werden. Bitte die Seite neu laden.', 'error'); return; }
   const btn = document.getElementById('rg-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = '💾 Speichern …'; }
   try {

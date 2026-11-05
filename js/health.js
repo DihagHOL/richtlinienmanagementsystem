@@ -129,16 +129,9 @@ const _HC_HEADINGS = [
      { re: RegExp (mit /g!),  text: Kurzbefund,  ersatz?: Handlungshinweis,  sev }
    re sollte \b-Wortgrenzen nutzen, damit keine Teiltreffer entstehen
    (z. B. „CCO" nicht innerhalb anderer Wörter). Groß/Klein je nach Bedarf.
-   Grundlage: Review-Korrekturen (alte CO-/OZB-Namen, EMH, CCO = A. Muster …).
+   Grundlage: Review-Korrekturen (alte CO-/OZB-Namen, EMH …).
 ───────────────────────────────────────────────────────────── */
 const HC_TERMS = [
-  // Veralteter CCO-Name: „Max Muster" → aktuell Max Muster (Chief Compliance Officer).
-  // Steht noch im Verhaltenskodex und in „Sicherheitsvorfälle".
-  { re: /Max\s+Muster/g, sev: 'warn', text: 'Veralteter CCO-Name „Max Muster"',
-    ersatz: 'aktueller Chief Compliance Officer ist Max Muster. Namen ersetzen' },
-  // Falsche Anrede: im Scopedokument steht „Herr Max Muster".
-  { re: /Herr(?:n)?\s+Alexandra\s+Muster/gi, sev: 'warn', text: 'Falsche Anrede „Herr Max Muster"',
-    ersatz: 'richtig: „Frau Max Muster"' },
   // „EMH" – veraltete Bezeichnung (soll raus); kommt aktuell in keinem ISMS-Dokument mehr vor.
   { re: /\bEMH\b/g, sev: 'warn', text: 'Veraltete Bezeichnung „EMH"',
     ersatz: 'entfernen bzw. durch die aktuell gültige Bezeichnung ersetzen' },

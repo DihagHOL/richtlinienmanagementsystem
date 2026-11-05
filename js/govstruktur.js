@@ -40,6 +40,7 @@ const GOV_STAND = "12.08.2026";
 /** Ein Eintrag: { kategorie, art, titel, owner, status, … }.
  *  status: 'gueltig' (final abgelegt) | 'arbeit' (in Erarbeitung/Prüfung) | 'offen' (noch nicht begonnen).
  *  Titel und Verantwortung stehen unverändert so in der Mappe. */
+/* Die Regelungen stehen in governance-struktur.json auf SharePoint, nicht im Programm. */
 const GOV_EINTRAEGE = [];
 
 /** Regelungen außerhalb des Konzernregelwerks – gleiche Mappe, eigene Grobfunktion. */
@@ -128,7 +129,7 @@ function _gsKoepfeSichern() {
   if (!Array.isArray(_gsDaten.kategorien) || !_gsDaten.kategorien.length) _gsDaten.kategorien = gsKategorien();
 }
 
-/** Mehrere Verantwortliche stehen in der Mappe als „Muster/Muster/Muster“ oder „A, B“. */
+/** Mehrere Verantwortliche stehen als „A/B/C“ oder „A, B“. */
 function gsOwnerListe(owner) {
   return String(owner || '').split(/[\/,]/).map(x => x.trim()).filter(Boolean);
 }
@@ -235,6 +236,7 @@ async function gsDatenLaden() {
   } catch (e) {
     console.warn('[govstruktur] Laden fehlgeschlagen:', e.message);
     _gsDaten = gsStartbestand();
+    _gsLadefehler = true;
   }
   _gsGeladen = true;
   return _gsDaten;
@@ -266,6 +268,7 @@ async function initGovStruktur() {
     } catch (e) {
       console.warn('[govstruktur] Laden fehlgeschlagen:', e.message);
       _gsDaten = gsStartbestand();
+      _gsLadefehler = true;
     }
     _gsGeladen = true;
   }
@@ -296,10 +299,15 @@ function _gsVerlauf(was) {
 
 function gsHistorie() { return (_gsDaten && Array.isArray(_gsDaten.historie)) ? _gsDaten.historie : []; }
 
+/* Konnte die gespeicherte Fassung nicht gelesen werden, ist die Liste leer. Speichern
+   überschriebe dann die echten Regelungen, deshalb ist es bis zum Neuladen gesperrt. */
+let _gsLadefehler = false;
+
 /** Änderung sichern. Vorher prüfen, ob jemand anderes zwischenzeitlich gespeichert hat.
  *  @param {string} [was] Kurztext für den Versionsverlauf – ohne ihn wird nichts protokolliert. */
 async function gsSpeichern(meldung, was) {
   if (!gsDarfSchreiben()) { toast('Nur Lesezugriff auf die Governance-Struktur.', 'error'); return false; }
+  if (_gsLadefehler) { toast('Die Governance-Struktur konnte nicht geladen werden. Bitte die Seite neu laden.', 'error'); return false; }
   try {
     if (_gsGeaendertAm && typeof spGovStrukturMeta === 'function') {
       const jetzt = await spGovStrukturMeta();

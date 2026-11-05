@@ -15,8 +15,8 @@
  */
 
 const ACCESS_CONFIG_DEFAULT = {
-  admins:     ['pruefer@dihag.com', 'pruefer@dihag.com'],
-  genehmiger: ['pruefer@dihag.com', 'pruefer@dihag.com'],
+  admins:     [],   // stehen in access-config.json; ist die nicht lesbar, hat niemand Rechte
+  genehmiger: [],
   roles:      null,   // null → COMPANY_ROLES_DEFAULT
   userRoles:  {},     // { "user@dihag.com": ["IT", "Qualitätsmanagement"] }
   // Reiter-Berechtigungen (zusätzlich zu den Standard-Rollenrechten, rein additiv):

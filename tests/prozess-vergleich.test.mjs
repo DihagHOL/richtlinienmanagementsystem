@@ -164,7 +164,7 @@ ok(vm.runInContext('_pv.zeilen.every(z => /^[a-z0-9]{6}$/.test(z.id))', vctx) &&
   'Jede Zuordnung hat eine eigene Kennung, auch übernommene Vorschläge und neue Zeilen');
 
 console.log('Anmerkungen');
-vctx.State = { user: { upn: 'pruefer@dihag.com', name: 'Max Muster' } };
+vctx.State = { user: { upn: 'max.muster@dihag.com', name: 'Max Muster' } };
 vm.runInContext('_pvRender()', vctx);
 ok(/class="pv-notiz-knopf hat"[^>]*onclick="pvNotizUmschalten\(&quot;z1abcd&quot;\)"[^>]*>💬 1<\/button>/.test(mount.innerHTML) && /<b>💬 1<\/b>Anmerkungen/.test(mount.innerHTML),
   'Die Zeile zeigt, wie viele Anmerkungen es gibt, oben steht die Summe');
@@ -178,13 +178,13 @@ vm.runInContext(`pvSpeichern = async () => { __gespeichert++; }`, vctx);
 vctx.__gespeichert = 0;
 vctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : id === 'pv-notiz-z1abcd' ? { value: '  Einverstanden,   prüfen wir im POC  ' } : null);
 await vm.runInContext(`pvNotizNeu('z1abcd')`, vctx);
-const meine = vm.runInContext(`_pv.notizen.find(n => n.von === 'pruefer@dihag.com')`, vctx);
+const meine = vm.runInContext(`_pv.notizen.find(n => n.von === 'max.muster@dihag.com')`, vctx);
 ok(meine && meine.text === 'Einverstanden, prüfen wir im POC' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(meine.am) && vctx.__gespeichert === 1,
   'Eine Anmerkung bekommt Name und Zeitpunkt und wird sofort gespeichert');
 vctx.document.getElementById = (id) => (id === 'prozesse-mount' ? mount : null);
 vm.runInContext('_pvRender()', vctx);
 ok((mount.innerHTML.match(/pvNotizWeg\(/g) || []).length === 1, 'Die eigene lässt sich löschen, nur die');
-await vm.runInContext(`pvNotizWeg(pvNotizSchluessel(_pv.notizen.find(n => n.von === 'pruefer@dihag.com')))`, vctx);
+await vm.runInContext(`pvNotizWeg(pvNotizSchluessel(_pv.notizen.find(n => n.von === 'max.muster@dihag.com')))`, vctx);
 ok(vm.runInContext('_pv.notizen.length', vctx) === 1 && vm.runInContext('_pv.weg.size', vctx) === 1 && vctx.__gespeichert === 2, 'Gelöscht und vermerkt, damit sie beim Zusammenführen nicht zurückkommt');
 
 const ausDatei = [{ zeile: 'z1abcd', am: '2026-10-20T09:15', von: 'kollegin@dihag.com', text: 'Ablage passiert künftig im Archiv' },

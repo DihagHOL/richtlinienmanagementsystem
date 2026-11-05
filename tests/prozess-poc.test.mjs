@@ -35,7 +35,7 @@ const HEUTE = new Date(2026, 9, 8);
 
 /* ══ 1) Der POC als Daten ══ */
 console.log('POC am SOLL');
-const poc = { werke: 'wgc, SHB  wgc', start: '2026-10-01', ende: '2026-11-30', verantwortlich: 'pruefer@dihag.com', ergebnis: '',
+const poc = { werke: 'wgc, SHB  wgc', start: '2026-10-01', ende: '2026-11-30', verantwortlich: 'max.muster@dihag.com', ergebnis: '',
   kriterien: [{ text: '95 % der Rechnungen automatisch erkannt', bewertung: 'erfuellt' }, { text: 'Durchlaufzeit unter 3 Tagen' }, { text: '  ' }] };
 const n = M.pzPocNormal(poc);
 ok(n.werke.join() === 'WGC,SHB', 'Werke als Kürzel, groß, ohne Doppel');
@@ -54,12 +54,12 @@ ok(M.pzPocKurz(n) === 'WGC, SHB · 01.10.2026 bis 30.11.2026 · 1 von 2 Kriterie
 ok(M.pzPocErgebnisInfo('bestanden').label === 'bestanden' && M.pzPocErgebnisInfo('').label === 'läuft', 'Ergebnis: leer heißt „läuft"');
 
 /* Marker und Rundlauf */
-const pm = { status: 'poc', prozesseigner: 'pruefer@dihag.com', naechsteUeberpruefung: '2026-12-01', poc };
+const pm = { status: 'poc', prozesseigner: 'max.muster@dihag.com', naechsteUeberpruefung: '2026-12-01', poc };
 const zeilen = M.pzPmZeilen(pm);
-ok(zeilen.includes('[[rms:poc=WGC,SHB|2026-10-01|2026-11-30|pruefer@dihag.com|]]'), 'Ein Marker für den POC');
+ok(zeilen.includes('[[rms:poc=WGC,SHB|2026-10-01|2026-11-30|max.muster@dihag.com|]]'), 'Ein Marker für den POC');
 ok(zeilen.includes('[[rms:pockrit=95 % der Rechnungen automatisch erkannt|erfuellt]]') && zeilen.includes('[[rms:pockrit=Durchlaufzeit unter 3 Tagen|]]'),
   'Je Erfolgskriterium ein Marker');
-ok(zeilen.some(z => z.startsWith('POC: Pilot WGC, SHB · 01.10.2026 bis 30.11.2026 · verantwortlich pruefer@dihag.com · Ergebnis läuft'))
+ok(zeilen.some(z => z.startsWith('POC: Pilot WGC, SHB · 01.10.2026 bis 30.11.2026 · verantwortlich max.muster@dihag.com · Ergebnis läuft'))
   && zeilen.some(z => z === 'POC-Kriterien: 95 % der Rechnungen automatisch erkannt (erfüllt); Durchlaufzeit unter 3 Tagen (offen)'),
   'Und im Klartext, damit auch ein fremder Modeler ihn zeigt');
 const zurueck = M.pzPmAusText(zeilen.join(NL));
