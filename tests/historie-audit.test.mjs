@@ -158,13 +158,5 @@ run("globalThis.__hc = historieMitOutlookFreigabe({ historie: [], freigaben: [] 
 ok(ctx.__hc.length === 0, 'Ohne Freigabe passiert nichts');
 ok(run('typeof renderHistorieSection') === 'function', 'Die Ansicht nutzt denselben Weg');
 
-const paDoku = fs.readFileSync(ROOT + '/docs/GENEHMIGUNG-POWER-AUTOMATE.md', 'utf8');
-ok(/Der kürzeste Weg/.test(paDoku), 'Die Anleitung beginnt mit dem kurzen Weg');
-ok(/A6a\. Freigabe als vollwertigen Datensatz schreiben/.test(paDoku),
-  'Und zeigt, wie der Flow FreigabeJson schreibt');
-ok(/Alternative: eigener HTTP-Trigger/.test(paDoku) && /Kein Identitätsnachweis/.test(paDoku),
-  'Der HTTP-Weg ist beschrieben – samt seinem Preis');
-ok(/Actionable Message/.test(paDoku) && /Kurzvergleich/.test(paDoku), 'Dazu der dritte Weg und ein Vergleich');
-
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

@@ -173,7 +173,7 @@ function _rollenBereichHtml() {
                 <option value="alle" ${_cfgEdit.genehmigungPAScope === 'alle' || (!_cfgEdit.genehmigungPAScope && _cfgEdit.genehmigungPA) ? 'selected' : ''}>Prüfung + Freigabe über Power Automate</option>
               </select></div>
           </div>
-          <div class="field-hint" style="margin-top:10px">Legt fest, welche Etappen per <b>actionable Outlook-Mail</b> (Genehmigen/Ablehnen ohne Portal) über Power Automate laufen. Für die betroffene Etappe schaltet die App ihre eigene Hinweis-Mail ab. <b>Nur Freigabe (GL)</b>: Prüfer/Mitbestimmung bleiben in der App, nur der letzte Schritt läuft über Power Automate. Siehe <code>docs/GENEHMIGUNG-POWER-AUTOMATE.md</code>.</div>
+          <div class="field-hint" style="margin-top:10px">Legt fest, welche Etappen per <b>actionable Outlook-Mail</b> (Genehmigen/Ablehnen ohne Portal) über Power Automate laufen. Für die betroffene Etappe schaltet die App ihre eigene Hinweis-Mail ab. <b>Nur Freigabe (GL)</b>: Prüfer/Mitbestimmung bleiben in der App, nur der letzte Schritt läuft über Power Automate.</div>
         </div>
       </div>
 
@@ -223,7 +223,7 @@ function _rollenBereichHtml() {
           <div class="field-hint" style="margin-bottom:10px">
             Diese Werte steuern den zeitgesteuerten Versand (GitHub-Actions-Cron). Erinnert wird an noch
             offene Prüfer bzw. Geschäftsleitung. <b>Zugangsdaten</b> (Client Secret usw.) bleiben aus
-            Sicherheitsgründen in den GitHub-Secrets, siehe <code>docs/ERINNERUNGEN-GITHUB-ACTIONS.md</code>.
+            Sicherheitsgründen in den GitHub-Secrets.
           </div>
           <div class="form-grid">
             <div class="form-group"><label>Erinnerungen aktiv</label>

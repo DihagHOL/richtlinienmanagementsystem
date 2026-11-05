@@ -5,7 +5,7 @@
 // Bewusst KEINE mutierenden Tests (kein Antrag anlegen, keine Entscheidung,
 // kein Mailversand) – diese Suite läuft gegen das Live-System und darf keine
 // echten Daten verändern oder Mails an reale Genehmiger auslösen. Solche
-// Schreib-Flows stehen in der manuellen Checkliste (docs/SMOKETESTS.md).
+// Schreib-Flows stehen in der manuellen Checkliste.
 const fs = require('fs');
 const { test, expect } = require('@playwright/test');
 

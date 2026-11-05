@@ -175,7 +175,7 @@ ok(/abdeckung: 'IMS-Abdeckung'/.test(lies('js/app.js')), 'Und der Seitentitel');
 ok(/Normen &amp; Recht: Abdeckung durch Regelwerke/.test(html),
   'Die Überschrift nennt nicht mehr nur ISO 27001 und NIS2');
 const restlich = ['js/abdeckung.js', 'js/soa.js', 'js/reifegrad.js', 'js/cockpit.js',
-  'js/dokumentation.js', 'js/clevelreport.js', 'js/prozesse.js', 'docs/BENUTZERHANDBUCH.md']
+  'js/dokumentation.js', 'js/clevelreport.js', 'js/prozesse.js']
   .filter(f => /ISMS-Abdeckung/.test(lies(f)));
 ok(restlich.length === 0, `Kein „ISMS-Abdeckung" mehr übrig${restlich.length ? ': ' + restlich.join(', ') : ''}`);
 ok(!/Normbezug \(ISO 27001 \/ NIS2\)/.test(lies('js/admin.js')),

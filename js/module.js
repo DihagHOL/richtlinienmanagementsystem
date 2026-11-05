@@ -36,7 +36,7 @@ const MODUL_KERN = ['util', 'mailbau', 'auth', 'access', 'sharepoint', 'quiz', '
    sein – es sind nur Deklarationen –, aber sie zu ändern wäre eine Wette ohne
    Gewinn. */
 const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 'konzepte',
-  'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad',
+  'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad',
   'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'wissenmodell',
   // Die Modelle von Maßnahmen, Zielen und Kennzahlen: Audit Report und Cockpit rechnen damit.
   'massnahmenmodell', 'zielmodell', 'kennzahlmodell', 'clevelreport'];
@@ -85,7 +85,7 @@ const MODUL_ANSICHTEN = {
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
   govstruktur:  ['govstruktur'],
-  abdeckung:    ['normen', 'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad-seed', 'reifegrad'],
+  abdeckung:    ['normen', 'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad'],
   risiken:      ['normen', 'risiken'],
   ausnahmen:    ['normen', 'risiken', 'ausnahmen'],
   // Die vierte Satzart (Notfallübung) liest ihre Übungsarten aus dem Modell.

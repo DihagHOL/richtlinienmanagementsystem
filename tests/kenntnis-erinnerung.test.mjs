@@ -112,7 +112,6 @@ const doku = lies('js/dokumentation.js');
 ok(/sec\('erinnerungen', 'Erinnerungen & Eskalation'/.test(doku), 'Eigener Abschnitt in der Dokumentation');
 ok(/\['erinnerungen',\s+'Erinnerungen & Eskalation'\]/.test(doku), 'Im Inhaltsverzeichnis');
 ok(/Zweckbindung/.test(doku), 'Mit Hinweis zur Zweckbindung');
-ok(/Erinnerungen & Eskalation \(automatisch\)/.test(lies('docs/BENUTZERHANDBUCH.md')), 'Handbuch ebenfalls');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

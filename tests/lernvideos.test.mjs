@@ -104,7 +104,6 @@ const doku = lies('js/dokumentation.js');
 ok(/sec\('wissenstest', 'Wissenstest & Lernvideos'/.test(doku), 'Die Dokumentation hat einen eigenen Abschnitt');
 ok(/\['wissenstest',\s+'Wissenstest & Lernvideos'\]/.test(doku), 'Und er steht im Inhaltsverzeichnis');
 ok(/Rechte am Video<\/b> vergibt SharePoint/.test(doku), 'Sie erklärt, wer das Video sehen darf');
-ok(/Wissenstest & Lernvideos/.test(lies('docs/BENUTZERHANDBUCH.md')), 'Das Handbuch ebenfalls');
 
 /* ══════════════════════════════════════════════════════════════════
    youtube-nocookie: ausgerechnet die datenschutzfreundliche Adresse

@@ -1,7 +1,6 @@
 /* ═══════════════════════════════════════════════════
    Anleitung – kurze Benutzer-Schulung (für alle sichtbar)
    Rein statische Inhalte; rendert in #anleitung-mount.
-   Quelle/Langfassung: docs/BENUTZERHANDBUCH.md
 ═══════════════════════════════════════════════════ */
 
 let _anleitungRendered = false;

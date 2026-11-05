@@ -487,7 +487,6 @@ ok(/marke = /.test(imp) && /ansicht = alt\[alt\.index\(marke\):\]/.test(imp),
 const doku = lies('js/dokumentation.js');
 ok(/sec\('govstruktur', 'Governance-Struktur \(Matrix\)'/.test(doku), 'Die Dokumentation hat einen Abschnitt');
 ok(/\['govstruktur',\s+'Governance-Struktur \(Matrix\)'\]/.test(doku), 'Er steht im Inhaltsverzeichnis');
-ok(/Governance-Struktur \(Matrix\)/.test(lies('docs/BENUTZERHANDBUCH.md')), 'Das Handbuch ebenfalls');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);

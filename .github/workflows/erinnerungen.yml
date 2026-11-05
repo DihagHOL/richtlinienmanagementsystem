@@ -48,7 +48,7 @@ jobs:
           ERINNERUNG_ALLE: ${{ inputs.alle }}
         run: |
           if [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$MAIL_SENDER" ]; then
-            echo "Secrets noch nicht hinterlegt – Einrichtung siehe docs/ERINNERUNGEN-GITHUB-ACTIONS.md. Lauf übersprungen."
+            echo "Secrets noch nicht hinterlegt, Lauf übersprungen."
             exit 0
           fi
           node scripts/erinnerungen.mjs

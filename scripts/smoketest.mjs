@@ -15,8 +15,7 @@
  *                   werden im RMS-Admin auch gepflegt (Cross-File-Konsistenz)
  *
  * NICHT abgedeckt (braucht echten Login + SharePoint): Auth/SSO, Graph-Reads,
- * Speichern, Mailversand. Dafür gibt es die manuelle Checkliste in
- * docs/SMOKETESTS.md.
+ * Speichern, Mailversand. Das bleibt Handarbeit.
  *
  * Aufruf:  node scripts/smoketest.mjs        (Exit 0 = grün, 1 = Fehler)
  */
