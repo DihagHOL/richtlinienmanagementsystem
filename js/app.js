@@ -163,6 +163,20 @@ async function applyDeepLinkOrDefault() {
     return;
   }
 
+  // Deep-Link auf eine Verantwortungskette (?kette=<Kachel der Konzern-Landkarte>):
+  // die Bitte, die eigene Rolle zu bestätigen, und die Seite für die Geschäftsführung.
+  const ketteZiel = params.get('kette');
+  if (ketteZiel) {
+    if (typeof canReadTab === 'function' && !canReadTab('prozesse')) {
+      await switchView('meine');
+      toast('Für die Prozesse fehlt Ihnen der Zugriff.');
+      return;
+    }
+    await switchView('prozesse');
+    if (typeof vwDeepLink === 'function') vwDeepLink(ketteZiel);
+    return;
+  }
+
   // Deep-Link auf ein Modell (?modell=<Datei-Kennung>) – z. B. von der
   // Prozessseite der E-Rechnung, die ihre Modelle von hier liest. Die Kennung
   // übersteht Umbenennen und Umzug in ein anderes Werk.

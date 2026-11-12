@@ -199,6 +199,18 @@ async function _clevelGather() {
     }
   } catch (e) { m.notfall = null; m.fehler.push('Notfall: ' + e.message); }
 
+  // Verantwortung (ISO 27001 Kap. 5.3): Holding, Werk und Rollen je Prozess.
+  // Gerechnet wird auf derselben Datei wie beim Notfall.
+  try {
+    if (typeof vwKennzahlen !== 'function') { m.verantwortung = null; }
+    else {
+      const g = (typeof _lkDaten !== 'undefined' && _lkDaten) ? { daten: _lkDaten }
+        : ((typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null);
+      const z = (g && g.daten) ? vwKennzahlen(g.daten, { acks: AdminState.allAcks || [], members: AdminState.members || [] }) : null;
+      m.verantwortung = (z && z.ketten) ? z : null;
+    }
+  } catch (e) { m.verantwortung = null; m.fehler.push('Verantwortung: ' + e.message); }
+
   // Vorfälle (A.5.24–A.5.28, A.8.32, NIS2 Art. 23): aus dem Ticketsystem, mit der Beurteilung aus vorfaelle.json.
   try {
     if (typeof vfKennzahlen !== 'function' || typeof spGetTicketsLeise !== 'function') { m.vorfaelle = null; }
@@ -255,6 +267,14 @@ function _clevelIsoRows(m) {
     add('ISO 5', 'Führung & Leitlinien', 'ok', `${m.policies.veroeffentlicht} veröffentlichte Richtlinie(n); ${m.policies.imWorkflow} im Genehmigungs-Workflow.`);
   else
     add('ISO 5', 'Führung & Leitlinien', 'gap', 'Keine veröffentlichte Richtlinie, Leitlinien/Grundsätze fehlen.');
+
+  // Rollen und Verantwortlichkeiten (Kap. 5.3): erst bewertet, wenn es Ketten gibt.
+  if (m.verantwortung) {
+    const v = m.verantwortung;
+    const text = `${v.vollBesetzt}/${v.ketten} Prozess(e) voll besetzt, ${v.besetzt}/${v.zellen} Stellen besetzt, `
+      + `${v.ohneVertretung} ohne Vertretung, ${v.bestaetigt}/${v.benennungen} Benennungen bestätigt.`;
+    add('ISO 5.3', 'Rollen und Verantwortlichkeiten', (v.leer || v.holdingOk < v.ketten) ? 'gap' : (v.ohneVertretung ? 'warn' : 'ok'), text);
+  }
 
   // Risikomanagement (Kap. 6.1.2 / 8.2 / 8.3, NIS2 Art. 21(2a))
   if (m.risiken) {
@@ -496,6 +516,7 @@ function _clevelReportHtml(m) {
       ${m.kennzahlen && m.kennzahlen.gesamt ? _clTile(`${m.kennzahlen.erfuellt}/${m.kennzahlen.gesamt}`, 'Kennzahlen grün', (m.kennzahlen.verfehlt || m.kennzahlen.gelb) ? '#b45309' : '#15803d') : ''}
       ${m.notfall ? _clTile(`${m.notfall.mitPlan}/${m.notfall.kritisch}`, 'krit. Prozesse mit Plan', m.notfall.kritisch && m.notfall.mitPlan < m.notfall.kritisch ? '#b91c1c' : '#15803d') : ''}
       ${m.reifegrad ? _clTile(m.reifegrad.rot, 'IT/OT nicht gelebt', m.reifegrad.rot ? '#b91c1c' : '#15803d') : ''}
+      ${m.verantwortung ? _clTile(`${m.verantwortung.vollBesetzt}/${m.verantwortung.ketten}`, 'Prozesse voll besetzt', m.verantwortung.vollBesetzt < m.verantwortung.ketten ? '#b45309' : '#15803d') : ''}
     </tr></table>`;
 
   const isoRows = rows.map(r => `
@@ -517,6 +538,13 @@ function _clevelReportHtml(m) {
   if (m.assets) details.push(`<b>Assets:</b> ${m.assets.aktiv} im Inventar, ${m.assets.ohneVerantwortlichen} ohne Verantwortlichen, ${m.assets.sehrHoch} mit Verfügbarkeit „sehr hoch", ${m.assets.personenbezogen} mit Personendaten`);
   if (m.notfall) details.push(`<b>Notfall:</b> ${m.notfall.bewertet}/${m.notfall.prozesse} Prozesse mit BIA, ${m.notfall.kritisch} kritisch, ${m.notfall.mitPlan} mit Plan, ${m.notfall.geuebt} geübt, ${m.notfall.rtoKonflikte} RTO-Konflikt(e), Krisenstab vollständig in ${m.notfall.stabOk}/${m.notfall.werke} Werk(en)`);
   if (m.reifegrad) details.push(`<b>Reifegrad IT/OT:</b> 🔴 ${m.reifegrad.rot} · 🟡 ${m.reifegrad.gelb} · 🟢 ${m.reifegrad.gruen} · ⚪ ${m.reifegrad.weiss} (bewertet ${m.reifegrad.pct}%)`);
+  if (m.verantwortung) {
+    const v = m.verantwortung;
+    const luecken = Object.entries(v.lueckenJeWerk).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} ${n}`).join(', ');
+    details.push(`<b>Verantwortung:</b> ${v.ketten} Prozess(e) mit Kette, Ziel und Eigner in der Holding bei ${v.holdingOk}, `
+      + `${v.besetzt}/${v.zellen} Stellen besetzt (${v.quote} %), ${v.ohneVertretung} ohne Vertretung, `
+      + `${v.haeufung.length} Person(en) mit vielen Rollen, ${v.bestaetigtQuote} % bestätigt${luecken ? `, offen je Werk: ${luecken}` : ''}`);
+  }
   if (m.faellig) details.push(`<b>Fälligkeiten:</b> ${m.faellig.overdue} überfällig, ${m.faellig.soon} in ≤ 30 Tagen`);
 
   return `

@@ -1018,6 +1018,31 @@ body.demo-mode .main { padding-bottom: 64px; }
 .pm-marke.an { background: #dcfce7; color: #15803d; }
 .pm-marke.aus { background: #f1f5f9; color: #cbd5e1; }
 
+/* ── Verantwortungskette: Holding, Werk, Rollen ── */
+.vw-hinweis { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: .86rem; }
+.vw-leer { background: #fff; border: 1px dashed var(--c-border); border-radius: 10px; padding: 16px 18px; }
+.vw-kette { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.vw-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
+.vw-nr { font-size: .75rem; font-weight: 700; color: var(--c-faint); }
+.vw-knoepfe { display: flex; gap: 4px; flex-wrap: wrap; }
+.vw-ebene { border-radius: 10px; padding: 8px 12px; margin: 0 0 8px; border: 1px solid var(--c-border); border-left: 4px solid #cbd5e1; }
+.vw-ebene-titel { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c-navy, #1A2644); margin: 0 0 4px; }
+.vw-holding.vw-ok { border-left-color: #15803d; background: #f0fdf4; }
+.vw-holding.vw-teil { border-left-color: #F08300; background: #fffbeb; }
+.vw-holding.vw-leer { border-left-color: #b91c1c; background: #fef2f2; }
+.vw-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 4px 16px; font-size: .84rem; }
+.vw-feld span { display: block; font-size: .72rem; color: var(--c-faint); }
+.vw-fehlt { color: #b91c1c; font-style: normal; font-weight: 600; }
+.vw-tabelle td.vw-zelle { white-space: normal; min-width: 130px; vertical-align: top; }
+.vw-tabelle td.vw-ok { background: #f0fdf4; }
+.vw-tabelle td.vw-teil { background: #fffbeb; }
+.vw-tabelle td.vw-leer-zelle { background: #fef2f2; color: #b91c1c; font-weight: 700; text-align: center; }
+.vw-tabelle td.vw-entfaellt { color: var(--c-faint); text-align: center; }
+.vw-vertretung { font-size: .72rem; color: var(--c-faint); margin-top: 2px; }
+.vw-vertretung.vw-fehlt { color: #b45309; }
+.vw-ok-haken { color: #15803d; font-weight: 700; }
+.vw-werkwahl { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
 /* ── Prozess-Backlog: eine Spalte je Stand im Lebenszyklus ── */
 .pb-brett { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
 .pb-spalte { background: #f8fafc; border: 1px solid var(--c-border); border-top: 3px solid var(--pb-c, var(--c-primary)); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; }

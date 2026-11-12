@@ -39,7 +39,9 @@ const MODUL_ADMIN = ['normen', 'health', 'admin', 'freigaben', 'einstellungen', 
   'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad',
   'risiken', 'ausnahmen', 'wirksamkeit', 'notfallmodell', 'assetmodell', 'vorfallmodell', 'wissenmodell',
   // Die Modelle von Maßnahmen, Zielen und Kennzahlen: Audit Report und Cockpit rechnen damit.
-  'massnahmenmodell', 'zielmodell', 'kennzahlmodell', 'clevelreport'];
+  'massnahmenmodell', 'zielmodell', 'kennzahlmodell',
+  // Die Verantwortungskette: der Audit Report rechnet ihre Besetzung mit.
+  'verantwortungmodell', 'clevelreport'];
 
 /** Was eine Ansicht braucht, bevor sie gezeichnet wird. */
 const MODUL_ANSICHTEN = {
@@ -58,7 +60,7 @@ const MODUL_ANSICHTEN = {
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'verantwortung', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.

@@ -1883,6 +1883,7 @@ function _lkNachSpeichern() {
   const modus = (typeof _prozModus !== 'undefined') ? _prozModus : 'karte';
   if (modus === 'netz' && typeof vkNachLandkarte === 'function') { vkNachLandkarte(); return; }
   if (modus === 'matrix' && typeof renderProzessMatrix === 'function') { renderProzessMatrix(); return; }
+  if (modus === 'kette' && typeof renderVerantwortung === 'function') { renderVerantwortung(); return; }
   if (modus === 'backlog' && typeof renderProzessBacklog === 'function') { renderProzessBacklog(); return; }
   renderLandkarte();
 }
