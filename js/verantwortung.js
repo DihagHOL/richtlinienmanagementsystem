@@ -357,14 +357,28 @@ function _vwBahnZeigen(bahnId) {
   let el, canvas, reg;
   try { reg = _bpmnModeler.get('elementRegistry'); el = reg.get(bahnId); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
   if (!el) { toast('Die Bahn gibt es in diesem Modell nicht mehr.', 'error'); return; }
-  // Oben anfangen: der Zurück-Knopf und der Name des Modells bleiben sichtbar.
-  const kopf = document.getElementById('proc-ansicht');
-  if (kopf && kopf.scrollIntoView) kopf.scrollIntoView({ block: 'start' });
-  const refs = (el.businessObject && Array.isArray(el.businessObject.flowNodeRef)) ? el.businessObject.flowNodeRef : [];
-  const schritte = refs.map(n => reg.get(n.id)).filter(Boolean);
-  try { canvas.viewbox(vwBahnAusschnitt(el, schritte, canvas.viewbox().outer)); } catch (e) { /* dann ohne Zoom */ }
+  _vwNachOben(document.getElementById('proc-ansicht'));
   try { canvas.addMarker(bahnId, 'vw-bahn'); } catch (e) { /* dann ohne Farbe */ }
   try { _bpmnModeler.get('selection').select(el); } catch (e) { /* ohne Auswahl */ }
+  const refs = (el.businessObject && Array.isArray(el.businessObject.flowNodeRef)) ? el.businessObject.flowNodeRef : [];
+  const schritte = refs.map(n => reg.get(n.id)).filter(Boolean);
+  const zoomen = () => { try { canvas.viewbox(vwBahnAusschnitt(el, schritte, canvas.viewbox().outer)); } catch (e) { /* dann ohne Zoom */ } };
+  // Die Ansicht passt das Diagramm zwei Bilder nach dem Laden ein
+  // (_procBuehneNeu). Der Ausschnitt kommt danach, sonst wäre er wieder weg.
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(zoomen, 0)));
+  else zoomen();
+}
+
+/**
+ * Oben anfangen, damit der Zurück-Knopf zu sehen ist. Die feste Kopfzeile
+ * verdeckte ihn bei scrollIntoView, deshalb werden die Behälter selbst
+ * nach oben gestellt.
+ */
+function _vwNachOben(el) {
+  for (let p = el && el.parentElement; p; p = p.parentElement) {
+    if (p.scrollTop) p.scrollTop = 0;
+  }
+  if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
 }
 
 /** In der Modellansicht: zurück zur Kette, aus der man kam. */
