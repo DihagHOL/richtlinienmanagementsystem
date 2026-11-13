@@ -121,6 +121,7 @@ function vwBahnenAusXml(xml) {
   const bahnMuster = /<(?:[A-Za-z0-9_]+:)?lane\b([^>]*?)(\/>|>([\s\S]*?)<\/(?:[A-Za-z0-9_]+:)?lane>)/g;
   while ((m = bahnMuster.exec(text))) {
     const n = /\bname="([^"]*)"/.exec(m[1]);
+    const lid = /\bid="([^"]*)"/.exec(m[1]);
     const name = _vwText(vwEntitaeten(n ? n[1] : '')).replace(/\s+/g, ' ');
     if (!name || gesehen.has(name.toLowerCase())) continue;
     gesehen.add(name.toLowerCase());
@@ -132,8 +133,26 @@ function vwBahnenAusXml(xml) {
     const mensch = typen.length
       ? typen.some(t => VW_MENSCH_TYPEN.includes(t))
       : !VW_TECHNIK.test(name);
-    out.push({ name, mensch });
+    out.push({ id: lid ? lid[1] : '', name, mensch });
   }
+  return out;
+}
+
+/**
+ * Wo eine Rolle im Ablauf steht: je Modell die Bahn mit ihrem Namen.
+ * `modelle` sind die Modelle an der Kachel ({ itemId, title }), `bahnenJe`
+ * hält je Modell-Kennung die gelesenen Bahnen.
+ * → [{ itemId, titel, bahnId }]
+ */
+function vwBahnStellen(modelle, bahnenJe, rolle) {
+  const s = vwSchluessel(rolle);
+  const out = [];
+  if (!s) return out;
+  (Array.isArray(modelle) ? modelle : []).forEach(p => {
+    const bahnen = (bahnenJe && p && bahnenJe[p.itemId]) || [];
+    const b = bahnen.find(x => x && x.id && vwSchluessel(x.name) === s);
+    if (b) out.push({ itemId: p.itemId, titel: p.title || p.name || '', bahnId: b.id });
+  });
   return out;
 }
 
@@ -456,7 +475,7 @@ function vwStartpaketOffen(daten) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     VW_PREFIX, VW_HAEUFUNG, VW_START, VW_WERK_ROLLE, VW_EIGNER_ROLLE,
-    vwEntitaeten, vwListe, vwSchluessel, vwBahnenAusXml, vwRollenAusBahnen, vwKetteVon, vwRollen,
+    vwEntitaeten, vwListe, vwSchluessel, vwBahnenAusXml, vwBahnStellen, vwRollenAusBahnen, vwKetteVon, vwRollen,
     vwWerkEintrag, vwRolleSetzen, vwZellStatus, vwHolding, vwMatrix, vwKetten, vwBestaetigungsId,
     vwIstRollenAck, vwBestaetigt, vwBenennungen, vwMeineRollen, vwNamenSichtbar, vwKennzahlen,
     vwStartKachel, vwStartpaketAnwenden, vwStartpaketOffen,

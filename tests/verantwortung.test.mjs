@@ -50,6 +50,13 @@ ok(!bahnen.find(b => b.name.startsWith('SharePoint')).mensch, 'Bahn nur mit Skri
 ok(bahnen.find(b => b.name === 'Genehmiger').mensch, 'eine schlichte Aufgabe zählt als Mensch');
 ok(bahnen.find(b => b.name === 'Controlling').mensch && !bahnen.find(b => b.name === 'Bedarfsanfrage-App').mensch,
   'ohne Aufgaben entscheidet der Name: Controlling ja, die App nein');
+ok(bahnen.find(b => b.name === 'Kreditorenbuchhaltung').id === 'L2', 'die Kennung der Bahn wird mitgelesen (für den Sprung)');
+const stellen = M.vwBahnStellen(
+  [{ itemId: 'm1', title: 'Rechnungseingang' }, { itemId: 'm2', title: 'Freigeben' }, { itemId: 'm3', title: 'nicht gelesen' }],
+  { m1: bahnen, m2: [{ id: 'X9', name: 'KREDITORENBUCHHALTUNG', mensch: true }] }, 'Kreditorenbuchhaltung');
+ok(stellen.length === 2 && stellen[0].bahnId === 'L2' && stellen[1].bahnId === 'X9' && stellen[1].titel === 'Freigeben',
+  'Fundstellen einer Rolle über alle Modelle, Schreibweise egal, ungelesene fallen weg');
+ok(M.vwBahnStellen([{ itemId: 'm1', title: 'x' }], { m1: bahnen }, 'Einkauf').length === 0, 'Rolle ohne Bahn: kein Sprung');
 const rollen = M.vwRollenAusBahnen([bahnen, [{ name: 'kreditorenbuchhaltung', mensch: true }, { name: 'Einkauf', mensch: true }]]);
 ok(JSON.stringify(rollen) === JSON.stringify(['Kreditorenbuchhaltung', 'Genehmiger', 'Controlling', 'Einkauf']),
   'Rollen aus mehreren Modellen ohne Doppel, in der Reihenfolge des ersten Auftretens');
@@ -216,6 +223,49 @@ const kk = ctx._lkDaten.karten.KONZERN.kacheln[0];
 ok(kk.kette.ziel === 'Durchlaufzeit halbieren' && kk.prozesseigner === 'neuer.eigner@dihag.com' && kk.standardisierung === 'einheitlich',
   'Holding gespeichert');
 ok(/Prozesseigner: eigner@dihag\.com → neuer\.eigner@dihag\.com/.test(gespeichert.at(-1)), 'Wechsel des Eigners steht im Verlauf');
+
+/* ── 6b) Aus der Rolle in die Bahn ── */
+const modale = [];
+const geoeffnet = [];
+const marker = [];
+let viewbox = null;
+const toolbar = { kinder: [], get children() { return this.kinder; }, querySelector: () => null,
+  insertBefore(el) { this.kinder.unshift(el); } };
+ctx.openModal = (html) => modale.push(html);
+// Wie das echte Speichern: danach steht die Ansicht neu da (_lkNachSpeichern).
+ctx.lkSpeichern = async (msg, was) => { gespeichert.push(was); vm.runInContext('renderVerantwortung()', ctx); return true; };
+ctx.lkProzesseVon = () => [{ itemId: 'm1', title: 'Rechnungseingang' }, { itemId: 'm2', title: 'Freigeben' }];
+ctx.spGetProcessXml = async (id) => id === 'm1' ? xml : xml.replace('id="L2"', 'id="L7"');
+ctx.document.querySelector = (s) => s.includes('view-toolbar') ? toolbar : null;
+ctx.document.createElement = () => ({});
+ctx.openProcessAnsicht = async (id) => {
+  geoeffnet.push(id);
+  vm.runInContext(`_procEditing = { itemId: ${JSON.stringify(id)} };`, ctx);
+};
+ctx.document.getElementById = (x) => x === 'prozesse-mount' ? mount : (x === 'proc-ansicht' || x === 'vw-ansicht' ? {} : (felder[x] || null));
+vm.runInContext(`var _procEditing = null; var _bpmnModeler = { get(n) {
+  if (n === 'elementRegistry') return { get: (id) => ({ id, x: 100, y: 200, width: 900, height: 120 }) };
+  if (n === 'canvas') return { viewbox: (v) => { this.__vb = v; }, addMarker: (id, m) => this.__m.push([id, m]) };
+  return { select: () => {} };
+}, __m: [] };`, ctx);
+vm.runInContext(`_lkDaten.karten.KONZERN.kacheln[0].kette.extra = ['Prozessbeauftragte'];`, ctx);
+await vm.runInContext('vwRollenAktualisieren()', ctx);
+h = mount.innerHTML;
+ok(/vwZurBahn\(.*Kreditorenbuchhaltung/.test(h) && h.includes('↗ Ablauf (2)'), 'Rolle mit Bahn in zwei Modellen: Sprung-Knopf mit Anzahl');
+ok(h.includes('>Prozessbeauftragte</td>'), 'von Hand ergänzte Rolle ohne Bahn bekommt keinen Knopf');
+await vm.runInContext(`vwZurBahn('sap-s2p-rechnung', 'Kreditorenbuchhaltung')`, ctx);
+ok(modale.length === 1 && modale[0].includes('Rechnungseingang') && modale[0].includes('Freigeben') && !geoeffnet.length,
+  'zwei Modelle: erst fragen, welches');
+await vm.runInContext(`vwZurBahn('sap-s2p-rechnung', 'Kreditorenbuchhaltung', 1)`, ctx);
+const bm = vm.runInContext('_bpmnModeler', ctx);
+ok(geoeffnet.join() === 'm2', 'das gewählte Modell wird geöffnet');
+ok(bm.__vb && bm.__vb.x === 70 && bm.__vb.width === 960, 'die ganze Bahn wird ins Bild geholt (mit Rand)');
+ok(bm.__m.some(([id, m]) => id === 'L7' && m === 'vw-bahn'), 'die Bahn des gewählten Modells wird markiert');
+ok(toolbar.kinder.length === 1 && toolbar.kinder[0].textContent.includes('Zurück zur Verantwortung'), 'Knopf zurück zur Kette');
+const vorher = vm.runInContext('_vwOffen', ctx);
+ctx.setProzessModus = (m) => { ctx.__modus = m; };
+toolbar.kinder[0].onclick();
+ok(ctx.__modus === 'kette' && vm.runInContext('_vwOffen', ctx) === 'sap-s2p-rechnung' && vorher === '', 'zurück landet in der Kette, aus der man kam');
 
 /* ── 7) Einbindung ── */
 const modul = lies('js/module.js');

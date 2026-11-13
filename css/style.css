@@ -1042,6 +1042,14 @@ body.demo-mode .main { padding-bottom: 64px; }
 .vw-vertretung.vw-fehlt { color: #b45309; }
 .vw-ok-haken { color: #15803d; font-weight: 700; }
 .vw-werkwahl { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.vw-tabelle td.pm-erste { white-space: normal; }
+.vw-sprung { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--c-border); border-radius: 6px; background: #fff; color: var(--c-primary, #17509E); font-size: .72rem; font-weight: 600; cursor: pointer; }
+.vw-sprung:hover { background: #eef2f7; }
+.vw-sprung:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 1px; }
+.vw-modellwahl { display: flex; flex-direction: column; gap: 6px; }
+.vw-modellwahl .btn { justify-content: flex-start; text-align: left; }
+/* Die Bahn, in die aus der Verantwortung gesprungen wurde (schlägt die Streifen der Ansicht). */
+#bpmn-canvas .djs-element.vw-bahn > .djs-visual > rect { fill: #FFF3E0 !important; stroke: #F08300 !important; stroke-width: 3px !important; }
 
 /* ── Prozess-Backlog: eine Spalte je Stand im Lebenszyklus ── */
 .pb-brett { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }

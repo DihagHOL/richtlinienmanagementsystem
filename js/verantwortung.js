@@ -79,6 +79,7 @@ async function vwRollenAktualisieren() {
     const d = _vwDaten();
     if (!d || typeof spGetProcessXml !== 'function') return;
     const geaendert = [];
+    let gelesen = 0;
     for (const k of vwKetten(d)) {
       const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(k, 'KONZERN') : [];
       if (!modelle.length) continue;
@@ -86,6 +87,7 @@ async function vwRollenAktualisieren() {
       for (const p of modelle) {
         if (!(p.itemId in _vwBahnenCache)) {
           try { _vwBahnenCache[p.itemId] = vwBahnenAusXml(await spGetProcessXml(p.itemId)); } catch (e) { _vwBahnenCache[p.itemId] = null; }
+          gelesen++;
         }
         if (_vwBahnenCache[p.itemId]) listen.push(_vwBahnenCache[p.itemId]);
       }
@@ -95,7 +97,11 @@ async function vwRollenAktualisieren() {
       const kt = vwKetteVon(k, true);
       if (neu.join('|') !== kt.rollen.join('|')) { kt.rollen = neu; geaendert.push(k.name); }
     }
-    if (!geaendert.length) return;
+    if (!geaendert.length) {
+      // Neu gelesene Modelle bringen die Sprünge in die Bahnen mit.
+      if (gelesen && _vwImBild()) renderVerantwortung();
+      return;
+    }
     if (_vwDarf() && typeof lkSpeichern === 'function') {
       await lkSpeichern(null, 'Rollen aus den Modellen übernommen: ' + geaendert.join(', '));
     } else if (_vwImBild()) renderVerantwortung();
@@ -187,7 +193,8 @@ function _vwKetteHtml(d, k, darf) {
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vwHoldingDialog(${jsArg(k.id)})}"` : '';
   const zeilen = mx.zeilen;
   const rollen = zeilen.filter(z => z.art === 'rolle');
-  const zeile = (z) => `<tr><td class="pm-erste" title="${esc(z.rolle)}">${esc(z.rolle)}</td>${
+  const zeile = (z) => `<tr><td class="pm-erste" title="${esc(z.rolle)}">${esc(z.rolle)}${
+    z.art === 'rolle' ? _vwSprungHtml(k, modelle, z.rolle) : ''}</td>${
     werke.map(w => _vwZelleHtml(k, w, z, darf)).join('')}</tr>`;
   return `<section class="vw-kette" id="vw-${esc(k.id)}">
       <div class="vw-kopf">
@@ -222,6 +229,17 @@ function _vwKetteHtml(d, k, darf) {
         </tbody>
       </table></div>`}
     </section>`;
+}
+
+/** Knopf in die Bahn der Rolle, sobald ein Modell sie als Bahn führt. */
+function _vwSprungHtml(k, modelle, rolle) {
+  const stellen = vwBahnStellen(modelle, _vwBahnenCache, rolle);
+  if (!stellen.length) return '';
+  const titel = stellen.length === 1
+    ? `In die Bahn „${rolle}" im Modell „${stellen[0].titel}"`
+    : `In die Bahn „${rolle}", sie steht in ${stellen.length} Modellen`;
+  return ` <button type="button" class="vw-sprung" onclick="vwZurBahn(${jsArg(k.id)},${jsArg(rolle)})"
+    title="${esc(titel)}" aria-label="${esc(titel)}">↗ Ablauf${stellen.length > 1 ? ' (' + stellen.length + ')' : ''}</button>`;
 }
 
 /** Häkchen hinter einem Namen, wenn die Rolle für dieses Jahr bestätigt ist. */
@@ -278,6 +296,74 @@ async function vwLinkKopieren(id) {
   } catch (e) {
     if (typeof uiConfirm === 'function') uiConfirm(`<div style="word-break:break-all">${esc(url)}</div>`, { title: 'Link zur Verantwortungskette', okLabel: 'Schließen', html: true });
   }
+}
+
+/**
+ * Aus der Rolle in ihre Bahn: Modell öffnen, auf die Bahn zoomen, sie markieren.
+ * Führen mehrere Modelle die Rolle, wird zuerst gefragt, welches.
+ * `nr` ist die Wahl aus dieser Frage.
+ */
+async function vwZurBahn(kachelId, rolle, nr) {
+  const k = _vwKachel(kachelId);
+  if (!k) return;
+  const modelle = (typeof lkProzesseVon === 'function') ? lkProzesseVon(k, 'KONZERN') : [];
+  const stellen = vwBahnStellen(modelle, _vwBahnenCache, rolle);
+  if (!stellen.length) { toast('Diese Rolle steht in keinem Modell als Bahn.', 'error'); return; }
+  if (stellen.length > 1 && (nr === undefined || nr === null)) {
+    openModal(`
+      <div class="modal-header"><h3>${esc(rolle)}</h3>
+        <button class="modal-close" onclick="closeModal()">×</button></div>
+      <div class="modal-body">
+        <p class="field-hint" style="margin:0 0 10px">Die Rolle hat in diesen Abläufen eine eigene Bahn:</p>
+        <div class="vw-modellwahl">${stellen.map((s, i) => `<button type="button" class="btn btn-outline"
+          onclick="vwZurBahn(${jsArg(kachelId)},${jsArg(rolle)},${i})">🔀 ${esc(s.titel)}</button>`).join('')}</div>
+      </div>`);
+    return;
+  }
+  const s = stellen[Number(nr) || 0];
+  if (!s) return;
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof openProcessAnsicht !== 'function') return;
+  await openProcessAnsicht(s.itemId);
+  // Wer inzwischen weitergeklickt hat, bekommt keinen Sprung untergeschoben.
+  if (!document.getElementById('proc-ansicht') || typeof _procEditing === 'undefined'
+    || !_procEditing || String(_procEditing.itemId) !== String(s.itemId)) return;
+  _vwZurueckKnopf(kachelId, rolle);
+  _vwBahnZeigen(s.bahnId);
+}
+
+/** Die Bahn ganz ins Bild holen und markieren, bis das Modell wieder zu ist. */
+function _vwBahnZeigen(bahnId) {
+  if (typeof _bpmnModeler === 'undefined' || !_bpmnModeler || !bahnId) return;
+  let el, canvas;
+  try { el = _bpmnModeler.get('elementRegistry').get(bahnId); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  if (!el) { toast('Die Bahn gibt es in diesem Modell nicht mehr.', 'error'); return; }
+  const box = document.getElementById('pa-box');
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const rand = 30;
+  try { canvas.viewbox({ x: el.x - rand, y: el.y - rand, width: el.width + 2 * rand, height: el.height + 2 * rand }); } catch (e) { /* dann ohne Zoom */ }
+  try { canvas.addMarker(bahnId, 'vw-bahn'); } catch (e) { /* dann ohne Farbe */ }
+  try { _bpmnModeler.get('selection').select(el); } catch (e) { /* ohne Auswahl */ }
+}
+
+/** In der Modellansicht: zurück zur Kette, aus der man kam. */
+function _vwZurueckKnopf(kachelId, rolle) {
+  const leiste = document.querySelector('#proc-ansicht .view-toolbar');
+  if (!leiste || leiste.querySelector('.vw-zurueck')) return;
+  const knopf = document.createElement('button');
+  knopf.type = 'button';
+  knopf.className = 'btn btn-sm btn-outline vw-zurueck';
+  knopf.textContent = '↰ Zurück zur Verantwortung';
+  knopf.title = `Zurück zur Kette „${(_vwKachel(kachelId) || {}).name || ''}", Rolle „${rolle}"`;
+  knopf.onclick = () => vwZurueck(kachelId);
+  leiste.insertBefore(knopf, leiste.children[1] || null);
+}
+
+function vwZurueck(kachelId) {
+  _vwOffen = String(kachelId || '');
+  if (typeof _destroyModeler === 'function') _destroyModeler();
+  if (typeof _procAnsicht !== 'undefined') _procAnsicht = false;
+  if (typeof setProzessModus === 'function') setProzessModus('kette');
 }
 
 /** Aus einem Link (?kette=…) direkt in die Kette. */
