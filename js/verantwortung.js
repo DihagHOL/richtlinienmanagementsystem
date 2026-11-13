@@ -332,16 +332,37 @@ async function vwZurBahn(kachelId, rolle, nr) {
   _vwBahnZeigen(s.bahnId);
 }
 
-/** Die Bahn ganz ins Bild holen und markieren, bis das Modell wieder zu ist. */
+/**
+ * Ausschnitt für eine Bahn: Bahnen laufen über die ganze Breite des Pools,
+ * deshalb zählen ihre Schritte. Lesbar groß (Maßstab 0,6 bis 1), senkrecht
+ * mittig auf der Bahn; passen die Schritte nicht ins Bild, beginnt er beim ersten.
+ * `bahn` ist die Bahn, `schritte` sind ihre Elemente, `aussen` die Größe der Fläche.
+ */
+function vwBahnAusschnitt(bahn, schritte, aussen) {
+  const rand = 60;
+  const liste = (schritte || []).filter(s => s && isFinite(s.x) && isFinite(s.width));
+  const links = liste.length ? Math.min(...liste.map(s => s.x)) : bahn.x;
+  const rechts = liste.length ? Math.max(...liste.map(s => s.x + s.width)) : bahn.x + bahn.width;
+  const breite = rechts - links + 2 * rand;
+  const skala = Math.max(0.6, Math.min(1, aussen.width / breite));
+  const w = aussen.width / skala, h = aussen.height / skala;
+  const x = breite <= w ? (links + rechts) / 2 - w / 2 : links - rand;
+  const y = bahn.y + bahn.height / 2 - h / 2;
+  return { x, y, width: w, height: h };
+}
+
+/** Die Bahn ins Bild holen und markieren, bis das Modell wieder zu ist. */
 function _vwBahnZeigen(bahnId) {
   if (typeof _bpmnModeler === 'undefined' || !_bpmnModeler || !bahnId) return;
-  let el, canvas;
-  try { el = _bpmnModeler.get('elementRegistry').get(bahnId); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
+  let el, canvas, reg;
+  try { reg = _bpmnModeler.get('elementRegistry'); el = reg.get(bahnId); canvas = _bpmnModeler.get('canvas'); } catch (e) { return; }
   if (!el) { toast('Die Bahn gibt es in diesem Modell nicht mehr.', 'error'); return; }
-  const box = document.getElementById('pa-box');
-  if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  const rand = 30;
-  try { canvas.viewbox({ x: el.x - rand, y: el.y - rand, width: el.width + 2 * rand, height: el.height + 2 * rand }); } catch (e) { /* dann ohne Zoom */ }
+  // Oben anfangen: der Zurück-Knopf und der Name des Modells bleiben sichtbar.
+  const kopf = document.getElementById('proc-ansicht');
+  if (kopf && kopf.scrollIntoView) kopf.scrollIntoView({ block: 'start' });
+  const refs = (el.businessObject && Array.isArray(el.businessObject.flowNodeRef)) ? el.businessObject.flowNodeRef : [];
+  const schritte = refs.map(n => reg.get(n.id)).filter(Boolean);
+  try { canvas.viewbox(vwBahnAusschnitt(el, schritte, canvas.viewbox().outer)); } catch (e) { /* dann ohne Zoom */ }
   try { canvas.addMarker(bahnId, 'vw-bahn'); } catch (e) { /* dann ohne Farbe */ }
   try { _bpmnModeler.get('selection').select(el); } catch (e) { /* ohne Auswahl */ }
 }

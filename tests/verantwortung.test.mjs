@@ -51,6 +51,12 @@ ok(bahnen.find(b => b.name === 'Genehmiger').mensch, 'eine schlichte Aufgabe zä
 ok(bahnen.find(b => b.name === 'Controlling').mensch && !bahnen.find(b => b.name === 'Bedarfsanfrage-App').mensch,
   'ohne Aufgaben entscheidet der Name: Controlling ja, die App nein');
 ok(bahnen.find(b => b.name === 'Kreditorenbuchhaltung').id === 'L2', 'die Kennung der Bahn wird mitgelesen (für den Sprung)');
+const technik = M.vwBahnenAusXml(`<bpmn:process><bpmn:laneSet>
+  <bpmn:lane id="K" name="Konverter (Browser-App)"><bpmn:flowNodeRef>U1</bpmn:flowNodeRef></bpmn:lane>
+  <bpmn:lane id="A" name="Systemadministration"/>
+  <bpmn:lane id="S" name="IT-System"/></bpmn:laneSet><bpmn:userTask id="U1" name="PDF lesen"/></bpmn:process>`);
+ok(!technik[0].mensch, 'technischer Name schlägt die Benutzeraufgabe: der Konverter ist keine Rolle');
+ok(technik[1].mensch && !technik[2].mensch, '„System" nur als ganzes Wort: Systemadministration ist eine Rolle, IT-System nicht');
 const stellen = M.vwBahnStellen(
   [{ itemId: 'm1', title: 'Rechnungseingang' }, { itemId: 'm2', title: 'Freigeben' }, { itemId: 'm3', title: 'nicht gelesen' }],
   { m1: bahnen, m2: [{ id: 'X9', name: 'KREDITORENBUCHHALTUNG', mensch: true }] }, 'Kreditorenbuchhaltung');
@@ -245,7 +251,7 @@ ctx.openProcessAnsicht = async (id) => {
 ctx.document.getElementById = (x) => x === 'prozesse-mount' ? mount : (x === 'proc-ansicht' || x === 'vw-ansicht' ? {} : (felder[x] || null));
 vm.runInContext(`var _procEditing = null; var _bpmnModeler = { get(n) {
   if (n === 'elementRegistry') return { get: (id) => ({ id, x: 100, y: 200, width: 900, height: 120 }) };
-  if (n === 'canvas') return { viewbox: (v) => { this.__vb = v; }, addMarker: (id, m) => this.__m.push([id, m]) };
+  if (n === 'canvas') return { viewbox: (v) => { if (v) this.__vb = v; return { outer: { width: 1200, height: 500 } }; }, addMarker: (id, m) => this.__m.push([id, m]) };
   return { select: () => {} };
 }, __m: [] };`, ctx);
 vm.runInContext(`_lkDaten.karten.KONZERN.kacheln[0].kette.extra = ['Prozessbeauftragte'];`, ctx);
@@ -259,7 +265,12 @@ ok(modale.length === 1 && modale[0].includes('Rechnungseingang') && modale[0].in
 await vm.runInContext(`vwZurBahn('sap-s2p-rechnung', 'Kreditorenbuchhaltung', 1)`, ctx);
 const bm = vm.runInContext('_bpmnModeler', ctx);
 ok(geoeffnet.join() === 'm2', 'das gewählte Modell wird geöffnet');
-ok(bm.__vb && bm.__vb.x === 70 && bm.__vb.width === 960, 'die ganze Bahn wird ins Bild geholt (mit Rand)');
+ok(bm.__vb && bm.__vb.width === 1200 && bm.__vb.x === -50 && bm.__vb.y === 10,
+  `schmale Bahn: Maßstab 1, waagrecht und senkrecht mittig (${JSON.stringify(bm.__vb)})`);
+const breit = vm.runInContext(`vwBahnAusschnitt({ x: 0, y: 1000, width: 5000, height: 140 },
+  [{ x: 400, width: 100 }, { x: 3300, width: 100 }], { width: 1200, height: 500 })`, ctx);
+ok(Math.round(breit.width) === 2000 && breit.x === 340 && Math.round(breit.y) === 653,
+  `breite Bahn: nicht kleiner als Maßstab 0,6, Beginn am ersten Schritt, mittig auf der Bahn (${JSON.stringify(breit)})`);
 ok(bm.__m.some(([id, m]) => id === 'L7' && m === 'vw-bahn'), 'die Bahn des gewählten Modells wird markiert');
 ok(toolbar.kinder.length === 1 && toolbar.kinder[0].textContent.includes('Zurück zur Verantwortung'), 'Knopf zurück zur Kette');
 const vorher = vm.runInContext('_vwOffen', ctx);

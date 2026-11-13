@@ -42,9 +42,11 @@ const VW_MENSCH_TYPEN = ['task', 'userTask', 'manualTask'];
 const VW_ALLE_TYPEN = ['task', 'userTask', 'manualTask', 'serviceTask', 'scriptTask', 'sendTask', 'receiveTask',
   'businessRuleTask', 'callActivity', 'subProcess'];
 
-/* Bahnen ohne typisierte Aufgabe werden am Namen erkannt. Was hier passt, ist
-   Technik und braucht keinen Namen. */
-const VW_TECHNIK = /power automate|automatik|automatisch|system|-app\b|\bapp\b|konverter|prüfdienst|pruefdienst|sharepoint|monitoring|github|cron|workflow|azure|schnittstelle|\bbot\b/i;
+/* Was hier im Namen steht, ist Technik und braucht keinen Namen, auch wenn
+   die Aufgaben der Bahn als Benutzeraufgaben gezeichnet sind (der Konverter
+   ist eine Browser-App, die Fakturierung bedient sie in ihrer eigenen Bahn).
+   „System" nur als ganzes Wort: Die Systemadministration ist eine Rolle. */
+const VW_TECHNIK = /power automate|automatik|automatisch|\bsystem\b|-app\b|\bapp\b|konverter|prüfdienst|pruefdienst|sharepoint|monitoring|github|\bcron\b|workflow|azure|schnittstelle|\bbot\b/i;
 
 /**
  * Startpaket: die ersten Ketten. Die Kennungen sind die der SAP-Vorlage der
@@ -130,9 +132,7 @@ function vwBahnenAusXml(xml) {
     let r;
     while ((r = refMuster.exec(m[3] || ''))) refs.push(r[1]);
     const typen = refs.map(id => typVon[id]).filter(Boolean);
-    const mensch = typen.length
-      ? typen.some(t => VW_MENSCH_TYPEN.includes(t))
-      : !VW_TECHNIK.test(name);
+    const mensch = !VW_TECHNIK.test(name) && (!typen.length || typen.some(t => VW_MENSCH_TYPEN.includes(t)));
     out.push({ id: lid ? lid[1] : '', name, mensch });
   }
   return out;
