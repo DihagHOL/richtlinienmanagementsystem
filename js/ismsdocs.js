@@ -1,0 +1,1081 @@
+/**
+ * Reiter „ISMS-Dokumente" (Admin)
+ * ===============================
+ * Listet alle Dateien der ISMS-Dokumentbibliothek (sites/ISMS) mit den
+ * nützlichen Infos und macht sie bearbeitbar:
+ *   • Metadaten/Bibliotheks-Spalten pflegen (Graph-PATCH)
+ *   • Datei verwalten: in SharePoint öffnen, neue Version hochladen, Versionsverlauf
+ *   • „Als Richtlinie übernehmen": Dokument in den Richtlinien-Workflow einbinden
+ * Schreiben setzt SharePoint-Schreibrechte des Kontos auf sites/ISMS voraus.
+ */
+
+let _ismsDocs = null;     // geladene Dokumente (Cache)
+let _ismsCols = null;     // bearbeitbare Spalten der Bibliothek
+let _ismsDrives = null;   // verfügbare ISMS-Bibliotheken (für Diagnose/Wechsel)
+let _ismsLoading = false; // wird gerade (im Hintergrund) nachgeladen?
+let _ismsEditOrig = {};   // Ausgangswerte der geöffneten Metadaten (col.name → Anfangs-String)
+let _ismsMembers = null;  // Mitarbeiter für die Personenauswahl (Owner)
+
+async function _ensureIsmsMembers() {
+  if (_ismsMembers || typeof spGetMembers !== 'function') return;
+  try { _ismsMembers = await spGetMembers(); } catch (e) { _ismsMembers = []; }
+}
+
+/** Eingabe „Name (email)" / „email" / „Name" → E-Mail (über die Mitarbeiterliste). */
+function _ismsResolveEmail(raw) {
+  const s = (raw || '').trim();
+  if (!s) return '';
+  const m = s.match(/\(([^()\s]+@[^()\s]+)\)/);
+  if (m) return m[1].toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) return s.toLowerCase();
+  const mem = (_ismsMembers || []).find(u => (u.name || '').toLowerCase() === s.toLowerCase());
+  return mem ? (mem.upn || '').toLowerCase() : '';
+}
+
+async function initIsmsDocs() {
+  const mount = document.getElementById('isms-mount');
+  if (!mount) return;
+  if (_ismsDocs) { renderIsmsDocs(); return; }   // Cache-Treffer
+  mount.innerHTML = '<div class="doc-loading">Lade IMS-Dokumente …</div>';
+  try {
+    // Spalten (Feld-Auflösung) + Bibliotheken (Diagnose) zuerst, dann Dokumente progressiv
+    const [cols, drives] = await Promise.all([
+      spGetIsmsColumns(),
+      (typeof spListIsmsDrives === 'function' ? spListIsmsDrives().catch(() => []) : Promise.resolve([])),
+    ]);
+    _ismsCols = cols;
+    _ismsDrives = drives;
+    fillIsmsStandFilter();   // Stand-Filter-Optionen aus der Spalte (sobald cols da sind)
+    if ((_ismsCols || []).some(c => c.type === 'person')) _ensureIsmsMembers();   // Owner-Auswahl vorladen
+    _ismsDocs = [];
+    _ismsLoading = true;
+    // Zwischenstände zeigen, aber gebündelt: Jede geladene Seite neu zu zeichnen
+    // hieß, die ganze Tabelle samt Baum wieder aufzubauen – bei vielen Ordnern
+    // kostet das mehr Zeit als das Laden selbst.
+    let zeichnenGeplant = 0;
+    const final = await spGetIsmsDocs(null, (partial) => {
+      _ismsDocs = partial.slice();
+      if (zeichnenGeplant) return;
+      zeichnenGeplant = setTimeout(() => { zeichnenGeplant = 0; renderIsmsDocs(); }, 250);
+    });
+    if (zeichnenGeplant) clearTimeout(zeichnenGeplant);
+    _ismsDocs = final;
+    _ismsLoading = false;
+    renderIsmsDocs();
+  } catch (e) {
+    _ismsLoading = false;
+    mount.innerHTML = `<div class="col-warning" style="display:block">
+      ISMS-Dokumente konnten nicht geladen werden: ${esc(e.message)}<br>
+      Bitte prüfen, ob die ISMS-Site <code>sites/ISMS</code> erreichbar ist
+      und Ihr Konto darauf Zugriff hat.</div>`;
+  }
+}
+
+async function refreshIsmsDocs() {
+  _ismsDocs = null; _ismsCols = null; _ismsDrives = null;
+  await initIsmsDocs();
+  toast('ISMS-Dokumente aktualisiert', 'success');
+}
+
+/** ISMS-Cache verwerfen → der Reiter lädt beim nächsten Öffnen frisch.
+ *  Wird z. B. nach dem Status-Rückschreiben aus dem Freigabe-Workflow aufgerufen,
+ *  damit der neue Stand ohne manuelles Neuladen erscheint. Rendert sofort neu,
+ *  falls der ISMS-Reiter gerade aktiv ist. */
+function invalidateIsmsCache() {
+  _ismsDocs = null;
+  const view = document.getElementById('view-ismsdocs');
+  if (view && view.classList.contains('active')) initIsmsDocs();
+}
+
+/** Manuell auf eine andere ISMS-Bibliothek umstellen (Diagnose-Leerzustand). */
+async function selectIsmsLibrary(driveId) {
+  const mount = document.getElementById('isms-mount');
+  if (mount) mount.innerHTML = '<div class="doc-loading">Wechsle Bibliothek …</div>';
+  try {
+    await spSetIsmsLibrary(driveId);
+    _ismsDocs = null; _ismsCols = null;
+    await initIsmsDocs();
+    toast('Bibliothek gewechselt.', 'success');
+  } catch (e) {
+    toast('Wechsel fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   Ordner-Baum
+   ═══════════════════════════════════════════════════
+   Das IMS umfasst mehrere Normen – 9001, 14001, 45001, 50001, 27001 – die in
+   der Bibliothek je einen Ordner haben. Ein Dropdown zwingt dazu, die Struktur
+   zu kennen; der Baum zeigt sie. Aufgebaut wie beim Governance-Board, damit
+   beide Reiter sich gleich anfühlen (die CSS-Klassen sind dort entstanden). */
+
+let _ismsOrdnerOffen = new Set();   // aufgeklappte Pfade
+let _ismsOrdnerSel = '';            // gewählter Ordner ('' = alle)
+
+function ismsToggleFolder(pfad) {
+  if (_ismsOrdnerOffen.has(pfad)) _ismsOrdnerOffen.delete(pfad);
+  else _ismsOrdnerOffen.add(pfad);
+  renderIsmsDocs();
+}
+
+function ismsSelectFolder(pfad) {
+  _ismsOrdnerSel = (_ismsOrdnerSel === pfad) ? '' : pfad;
+  if (pfad) _ismsOrdnerOffen.add(pfad);       // Auswahl klappt den Zweig auf
+  renderIsmsDocs();
+}
+
+/** Ordnerbaum aus den Dokumentpfaden bauen (mit Zählern je Ebene). */
+function _ismsBuildTree(docs) {
+  const root = { name: 'Alle Normen', path: '', children: {}, count: 0 };
+  const ensure = (pfad) => {
+    let node = root, cur = '';
+    for (const teil of String(pfad || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + teil : teil;
+      node = (node.children[teil] = node.children[teil] || { name: teil, path: cur, children: {}, count: 0 });
+    }
+    return node;
+  };
+  for (const d of docs) {
+    ensure(d.folder || '');
+    root.count++;
+    let cur = '';
+    for (const teil of String(d.folder || '').split('/').filter(Boolean)) {
+      cur = cur ? cur + '/' + teil : teil;
+      ensure(cur).count++;
+    }
+  }
+  return root;
+}
+
+function _ismsTreeNodeHtml(node, depth) {
+  const kids = Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const hatKinder = kids.length > 0;
+  const offen = node.path === '' || _ismsOrdnerOffen.has(node.path);
+  const gewaehlt = _ismsOrdnerSel === node.path;
+  const caret = hatKinder ? (offen ? '▾' : '▸') : '·';
+  const html = `<div class="gov-tree-node${gewaehlt ? ' sel' : ''}" style="padding-left:${6 + depth * 15}px"
+      role="treeitem" tabindex="0" aria-selected="${gewaehlt}"
+      onclick="ismsSelectFolder(${jsArg(node.path)})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ismsSelectFolder(${jsArg(node.path)})}">
+    <span class="gov-tree-caret"${hatKinder ? ` onclick="event.stopPropagation();ismsToggleFolder(${jsArg(node.path)})"` : ''}>${caret}</span>
+    <span class="gov-tree-label" title="${esc(node.name)}">${esc(node.name)}</span>
+    <span class="gov-tree-count">${node.count}</span>
+  </div>`;
+  return html + ((hatKinder && offen) ? kids.map(k => _ismsTreeNodeHtml(k, depth + 1)).join('') : '');
+}
+
+/* ── Anzeige-/Bearbeitungsfelder (gewünscht): per Anzeige-Label auf die echten
+      SharePoint-Spaltennamen aufgelöst (interne Namen sind unbekannt). ── */
+const ISMS_FIELDS = [
+  { key: 'stand',        label: 'Bearbeitungsstand', re: /bearbeitungs(stand|status)|status/i, inlineSelect: true },
+  { key: 'vertraulich',  label: 'Vertraulichkeit',   re: /vertraulich|geheimhaltung|einstufung|classification/i, inlineSelect: true },
+  { key: 'konform_von',  label: 'Auf Konformität geprüft von', re: /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit|conformity|compliance.*(by|von|gepr)/i, inlineSelect: true },
+  { key: 'freigabe_gl',  label: 'Freigabe Geschäftsleitung',   re: /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)|management.*approv/i, inlineSelect: true },
+  { key: 'angefasst',    label: 'Zuletzt angefasst am', re: /zuletzt.*(angefasst|geändert|bearbeitet)|angefasst|geändert|geaendert|modified/i, date: true, fallbackModified: true },
+];
+
+function _ismsColFor(re) {
+  const cols = (typeof spGetIsmsAllColumns === 'function') ? spGetIsmsAllColumns() : [];
+  return cols.find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+}
+function _ismsScalar(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') return v.LookupValue || v.Title || v.DisplayName || v.Email || '';
+  return String(v);
+}
+/** Roh-Wert eines gewünschten Feldes (für Sortierung). */
+function _ismsFieldRaw(d, f) {
+  const c = _ismsColFor(f.re);
+  let v = (c && d.fields) ? d.fields[c.name] : undefined;
+  if ((v == null || v === '') && f.fallbackModified) v = d.modified;
+  return v;
+}
+/** Anzeige-Wert eines gewünschten Feldes. */
+function _ismsFieldDisplay(d, f) {
+  const v = _ismsFieldRaw(d, f);
+  if (v == null || v === '') return '–';
+  if (Array.isArray(v)) return v.map(_ismsScalar).filter(Boolean).join(', ') || '–';
+  const s = _ismsScalar(v);
+  if (f.date || /^\d{4}-\d{2}-\d{2}T/.test(s)) return fmtDate(s);
+  return s || '–';
+}
+
+/** Auswahl-Spalte zu einem Feld, falls es eine Choice-Spalte mit Optionen ist
+ *  (dann inline auswählbar; es werden NUR die in SharePoint vorhandenen Optionen genutzt). */
+function _ismsChoiceColFor(f) {
+  if (!f || !f.inlineSelect) return null;
+  return (_ismsCols || []).find(c =>
+    c.type === 'choice' && (c.choices || []).length && (f.re.test(c.label || '') || f.re.test(c.name || ''))) || null;
+}
+
+/** Einen Auswahl-Wert direkt aus der Liste setzen (PATCH, ohne Editor zu öffnen). */
+async function ismsSetChoice(itemId, colName, value, sel) {
+  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
+  if (!d) return;
+  if (sel) sel.disabled = true;
+  try {
+    await spSaveIsmsItemFields(itemId, { [colName]: value });
+    d.fields[colName] = value;
+    toast('Gespeichert ✓', 'success');
+    fillIsmsStandFilter();   // ggf. neue Stand-Option im Filter ergänzen
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
+    renderIsmsDocs();        // Auswahl auf gespeicherten Wert zurücksetzen
+  } finally {
+    if (sel) sel.disabled = false;
+  }
+}
+
+/** Stand-Filter-Dropdown mit den Optionen der Bearbeitungsstand-Spalte befüllen. */
+function fillIsmsStandFilter() {
+  const sel = document.getElementById('filter-isms-stand');
+  if (!sel) return;
+  const sc = _ismsChoiceColFor(ISMS_FIELDS.find(f => f.key === 'stand'));
+  if (!sc) { sel.style.display = 'none'; return; }
+  sel.style.display = '';
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Alle Stände</option>' +
+    sc.choices.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+/* Dateigröße, Datei-Icon und Office-Schema: siehe js/util.js
+   (fmtFileSize, fileIcon, officeScheme) – vorher je Ansicht eine eigene Kopie. */
+
+/** Emoji-Icon je Dateiendung. */
+
+/** Verknüpfte Richtlinie zu einem Dokument (falls State.policies geladen ist). */
+function _ismsLinkedPolicy(d) {
+  const pols = (typeof State !== 'undefined' && State.policies) ? State.policies : [];
+  return pols.find(p => p.dokumentItemId && p.dokumentItemId === d.driveItemId) || null;
+}
+
+let _ismsSort = { key: 'name', dir: 1 };
+function sortIsmsDocs(key) {
+  if (_ismsSort.key === key) _ismsSort.dir *= -1;
+  else _ismsSort = { key, dir: 1 };
+  renderIsmsDocs();
+}
+
+function renderIsmsDocs() {
+  const mount = document.getElementById('isms-mount');
+  if (!mount) return;
+  const q = (document.getElementById('search-isms')?.value || '').toLowerCase().trim();
+  const folder = _ismsOrdnerSel;
+  const standF = document.getElementById('filter-isms-stand')?.value || '';
+  const all = _ismsDocs || [];
+  const lib = (typeof spIsmsCurrentLibrary === 'function') ? spIsmsCurrentLibrary() : '';
+
+  // Während des (Hintergrund-)Ladens noch keine Diagnose zeigen
+  if (!all.length && _ismsLoading) {
+    mount.innerHTML = '<div class="doc-loading">Lade IMS-Dokumente …</div>';
+    return;
+  }
+  // Leerzustand mit Diagnose: genutzte Bibliothek + manueller Wechsel.
+  if (!all.length) {
+    const drivesHtml = (_ismsDrives || []).map(d =>
+      `<button class="btn btn-outline btn-sm" onclick="selectIsmsLibrary(${jsArg(d.id)})">${esc(d.name)}${d.name === lib ? ' ✓' : ''}</button>`
+    ).join(' ');
+    mount.innerHTML = `<div class="col-warning" style="display:block">
+      In der erkannten Bibliothek <b>„${esc(lib || '?')}"</b> wurden <b>keine Dateien</b> gefunden.
+      Falls das nicht die richtige ISMS-Bibliothek ist, hier die passende wählen:
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${drivesHtml || '<span class="field-hint">Keine Bibliotheken lesbar. Zugriff auf sites/ISMS prüfen.</span>'}</div>
+    </div>`;
+    return;
+  }
+
+  let rows = all.slice();
+  // Präfix-Match: gewählter Ordner inkl. aller Unterordner (z.B. ISO27001/Anhänge)
+  if (folder) rows = rows.filter(d => d.folder === folder || (d.folder || '').startsWith(folder + '/'));
+  if (q) rows = rows.filter(d => (d.name + ' ' + d.folder + ' ' + (d.fields?.Title || '')).toLowerCase().includes(q));
+  if (standF) {
+    const sc = _ismsChoiceColFor(ISMS_FIELDS.find(f => f.key === 'stand'));
+    if (sc) rows = rows.filter(d => String(d.fields?.[sc.name] || '') === standF);
+  }
+
+  // Sortierung (Name oder eines der gewünschten Felder)
+  const sk = _ismsSort.key, dir = _ismsSort.dir;
+  const fByKey = ISMS_FIELDS.find(f => f.key === sk);
+  rows.sort((a, b) => {
+    let va, vb;
+    if (fByKey) { va = String(_ismsFieldRaw(a, fByKey) ?? '').toLowerCase(); vb = String(_ismsFieldRaw(b, fByKey) ?? '').toLowerCase(); }
+    else { va = (a.fields?.Title || a.name).toLowerCase(); vb = (b.fields?.Title || b.name).toLowerCase(); }
+    return va < vb ? -dir : va > vb ? dir : 0;
+  });
+
+  const linked = all.filter(d => _ismsLinkedPolicy(d)).length;
+  const bereich = folder ? `<b>${esc(folder)}</b>` : 'allen Normen';
+  const sub = `<div class="view-desc" style="margin:0 0 12px">
+    <b>${rows.length}</b> Dokument(e) aus ${bereich}${linked ? ` · ${linked} mit Regelwerk verknüpft` : ''}
+    ${_ismsLoading ? ' · <span style="color:var(--c-primary)">lädt weiter …</span>' : ''} · Zeile anklicken zum Bearbeiten.</div>`;
+
+  const baum = `<aside class="gov-tree" role="tree" aria-label="Normen und Ordner des Managementsystems">
+    ${_ismsTreeNodeHtml(_ismsBuildTree(all), 0)}</aside>`;
+  const umrahmen = (inhalt) => `<div class="gov-layout">${baum}<div class="gov-docs">${sub}${inhalt}</div></div>`;
+
+  if (!rows.length) { mount.innerHTML = umrahmen(emptyState('Keine Treffer für die aktuelle Suche/Filterung.', '🔍')); return; }
+
+  const arrow = (key) => sk === key ? (dir > 0 ? ' ▲' : ' ▼') : '';
+  const th = (key, label, cls) => `<th class="${cls || ''}" style="cursor:pointer;user-select:none" onclick="sortIsmsDocs(${jsArg(key)})">${label}${arrow(key)}</th>`;
+  // Auswahl-Spalten je inline-Feld vorab auflösen. Workflow-Felder (Bearbeitungsstand,
+  // Freigabe GL, geprüft von) sind NICHT inline editierbar – sie laufen über den Status-Workflow.
+  const choiceCols = {};
+  ISMS_FIELDS.forEach(f => { if (ISMS_WF_TABLE_KEYS.has(f.key)) return; const c = _ismsChoiceColFor(f); if (c) choiceCols[f.key] = c; });
+
+  mount.innerHTML = umrahmen(`<div class="table-wrap"><table class="tbl">
+    <thead><tr>
+      <th style="width:30px"></th>
+      ${th('name', 'Dokument')}
+      ${ISMS_FIELDS.map(f => th(f.key, f.label)).join('')}
+    </tr></thead>
+    <tbody>${rows.map(d => {
+      const lp = _ismsLinkedPolicy(d);
+      const title = d.fields?.Title || d.name;
+      return `<tr onclick="openIsmsDoc(${jsArg(d.itemId)})" style="cursor:pointer">
+        <td style="font-size:1.1rem;text-align:center">${fileIcon(d.name)}</td>
+        <td>
+          <b>${esc(title)}</b>
+          ${lp ? `<span class="ic-tag" style="margin-left:6px;background:#ecfdf5;color:#047857;font-size:.66rem">🔗 ${esc(lp.status || 'Richtlinie')}</span>` : ''}
+          ${title !== d.name ? `<div style="font-size:.74rem;color:var(--c-faint)">${esc(d.name)}</div>` : ''}
+        </td>
+        ${ISMS_FIELDS.map(f => {
+          const cc = choiceCols[f.key];
+          if (cc) {   // Auswahl-Spalte → inline-Dropdown mit den SP-Optionen
+            const cur = (d.fields && d.fields[cc.name] != null) ? String(d.fields[cc.name]) : '';
+            const choices = cc.choices.slice();
+            if (cur && !choices.includes(cur)) choices.unshift(cur);   // bestehenden Wert sichtbar halten
+            const opts = ['<option value="">– wählen –</option>']
+              .concat(choices.map(c => `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`));
+            return `<td onclick="event.stopPropagation()">
+              <select class="sort-select" style="font-size:.8rem;padding:4px 6px;max-width:170px"
+                onchange="ismsSetChoice(${jsArg(d.itemId)}, ${jsArg(cc.name)}, this.value, this)">${opts.join('')}</select></td>`;
+          }
+          return `<td style="color:var(--c-muted)">${esc(_ismsFieldDisplay(d, f))}</td>`;
+        }).join('')}
+      </tr>`;
+    }).join('')}</tbody></table></div>`);
+}
+
+/* ── Editor (Metadaten + Datei-Aktionen) ── */
+
+function _ismsInput(col, val) {
+  const id = `isms-f-${col.name}`;
+  const v = (val == null) ? '' : val;
+  if (col.type === 'person')
+    return `<input type="text" id="${id}" list="isms-people" value="${esc(_ismsPersonText(v))}"
+      placeholder="Name oder E-Mail …" autocomplete="off">
+      <div class="field-hint">${col.multi ? 'Mehrere mit Komma trennen. ' : ''}Aus der Mitarbeiterliste wählen oder E-Mail eingeben; leeren zum Entfernen.</div>`;
+  if (col.type === 'readonly')
+    return `<div style="font-size:.85rem;color:var(--c-muted);padding:6px 0">${esc(_ismsPersonText(v))} <span class="field-hint">(nicht bearbeitbar)</span></div>`;
+  if (col.type === 'note')
+    return `<textarea id="${id}">${esc(v)}</textarea>`;
+  if (col.type === 'choice') {
+    const opts = ['<option value="">– keine –</option>']
+      .concat((col.choices || []).map(c => `<option value="${esc(c)}" ${c === v ? 'selected' : ''}>${esc(c)}</option>`));
+    return `<select id="${id}">${opts.join('')}</select>`;
+  }
+  if (col.type === 'boolean')
+    return `<select id="${id}">
+      <option value="" ${v === '' ? 'selected' : ''}>– keine –</option>
+      <option value="Ja" ${v === true ? 'selected' : ''}>Ja</option>
+      <option value="Nein" ${v === false ? 'selected' : ''}>Nein</option></select>`;
+  if (col.type === 'date')
+    return `<input type="date" id="${id}" value="${esc(String(v).slice(0, 10))}">`;
+  if (col.type === 'number')
+    return `<input type="number" id="${id}" value="${esc(v)}">`;
+  return `<input type="text" id="${id}" value="${esc(v)}">`;
+}
+
+function _ismsPersonText(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map(_ismsPersonText).filter(Boolean).join(', ');
+  if (typeof v === 'object') return v.LookupValue || v.Title || v.DisplayName || v.Email || JSON.stringify(v);
+  return String(v);
+}
+
+/** Anfangswert eines Eingabefelds als String – exakt so, wie das Input-Element ihn beim
+ *  Öffnen hält. Dient dem Vergleich „geändert?“ beim Speichern (nur Änderungen werden gePATCHt). */
+function _ismsInitialInputValue(col, val) {
+  const v = (val == null) ? '' : val;
+  switch (col.type) {
+    case 'person':  return _ismsPersonText(v);
+    case 'boolean': return v === true ? 'Ja' : v === false ? 'Nein' : '';
+    case 'date':    return String(v).slice(0, 10);
+    case 'choice':  return (col.choices || []).includes(v) ? String(v) : '';  // unbekannter Wert → Select zeigt „– keine –“
+    default:        return String(v);
+  }
+}
+
+async function openIsmsDoc(itemId) {
+  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
+  if (!d) return;
+  // Vollständige Metadaten lazy nachladen (die Liste hält nur Title/Version)
+  if (!d.fieldsFull) {
+    try {
+      const full = await spGetIsmsItemFields(itemId);
+      d.fields = Object.assign({}, d.fields, full);
+      d.fieldsFull = true;
+    } catch (e) { /* mit Teil-Feldern weitermachen */ }
+  }
+  // Workflow-Felder (Status/Freigabe) werden separat oben gesetzt → aus dem Editor ausschließen
+  const editCols = (_ismsCols || []).filter(c => !_ismsIsWorkflowCol(c));
+
+  // Für Person-Spalten (z.B. Owner) die Mitarbeiterliste laden → Auswahl-Datalist
+  const hasPerson = editCols.some(c => c.type === 'person');
+  if (hasPerson) await _ensureIsmsMembers();
+  const peopleDatalist = hasPerson
+    ? `<datalist id="isms-people">${(_ismsMembers || []).map(u => `<option value="${esc(u.name)} (${esc(u.upn)})"></option>`).join('')}</datalist>`
+    : '';
+
+  // Ausgangswerte merken → beim Speichern nur tatsächlich geänderte Felder PATCHen
+  _ismsEditOrig = {};
+  editCols.forEach(col => { _ismsEditOrig[col.name] = _ismsInitialInputValue(col, d.fields?.[col.name]); });
+
+  const metaRows = editCols.length
+    ? editCols.map(col => `
+        <div class="form-group${col.type === 'note' ? ' full' : ''}">
+          <label>${esc(col.label)}</label>
+          ${_ismsInput(col, d.fields?.[col.name])}
+        </div>`).join('')
+    : '<div class="field-hint">Keine weiteren bearbeitbaren Bibliotheks-Spalten.</div>';
+
+  openModal(`
+    <div class="modal-header">
+      <h3>📄 ${esc(d.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="col-warning" style="display:block;background:#f9fafb;border-color:var(--c-border);color:var(--c-muted)">
+        <b>Version:</b> ${esc(d.fields?._UIVersionString || '–')}
+        &nbsp;·&nbsp; <b>Zuletzt angefasst:</b> ${fmtDateTime(d.modified)}${d.modifiedBy ? ' von ' + esc(d.modifiedBy) : ''}
+      </div>
+
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 16px">
+        ${officeScheme(d.name) ? `<button class="btn btn-primary btn-sm" onclick="ismsEditOffice(${jsArg(d.driveItemId)})">✏️ In Office bearbeiten</button>` : ''}
+        ${d.webUrl ? `<button class="btn btn-outline btn-sm" onclick="ismsEditWeb(${jsArg(d.driveItemId)})">🌐 Im Browser bearbeiten</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="ismsNewVersion(${jsArg(d.driveItemId)},${jsArg(d.name)})">⬆ Neue Version hochladen</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsShowVersions(${jsArg(d.driveItemId)},${jsArg(d.name)})">🕘 Versionsverlauf</button>
+        <button class="btn btn-outline btn-sm" onclick="ismsPreview(${jsArg(d.driveItemId)})">👁 Vorschau</button>
+        ${d.webUrl ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ SharePoint</a>` : ''}
+      </div>
+
+      ${_ismsWorkflowPanel(d)}
+
+      <h4 style="font-size:.82rem;font-weight:700;color:#374151;margin:0 0 8px">Metadaten</h4>
+      <div class="form-grid">${metaRows}</div>
+      ${peopleDatalist}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="proposeIsmsChange(${jsArg(d.driveItemId)})">✏️ Änderung vorschlagen</button>
+      <button class="btn btn-ghost" onclick="ismsToRichtlinie(${jsArg(d.driveItemId)})">＋ Als Regelwerk übernehmen</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
+      ${editCols.length ? `<button class="btn btn-primary" id="isms-save-btn" onclick="saveIsmsDocMeta(${jsArg(d.itemId)})">Metadaten speichern</button>` : ''}
+    </div>`, true);
+}
+
+/** Klartext-Hinweis je nach HTTP-Status der Graph-Antwort. */
+function _ismsSaveErrHint(msg) {
+  if (/\(40[13]\)/.test(msg)) return ': fehlende Schreibrechte auf der ISMS-Site.';
+  if (/\(400\)/.test(msg))    return ': SharePoint hat den Feldwert abgelehnt.';
+  return '';
+}
+
+async function saveIsmsDocMeta(itemId) {
+  const d = (_ismsDocs || []).find(x => String(x.itemId) === String(itemId));
+  if (!d) return;
+  const btn = document.getElementById('isms-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Speichern …'; }
+
+  // Nur tatsächlich geänderte Felder einsammeln (jede Spalte als eigenes Teil-Payload,
+  // damit ein fehlerhaftes Feld isoliert werden kann statt das ganze Speichern zu kippen).
+  const changes = [];   // { col, payload, cacheVal, curStr }
+  let softFail = false; // ein Feld (z.B. Person) konnte nicht vorbereitet werden
+  try {
+    for (const col of (_ismsCols || [])) {
+      if (col.type === 'readonly') continue;
+      const el = document.getElementById(`isms-f-${col.name}`);
+      if (!el) continue;
+      const curStr = el.value;
+      if (curStr.trim() === String(_ismsEditOrig[col.name] ?? '').trim()) continue;   // unverändert
+
+      if (col.type === 'person') {
+        const raw = curStr.trim();
+        if (!raw) {                                   // geleert → Person entfernen
+          const payload = {};
+          payload[col.name + 'LookupId'] = col.multi ? [] : null;
+          if (col.multi) payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
+          changes.push({ col, payload, cacheVal: null, curStr });
+          continue;
+        }
+        // Personen-Auflösung darf das Speichern der anderen Felder NICHT abbrechen.
+        try {
+          const parts = col.multi ? raw.split(',') : [raw];
+          const ids = [], names = [];
+          for (const p of parts) {
+            const email = _ismsResolveEmail(p);
+            if (!email) { toast(`„${p.trim()}" nicht als Person erkannt, übersprungen.`, 'error'); continue; }
+            const lid = await spEnsureIsmsUserLookupId(email);
+            if (!lid) { toast(`„${email}" in SharePoint nicht gefunden (Person muss die ISMS-Site einmal besucht haben).`, 'error'); continue; }
+            ids.push(lid);
+            names.push((p.match(/^[^(]+/) || [p])[0].trim());
+          }
+          if (!ids.length) continue;
+          const payload = {};
+          if (col.multi) { payload[col.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; payload[col.name + 'LookupId'] = ids; }
+          else payload[col.name + 'LookupId'] = ids[0];
+          changes.push({ col, payload, cacheVal: { LookupValue: names.join(', ') }, curStr });
+        } catch (e) {
+          softFail = true;
+          toast(`„${col.label}" nicht gespeichert: ${e.message}`, 'error');   // andere Felder laufen weiter
+        }
+        continue;
+      }
+
+      let v = curStr;
+      if (col.type === 'number')      { v = (v === '') ? null : parseFloat(v); }
+      else if (col.type === 'boolean'){ v = (v === '') ? null : (v === 'Ja'); }
+      else if (col.type === 'date')   { v = (!v) ? null : new Date(v + 'T00:00:00Z').toISOString(); }
+      const payload = {}; payload[col.name] = v;
+      changes.push({ col, payload, cacheVal: v, curStr });
+    }
+
+    if (!changes.length) {
+      if (softFail) { if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; } return; }
+      toast('Keine Änderungen vorgenommen.'); closeModal(); return;
+    }
+
+    // 1. Versuch: alles in einem PATCH (schnell, ein Request).
+    const merged = Object.assign({}, ...changes.map(c => c.payload));
+    try {
+      await spSaveIsmsItemFields(itemId, merged);
+      _ismsApplyChanges(d, changes);
+      renderIsmsDocs();
+      if (softFail) {   // andere Felder gespeichert, ein Personenfeld blieb offen → Dialog offen lassen
+        toast(`${changes.length} Feld(er) gespeichert.`, 'success');
+        if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+        return;
+      }
+      toast('Metadaten gespeichert ✓', 'success');
+      closeModal();
+      return;
+    } catch (bulkErr) {
+      if (changes.length === 1) throw bulkErr;   // nur ein Feld → direkter Fehler
+      // 2. Versuch: Felder einzeln speichern, um das fehlerhafte zu isolieren.
+      const ok = [], failed = [];
+      for (const c of changes) {
+        try { await spSaveIsmsItemFields(itemId, c.payload); ok.push(c); }
+        catch (e) { failed.push({ label: c.col.label, msg: e.message }); }
+      }
+      _ismsApplyChanges(d, ok);
+      renderIsmsDocs();
+      if (!failed.length && !softFail) {          // doch alles durch (z.B. Reihenfolge)
+        toast('Metadaten gespeichert ✓', 'success'); closeModal(); return;
+      }
+      if (!failed.length) {                       // Choice/Text gespeichert, nur Personenfeld offen
+        toast(`${ok.length} Feld(er) gespeichert.`, 'success');
+        if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+        return;
+      }
+      if (ok.length) toast(`${ok.length} Feld(er) gespeichert.`, 'success');
+      const f = failed[0];
+      toast(`Feld „${f.label}" nicht gespeichert${_ismsSaveErrHint(f.msg)}`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+    }
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message + _ismsSaveErrHint(e.message), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Metadaten speichern'; }
+  }
+}
+
+/** Cache + Ausgangswerte für erfolgreich gespeicherte Felder aktualisieren. */
+function _ismsApplyChanges(d, changes) {
+  for (const c of changes) {
+    d.fields[c.col.name] = c.cacheVal;
+    _ismsEditOrig[c.col.name] = c.curStr;   // gilt jetzt als neuer Ausgangswert
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   ISMS-Status – NUR ANZEIGE
+   Bearbeitungsstand, Auf Konformität geprüft von, Unterschrieben von und
+   Freigabe Geschäftsleitung werden hier NICHT gesetzt. Der Ablauf läuft über
+   den Richtlinien-Freigabeprozess: Dokument per „＋ Als Richtlinie übernehmen"
+   einbinden und im Reiter „Freigaben" prüfen/freigeben. Dieses Panel zeigt nur
+   den aktuellen Stand und was noch offen ist.
+═══════════════════════════════════════════════════ */
+
+const ISMS_WF_RE = {
+  stand:          /bearbeitungs(stand|status)|status/i,
+  konform:        /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit/i,
+  unterschrieben: /unterschrieben|unterzeichnet|signed/i,
+  freigabe:       /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)/i,
+};
+const ISMS_WF_TABLE_KEYS = new Set(['stand', 'konform_von', 'freigabe_gl']);   // in der Tabelle nicht inline editierbar
+
+/** Bearbeitbare Workflow-Spalten der Bibliothek auflösen (Wert ist Spalte oder null). */
+function _ismsWfCols() {
+  const find = re => (_ismsCols || []).find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+  return { stand: find(ISMS_WF_RE.stand), konform: find(ISMS_WF_RE.konform),
+           unterschrieben: find(ISMS_WF_RE.unterschrieben), freigabe: find(ISMS_WF_RE.freigabe) };
+}
+
+/** Gehört eine Spalte zum (automatisch gesetzten) Workflow? → nicht manuell editierbar. */
+function _ismsIsWorkflowCol(col) {
+  return Object.values(ISMS_WF_RE).some(re => re.test(col.label || '') || re.test(col.name || ''));
+}
+
+/** Status-Panel (NUR ANZEIGE) für den Detail-Dialog: aktueller Stand + was noch offen ist. */
+function _ismsWorkflowPanel(d) {
+  const cols = _ismsWfCols();
+  if (!cols.stand && !cols.konform && !cols.freigabe && !cols.unterschrieben) return '';
+  const val = c => c ? (_ismsPersonText(d.fields?.[c.name]) || '') : '';
+  const chip = (lbl, c) => c ? `<div style="min-width:150px">
+      <div style="font-size:.7rem;color:var(--c-muted)">${esc(lbl)}</div>
+      <div style="font-weight:600;font-size:.85rem">${esc(val(c) || '–')}</div></div>` : '';
+  const chips = [chip('Bearbeitungsstand', cols.stand), chip('Auf Konformität geprüft von', cols.konform),
+    chip('Freigabe Geschäftsleitung', cols.freigabe)].join('');
+  const offen = [];
+  if (cols.konform && !val(cols.konform)) offen.push('Konformitätsprüfung');
+  if (cols.freigabe && !val(cols.freigabe)) offen.push('Freigabe Geschäftsleitung');
+  const status = offen.length
+    ? `<span style="color:var(--c-warn);font-weight:600">Offen: ${offen.map(esc).join(', ')}</span>`
+    : `<span style="color:var(--c-success);font-weight:600">✓ Vollständig</span>`;
+  return `<div style="background:var(--c-primary-l);border:1px solid #dbe4ff;border-radius:12px;padding:14px 16px;margin:0 0 16px">
+    <div style="font-size:.82rem;font-weight:700;color:#374151;margin-bottom:10px">Status &amp; Freigabe
+      <span style="font-weight:500;color:var(--c-muted)">· nur Anzeige</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">${chips}</div>
+    <div style="font-size:.8rem;margin-bottom:6px">${status}</div>
+    <div class="field-hint">Wird über den Richtlinien-Freigabeprozess gesetzt: unten „＋ Als Richtlinie übernehmen“ und im Reiter „Freigaben“ prüfen/freigeben.</div>
+  </div>`;
+}
+
+/** Office-Protokoll je Dateityp (öffnet die Datei zum Bearbeiten im Desktop-Office). */
+
+/** Dokument direkt bearbeiten: Office-Datei → Desktop-Office (speichert automatisch
+ *  eine neue SharePoint-Version); andere → in SharePoint öffnen (dort Web-Edit). */
+function ismsEditOffice(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  const scheme = officeScheme(d.name);
+  // Office-URI-Schema braucht die DIREKTE Datei-URL (nicht die Doc.aspx-Viewer-URL).
+  const fileUrl = d.fileUrl || d.webUrl;
+  if (scheme && fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;   // ms-word/excel/powerpoint:ofe|u|<datei>
+    toast('Öffne in Office … Öffnet sich nichts? „🌐 Im Browser bearbeiten" nutzen.');
+  } else if (d.webUrl) {
+    ismsEditWeb(driveItemId);                              // Nicht-Office → direkt im Browser
+  } else {
+    toast('Keine Datei-URL verfügbar.', 'error');
+  }
+}
+
+/** Web-Edit-URL (Office für das Web, Bearbeitungsmodus). Funktioniert auch ohne
+ *  installiertes Desktop-Office; Speichern erzeugt ebenfalls eine neue Version. */
+function _ismsWebEditUrl(d) {
+  let u = d.webUrl || '';
+  if (/Doc\.aspx/i.test(u)) {                               // Viewer-URL → action=edit erzwingen
+    u = u.replace(/([?&])action=[^&]*/i, '$1action=edit');
+    if (!/[?&]action=/i.test(u)) u += (u.includes('?') ? '&' : '?') + 'action=edit';
+    return u;
+  }
+  if (d.fileUrl) return d.fileUrl + (d.fileUrl.includes('?') ? '&' : '?') + 'web=1';
+  return u;
+}
+
+/** Dokument in Office für das Web öffnen (neuer Tab). */
+function ismsEditWeb(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  const url = _ismsWebEditUrl(d);
+  if (!url) { toast('Keine Datei-URL verfügbar.', 'error'); return; }
+  window.open(url, '_blank', 'noopener');
+  toast('Öffne im Browser-Office … Beim Speichern entsteht automatisch eine neue Version.');
+}
+
+let _ismsPrevSeq = 0;        // laufende Nummer der aktuellen Vorschau (gegen Race/Mehrfach-Öffnen)
+let _ismsPrevLoaded = false; // hat die aktuelle Vorschau das load-Event gefeuert?
+
+/** iframe-load der Vorschau (inline onload, schon beim Parsen gebunden → kein Race). */
+function ismsPrevOnload(seq) {
+  if (seq !== _ismsPrevSeq) return;
+  _ismsPrevLoaded = true;
+  const ld = document.getElementById('isms-prev-loading'); if (ld) ld.style.display = 'none';
+  const fb = document.getElementById('isms-prev-fallback'); if (fb) fb.style.display = 'none';
+  const fr = document.getElementById('isms-prev-frame'); if (fr) fr.style.display = 'block';
+}
+
+async function ismsPreview(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) return;
+  toast('Vorschau wird geladen …');
+  let url;
+  try { url = await spGetPreviewUrl(d.driveId, driveItemId); }
+  catch (e) { toast('Vorschau-Fehler: ' + e.message, 'error'); return; }
+  if (!url) {   // keine Vorschau-URL → direkt SharePoint
+    if (d.webUrl) window.open(d.webUrl, '_blank', 'noopener');
+    else toast('Keine Vorschau verfügbar.', 'error');
+    return;
+  }
+  const spBtn = d.webUrl ? `<a class="btn btn-primary btn-sm" href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">↗ In SharePoint öffnen</a>` : '';
+  const seq = ++_ismsPrevSeq;
+  _ismsPrevLoaded = false;
+  // Direkt in der App anzeigen (eingebettetes Office-Web-Preview). Lädt die Einbettung nicht
+  // (z. B. blockiert/zu langsam), erscheint automatisch der SharePoint-Fallback.
+  openModal(`
+    <div class="modal-header"><h3>👁 ${esc(d.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body" style="padding:0;position:relative;min-height:62vh">
+      <div id="isms-prev-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--c-muted)">
+        <span class="sync-spinner"></span> Vorschau wird geladen …</div>
+      <div id="isms-prev-fallback" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center;min-height:62vh">
+        <div style="font-size:2rem">📄</div>
+        <div style="font-weight:600">Die Vorschau lässt sich hier nicht einbetten.</div>
+        <div class="field-hint">Das Dokument direkt in SharePoint öffnen.</div>
+        ${spBtn}
+      </div>
+      <iframe id="isms-prev-frame" src="${esc(url)}" title="Dokumentvorschau" onload="ismsPrevOnload(${seq})"
+        style="width:100%;height:74vh;border:0;display:block" allowfullscreen></iframe>
+    </div>
+    <div class="modal-footer">
+      ${spBtn}
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" onclick="closeModal()">Schließen</button>
+    </div>`, true);
+
+  // Kein load-Event innerhalb 7s → Einbettung scheitert → Fallback einblenden.
+  setTimeout(() => {
+    if (seq !== _ismsPrevSeq || _ismsPrevLoaded) return;
+    const fb = document.getElementById('isms-prev-fallback');
+    const fr = document.getElementById('isms-prev-frame');
+    if (!fb || !fr) return;   // Modal evtl. schon geschlossen
+    const ld = document.getElementById('isms-prev-loading'); if (ld) ld.style.display = 'none';
+    fr.style.display = 'none';
+    fb.style.display = 'flex';
+  }, 7000);
+}
+
+function ismsNewVersion(driveItemId, name) {
+  const canOffice = !!officeScheme(name);
+  openModal(`
+    <div class="modal-header"><h3>Neue Version: ${esc(name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:600;font-size:.88rem;margin-bottom:4px">Variante A · Direkt bearbeiten</div>
+        <div class="field-hint" style="margin-bottom:8px">${canOffice
+          ? 'Öffnet das Dokument in Office. Beim Speichern legt SharePoint automatisch eine neue Version an.'
+          : 'Öffnet das Dokument in SharePoint. Dort bearbeiten und speichern (automatische Versionierung).'}</div>
+        <button class="btn btn-primary btn-sm" onclick="closeModal();ismsEditOffice(${jsArg(driveItemId)})">✏️ Dokument bearbeiten</button>
+      </div>
+      <div style="border:1px solid var(--c-border);border-radius:9px;padding:12px 14px">
+        <div style="font-weight:600;font-size:.88rem;margin-bottom:8px">Variante B · Geänderte Datei hochladen</div>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Datei <span class="req">*</span></label>
+            <input type="file" id="isms-ver-file">
+          </div>
+          <div class="form-group full">
+            <label>Änderungsnotiz <span class="req">*</span></label>
+            <textarea id="isms-ver-note" placeholder="Was wurde geändert? Wird als Versionskommentar gespeichert."></textarea>
+          </div>
+        </div>
+        <div class="field-hint">Die Notiz wird, sofern die Bibliothek Versionierung nutzt, als
+          SharePoint-Versionskommentar abgelegt.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="isms-ver-btn" onclick="ismsDoUploadVersion(${jsArg(driveItemId)})">Hochladen</button>
+    </div>`);
+}
+
+async function ismsDoUploadVersion(driveItemId) {
+  const file = document.getElementById('isms-ver-file')?.files?.[0];
+  const note = (document.getElementById('isms-ver-note')?.value || '').trim();
+  if (!file) { toast('Bitte eine Datei wählen.', 'error'); return; }
+  if (!note) { toast('Bitte eine Änderungsnotiz eingeben.', 'error'); document.getElementById('isms-ver-note')?.focus(); return; }
+  const btn = document.getElementById('isms-ver-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Lädt …'; }
+  try {
+    const buf = await file.arrayBuffer();
+    await spIsmsUploadVersion(driveItemId, buf, file.type, note);
+    toast('Neue Version gespeichert ✓', 'success');
+    closeModal();
+    await refreshIsmsDocs();
+  } catch (e) {
+    toast('Upload fehlgeschlagen: ' + e.message + ' (Schreibrechte auf sites/ISMS?)', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Hochladen'; }
+  }
+}
+
+async function ismsShowVersions(driveItemId, name) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) return;
+  const spLink = d.webUrl
+    ? `<div class="field-hint" style="margin-bottom:10px">Kommentare je Version sind im
+        <a href="${esc(sichereUrl(d.webUrl))}" target="_blank" rel="noopener">SharePoint-Versionsverlauf</a> sichtbar
+        (über die Graph-API nicht abrufbar).</div>` : '';
+  openModal(`<div class="modal-header"><h3>🕘 Versionen: ${esc(name)}</h3>
+    <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body" id="isms-vers-body">${spLink}<div class="doc-loading">Lade Versionen …</div></div>`);
+  try {
+    const vers = await spGetDocVersions(d.driveId, driveItemId);
+    const body = document.getElementById('isms-vers-body');
+    if (!body) return;
+    body.innerHTML = spLink + (vers.length
+      ? `<table class="tbl"><thead><tr><th>Version</th><th>Geändert</th><th>Von</th><th class="num">Größe</th><th></th></tr></thead>
+         <tbody>${vers.map(v => `<tr>
+           <td>${esc(v.id)}</td><td>${fmtDateTime(v.modified)}</td><td>${esc(v.by || '–')}</td>
+           <td class="num">${fmtFileSize(v.size)}</td>
+           <td>${v.url ? `<a class="btn btn-outline btn-sm" href="${esc(sichereUrl(v.url))}" target="_blank" rel="noopener">↓</a>` : ''}</td>
+         </tr>`).join('')}</tbody></table>`
+      : '<div class="field-hint">Kein Versionsverlauf verfügbar (Bibliotheksversionierung aktiv?).</div>');
+  } catch (e) {
+    const body = document.getElementById('isms-vers-body');
+    if (body) body.innerHTML = `<div class="col-warning" style="display:block">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+/** ISMS-Dokument in den Richtlinien-Workflow übernehmen (Editor mit vorbefülltem Dokument). */
+async function ismsToRichtlinie(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  if (!d) return;
+  // `_editing` gehört zu admin.js. Der Wächter stand hier schon für zwei andere
+  // Namen aus derselben Datei – jetzt auch für diesen. Damit hängt ismsdocs.js
+  // an keiner Stelle mehr ungesichert am Verwaltungsblock und lässt sich
+  // allein nachladen (die Detailansicht braucht daraus nur einen Knopf).
+  if (typeof _editing === 'undefined'
+      || typeof newPolicy !== 'function' || typeof renderPolicyEditor !== 'function') {
+    toast('Richtlinien-Editor nicht verfügbar.', 'error'); return;
+  }
+  _editing = newPolicy();
+  _editing.title = d.fields?.Title || d.name.replace(/\.[^.]+$/, '');
+  _editing.dokumentName = d.name;
+  _editing.dokumentDriveId = d.driveId;
+  _editing.dokumentItemId = d.driveItemId;
+  _editing.dokumentUrl = d.webUrl || '';
+  if (d.fields?.Kategorie) _editing.kategorie = d.fields.Kategorie;
+  closeModal();
+  await switchView('verwaltung');   // wechselt in die Richtlinien-Verwaltung
+  renderPolicyEditor();             // öffnet den Editor mit vorbefülltem Dokument
+  toast('Dokument übernommen. Bitte Richtlinie vervollständigen und speichern.');
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungsvorschläge per Mail (jeder Mitarbeiter)
+   Empfänger: Dokument-Verantwortlich (Metadaten) + ISMS-Verantwortliche
+   (Einstellungen) + Admin-Fallback.
+═══════════════════════════════════════════════════ */
+
+let _proposalCtx = null;
+
+/** Aus ISMS-Reiter (Admin): Vorschlag zu einem Dokument. */
+function proposeIsmsChange(driveItemId) {
+  const d = (_ismsDocs || []).find(x => x.driveItemId === driveItemId);
+  openProposalModal(d ? (d.fields?.Title || d.name) : 'Dokument', { doc: d || null, betreff: d ? d.name : '' });
+}
+
+/** Aus dem Detail-Reader (jeder Mitarbeiter): Vorschlag zu einer Richtlinie. */
+function proposePolicyChange(policyId) {
+  const p = (typeof State !== 'undefined' && State.policies) ? policyZuId(policyId) : null;
+  openProposalModal(p ? p.title : 'Richtlinie', { policy: p || null, betreff: p ? (p.dokumentName || p.title) : '' });
+}
+
+/** Direktlinks zum betroffenen Dokument/zur Richtlinie (für Dialog + Mail). */
+function _proposalLinks(ctx) {
+  const links = [];
+  const d = ctx && ctx.doc;
+  if (d && d.webUrl) links.push({ label: 'Dokument in SharePoint öffnen', url: d.webUrl });
+  const p = ctx && ctx.policy;
+  if (p) {
+    if (p.id) {
+      const base = location.origin + location.pathname;
+      links.push({ label: 'Richtlinie in der App öffnen', url: `${base}?richtlinie=${encodeURIComponent(p.id)}` });
+    }
+    if (p.dokumentUrl) links.push({ label: 'Dokument öffnen', url: p.dokumentUrl });
+  }
+  return links;
+}
+
+function openProposalModal(titel, ctx) {
+  _proposalCtx = Object.assign({ titel }, ctx || {});
+  const links = _proposalLinks(_proposalCtx);
+  const linkEls = links.map(l =>
+    `<a href="${esc(sichereUrl(l.url))}" target="_blank" rel="noopener" style="color:var(--c-primary);font-weight:600">📄 ${esc(l.label)} ↗</a>`);
+  // „In Office öffnen" – wie bei der Richtlinie selbst (Desktop-Office via ms-word/excel/…-Schema)
+  const officeName = _proposalCtx.doc ? _proposalCtx.doc.name : (_proposalCtx.policy ? _proposalCtx.policy.dokumentName : '');
+  if (officeScheme(officeName)) {
+    linkEls.push(`<a href="javascript:void(0)" onclick="proposalOpenOffice()" style="color:var(--c-primary);font-weight:600">📝 In Office öffnen ↗</a>`);
+  }
+  const linksHtml = linkEls.length
+    ? `<div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">${linkEls.join('')}</div>` : '';
+  openModal(`
+    <div class="modal-header"><h3>✏️ Änderung vorschlagen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:10px">Vorschlag zu <b>${esc(titel)}</b>.<br><span id="prop-rec-line">${_proposalRecipientLine(_proposalCtx)}</span>${linksHtml}</div>
+      <div class="form-grid">
+        <div class="form-group full"><label>Abschnitt / Betreff</label>
+          <input type="text" id="prop-betreff" value="${esc(_proposalCtx.betreff || '')}" placeholder="z. B. Kapitel 4.2 Zugriffskontrolle"></div>
+        <div class="form-group full"><label>Vorgeschlagene Änderung <span class="req">*</span></label>
+          <textarea id="prop-text" placeholder="Was soll geändert werden?">${esc(_proposalCtx.vorschlag || '')}</textarea></div>
+        <div class="form-group full"><label>Begründung</label>
+          <textarea id="prop-grund" placeholder="Warum ist die Änderung sinnvoll?">${esc(_proposalCtx.grund || '')}</textarea></div>
+        <div class="form-group full"><label>Weitere Empfänger (optional)</label>
+          <input type="text" id="prop-cc" oninput="proposalUpdateRecipients()" placeholder="name@dihag.com, weitere@dihag.com">
+          <div class="field-hint">Mit Komma trennen. Nur interne Adressen (@${esc((typeof _myMailDomain === 'function' && _myMailDomain()) || 'dihag.com')}) werden versendet.</div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline" id="prop-btn-more" onclick="sendProposal(true)" title="Senden und für einen weiteren Vorschlag offen lassen">Senden &amp; weiterer</button>
+      <button class="btn btn-primary" id="prop-btn" onclick="sendProposal(false)">Vorschlag senden</button>
+    </div>`);
+}
+
+function _extractEmails(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.flatMap(_extractEmails);
+  if (typeof v === 'object') return [v.Email || v.email || ''].filter(Boolean);
+  const s = String(v);
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim()) ? [s.trim()] : [];
+}
+
+function _proposalRecipients(ctx) {
+  const out = [];
+  const d = ctx && ctx.doc;
+  if (d && d.fields) {
+    for (const [k, v] of Object.entries(d.fields)) {
+      if (/verantwort|owner|ansprech/i.test(k)) out.push(..._extractEmails(v));
+    }
+  }
+  if (typeof getVorschlagEmpfaenger === 'function') out.push(...getVorschlagEmpfaenger());   // eigenes Empfänger-Feld
+  if (typeof getIsmsVerantwortlich === 'function') out.push(...getIsmsVerantwortlich());
+  if (!out.length && typeof getAccessConfig === 'function') out.push(...((getAccessConfig().admins) || []));
+  return [...new Set(out.map(e => String(e).trim().toLowerCase()).filter(Boolean))];
+}
+
+/** Empfänger-Zeile („Geht per E-Mail an: …") aus Basis-Empfängern + optionalen Extras. */
+function _proposalRecipientLine(ctx, extra) {
+  const all = [...new Set([..._proposalRecipients(ctx || {}), ...(extra || [])])];
+  return all.length
+    ? `Geht per E-Mail an: <b>${all.map(esc).join(', ')}</b>`
+    : `<span style="color:var(--c-danger)">Noch keine Empfänger hinterlegt. Bitte unter <b>Einstellungen → ISMS-Verantwortliche</b> eintragen.</span>`;
+}
+
+/** Empfänger-Zeile live aktualisieren, wenn „Weitere Empfänger" getippt wird
+ *  (zeigt nur gültige interne Adressen – so wie sie tatsächlich versendet werden). */
+function proposalUpdateRecipients() {
+  const el = document.getElementById('prop-rec-line');
+  if (!el) return;
+  const dom = (typeof _myMailDomain === 'function' && _myMailDomain()) || '';
+  const extra = (document.getElementById('prop-cc')?.value || '')
+    .split(/[,;\s]+/).map(s => s.trim().toLowerCase())
+    .filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && (!dom || e.endsWith('@' + dom)));
+  el.innerHTML = _proposalRecipientLine(_proposalCtx || {}, extra);
+}
+
+/** Betroffenes Dokument im Desktop-Office öffnen – wie bei der Richtlinie selbst. */
+async function proposalOpenOffice() {
+  const ctx = _proposalCtx || {};
+  const d = ctx.doc, p = ctx.policy;
+  const name = d ? d.name : (p ? p.dokumentName : '');
+  const scheme = officeScheme(name);
+  if (!scheme) { toast('Dieses Dokument lässt sich nicht direkt in Office öffnen.', 'error'); return; }
+  toast('Datei-URL wird ermittelt …');
+  let fileUrl = '';
+  try {
+    if (d && d.fileUrl) fileUrl = d.fileUrl;
+    else if (d && d.driveId && d.driveItemId) fileUrl = await spGetDirectFileUrl(d.driveId, d.driveItemId);
+    else if (p && p.dokumentDriveId && p.dokumentItemId) fileUrl = await spGetDirectFileUrl(p.dokumentDriveId, p.dokumentItemId);
+  } catch (e) { fileUrl = ''; }
+  if (fileUrl) {
+    window.location.href = `${scheme}:ofe|u|${fileUrl}`;
+    toast('Öffne in Office … Öffnet sich nichts? „Dokument öffnen" nutzen.');
+  } else {
+    toast('Datei-URL nicht verfügbar. Bitte „Dokument öffnen" nutzen.', 'error');
+  }
+}
+
+async function sendProposal(keepOpen) {
+  const ctx = _proposalCtx || {};
+  const text = (document.getElementById('prop-text')?.value || '').trim();
+  if (!text) { toast('Bitte die vorgeschlagene Änderung eingeben.', 'error'); document.getElementById('prop-text')?.focus(); return; }
+  const extra = (document.getElementById('prop-cc')?.value || '')
+    .split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);   // zusätzlich eingetragene Empfänger
+  const recipients = [...new Set([..._proposalRecipients(ctx), ...extra])];
+  if (!recipients.length) { toast('Keine Empfänger. Bitte in den Einstellungen ISMS-Verantwortliche hinterlegen oder oben eintragen.', 'error'); return; }
+  const betreff = (document.getElementById('prop-betreff')?.value || '').trim();
+  const grund = (document.getElementById('prop-grund')?.value || '').trim();
+  const setBusy = (on) => {   // beide Senden-Buttons sperren/entsperren
+    const a = document.getElementById('prop-btn'), b = document.getElementById('prop-btn-more');
+    if (a) { a.disabled = on; a.textContent = on ? 'Sende …' : 'Vorschlag senden'; }
+    if (b) b.disabled = on;
+  };
+  setBusy(true);
+  try {
+    const who = (typeof State !== 'undefined' && State.user) ? (State.user.name || State.user.upn) : 'Mitarbeiter';
+    const br = s => esc(s).replace(/\n/g, '<br>');
+    const links = _proposalLinks(ctx);
+    const ver = ctx.doc && ctx.doc.fields ? ctx.doc.fields._UIVersionString : '';
+    const linkHtml = links.length
+      ? `<p><b>Dokument:</b><br>${links.map(l =>
+          `<a href="${esc(sichereUrl(l.url))}" style="color:#17509e">📄 ${esc(l.label)}</a>`).join('<br>')}
+          ${ver ? `<br><span style="color:#6b7280;font-size:12px">aktuelle Version: ${esc(ver)}</span>` : ''}</p>`
+      : '';
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
+      <p><b>Änderungsvorschlag</b> zu: <b>${esc(ctx.titel || '')}</b></p>
+      ${linkHtml}
+      ${betreff ? `<p><b>Abschnitt/Betreff:</b> ${esc(betreff)}</p>` : ''}
+      <p><b>Vorschlag:</b><br>${br(text)}</p>
+      ${grund ? `<p><b>Begründung:</b><br>${br(grund)}</p>` : ''}
+      <p style="color:#6b7280;font-size:12px;margin-top:16px">Eingereicht von ${esc(who)} · ${new Date().toLocaleString('de-DE')}<br>
+      Automatisch aus dem DIHAG Richtlinienmanagement.</p></div>`;
+    const cc = (typeof State !== 'undefined' && State.user) ? [State.user.upn] : [];   // Kopie an den Einreicher
+    const sent = await spSendMail(recipients, `Änderungsvorschlag: ${ctx.titel || ''}`.slice(0, 200), html, null, cc);
+    if (sent === false) return;   // Consent-Redirect läuft – Seite lädt neu
+    // Best effort: Vorschlag zusätzlich in der App-Liste ablegen (für In-App-Bearbeitung).
+    let stored = false, storeErr = '';
+    if (typeof spAddProposal === 'function') {
+      try {
+        await spAddProposal({
+          titel: ctx.titel || '', betreff, vorschlag: text, begruendung: grund,
+          link: (links[0] && links[0].url) || '', eingereicht: who, empfaenger: recipients.join(', '),
+          quelle: ctx.quelle || (ctx.doc ? 'ISMS-Dokument' : (ctx.policy ? 'Richtlinie' : '')),
+        });
+        stored = true;
+      } catch (e) { storeErr = e.message || ''; console.warn('[proposal] nicht in Liste gespeichert:', storeErr); }
+    }
+    if (keepOpen) {
+      // Dialog offen lassen → Felder für den nächsten Vorschlag leeren (Dokument/Empfänger bleiben).
+      setBusy(false);
+      ['prop-text', 'prop-grund'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('prop-text')?.focus();
+    } else {
+      closeModal();
+    }
+    const suffix = stored
+      ? ' · im Reiter „Vorschläge" sichtbar'
+      : (/\b40[13]\b|accessdenied|access denied|insufficient|unauthor/i.test(storeErr)
+          ? '. Nicht in die Liste geschrieben, die Liste „Aenderungsvorschlaege" fehlt noch (siehe Reiter „Vorschläge").'
+          : '. Nicht in die Liste geschrieben.');
+    toast((stored ? 'Vorschlag gesendet ✓ (Kopie an Sie)' : 'Vorschlag per E-Mail gesendet ✓ (Kopie an Sie)') + suffix
+      + (keepOpen ? ' Ein weiterer Vorschlag ist möglich.' : ''), 'success');
+  } catch (e) {
+    toast('Senden fehlgeschlagen' + _proposalErrHint(e.message), 'error');
+    setBusy(false);
+  }
+}
+
+/** Rohen Graph-Fehler (oft JSON) in eine verständliche Meldung übersetzen. */
+function _proposalErrHint(msg) {
+  msg = String(msg || '');
+  if (/MailboxNotEnabled|REST API is not yet supported|mailbox/i.test(msg)) return ': Das Postfach unterstützt keinen Mailversand. Bitte IT kontaktieren.';
+  if (/(\b40[13]\b)|AccessDenied|Authorization|insufficient|consent|scope/i.test(msg)) return ': Keine Berechtigung zum Mailversand (Mail.Send). Beim ersten Mal ggf. die Zustimmung erteilen und erneut versuchen.';
+  if (/quota|throttl|429/i.test(msg)) return ': Zu viele Anfragen. Bitte kurz warten und erneut senden.';
+  // Kein erkanntes Muster → JSON-Ballast wegkürzen
+  const short = msg.replace(/\s*\{[\s\S]*$/, '').trim();
+  return short ? ': ' + short : ': Unbekannter Fehler beim Mailversand.';
+}

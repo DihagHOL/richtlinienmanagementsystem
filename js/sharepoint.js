@@ -1,0 +1,4124 @@
+/**
+ * SharePoint / Microsoft Graph Datenschicht
+ * =========================================
+ * App-Daten (Listen + access-config) auf der App-Site (Default: sites/IT).
+ * Regelwerkdokumente bleiben in der ISMS-Bibliothek (sites/ISMS) und werden
+ * nur gelesen/eingebettet.
+ *
+ * Graph-Helper & availableFields-Muster übernommen aus e-rechnung/js/sharepoint.js.
+ */
+
+const SP = {
+  graphBase: 'https://graph.microsoft.com/v1.0',
+
+  // ── App-Site: hier liegen die App-Listen + access-config.json ──
+  appSiteHost:  'dihag.sharepoint.com:/sites/IT',
+  policyList:   'Richtlinien',
+  ackList:      'Bestaetigungen',
+  proposalList: 'Aenderungsvorschlaege',   // Änderungsvorschläge (wird bei Bedarf angelegt)
+  riskList:     'Risiken',                 // Risiko-Register (wird bei Bedarf angelegt)
+  exceptionList: 'Ausnahmen',              // Ausnahmeregister (wird bei Bedarf angelegt)
+  wirkList:     'Wirksamkeit',             // Audits, Managementbewertung, Korrekturmaßnahmen
+  assetRegList: 'Assets',                  // das Asset-Inventar (A.5.9) – dieselbe Liste, jetzt geführt statt nur gelesen
+  configFolder: 'Richtlinienmanagement',   // Unterordner in der Dokumentbibliothek
+  m365NachweisList: 'Compliance_M365Nachweise',  // gesicherte M365-Nachweise aus dem Compliance-Cockpit (nur lesen)
+
+  // ── ISMS-Quelle: Regelwerkdokumente (nur Lesezugriff) ──
+  ismsSiteHost: 'dihag.sharepoint.com:/sites/ISMS',
+  assetsList:   'Assets',                  // Asset-/Werte-Inventar auf der ISMS-Site (nur lesen)
+
+  // ── Ticketsystem: Störungen, Änderungen, Dokumentationsaufträge (nur lesen) ──
+  ticketSiteHost: 'dihag.sharepoint.com:/sites/ticket',
+  ticketList:   'Tickets',
+  vorfaelleDatei: 'vorfaelle.json',        // die ISMS-Bewertung je Ticket, im Konfig-Ordner
+  wissenDatei:  'wissen.json',             // die Bibliothek: Themen, Videos, Artikel, Wissenstests
+
+  scopes: [
+    'https://graph.microsoft.com/Sites.ReadWrite.All',
+    'https://graph.microsoft.com/Files.ReadWrite.All',
+    'https://graph.microsoft.com/User.Read.All',
+  ],
+};
+
+/** Browser-URL der ISMS-Site (dort liegt bewusst die Risiken-Liste), z. B.
+ *  https://dihag.sharepoint.com/sites/ISMS. */
+function spIsmsSiteUrl() { return 'https://' + SP.ismsSiteHost.replace(':/', '/'); }
+/** Browser-URL der ISMS-Liste „Assets" (Asset-Inventar). */
+function spAssetsListUrl() { return spIsmsSiteUrl() + '/Lists/' + encodeURIComponent(SP.assetsList) + '/AllItems.aspx'; }
+
+const _sp = {
+  appSiteId: null, policyListId: null, ackListId: null, appDriveId: null,
+  proposalListId: null, riskListId: null, excListId: null, wirkListId: null, assetRegListId: null,
+  ismsSiteId: null,
+  ismsDriveId: null, ismsDriveName: null, ismsDriveWebUrl: null, ismsListId: null, ismsColMeta: null,   // ISMS-Dokumentbibliothek (lazy)
+  policyFields: new Set(['Title']),
+  policyColumns: [],   // [{name, displayName}] – für Auflösung interner Namen (SharePoint benennt interne Namen bei Umbenennung NICHT um)
+  ackFields: new Set(['Title']),
+  spaltenPromise: null,   // Spalten-Abfrage laeuft neben dem Datenladen (siehe _spSpaltenLaden)
+  spaltenFertig: false,   // erst dann taugt die Fehlende-Spalten-Warnung
+  ready: false,
+};
+
+/* Erwartete Spalten der Liste „Richtlinien" (für die Fehlende-Spalten-Warnung). */
+const POLICY_COLUMNS = [
+  { name: 'Beschreibung',        typ: 'Mehrere Zeilen Text' },
+  { name: 'Kategorie',           typ: 'Einzelne Textzeile oder Auswahl' },
+  { name: 'DokumentName',        typ: 'Einzelne Textzeile' },
+  { name: 'DokumentDriveId',     typ: 'Einzelne Textzeile' },
+  { name: 'DokumentItemId',      typ: 'Einzelne Textzeile' },
+  { name: 'DokumentUrl',         typ: 'Mehrere Zeilen Text' },
+  { name: 'Version1',            typ: 'Einzelne Textzeile' },
+  { name: 'Status',              typ: 'Auswahl (Entwurf/InReview/Veröffentlicht/Archiviert)' },
+  { name: 'Pflicht',             typ: 'Ja/Nein' },
+  { name: 'QuizErforderlich',    typ: 'Ja/Nein' },
+  { name: 'QuizBestehenProzent', typ: 'Zahl' },
+  { name: 'QuizJson',            typ: 'Mehrere Zeilen Text' },
+  { name: 'Zielgruppen',         typ: 'Mehrere Zeilen Text' },
+  { name: 'WiederholungMonate',  typ: 'Zahl (0 = keine Wiederholung)' },
+  { name: 'NaechsteReview',      typ: 'Datum und Uhrzeit' },
+  { name: 'VeroeffentlichtAm',   typ: 'Datum und Uhrzeit' },
+  { name: 'FreigegebenVon',      typ: 'Einzelne Textzeile' },
+  { name: 'KonformitaetJson',    typ: 'Mehrere Zeilen Text' },
+  { name: 'FreigabeJson',        typ: 'Mehrere Zeilen Text' },
+  { name: 'PruefungSeit',        typ: 'Datum und Uhrzeit' },
+  { name: 'NormbezugJson',       typ: 'Mehrere Zeilen Text' },
+  { name: 'PruefKonfigJson',     typ: 'Mehrere Zeilen Text' },
+  { name: 'FreigabeKonfigJson',  typ: 'Mehrere Zeilen Text' },
+  { name: 'MitbestimmungJson',   typ: 'Mehrere Zeilen Text' },
+  { name: 'DatenJson',           typ: 'Mehrere Zeilen Text' },
+];
+
+/**
+ * Erweiterungsfelder – alles, was nach der Grundversion dazukam.
+ * Sie liegen gebündelt im Sammelfeld `DatenJson`; existiert zusätzlich eine
+ * eigene Spalte, wird sie weiterhin mitgeschrieben (Kompatibilität, SharePoint-
+ * Ansichten). Neue Felder brauchen deshalb KEINE neue SharePoint-Spalte mehr:
+ * einfach hier eintragen.
+ *   feld    – Eigenschaft am Regelwerk-Objekt
+ *   spalte  – optionale Einzelspalte (Altbestand); null = nur DatenJson
+ *   json    – true, wenn die Einzelspalte den Wert als JSON-Text hält
+ */
+const POLICY_EXT_FIELDS = [
+  { feld: 'regelwerkTyp',       spalte: 'RegelwerkTyp',        json: false, leer: '' },
+  { feld: 'geltungsbereich',    spalte: 'GeltungsbereichJson', json: true,  leer: [] },
+  { feld: 'historie',           spalte: 'HistorieJson',        json: true,  leer: [] },
+  { feld: 'konzept',            spalte: 'KonzeptJson',         json: true,  leer: null },
+  // Lernvideos [{titel,url}] – nur im Sammelfeld, ohne eigene SharePoint-Spalte
+  { feld: 'videos',             spalte: '',                    json: true,  leer: [] },
+  // Einmal-Token der laufenden Runde (Ein-Klick-Entscheidung aus der Mail)
+  { feld: 'aktionToken',        spalte: '',                    json: true,  leer: null },
+  // Wann die Zielgruppe über die Veröffentlichung informiert wurde
+  { feld: 'bekanntgabeAm',      spalte: '',                    json: false, leer: '' },
+  // Freigabe eines Prozesses: Hauptprozess und Stand der Beschreibung (js/prozessfreigabe.js)
+  { feld: 'prozess',            spalte: '',                    json: true,  leer: null },
+];
+
+/** Spalten, die nur noch der Kompatibilität dienen – fehlen sie, ist das kein Problem,
+ *  solange `DatenJson` existiert (dann werden sie nicht als „fehlend" gemeldet). */
+const POLICY_OPTIONAL_COLUMNS = [
+  { name: 'Typ2',                typ: 'Auswahl (Regelwerk/Konzept)' },
+  { name: 'KonzeptJson',         typ: 'Mehrere Zeilen Text' },
+  { name: 'RegelwerkTyp',        typ: 'Einzelne Textzeile (oder Auswahl)' },
+  { name: 'GeltungsbereichJson', typ: 'Mehrere Zeilen Text' },
+  { name: 'HistorieJson',        typ: 'Mehrere Zeilen Text' },
+];
+
+/** Wie viele Historien-Einträge je Regelwerk aufbewahrt werden (ältere fallen raus,
+ *  damit das Textfeld nicht überläuft – SharePoint-Limit für „Mehrere Zeilen Text"). */
+const HISTORIE_MAX = 200;
+
+/** Eine Spalte gilt als vorhanden, wenn ihr interner Name ODER ihr Anzeigename passt
+ *  (SharePoint ändert den internen Namen bei Umbenennung nicht – Anzeigename „Typ2"
+ *  kann also einen abweichenden internen Namen haben). Vergleich case-insensitiv. */
+function _policyHasColumn(expected) {
+  const want = String(expected).toLowerCase();
+  return (_sp.policyColumns || []).some(c =>
+    String(c.name).toLowerCase() === want || String(c.displayName || '').toLowerCase() === want);
+}
+
+/** Liefert den tatsächlichen internen Feldnamen zu einem erwarteten Namen
+ *  (per internem Namen oder Anzeigenamen). Fallback: der erwartete Name selbst. */
+function _policyFieldName(expected) {
+  const want = String(expected).toLowerCase();
+  const hit = (_sp.policyColumns || []).find(c =>
+    String(c.name).toLowerCase() === want || String(c.displayName || '').toLowerCase() === want);
+  return hit ? hit.name : expected;
+}
+
+/**
+ * Welche erwarteten Spalten fehlen in der Liste „Richtlinien"? (nach spInit)
+ * Die Kompatibilitäts-Spalten (Typ2, RegelwerkTyp …) werden nur gemeldet,
+ * solange das Sammelfeld `DatenJson` fehlt – mit ihm sind sie entbehrlich.
+ */
+function spMissingPolicyColumns() {
+  if (!_sp.spaltenFertig && !_sp.policyColumns.length) return [];   // noch unbekannt – nichts behaupten
+  const fehlt = POLICY_COLUMNS.filter(c => !_policyHasColumn(c.name));
+  if (!_policyHasColumn('DatenJson')) {
+    fehlt.push(...POLICY_OPTIONAL_COLUMNS.filter(c => !_policyHasColumn(c.name)));
+  }
+  return fehlt;
+}
+
+/** Historie auf die jüngsten Einträge kürzen (Feldlängen-Limit). */
+function _histKurz(p) { return (p.historie || []).slice(-HISTORIE_MAX); }
+
+/** Sammelfeld-Inhalt aus einem Regelwerk bauen (alle Erweiterungsfelder). */
+function _buildDatenJson(p) {
+  const o = { typ: (p.typ === 'Konzept') ? 'Konzept' : 'Regelwerk' };
+  for (const def of POLICY_EXT_FIELDS) {
+    o[def.feld] = (def.feld === 'historie') ? _histKurz(p)
+      : (p[def.feld] !== undefined ? p[def.feld] : def.leer);
+  }
+  return o;
+}
+
+/* Datensätze, deren Sammelfeld sich nicht lesen ließ. Das passiert, wenn die
+   Spalte `DatenJson` als „Einzelne Textzeile" angelegt wurde: SharePoint schneidet
+   den Inhalt bei 255 Zeichen ab, danach ist das JSON unbrauchbar. Felder ohne
+   eigene Spalte (Lernvideos, Ein-Klick-Token, Bekanntgabe) wären dann still weg –
+   deshalb wird mitgezählt statt geschwiegen. */
+let _datenJsonDefekt = 0;
+function spDatenJsonDefekt() { return _datenJsonDefekt; }
+
+/** Erweiterungsfelder aus `DatenJson` lesen (Fallback: Einzelspalten). */
+function _readExtFields(f) {
+  let daten = {};
+  const roh = f[_policyFieldName('DatenJson')];
+  try {
+    const o = roh ? JSON.parse(roh) : null;
+    if (o && typeof o === 'object' && !Array.isArray(o)) daten = o;
+  } catch { daten = {}; if (String(roh || '').trim()) _datenJsonDefekt++; }
+
+  const out = {};
+  for (const def of POLICY_EXT_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(daten, def.feld)) {
+      out[def.feld] = daten[def.feld];                       // Sammelfeld hat Vorrang
+      continue;
+    }
+    let v = def.leer;                                         // sonst Einzelspalte (Altbestand)
+    if (def.spalte) {
+      const raw = f[_policyFieldName(def.spalte)];
+      if (def.json) { try { const p = raw ? JSON.parse(raw) : null; if (p !== null && p !== undefined) v = p; } catch { /* Default */ } }
+      else if (raw) v = raw;
+    }
+    out[def.feld] = v;
+  }
+  // Typ (Regelwerk/Konzept) – im Sammelfeld unter „typ", sonst aus der Spalte Typ2
+  const typRaw = Object.prototype.hasOwnProperty.call(daten, 'typ') ? daten.typ : f[_policyFieldName('Typ2')];
+  out.typ = (typRaw === 'Konzept') ? 'Konzept' : 'Regelwerk';
+
+  // Arrays/Objekte defensiv normalisieren (kaputte Daten dürfen die App nicht kippen)
+  if (!Array.isArray(out.geltungsbereich)) out.geltungsbereich = [];
+  if (!Array.isArray(out.historie)) out.historie = [];
+  if (!Array.isArray(out.videos)) out.videos = [];
+  if (typeof out.regelwerkTyp !== 'string') out.regelwerkTyp = '';
+  if (!out.konzept || typeof out.konzept !== 'object' || Array.isArray(out.konzept)) out.konzept = null;
+  return out;
+}
+
+/* Erwartete Spalten der Liste „Bestaetigungen". */
+const ACK_COLUMNS = [
+  { name: 'RichtlinieId',       typ: 'Einzelne Textzeile' },
+  { name: 'RichtlinienVersion', typ: 'Einzelne Textzeile' },
+  { name: 'BenutzerUPN',        typ: 'Einzelne Textzeile' },
+  { name: 'BenutzerName',       typ: 'Einzelne Textzeile' },
+  { name: 'GelesenAm',          typ: 'Datum und Uhrzeit' },
+  { name: 'QuizBestanden',      typ: 'Ja/Nein' },
+  { name: 'QuizScore',          typ: 'Zahl' },
+  { name: 'QuizVersuche',       typ: 'Zahl' },
+  { name: 'AbgeschlossenAm',    typ: 'Datum und Uhrzeit' },
+  // Der Modul-Fortschritt einer Schulung (Reiter „Wissen") – in SharePoint,
+  // nicht im Browser: {"s":"<Stand>","m":["m1","m2"]}
+  { name: 'Fortschritt',        typ: 'Mehrere Zeilen Text' },
+];
+
+/** Welche erwarteten Spalten fehlen in der Liste „Bestaetigungen"? */
+function spMissingAckColumns() {
+  if (!_sp.spaltenFertig && _sp.ackFields.size <= 1) return [];   // noch unbekannt – nichts behaupten
+  return ACK_COLUMNS.filter(c => !_sp.ackFields.has(c.name));
+}
+
+/* ═══════════════════════════════════════════════════
+   Initialisierung
+═══════════════════════════════════════════════════ */
+
+/* Die Ermittlung von Site-, Listen- und Bibliotheks-IDs kostete sechs Anfragen
+   nacheinander – und das doppelt: Regelwerke und Bestätigungen werden parallel
+   geladen, beide riefen spInit() auf, bevor `ready` stand. Jetzt teilen sich
+   alle Aufrufer einen Lauf, die voneinander unabhängigen Abfragen laufen
+   gleichzeitig, und die IDs überdauern im Browser: Sie ändern sich nur, wenn
+   jemand eine Liste neu anlegt – dann meldet Graph 404 und die App ermittelt
+   sie einmal neu (_spNeuErmitteln). */
+const SP_ID_CACHE = 'rms_sp_ids_v1';
+const SP_ID_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function _spCacheLesen() {
+  try {
+    const c = JSON.parse(localStorage.getItem(SP_ID_CACHE) || 'null');
+    if (!c || c.host !== SP.appSiteHost) return null;         // andere Site → nicht verwendbar
+    if (!c.appSiteId || !c.policyListId || !c.ackListId) return null;
+    if (Date.now() - (c.zeit || 0) > SP_ID_CACHE_TTL) return null;
+    return c;
+  } catch (e) { return null; }
+}
+
+function _spCacheSchreiben() {
+  try {
+    localStorage.setItem(SP_ID_CACHE, JSON.stringify({
+      host: SP.appSiteHost, zeit: Date.now(), appSiteId: _sp.appSiteId,
+      policyListId: _sp.policyListId, ackListId: _sp.ackListId, appDriveId: _sp.appDriveId,
+    }));
+  } catch (e) { /* privater Modus o. ä. – dann eben ohne Cache */ }
+}
+
+/** Gespeicherte IDs verwerfen; der nächste Zugriff ermittelt sie neu. */
+function spInvalidateInit() {
+  _sp.ready = false; _sp.appSiteId = null; _sp.policyListId = null;
+  _sp.ackListId = null; _sp.appDriveId = null; _sp.spaltenPromise = null;
+  try { localStorage.removeItem(SP_ID_CACHE); } catch (e) {}
+}
+
+/** Eine Abfrage wiederholen, falls sie an veralteten IDs gescheitert ist. */
+async function _spNeuErmitteln(fehler, nochmal) {
+  if (!/\(40[04]\)|itemNotFound|nicht gefunden/i.test(fehler && fehler.message || '')) throw fehler;
+  console.warn('[sp] Gespeicherte IDs passen nicht mehr, ermittle neu.');
+  spInvalidateInit();
+  return nochmal();
+}
+
+let _spInitLaeuft = null;
+
+async function spInit() {
+  if (_sp.ready) return;
+  if (!_spInitLaeuft) _spInitLaeuft = _spInitDurchfuehren().finally(() => { _spInitLaeuft = null; });
+  return _spInitLaeuft;
+}
+
+async function _spInitDurchfuehren() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Kein Token, Anmeldung erforderlich.');
+
+  const cache = _spCacheLesen();
+  if (cache) {
+    _sp.appSiteId  = cache.appSiteId;  _sp.policyListId = cache.policyListId;
+    _sp.ackListId  = cache.ackListId;  _sp.appDriveId   = cache.appDriveId;
+    _sp.ready = true;
+    _spSpaltenLaden(token);
+    return;
+  }
+
+  // App-Site
+  const site = await _get(`${SP.graphBase}/sites/${SP.appSiteHost}`, token);
+  _sp.appSiteId = site.id;
+
+  // Listen und Dokumentbibliothek hängen nur an der Site-ID → gemeinsam holen.
+  const [policyListId, ackListId, drives] = await Promise.all([
+    _findListId(token, SP.policyList),
+    _findListId(token, SP.ackList),
+    _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token),
+  ]);
+  _sp.policyListId = policyListId;
+  _sp.ackListId    = ackListId;
+  const docDrive = (drives.value || []).find(d =>
+    ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
+  ) || drives.value?.[0];
+  if (docDrive) _sp.appDriveId = docDrive.id;
+
+  _sp.ready = true;
+  _spCacheSchreiben();
+  _spSpaltenLaden(token);
+}
+
+/** Spalten beider Listen (nur vorhandene Felder schreiben → keine 400er).
+ *  Lädt neben den Daten; wer schreibt, wartet vorher über _spSpalten() darauf. */
+function _spSpaltenLaden(token) {
+  if (_sp.spaltenPromise) return _sp.spaltenPromise;
+  const holen = (listId, was) => _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/columns`, token)
+    .catch(e => { console.warn(`[sp] Spalten der ${was}-Liste nicht lesbar:`, e.message); return null; });
+  _sp.spaltenPromise = (async () => {
+    const [pol, ack] = await Promise.all([
+      holen(_sp.policyListId, 'Richtlinien'),
+      holen(_sp.ackListId, 'Bestaetigungen'),
+    ]);
+    if (pol) {
+      _sp.policyColumns = (pol.value || []).map(c => ({ name: c.name, displayName: c.displayName || c.name }));
+      (pol.value || []).forEach(c => _sp.policyFields.add(c.name));
+    }
+    if (ack) (ack.value || []).forEach(c => _sp.ackFields.add(c.name));
+    _sp.spaltenFertig = true;
+    // Die Spaltenwarnung im Dashboard hängt daran – sie darf nicht auf einem
+    // Zwischenstand stehenbleiben, falls der Reiter schon offen ist.
+    try { document.dispatchEvent(new CustomEvent('rms-spalten-geladen')); } catch (e) {}
+  })();
+  return _sp.spaltenPromise;
+}
+
+/** Vor dem Schreiben: sicherstellen, dass die Spaltenliste vorliegt. */
+async function _spSpalten() {
+  await spInit();
+  if (_sp.spaltenPromise) { try { await _sp.spaltenPromise; } catch (e) { /* Warnung steht schon im Log */ } }
+}
+
+async function _findListId(token, displayName) {
+  const lists = await _get(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists?$filter=displayName eq '${encodeURIComponent(displayName)}'`,
+    token
+  );
+  if (!lists.value?.length) {
+    throw new Error(`SharePoint-Liste "${displayName}" nicht gefunden (Site ${SP.appSiteHost}).`);
+  }
+  return lists.value[0].id;
+}
+
+/* ═══════════════════════════════════════════════════
+   Änderungsvorschläge (eigene SharePoint-Liste, bei Bedarf angelegt)
+═══════════════════════════════════════════════════ */
+
+const PROPOSAL_STATUS = ['Offen', 'In Bearbeitung', 'Erledigt', 'Abgelehnt'];
+let _proposalCols = null;   // Set vorhandener interner Spaltennamen (Spalten-Toleranz beim Schreiben)
+
+/** Normalisierung für Listen-Namensvergleich (Umlaut-/Schreibweise-tolerant). */
+function _normName(s) {
+  return String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]/g, '');
+}
+
+/** Vorhandene Spalten der Vorschlags-Liste laden (für spaltentolerantes Schreiben). */
+async function _loadProposalCols(token) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.proposalListId}/columns?$select=name`, token);
+    _proposalCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _proposalCols = null; }
+}
+
+/** Vorschlags-Liste robust finden (Schreibweise/Umlaut-tolerant) – oder anlegen. */
+async function spEnsureProposalList(create = true) {
+  if (_sp.proposalListId) return _sp.proposalListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  // 1) Alle Listen durchsuchen (zuverlässiger als $filter) – normalisierter Name oder „…vorschläge"-Muster
+  const target = _normName(SP.proposalList);   // 'aenderungsvorschlaege'
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => {
+        const dn = _normName(l.displayName), nm = _normName(l.name);
+        return dn === target || nm === target || /vorschl/.test(dn) || /vorschl/.test(nm);
+      });
+      if (hit) { _sp.proposalListId = hit.id; await _loadProposalCols(token); return _sp.proposalListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.proposalList,
+    list: { template: 'genericList' },
+    columns: [
+      { name: 'Betreff', text: {} },
+      { name: 'Vorschlag', text: { allowMultipleLines: true } },
+      { name: 'Begruendung', text: { allowMultipleLines: true } },
+      { name: 'DokumentLink', text: {} },
+      { name: 'Eingereicht', text: {} },
+      { name: 'Empfaenger', text: {} },
+      { name: 'Quelle', text: {} },
+      { name: 'Status', choice: { choices: PROPOSAL_STATUS } },
+      { name: 'Bearbeiterkommentar', text: { allowMultipleLines: true } },
+    ],
+  };
+  const created = await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists`, token, body);
+  _sp.proposalListId = created.id;
+  await _loadProposalCols(token);
+  return _sp.proposalListId;
+}
+
+/** Einen Änderungsvorschlag in der Liste ablegen (best effort – wirft bei Fehler).
+ *  Sendet nur Felder, deren Spalten existieren → keine 400er bei Teil-Listen. */
+async function spAddProposal(p) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureProposalList(true);
+  const all = {
+    Title: String(p.titel || 'Änderungsvorschlag').slice(0, 255),
+    Betreff: String(p.betreff || '').slice(0, 255),
+    Vorschlag: p.vorschlag || '',
+    Begruendung: p.begruendung || '',
+    DokumentLink: String(p.link || '').slice(0, 255),
+    Eingereicht: String(p.eingereicht || '').slice(0, 255),
+    Empfaenger: String(p.empfaenger || '').slice(0, 255),
+    Quelle: String(p.quelle || '').slice(0, 60),
+    Status: 'Offen',
+  };
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_proposalCols || _proposalCols.has(k)) fields[k] = v;   // nur vorhandene Spalten
+  }
+  return _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items`, token, { fields });
+}
+
+/** Alle Vorschläge laden (neueste zuerst). */
+async function spGetProposals() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureProposalList(true);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      out.push({
+        id: it.id, titel: f.Title || '', betreff: f.Betreff || '', vorschlag: f.Vorschlag || '',
+        begruendung: f.Begruendung || '', link: f.DokumentLink || '', eingereicht: f.Eingereicht || '',
+        empfaenger: f.Empfaenger || '', quelle: f.Quelle || '', status: f.Status || 'Offen', kommentar: f.Bearbeiterkommentar || '',
+        created: it.createdDateTime || f.Created || '',
+      });
+    }
+    url = resp['@odata.nextLink'] || null;
+  }
+  out.sort((a, b) => String(b.created).localeCompare(String(a.created)));
+  return out;
+}
+
+/** Status/Kommentar eines Vorschlags aktualisieren. */
+async function spUpdateProposal(id, fields) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureProposalList(false);
+  if (!listId) throw new Error('Vorschlags-Liste nicht verfügbar.');
+  const send = {};
+  for (const [k, v] of Object.entries(fields)) { if (!_proposalCols || _proposalCols.has(k)) send[k] = v; }
+  if (!Object.keys(send).length) throw new Error('Spalten Status/Bearbeiterkommentar fehlen in der Liste.');
+  return _patch(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items/${id}/fields`, token, send);
+}
+
+/* ═══════════════════════════════════════════════════
+   Richtlinien
+═══════════════════════════════════════════════════ */
+
+async function spGetPolicies(_zweiterVersuch) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await spInit();
+  let items;
+  try {
+    items = await _getAll(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items` +
+      `?$expand=fields&$top=500`, token
+    );
+  } catch (e) {
+    if (_zweiterVersuch) throw e;
+    return _spNeuErmitteln(e, () => spGetPolicies(true));
+  }
+  _datenJsonDefekt = 0;   // jede Ladung zählt neu
+  return items.map(_mapPolicy)
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+}
+
+function _mapPolicy(item) {
+  const f = item.fields || {};
+  let quiz = [];
+  try { quiz = f.QuizJson ? JSON.parse(f.QuizJson) : []; } catch { quiz = []; }
+  let zielgruppen = [];
+  try { zielgruppen = f.Zielgruppen ? JSON.parse(f.Zielgruppen) : []; } catch { zielgruppen = []; }
+  let konformitaet = [];
+  try { konformitaet = f.KonformitaetJson ? JSON.parse(f.KonformitaetJson) : []; } catch { konformitaet = []; }
+  let freigaben = [];
+  try { freigaben = f.FreigabeJson ? JSON.parse(f.FreigabeJson) : []; } catch { freigaben = []; }
+  let normbezug = [];
+  try { normbezug = f.NormbezugJson ? JSON.parse(f.NormbezugJson) : []; } catch { normbezug = []; }
+  let pruefKonfig = { pruefer: [], schwelle: '' };
+  try {
+    if (f.PruefKonfigJson) {
+      const pk = JSON.parse(f.PruefKonfigJson);
+      pruefKonfig = { pruefer: Array.isArray(pk.pruefer) ? pk.pruefer : [], schwelle: (pk.schwelle === 'alle' || pk.schwelle === 'einer') ? pk.schwelle : '' };
+    }
+  } catch { pruefKonfig = { pruefer: [], schwelle: '' }; }
+  let freigabeKonfig = { freigeber: [], schwelle: '' };
+  try {
+    if (f.FreigabeKonfigJson) {
+      const fk = JSON.parse(f.FreigabeKonfigJson);
+      freigabeKonfig = { freigeber: Array.isArray(fk.freigeber) ? fk.freigeber : [], schwelle: (fk.schwelle === 'alle' || fk.schwelle === 'einer') ? fk.schwelle : '' };
+    }
+  } catch { freigabeKonfig = { freigeber: [], schwelle: '' }; }
+  let kbrBetroffen = false, mitbestimmungWerke = [], mitbestimmung = null, freigabeReihenfolge = 'gl_mb';
+  try {
+    if (f.MitbestimmungJson) {
+      const mb = JSON.parse(f.MitbestimmungJson);
+      kbrBetroffen = mb.kbrBetroffen === true;
+      mitbestimmungWerke = Array.isArray(mb.werke) ? mb.werke : [];
+      mitbestimmung = (mb.bestaetigung && typeof mb.bestaetigung === 'object') ? mb.bestaetigung : null;
+      freigabeReihenfolge = (mb.reihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb';
+    }
+  } catch { kbrBetroffen = false; mitbestimmungWerke = []; mitbestimmung = null; freigabeReihenfolge = 'gl_mb'; }
+  // Erweiterungsfelder: Sammelfeld DatenJson mit Rückfall auf die Einzelspalten.
+  // ALLE uebernehmen, nicht einzeln aufzählen: Genau das war der Sinn von
+  // POLICY_EXT_FIELDS – ein neues Feld soll ohne weitere Codestelle ankommen.
+  // Vorher standen hier fünf Namen; videos, aktionToken und bekanntgabeAm
+  // wurden gelesen und danach still weggeworfen.
+  const ext = _readExtFields(f);
+  return {
+    ...ext,
+    id:                  item.id,
+    title:               f.Title || '',
+    beschreibung:        f.Beschreibung || '',
+    kategorie:           f.Kategorie || '',
+    dokumentUrl:         _linkVal(f.DokumentUrl),
+    dokumentName:        f.DokumentName || '',
+    dokumentDriveId:     f.DokumentDriveId || '',
+    dokumentItemId:      f.DokumentItemId || '',
+    version:             f.Version1 || '1.0',
+    status:              f.Status || 'Entwurf',
+    pflicht:             f.Pflicht !== false,            // Default: Pflicht
+    quizErforderlich:    !!f.QuizErforderlich && quiz.length > 0,
+    quizBestehenProzent: Number(f.QuizBestehenProzent || 80),
+    quiz,
+    zielgruppen,
+    wiederholungMonate:  Number(f.WiederholungMonate || 0),
+    naechsteReview:      f.NaechsteReview || '',
+    veroeffentlichtAm:   f.VeroeffentlichtAm || '',
+    freigegebenVon:      f.FreigegebenVon || '',
+    konformitaet,
+    freigaben,
+    normbezug:           Array.isArray(normbezug) ? normbezug : [],
+    pruefKonfig,
+    freigabeKonfig,
+    kbrBetroffen,
+    mitbestimmungWerke,
+    mitbestimmung,
+    freigabeReihenfolge,
+    pruefungSeit:        f.PruefungSeit || '',
+    modifiedAt:          item.lastModifiedDateTime || '',
+  };
+}
+
+/** Hyperlink-Felder kommen als {Url,Description}, Textfelder als String. */
+function _linkVal(v) { return (v && typeof v === 'object') ? (v.Url || '') : (v || ''); }
+
+/**
+ * Richtlinie anlegen (ohne id) oder aktualisieren (mit id).
+ * @returns das gespeicherte Item
+ */
+async function spSavePolicy(p) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _spSpalten();   // gesendet wird nur, was es in der Liste gibt
+
+  const all = {
+    Title:               (p.title || '').slice(0, 255),
+    Beschreibung:        p.beschreibung || '',
+    Kategorie:           p.kategorie || '',
+    DokumentUrl:         p.dokumentUrl || '',
+    DokumentName:        (p.dokumentName || '').slice(0, 255),
+    DokumentDriveId:     p.dokumentDriveId || '',
+    DokumentItemId:      p.dokumentItemId || '',
+    Version1:            (p.version || '1.0').slice(0, 50),
+    Status:              p.status || 'Entwurf',
+    Pflicht:             p.pflicht !== false,
+    QuizErforderlich:    !!p.quizErforderlich,
+    QuizBestehenProzent: Number(p.quizBestehenProzent || 80),
+    QuizJson:            JSON.stringify(p.quiz || []),
+    Zielgruppen:         JSON.stringify(p.zielgruppen || []),
+    WiederholungMonate:  Number(p.wiederholungMonate || 0),
+    NaechsteReview:      p.naechsteReview || '',
+    VeroeffentlichtAm:   p.veroeffentlichtAm || '',
+    FreigegebenVon:      p.freigegebenVon || '',
+    KonformitaetJson:    JSON.stringify(p.konformitaet || []),
+    FreigabeJson:        JSON.stringify(p.freigaben || []),
+    PruefungSeit:        p.pruefungSeit || '',
+    NormbezugJson:       JSON.stringify(p.normbezug || []),
+    PruefKonfigJson:     JSON.stringify(p.pruefKonfig || { pruefer: [], schwelle: '' }),
+    FreigabeKonfigJson:  JSON.stringify(p.freigabeKonfig || { freigeber: [], schwelle: '' }),
+    MitbestimmungJson:   JSON.stringify({ kbrBetroffen: !!p.kbrBetroffen, werke: Array.isArray(p.mitbestimmungWerke) ? p.mitbestimmungWerke : [], bestaetigung: p.mitbestimmung || null, reihenfolge: (p.freigabeReihenfolge === 'mb_gl') ? 'mb_gl' : 'gl_mb' }),
+    // Nur Konzepte markieren; Regelwerke lassen Typ2 leer (= Regelwerk beim Einlesen).
+    // So muss die Auswahl-Spalte nur den Wert „Konzept" kennen und normale Speichervorgänge
+    // brechen nicht, falls „Regelwerk" dort nicht als Auswahl hinterlegt ist.
+    Typ2:                (p.typ === 'Konzept') ? 'Konzept' : '',
+    KonzeptJson:         p.konzept ? JSON.stringify(p.konzept) : '',
+    RegelwerkTyp:        p.regelwerkTyp || '',
+    GeltungsbereichJson: JSON.stringify(p.geltungsbereich || []),
+    // Nur die jüngsten Einträge speichern – ältere fallen raus (Feldlängen-Limit)
+    HistorieJson:        JSON.stringify(_histKurz(p)),
+    // Sammelfeld: alle Erweiterungsfelder in EINER Spalte – dadurch braucht ein
+    // neues Feld künftig keine neue SharePoint-Spalte mehr.
+    DatenJson:           JSON.stringify(_buildDatenJson(p)),
+  };
+  // Werte, die nicht gesendet werden dürfen, vorab aus `all` entfernen (leere DateTimes;
+  // Regelwerke lassen Typ2 leer → gar nicht senden).
+  if (!all.VeroeffentlichtAm) delete all.VeroeffentlichtAm;
+  if (!all.NaechsteReview)    delete all.NaechsteReview;
+  if (!all.PruefungSeit)      delete all.PruefungSeit;
+  if (!all.Typ2)              delete all.Typ2;
+  if (!all.RegelwerkTyp)      delete all.RegelwerkTyp;   // nur senden, wenn ein Typ gewählt ist
+  // Auf tatsächliche interne Feldnamen abbilden (z. B. Anzeigename „Typ2" → interner Name)
+  // und nur vorhandene Felder senden → keine 400er.
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    const actual = _policyFieldName(k);
+    if (_sp.policyFields.has(actual)) fields[actual] = v;
+  }
+
+  if (p.id) {
+    return _patch(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${p.id}/fields`,
+      token, fields
+    );
+  }
+  return _post(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items`,
+    token, { fields }
+  );
+}
+
+/**
+ * Aktuellen Änderungsstand eines Regelwerks abfragen (ohne die Felder zu laden).
+ * Für den Gleichzeitigkeits-Schutz: Wurde der Eintrag geändert, seit er im Editor
+ * geöffnet wurde?
+ * @returns {Promise<{modifiedAt: string, modifiedBy: string}|null>} null z. B., wenn gelöscht
+ */
+async function spGetPolicyMeta(id) {
+  if (!id) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  try {
+    const it = await _get(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}?$select=id,lastModifiedDateTime,lastModifiedBy`,
+      token);
+    return {
+      modifiedAt: it.lastModifiedDateTime || '',
+      modifiedBy: (it.lastModifiedBy && it.lastModifiedBy.user && it.lastModifiedBy.user.displayName) || '',
+    };
+  } catch (e) { console.warn('Änderungsstand nicht abrufbar:', e.message); return null; }
+}
+
+async function spDeletePolicy(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return;
+  await spInit();
+  await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}`, token);
+}
+
+/** Nächsten Überprüfungstermin gezielt setzen (ISO-String) oder leeren (null/'').
+ *  Eigene Funktion, weil spSavePolicy leere Datumsfelder auslässt (kann also nicht leeren). */
+async function spSetPolicyReview(id, iso) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  return _patch(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}/fields`,
+    token, { NaechsteReview: iso || null }   // null → Feld in SharePoint leeren
+  );
+}
+
+/**
+ * Einträge an die Historie eines Regelwerks oder Konzepts anhängen, ohne den
+ * Rest anzufassen.
+ *
+ * Für das Versandprotokoll der Workflow-Mails. Die Mails gehen oft raus, während
+ * schon die nächste Entscheidung gespeichert wird. Ein ganzer spSavePolicy aus
+ * einem älteren Stand könnte dabei Status, Prüfvoten oder das Ein-Klick-Token
+ * zurückdrehen. Hier wird nur die Historie geschrieben (Sammelfeld und
+ * Einzelspalte), frisch gelesen und mit If-Match: Hat jemand dazwischen
+ * gespeichert, antwortet SharePoint mit 412 und es wird neu gelesen.
+ * @returns {Promise<{vorher: string, nachher: string}|null>} Änderungsstand davor und danach
+ */
+async function spPolicyHistorieAnhaengen(id, eintraege) {
+  if (!id || !Array.isArray(eintraege) || !eintraege.length) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  await _spSpalten();
+  const fDaten = _policyFieldName('DatenJson'), fHist = _policyFieldName('HistorieJson');
+  const mitDaten = _sp.policyFields.has(fDaten), mitHist = _sp.policyFields.has(fHist);
+  if (!mitDaten && !mitHist) return null;
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.policyListId}/items/${id}`;
+  const auswahl = [mitDaten ? fDaten : '', mitHist ? fHist : ''].filter(Boolean).join(',');
+  for (let versuch = 0; versuch < 3; versuch++) {
+    const it = await _get(`${basis}?$select=id,lastModifiedDateTime&$expand=fields($select=${auswahl})`, token);
+    const f = it.fields || {};
+    const etag = f['@odata.etag'] || it['@odata.etag'] || '';
+    let daten = {};
+    if (mitDaten && String(f[fDaten] || '').trim()) {
+      try { daten = JSON.parse(f[fDaten]); } catch (e) { daten = null; }
+      // Ein unlesbares Sammelfeld wird nicht überschrieben, es trägt mehr als die Historie.
+      if (!daten || typeof daten !== 'object' || Array.isArray(daten)) return null;
+    }
+    const bisher = Array.isArray(daten.historie) ? daten.historie : _readExtFields(f).historie;
+    const historie = bisher.concat(eintraege).slice(-HISTORIE_MAX);
+    const felder = {};
+    if (mitDaten) felder[fDaten] = JSON.stringify(Object.assign({}, daten, { historie }));
+    if (mitHist) felder[fHist] = JSON.stringify(historie);
+    const resp = await _fetchRetry(`${basis}/fields`, {
+      method: 'PATCH',
+      headers: Object.assign({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, etag ? { 'If-Match': etag } : {}),
+      body: JSON.stringify(felder),
+    });
+    if (resp.ok) {
+      const nach = await spGetPolicyMeta(id);
+      return { vorher: it.lastModifiedDateTime || '', nachher: (nach && nach.modifiedAt) || '' };
+    }
+    if (resp.status !== 412) throw new Error(`Graph PATCH (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════
+   Richtlinien-Import: Dokument hochladen (App-Bibliothek)
+═══════════════════════════════════════════════════ */
+
+/** Lädt eine Datei in die App-Dokumentbibliothek (Ordner „Richtlinien-Import") hoch. */
+async function spUploadPolicyDoc(filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_');
+  const res = await _uploadFile(token, `Richtlinien-Import/${safe}`, bytes, contentType || 'application/octet-stream');
+  return { driveId: _sp.appDriveId, itemId: res.id, name: res.name, url: res.webUrl || '' };
+}
+
+/**
+ * Ein abgelegtes Dokument umbenennen. Die Kennung bleibt, nur Name und Adresse
+ * ändern sich – deshalb gibt die Funktion beides zurück, damit die Verweise
+ * nachgezogen werden können.
+ */
+async function spRenameDoc(driveId, itemId, neuerName) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const safe = String(neuerName || '').replace(/[<>:"/\\|?*]/g, '_').trim();
+  if (!safe) throw new Error('Kein Name angegeben');
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${driveId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: safe }),
+  });
+  if (!res.ok) throw new Error(`Umbenennen fehlgeschlagen (${res.status})`);
+  const d = await res.json();
+  return { name: d.name, url: d.webUrl || '' };
+}
+
+/**
+ * Ersetzt den Inhalt eines bestehenden Dokuments am selben Speicherort.
+ * SharePoint legt dabei automatisch eine neue Version an (Versionsverlauf der Bibliothek).
+ */
+async function spReplaceDocContent(driveId, itemId, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const resp = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
+}
+
+/** Lädt eine Datei in einen bestimmten Ordner (folderItemId; null = Wurzel der Bibliothek). */
+async function spUploadToFolder(driveId, folderItemId, filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_');
+  const url = folderItemId
+    ? `${SP.graphBase}/drives/${driveId}/items/${folderItemId}:/${encodeURIComponent(safe)}:/content`
+    : `${SP.graphBase}/drives/${driveId}/root:/${encodeURIComponent(safe)}:/content`;
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
+}
+
+/** Bibliotheken (Drives) der App-Site (für den Zielordner-Wähler). */
+async function spListAppDrives() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await spInit();
+  const drives = await _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token);
+  return (drives.value || []).map(d => ({ id: d.id, name: d.name }));
+}
+
+/** Ordnerinhalt eines beliebigen Drives auflisten (für den Zielordner-Wähler). */
+async function spBrowseAnyDrive(driveId, itemId) {
+  return spBrowseDrive(driveId, itemId);
+}
+
+/** Versionsverlauf eines Dokuments (SharePoint-Dateiversionen). */
+async function spGetDocVersions(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const r = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}/versions`, token);
+  return (r.value || []).map(v => ({
+    id: v.id,
+    modified: v.lastModifiedDateTime || '',
+    by: (v.lastModifiedBy && v.lastModifiedBy.user && v.lastModifiedBy.user.displayName) || '',
+    size: v.size || 0,
+    url: v['@microsoft.graph.downloadUrl'] || '',
+  }));
+}
+
+/* ═══════════════════════════════════════════════════
+   Bestätigungen / Abschlüsse
+═══════════════════════════════════════════════════ */
+
+/**
+ * Bestätigungen laden – wahlweise nur die einer Person.
+ *
+ * Bisher wurde immer die ganze Liste geholt und erst im Browser gefiltert. Bei
+ * 1.500 Mitarbeitenden und zehn Pflicht-Regelwerken sind das 15.000 Elemente
+ * pro Anmeldung, um zehn eigene Zeilen zu finden – und oberhalb der
+ * SharePoint-Listenschwelle wird das unzuverlässig.
+ *
+ * Jetzt filtert SharePoint selbst. Ohne Index auf „BenutzerUPN" lehnt Graph
+ * die Abfrage ab, sobald die Liste die Schwelle von 5.000 Elementen erreicht –
+ * darunter geht es mit dem Prefer-Header. Damit es dauerhaft schlank bleibt,
+ * setzt der erste Admin, der die App öffnet, den Index selbst
+ * (spEnsureAckIndex); bis dahin greift der alte Weg als Rückfall.
+ */
+async function spGetAcknowledgements(filterUpn, _zweiterVersuch) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await spInit();
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items`;
+
+  if (filterUpn) {
+    const wert = String(filterUpn).replace(/'/g, "''");           // Hochkomma für OData verdoppeln
+    const url = `${basis}?$expand=fields&$top=500&$filter=fields/BenutzerUPN eq '${encodeURIComponent(wert)}'`;
+    try {
+      const items = await _getAll(url, token, 2000, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+      return items.map(_mapAck);
+    } catch (e) {
+      console.info('[sp] Serverseitiger Filter auf Bestätigungen nicht möglich '
+        + '(Spalte „BenutzerUPN" indizieren macht es schnell), lade ungefiltert:', e.message);
+      spEnsureAckIndex().catch(() => {});   // wer darf, richtet den Index ein – die nächste Anmeldung ist dann schlank
+    }
+  }
+
+  let alle;
+  try {
+    alle = await _getAll(`${basis}?$expand=fields&$top=500`, token, 20000);
+  } catch (e) {
+    if (_zweiterVersuch) throw e;
+    return _spNeuErmitteln(e, () => spGetAcknowledgements(filterUpn, true));
+  }
+  const out = alle.map(_mapAck);
+  return filterUpn
+    ? out.filter(a => a.benutzerUpn.toLowerCase() === String(filterUpn).toLowerCase())
+    : out;
+}
+
+
+/**
+ * Den Index auf „BenutzerUPN" setzen – einmal je Sitzung, nur durch Admins
+ * (Leser haben das Recht nicht, und ihnen soll auch nichts fehlschlagen).
+ * Ohne Index lädt jede Anmeldung die ganze Liste, sobald sie die Schwelle von
+ * 5.000 Bestätigungen erreicht – bei 1.000 Leuten und zehn Pflicht-Regelwerken
+ * ist das nach dem ersten Jahr der Fall.
+ * @returns {Promise<'gesetzt'|'vorhanden'|'uebersprungen'|'fehlgeschlagen'>}
+ */
+let _ackIndexGeprueft = false;
+async function spEnsureAckIndex() {
+  if (_ackIndexGeprueft) return 'uebersprungen';
+  _ackIndexGeprueft = true;
+  if (typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return 'uebersprungen';
+  const token = await acquireToken(SP.scopes);
+  if (!token) return 'uebersprungen';
+  await spInit();
+  const basis = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`;
+  try {
+    const cols = await _get(`${basis}?$select=id,name,indexed`, token);
+    const spalte = (cols.value || []).find(c => c.name === 'BenutzerUPN');
+    if (!spalte) return 'fehlgeschlagen';
+    if (spalte.indexed === true) return 'vorhanden';
+    await _patch(`${basis}/${spalte.id}`, token, { indexed: true });
+    console.info('[sp] Index auf „BenutzerUPN" gesetzt, Bestätigungen werden ab jetzt serverseitig gefiltert.');
+    return 'gesetzt';
+  } catch (e) {
+    console.warn('[sp] Index auf „BenutzerUPN" konnte nicht gesetzt werden. Bitte in den Listeneinstellungen (Indizierte Spalten) anlegen:', e.message);
+    return 'fehlgeschlagen';
+  }
+}
+
+function _mapAck(item) {
+  const f = item.fields || {};
+  return {
+    id:               item.id,
+    richtlinieId:     f.RichtlinieId || '',
+    version:          f.RichtlinienVersion || '',
+    benutzerUpn:      f.BenutzerUPN || '',
+    benutzerName:     f.BenutzerName || '',
+    gelesenAm:        f.GelesenAm || '',
+    quizBestanden:    !!f.QuizBestanden,
+    quizScore:        Number(f.QuizScore || 0),
+    quizVersuche:     Number(f.QuizVersuche || 0),
+    abgeschlossenAm:  f.AbgeschlossenAm || '',
+    fortschritt:      f.Fortschritt || '',
+  };
+}
+
+/**
+ * Fehlende Spalten der Liste „Bestaetigungen" anlegen – einmal je Sitzung,
+ * nur durch Admins. Neue Felder (zuletzt „Fortschritt" für Schulungen) würden
+ * sonst still verschluckt: spSaveAcknowledgement schreibt nur, was es gibt.
+ * @returns {Promise<number>} Zahl der angelegten Spalten
+ */
+let _ackSpaltenGeprueft = false;
+async function spEnsureAckColumns() {
+  if (_ackSpaltenGeprueft) return 0;
+  _ackSpaltenGeprueft = true;
+  if (typeof isCurrentUserAdmin === 'function' && !isCurrentUserAdmin()) return 0;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return 0;
+  await _spSpalten();
+  const fehlend = spMissingAckColumns();
+  let n = 0;
+  for (const c of fehlend) {
+    try {
+      const def = c.typ === 'Ja/Nein' ? { boolean: {} } : _riskColGraphDef(c.typ);
+      await _post(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/columns`, token, { name: c.name, ...def });
+      _sp.ackFields.add(c.name); n++;
+    } catch (e) { console.warn('[sp] Spalte „' + c.name + '" der Bestätigungen nicht anlegbar:', e.message); }
+  }
+  if (n) { console.info(`[sp] ${n} Spalte(n) der Bestätigungen-Liste angelegt.`); try { document.dispatchEvent(new CustomEvent('rms-spalten-geladen')); } catch (e) {} }
+  return n;
+}
+
+/**
+ * Bestätigung anlegen oder aktualisieren (Schlüssel: UPN|RichtlinieId|Version).
+ */
+async function spSaveAcknowledgement(a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _spSpalten();   // gesendet wird nur, was es in der Liste gibt
+
+  const all = {
+    Title:              `${a.benutzerUpn}|${a.richtlinieId}|${a.version}`.slice(0, 255),
+    RichtlinieId:       String(a.richtlinieId),
+    RichtlinienVersion: String(a.version || ''),
+    BenutzerUPN:        a.benutzerUpn || '',
+    BenutzerName:       a.benutzerName || '',
+    GelesenAm:          a.gelesenAm || new Date().toISOString(),
+    QuizBestanden:      !!a.quizBestanden,
+    QuizScore:          Number(a.quizScore || 0),
+    QuizVersuche:       Number(a.quizVersuche || 0),
+    AbgeschlossenAm:    a.abgeschlossenAm || '',
+  };
+  if (typeof a.fortschritt === 'string') all.Fortschritt = a.fortschritt;   // nur, wenn der Aufrufer ihn führt
+  // Leere DateTime-Werte nicht senden (SharePoint lehnt "" für Datumsfelder ab)
+  if (!all.AbgeschlossenAm) delete all.AbgeschlossenAm;
+  if (!all.GelesenAm)       delete all.GelesenAm;
+  // Nur Spalten senden, die in der Liste existieren (verhindert 400 bei fehlenden Spalten)
+  const fields = Object.fromEntries(
+    Object.entries(all).filter(([k]) => _sp.ackFields.has(k))
+  );
+
+  if (a.id) {
+    return _patch(
+      `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items/${a.id}/fields`,
+      token, fields
+    );
+  }
+  return _post(
+    `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items`,
+    token, { fields }
+  );
+}
+
+/** Datei aus einer Dokumentbibliothek löschen (Probelauf-Aufräumen). */
+async function spDeleteDriveItem(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _del(`${SP.graphBase}/drives/${driveId}/items/${itemId}`, token);
+}
+
+/** Bestätigung löschen – gebraucht, um einen Probelauf rückstandsfrei zu entfernen. */
+async function spDeleteAcknowledgement(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  await _del(`${SP.graphBase}/sites/${_sp.appSiteId}/lists/${_sp.ackListId}/items/${id}`, token);
+}
+
+/* ═══════════════════════════════════════════════════
+   ISMS-Dokumente (Quelle, nur lesen)
+═══════════════════════════════════════════════════ */
+
+/* Gemerkt wird der laufende Abruf, nicht erst sein Ergebnis: Das Cockpit fragt
+   aus acht Kacheln gleichzeitig nach der Site, bevor die erste Antwort da ist.
+   Gemessen am 16.11.2026 waren das acht gleiche Abrufe statt einem. */
+let _ismsSiteLauf = null;
+async function _ismsSiteId(token) {
+  if (_sp.ismsSiteId) return _sp.ismsSiteId;
+  if (!_ismsSiteLauf) {
+    _ismsSiteLauf = _get(`${SP.graphBase}/sites/${SP.ismsSiteHost}`, token)
+      .then(site => { _sp.ismsSiteId = site.id; return site.id; })
+      .finally(() => { _ismsSiteLauf = null; });
+  }
+  return _ismsSiteLauf;
+}
+
+/** Dokumentbibliotheken der ISMS-Site auflisten. */
+async function spListIsmsDrives() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const siteId = await _ismsSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  return (drives.value || []).map(d => ({ id: d.id, name: d.name }));
+}
+
+/**
+ * Inhalt eines Ordners auflisten. itemId weglassen für Wurzel.
+ * @returns [{ id, name, isFolder, url, childCount }]
+ */
+async function spBrowseDrive(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const path = itemId
+    ? `${SP.graphBase}/drives/${driveId}/items/${itemId}/children`
+    : `${SP.graphBase}/drives/${driveId}/root/children`;
+  const resp = await _get(`${path}?$top=400`, token);
+  return (resp.value || []).map(it => ({
+    id:         it.id,
+    name:       it.name,
+    isFolder:   !!it.folder,
+    childCount: it.folder ? it.folder.childCount : 0,
+    url:        it.webUrl || '',
+  })).sort((a, b) => (b.isFolder - a.isFolder) || a.name.localeCompare(b.name, 'de'));
+}
+
+/**
+ * Kurzlebige Einbett-URL für die Dokumentvorschau (Word/PDF/Excel).
+ * Graph: POST /drives/{id}/items/{id}/preview
+ */
+async function spGetPreviewUrl(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const r = await _post(`${SP.graphBase}/drives/${driveId}/items/${itemId}/preview`, token, {});
+  return r && r.getUrl ? r.getUrl : null;
+}
+
+/* Bibliothekswurzel-URL je Drive (für die direkte Datei-URL), pro Drive gecacht. */
+const _driveWebUrlCache = new Map();
+async function _driveRootWebUrl(token, driveId) {
+  if (_driveWebUrlCache.has(driveId)) return _driveWebUrlCache.get(driveId);
+  const d = await _get(`${SP.graphBase}/drives/${driveId}?$select=webUrl`, token);
+  const u = d.webUrl || '';
+  _driveWebUrlCache.set(driveId, u);
+  return u;
+}
+
+/** Direkte Datei-URL eines beliebigen DriveItems (Bibliothekswurzel + Ordner + Dateiname) –
+ *  nötig für das Office-URI-Schema (ms-word/excel/powerpoint:ofe|u|<DIREKTE-Datei-URL>);
+ *  die normale webUrl ist oft nur eine Doc.aspx-Viewer-URL, die Desktop-Office nicht zuverlässig
+ *  öffnet (siehe ISMS-Dokumente). Für beliebige Richtlinien-Dokumente (nicht nur ISMS). */
+async function spGetDirectFileUrl(driveId, itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token || !driveId || !itemId) return '';
+  try {
+    const [it, base] = await Promise.all([
+      _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,parentReference,webUrl`, token),
+      _driveRootWebUrl(token, driveId),
+    ]);
+    const ref = it.parentReference || {};
+    const m = (ref.path || '').match(/root:?(.*)$/);
+    const folder = (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
+    const folderEnc = folder.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const b = (base || '').replace(/\/+$/, '');
+    if (!b || !it.name) return it.webUrl || '';
+    return b + (folderEnc ? '/' + folderEnc : '') + '/' + encodeURIComponent(it.name);
+  } catch (e) { return ''; }
+}
+
+/* ═══════════════════════════════════════════════════
+   ISMS-Dokumentbibliothek (Reiter „ISMS-Dokumente")
+   Anzeigen + Metadaten/Datei bearbeiten. Schreiben setzt SharePoint-
+   Schreibrechte des angemeldeten Kontos auf sites/ISMS voraus.
+═══════════════════════════════════════════════════ */
+
+/** Bibliothek „ISMS Dokumente" + zugehörige Liste lazy ermitteln. */
+let _ismsLibLauf = null;   // auch hier wird der laufende Abruf geteilt
+async function _ismsLib(token) {
+  if (_sp.ismsDriveId && _sp.ismsListId) return;
+  if (!_ismsLibLauf) _ismsLibLauf = _ismsLibSuchen(token).finally(() => { _ismsLibLauf = null; });
+  return _ismsLibLauf;
+}
+
+async function _ismsLibSuchen(token) {
+  const siteId = await _ismsSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const list = drives.value || [];
+  // Priorität: exakt „ISMS Dokumente" → Name enthält „ISMS" → Standard-Doku-Bib → erste
+  const pick = list.find(d => /^ISMS[\s_-]*Dokumente$/i.test(d.name || ''))
+            || list.find(d => /ISMS/i.test(d.name || ''))
+            || list.find(d => /^(Dokumente|Documents|Freigegebene Dokumente|Shared Documents)$/i.test(d.name || ''))
+            || list[0];
+  if (!pick) throw new Error('ISMS-Dokumentbibliothek nicht gefunden.');
+  await _ismsSetDrive(token, pick);
+}
+
+/** Eine bestimmte Bibliothek als aktiv setzen (Auto-Wahl oder manuelle Korrektur). */
+async function _ismsSetDrive(token, drive) {
+  _sp.ismsDriveId = drive.id;
+  _sp.ismsDriveName = drive.name;
+  _sp.ismsDriveWebUrl = drive.webUrl || '';   // Bibliothekswurzel-URL (für direkte Datei-URLs)
+  _sp.ismsColMeta = null;   // Spalten gehören zur Bibliothek → neu laden
+  const list = await _get(`${SP.graphBase}/drives/${drive.id}/list?$select=id`, token);
+  _sp.ismsListId = list.id;
+}
+
+/** Name der aktuell genutzten ISMS-Bibliothek (für Diagnose im Leerzustand). */
+function spIsmsCurrentLibrary() { return _sp.ismsDriveName || ''; }
+
+/** Manuell eine andere ISMS-Bibliothek wählen (falls die Auto-Erkennung daneben liegt). */
+async function spSetIsmsLibrary(driveId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const drive = (drives.value || []).find(d => d.id === driveId);
+  if (!drive) throw new Error('Bibliothek nicht gefunden');
+  await _ismsSetDrive(token, drive);
+}
+
+/** Bearbeitbare Spalten der ISMS-Bibliothek (dynamisch; System-/ReadOnly-Spalten raus). */
+async function spGetIsmsColumns() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  if (_sp.ismsColMeta) return _sp.ismsColMeta;
+  const SKIP = new Set(['ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkFilename',
+    'LinkFilenameNoMenu', 'FileLeafRef', 'FileSizeDisplay', 'ItemChildCount', 'FolderChildCount',
+    'LinkTitle', 'LinkTitleNoMenu', '_CommentCount', '_LikeCount', 'CheckoutUser']);
+  let cols = { value: [] };
+  try { cols = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/columns`, token); }
+  catch (e) { console.warn('[isms] Spalten nicht lesbar:', e.message); }
+  // ALLE Spalten (auch readOnly/Person) für die Label→Name-Auflösung der Anzeigefelder
+  _sp.ismsColAll = (cols.value || []).map(c => ({ name: c.name, label: c.displayName || c.name }));
+  _sp.ismsColMeta = (cols.value || [])
+    .filter(c => c.readOnly !== true && c.hidden !== true && !c.name.startsWith('_') && !SKIP.has(c.name))
+    .map(c => ({
+      name:    c.name,
+      label:   c.displayName || c.name,
+      type:    c.text ? (c.text.allowMultipleLines ? 'note' : 'text')
+             : c.choice ? 'choice'
+             : c.dateTime ? 'date'
+             : c.number ? 'number'
+             : c.boolean ? 'boolean'
+             : c.personOrGroup ? 'person'
+             : c.lookup ? 'readonly'
+             : 'text',
+      choices: c.choice ? (c.choice.choices || []) : null,
+      multi:   !!(c.personOrGroup && c.personOrGroup.allowMultipleSelection),
+    }));
+  return _sp.ismsColMeta;
+}
+
+/** Alle Bibliotheks-Spalten (name+label) – für die Label-Auflösung der Anzeigefelder. */
+function spGetIsmsAllColumns() { return _sp.ismsColAll || []; }
+
+/** Pfad eines DriveItems relativ zur Bibliothekswurzel (für die Ordner-Spalte). */
+function _ismsFolderPath(di) {
+  const ref = di && di.parentReference;
+  if (!ref || !ref.path) return '';
+  const m = ref.path.match(/root:?(.*)$/);
+  return (m ? decodeURIComponent(m[1] || '') : '').replace(/^\/+/, '');
+}
+
+/** Direkte Datei-URL (Bibliothekswurzel + Ordner + Dateiname) – nötig für das
+ *  Office-URI-Schema (ms-word/excel/powerpoint:ofe|u|<DIREKTE-Datei-URL>).
+ *  di.webUrl liefert je nach Tenant nur die Doc.aspx-Viewer-URL, die Office nicht öffnen kann. */
+function _ismsFileUrl(folderPath, name) {
+  const base = (_sp.ismsDriveWebUrl || '').replace(/\/+$/, '');
+  if (!base || !name) return '';
+  const folder = String(folderPath || '').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  return base + (folder ? '/' + folder : '') + '/' + encodeURIComponent(name);
+}
+
+/** Ein DriveItem (mit expand listItem.fields) → vereinheitlichtes Dokument-Objekt. */
+function _ismsMapDriveItem(di, folderPath) {
+  const li = di.listItem || {};
+  return {
+    itemId:      li.id || '',                              // List-Item-ID (Metadaten-PATCH)
+    driveItemId: di.id || '',                              // DriveItem-ID (Versionen/Upload/Preview)
+    driveId:     _sp.ismsDriveId,
+    name:        di.name || '(ohne Name)',
+    folder:      folderPath || '',
+    size:        di.size || 0,
+    webUrl:      di.webUrl || '',
+    fileUrl:     _ismsFileUrl(folderPath, di.name),        // direkte Datei-URL für Office-Bearbeitung
+    modified:    di.lastModifiedDateTime || '',
+    modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName) || '',
+    fields:      li.fields || {},                          // volle Metadaten (listItem expand)
+    fieldsFull:  true,
+  };
+}
+
+/** Inhalt eines Ordners rekursiv einsammeln (nur Dateien, mit Metadaten).
+ *  onProgress(out) wird nach jeder geladenen Seite aufgerufen → progressives Rendern. */
+async function _ismsCollectFolder(token, folderId, folderPath, out, onProgress, cap = 2000) {
+  let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${folderId}/children`
+          + `?$expand=listItem($expand=fields)`
+          + `&$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder&$top=200`;
+  const subfolders = [];
+  while (url) {
+    const resp = await _get(url, token);
+    for (const di of (resp.value || [])) {
+      if (di.folder) { subfolders.push({ id: di.id, path: (folderPath ? folderPath + '/' : '') + di.name }); continue; }
+      out.push(_ismsMapDriveItem(di, folderPath));
+      if (out.length >= cap) { if (onProgress) onProgress(out); return; }
+    }
+    if (onProgress) onProgress(out);      // Seite fertig → Zwischenstand anzeigen
+    url = resp['@odata.nextLink'] || null;
+  }
+  // Unterordner erst nach den Dateien der aktuellen Ebene (Dateien erscheinen früher)
+  await _parallel(subfolders.map(sf => async () => {
+    if (out.length >= cap) return;
+    await _ismsCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  }));
+}
+
+/** Dateien der ISMS-Bibliothek. Standard: NUR der ISO-27001-Ordner (mit vollen
+ *  Metadaten). onProgress(partialList) → progressives Rendern. Wird der Ordner
+ *  nicht gefunden, ganze Bibliothek als Fallback. */
+/**
+ * Dokumente des Managementsystems laden.
+ *
+ * Früher wurde nur der ISO-27001-Ordner geholt – das IMS umfasst aber auch
+ * 9001, 14001, 45001 und 50001. Ohne Einschränkung werden deshalb alle Ordner
+ * der obersten Ebene eingesammelt, einer nach dem anderen, damit die Liste
+ * schon während des Ladens wächst.
+ *
+ * @param {string} [folderName] nur diesen Ordner der obersten Ebene laden
+ */
+async function spGetIsmsDocs(folderName, onProgress) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  let ordner = [];
+  try {
+    const root = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children?$select=id,name,folder&$top=400`, token);
+    ordner = (root.value || []).filter(it => it.folder && (!folderName || it.name === folderName));
+    ordner.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
+  } catch (e) { console.warn('[isms] Wurzel nicht lesbar:', e.message); }
+
+  const out = [];
+  if (ordner.length) {
+    await _parallel(ordner.map(f => () => _ismsCollectFolder(token, f.id, f.name, out, onProgress)));
+    // Gleichzeitig geladen heißt: durcheinander angekommen. Für eine stabile
+    // Grundreihenfolge (die Tabelle sortiert danach nach Wunsch weiter).
+    out.sort((a, b) => (a.folder || '').localeCompare(b.folder || '', 'de')
+                    || (a.name || '').localeCompare(b.name || '', 'de'));
+  } else {
+    // Rückfall: ganze Bibliothek (volle Felder), falls es keine Ordner gibt
+    let url = `${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items?expand=fields,driveItem&$top=200`;
+    while (url) {
+      const resp = await _get(url, token);
+      for (const it of (resp.value || [])) {
+        const di = it.driveItem || {};
+        if (di.folder) continue;
+        di.listItem = { id: it.id, fields: it.fields || {} };
+        out.push(_ismsMapDriveItem(di, _ismsFolderPath(di)));
+      }
+      if (onProgress) onProgress(out);
+      url = resp['@odata.nextLink'] || null;
+    }
+  }
+  return out;
+}
+
+/** Vollständige Metadaten EINES Dokuments (lazy beim Öffnen des Editors). */
+async function spGetIsmsItemFields(itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return {};
+  await _ismsLib(token);
+  const it = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}?expand=fields`, token);
+  return it.fields || {};
+}
+
+/** SharePoint-LookupId einer Person (für Person-Felder) über die Benutzer­informations­liste
+ *  der ISMS-Site auflösen. Gibt null, wenn die Person dort (noch) nicht existiert. */
+let _ismsUserListId = null;
+const _ismsUserLookup = {};   // email(lowercase) → LookupId
+
+/** Benutzerinformationsliste der ISMS-Site finden. Sie ist eine versteckte
+ *  Systemliste – mehrstufig suchen: Template/Name/Anzeigename (sprachunabhängig,
+ *  mit Paging), sonst Direktzugriff über bekannte (lokalisierte) Namen. */
+async function _ismsUserInfoListId(siteId, token) {
+  if (_ismsUserListId) return _ismsUserListId;
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name,list&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l =>
+        (l.list && l.list.template === 'userInformationList') ||
+        /user information|benutzerinfo/i.test(l.displayName || '') ||
+        /^users$/i.test(l.name || ''));
+      if (hit) { _ismsUserListId = hit.id; return _ismsUserListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter mit Direktzugriff */ }
+  for (const nm of ['User Information List', 'Benutzerinformationsliste', 'Users']) {
+    try {
+      const l = await _get(`${SP.graphBase}/sites/${siteId}/lists/${encodeURIComponent(nm)}?$select=id`, token);
+      if (l && l.id) { _ismsUserListId = l.id; return _ismsUserListId; }
+    } catch (e) { /* nächster Name */ }
+  }
+  return null;
+}
+
+async function spEnsureIsmsUserLookupId(email) {
+  const key = String(email || '').toLowerCase().trim();
+  if (!key) return null;
+  if (_ismsUserLookup[key]) return _ismsUserLookup[key];
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const siteId = await _ismsSiteId(token);
+  const listId = await _ismsUserInfoListId(siteId, token);
+  if (!listId) throw new Error('Benutzerinformationsliste der ISMS-Site nicht gefunden. Person ggf. direkt in SharePoint setzen.');
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields($select=id,EMail,UserName,Title)&$top=500`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      const id = parseInt(it.id, 10) || it.id;
+      const em = (f.EMail || '').toLowerCase();
+      if (em) _ismsUserLookup[em] = id;
+      const un = (f.UserName || '').toLowerCase();   // Fallback: Login-Name ist oft die UPN/E-Mail
+      if (un && /@/.test(un) && !_ismsUserLookup[un]) _ismsUserLookup[un] = id;
+    }
+    if (_ismsUserLookup[key]) break;
+    url = resp['@odata.nextLink'] || null;
+  }
+  return _ismsUserLookup[key] || null;
+}
+
+/** Metadaten eines ISMS-Dokuments speichern (nur vorhandene/bearbeitbare Spalten). */
+async function spSaveIsmsItemFields(itemId, fields) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  return _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${itemId}/fields`, token, fields);
+}
+
+/* Spaltenerkennung für die Status-Rückkopplung aus dem Freigabe-Workflow. */
+const _ISMS_WB_RE = {
+  stand:          /bearbeitungs(stand|status)|status/i,
+  konform:        /konformit.*(gepr|pr(ü|ue)f)|gepr(ü|ue)ft\s*von|auf\s*konformit/i,
+  unterschrieben: /unterschrieben|unterzeichnet|signed/i,
+  freigabe:       /freigabe.*(gesch|leitung|management|\bgl\b)|gesch(ä|ae)ftsleitung.*(freigabe|genehm)/i,
+};
+
+/**
+ * Status am Ursprungs-ISMS-Dokument zurückschreiben, wenn die zugehörige Richtlinie
+ * im Freigabe-Workflow geprüft/freigegeben wurde. Läuft nur, wenn das Dokument in der
+ * ISMS-Bibliothek liegt (sonst still übersprungen). Best effort.
+ * @param kind   'konform' (Konformität erreicht) | 'freigabe' (veröffentlicht)
+ * @param {{upn: string, name: string}} person handelnde Person (Prüfer bzw. Geschäftsleitung)
+ * @returns {Promise<boolean>} true bei erfolgreichem Zurückschreiben
+ */
+async function spIsmsWritebackStatus(driveId, driveItemId, kind, person) {
+  if (!driveId || !driveItemId) return false;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return false;
+  await _ismsLib(token);
+  if (String(driveId) !== String(_sp.ismsDriveId)) return false;   // Dokument nicht aus der ISMS-Bibliothek
+  let listItemId;
+  try {
+    const li = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}/listItem?$select=id`, token);
+    listItemId = li && li.id;
+  } catch (e) { return false; }
+  if (!listItemId) return false;
+
+  const cols = await spGetIsmsColumns();
+  const find = re => (cols || []).find(c => re.test(c.label || '') || re.test(c.name || '')) || null;
+  const standCol = find(_ISMS_WB_RE.stand), konformCol = find(_ISMS_WB_RE.konform),
+        freigabeCol = find(_ISMS_WB_RE.freigabe);
+  const patch = {};
+  const setChoice = (col, pats) => {
+    if (!col || col.type !== 'choice') return;
+    for (const re of pats) { const o = (col.choices || []).find(c => re.test(c)); if (o) { patch[col.name] = o; return; } }
+  };
+  const setPerson = async (col) => {
+    if (!col || !person) return;
+    if (col.type === 'person') {
+      const lid = await spEnsureIsmsUserLookupId(person.upn);
+      if (lid) patch[col.name + 'LookupId'] = lid;
+    } else if (person.name || person.upn) {
+      patch[col.name] = person.name || person.upn;
+    }
+  };
+
+  if (kind === 'konform') {
+    await setPerson(konformCol);
+    setChoice(standCol, [/gepr(ü|ue)ft/i, /konform/i, /in pr(ü|ue)fung/i, /review/i]);
+  } else if (kind === 'freigabe') {
+    setChoice(freigabeCol, [/freigegeben/i, /^frei$/i, /^ja$/i, /genehm/i, /erteilt/i, /approv/i]);
+    setChoice(standCol, [/freigegeben/i, /ver(ö|oe)ffentlicht/i, /g(ü|ue)ltig/i, /in kraft/i, /final/i, /abgeschloss/i]);
+  }
+  if (!Object.keys(patch).length) return false;
+  await _patch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/list/items/${listItemId}/fields`, token, patch);
+  return true;
+}
+
+/** Datei-Inhalt eines ISMS-Dokuments ersetzen = neue SharePoint-Version.
+ *  Mit Änderungsnotiz: über Check-out → Upload → Check-in(comment), damit die
+ *  Notiz als echter SharePoint-Versionskommentar erscheint. Das Wieder-Einchecken
+ *  ist über finally abgesichert (keine hängende Auscheckung). Bibliotheken ohne
+ *  Check-out fallen automatisch auf einen einfachen Upload zurück. */
+async function spIsmsUploadVersion(driveItemId, bytes, contentType, comment) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const item = `${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${driveItemId}`;
+  let checkedOut = false;
+  if (comment) {
+    try { await _post(`${item}/checkout`, token, {}); checkedOut = true; }
+    catch (e) { /* Bibliothek ohne Check-out → einfacher Upload */ }
+  }
+  try {
+    const resp = await fetch(`${item}/content`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+      body: bytes,
+    });
+    if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+    const out = await resp.json();
+    if (checkedOut) { await _post(`${item}/checkin`, token, { comment: comment, checkInAs: 'published' }); checkedOut = false; }
+    return out;
+  } finally {
+    if (checkedOut) { try { await _post(`${item}/checkin`, token, { comment: comment || '' }); } catch (e) { console.warn('[isms] checkin-Fallback fehlgeschlagen:', e.message); } }
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   Governance-Board (Legal, sites/ArbeitsplatzLegal)
+   ==================================================
+   Hier liegen die Entwürfe der Konzernregelungen (Corporate Governance-Board).
+   Zugriff analog zu den ISMS-Dokumenten (Site + Bibliothek + Ordner auflisten,
+   Office/Browser-Bearbeitung, Versionen), aber ohne die ISMS-eigenen Metadaten-/
+   Workflow-Spalten – die gehören nur zur ISO-27001-Bibliothek. Sobald ein Entwurf
+   die RMS-interne Konformitätsprüfung + Freigabe durchlaufen hat, wird das
+   Dokument hier von Legal überschrieben/neu erstellt und veröffentlicht.
+═══════════════════════════════════════════════════ */
+
+/* Der Zielordner auf der Legal-Site hieß ursprünglich „Govenance" (ohne r).
+   Wird er umbenannt oder anders geschrieben, fand die App ihn nicht mehr und
+   der Reiter blieb leer. Deshalb: bekannte Schreibweisen als Kandidaten, und
+   wenn keine passt, wird in der Wurzel nach einem ähnlich heißenden Ordner
+   gesucht. */
+const GOV = {
+  siteHost:   'dihag.sharepoint.com:/sites/ArbeitsplatzLegal',
+  folderPath: 'Entwurf_010_Corporate Governance-Board',
+  folderKandidaten: [
+    'Entwurf_010_Corporate Governance-Board',
+    'Entwurf_010_Corporate Govenance-Board',
+  ],
+};
+
+/** Namen vergleichbar machen: Kleinschreibung, nur Buchstaben und Ziffern. */
+function _govNorm(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+const _gov = { siteId: null, driveId: null, driveName: null, driveWebUrl: null, folderId: null, folderName: '' };
+
+async function _govSiteId(token) {
+  if (_gov.siteId) return _gov.siteId;
+  const site = await _get(`${SP.graphBase}/sites/${GOV.siteHost}`, token);
+  _gov.siteId = site.id;
+  return _gov.siteId;
+}
+
+/** Bibliothek + Zielordner der Legal-Site einmalig auflösen (gecacht). */
+async function _govResolve(token) {
+  if (_gov.driveId && _gov.folderId) return;
+  const siteId = await _govSiteId(token);
+  const drives = await _get(`${SP.graphBase}/sites/${siteId}/drives`, token);
+  const list = drives.value || [];
+  const drive = list.find(d => /^(Freigegebene Dokumente|Shared Documents|Dokumente|Documents)$/i.test(d.name || '')) || list[0];
+  if (!drive) throw new Error('Keine Dokumentbibliothek auf sites/ArbeitsplatzLegal gefunden.');
+  _gov.driveId = drive.id; _gov.driveName = drive.name; _gov.driveWebUrl = drive.webUrl || '';
+  let folder = null;
+  for (const kandidat of GOV.folderKandidaten) {
+    const enc = kandidat.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    try {
+      folder = await _get(`${SP.graphBase}/drives/${drive.id}/root:/${enc}?$select=id,name`, token);
+      _gov.folderName = kandidat;
+      break;
+    } catch (e) { /* nächste Schreibweise probieren */ }
+  }
+  if (!folder) {
+    // Letzte Chance: in der Wurzel nach einem Ordner suchen, der so ähnlich heißt.
+    try {
+      const root = await _get(`${SP.graphBase}/drives/${drive.id}/root/children?$select=id,name,folder&$top=400`, token);
+      const ziel = _govNorm(GOV.folderKandidaten[0]);
+      const treffer = (root.value || []).find(it => it.folder && _govNorm(it.name) === ziel)
+        || (root.value || []).find(it => it.folder && /governanceboard/.test(_govNorm(it.name)));
+      if (treffer) { folder = treffer; _gov.folderName = treffer.name; }
+    } catch (e) { /* Wurzel nicht lesbar – gleich unten melden */ }
+  }
+  if (!folder) throw new Error(`Ordner „${GOV.folderPath}" nicht gefunden (Bibliothek „${drive.name}").`);
+  _gov.folderId = folder.id;
+}
+
+
+/** Direkte Datei-URL (Bibliothekswurzel + Ordner + Dateiname) für das Office-URI-Schema. */
+function _govFileUrl(subPath, name) {
+  const base = (_gov.driveWebUrl || '').replace(/\/+$/, '');
+  if (!base || !name) return '';
+  const wurzel = _gov.folderName || GOV.folderPath;   // die tatsächlich gefundene Schreibweise
+  const full = (wurzel + (subPath ? '/' + subPath : '')).split('/').filter(Boolean).map(encodeURIComponent).join('/');
+  return base + '/' + full + '/' + encodeURIComponent(name);
+}
+
+function _govMapDriveItem(di, subPath) {
+  return {
+    driveItemId: di.id || '',
+    driveId:     _gov.driveId,
+    name:        di.name || '(ohne Name)',
+    folder:      subPath || '',
+    size:        di.size || 0,
+    webUrl:      di.webUrl || '',
+    fileUrl:     _govFileUrl(subPath, di.name),
+    modified:    di.lastModifiedDateTime || '',
+    modifiedBy:  (di.lastModifiedBy && di.lastModifiedBy.user && di.lastModifiedBy.user.displayName) || '',
+  };
+}
+
+/** Ordnerinhalt rekursiv einsammeln (nur Dateien). onProgress(out) nach jeder Seite. */
+async function _govCollectFolder(token, folderId, subPath, out, onProgress, cap = 2000) {
+  let url = `${SP.graphBase}/drives/${_gov.driveId}/items/${folderId}/children`
+          + `?$select=id,name,size,webUrl,lastModifiedDateTime,lastModifiedBy,file,folder&$top=200`;
+  const subfolders = [];
+  while (url) {
+    const resp = await _get(url, token);
+    for (const di of (resp.value || [])) {
+      if (di.folder) { subfolders.push({ id: di.id, path: (subPath ? subPath + '/' : '') + di.name }); continue; }
+      out.push(_govMapDriveItem(di, subPath));
+      if (out.length >= cap) { if (onProgress) onProgress(out); return; }
+    }
+    if (onProgress) onProgress(out);
+    url = resp['@odata.nextLink'] || null;
+  }
+  await _parallel(subfolders.map(sf => async () => {
+    if (out.length >= cap) return;
+    await _govCollectFolder(token, sf.id, sf.path, out, onProgress, cap);
+  }));
+}
+
+/** Alle Entwurfsdateien im Governance-Board-Ordner (rekursiv). onProgress(partialList). */
+async function spGetGovDocs(onProgress) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _govResolve(token);
+  const out = [];
+  await _govCollectFolder(token, _gov.folderId, '', out, onProgress);
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════
+   Mitarbeiterliste (Soll für Compliance)
+═══════════════════════════════════════════════════ */
+
+/* Mitarbeiterliste: teuer (blättert durch das ganze Verzeichnis), ändert sich aber
+   selten. Deshalb dreifach abgesichert:
+   1. Speicher-Cache für die laufende Ansicht,
+   2. sessionStorage, damit ein Reiterwechsel/Reload nicht neu lädt,
+   3. eine gemeinsame „läuft schon"-Zusage, damit parallele Aufrufer EINE Abfrage teilen
+      (vorher holten ISMS-Dokumente und Risiko-Register die Liste jeweils zusätzlich). */
+const MEMBERS_TTL = 30 * 60 * 1000;          // 30 Minuten
+const MEMBERS_CACHE_KEY = 'rms_members_v1';
+let _members = null;                          // { at, list }
+let _membersInflight = null;                  // laufende Abfrage
+
+function _membersFromSession() {
+  try {
+    const raw = sessionStorage.getItem(MEMBERS_CACHE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !Array.isArray(o.list) || (Date.now() - (o.at || 0)) > MEMBERS_TTL) return null;
+    return o;
+  } catch { return null; }
+}
+
+function _membersToSession(o) {
+  try { sessionStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(o)); } catch { /* Speicher voll/gesperrt – egal */ }
+}
+
+/** Cache verwerfen (z. B. nach „Aktualisieren"), damit die Liste frisch geladen wird. */
+function spInvalidateMembers() {
+  _members = null; _membersInflight = null;
+  try { sessionStorage.removeItem(MEMBERS_CACHE_KEY); } catch { /* egal */ }
+}
+
+/** Aktive Mitarbeiter (Postfach vorhanden, kein Gast) inkl. AD-Abteilung – gecacht. */
+async function spGetMembers() {
+  if (_members && (Date.now() - _members.at) < MEMBERS_TTL) return _members.list;
+  const ausSession = _membersFromSession();
+  if (ausSession) { _members = ausSession; return _members.list; }
+  if (_membersInflight) return _membersInflight;          // parallele Aufrufer warten mit
+
+  _membersInflight = (async () => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) return [];
+    // Serverseitig vorfiltern: deaktivierte Konten und Gäste gar nicht erst laden.
+    const filter = encodeURIComponent("accountEnabled eq true and userType eq 'Member'");
+    let url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$filter=${filter}&$top=999`;
+    let gefiltert = true;
+    const out = [];
+    while (url) {
+      let resp;
+      try {
+        resp = await _get(url, token);
+      } catch (e) {
+        // Manche Mandanten/Berechtigungen lassen den Filter nicht zu → ohne Filter erneut
+        if (gefiltert) {
+          console.warn('[sp] Mitarbeiterfilter nicht möglich, lade ungefiltert:', e.message);
+          gefiltert = false;
+          url = `${SP.graphBase}/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType,department&$top=999`;
+          continue;
+        }
+        throw e;
+      }
+      (resp.value || []).forEach(u => {
+        // Clientseitig gegenprüfen (falls ungefiltert geladen wurde)
+        if (u.accountEnabled !== false && u.mail && (u.userType || 'Member') === 'Member') {
+          out.push({
+            name: u.displayName || u.mail,
+            upn: (u.userPrincipalName || u.mail),
+            mail: String(u.mail || '').toLowerCase(),
+            department: u.department || '',
+          });
+        }
+      });
+      url = resp['@odata.nextLink'] || null;
+    }
+    const list = out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    _members = { at: Date.now(), list };
+    _membersToSession(_members);
+    return list;
+  })();
+
+  try { return await _membersInflight; }
+  finally { _membersInflight = null; }
+}
+
+/** Azure-AD-Abteilung des angemeldeten Users (für die automatische Rollen-Zuordnung). */
+let _meineAbteilung = null;   // Antwort gilt für die ganze Sitzung
+let _meineMail = '';         // Mailadresse aus demselben Aufruf (Domäne = Gesellschaft)
+
+async function spGetMyDepartment() {
+  if (_meineAbteilung !== null) return _meineAbteilung;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return '';
+  const me = await _get(`${SP.graphBase}/me?$select=department,jobTitle,mail`, token);
+  _meineAbteilung = me.department || '';
+  // Die Mailadresse kommt gratis mit: Für die Trennung nach Gesellschaft zählt
+  // die Domäne, und die kann sich vom Anmeldenamen unterscheiden (dieser endet
+  // in manchen Mandanten auf .onmicrosoft.com).
+  _meineMail = String(me.mail || '').toLowerCase();
+  return _meineAbteilung;
+}
+
+/** Mailadresse des angemeldeten Kontos, soweit schon gelesen ('' = noch nicht).
+ *  Bewusst synchron: Die Rechteprüfung läuft bei jedem Reiterwechsel und darf
+ *  nicht auf einen Graph-Aufruf warten – spGetMyDepartment() lief beim Start. */
+function spMeineMail() { return _meineMail || ''; }
+
+/* ═══════════════════════════════════════════════════
+   Gruppen (Entra ID)
+   ═══════════════════════════════════════════════════
+   Reiter-Freigaben können statt an einzelne Personen an eine Gruppe gehen –
+   Sicherheitsgruppe, Verteilergruppe oder Microsoft-365-Gruppe. Für die App ist
+   das dasselbe: Sie fragt nur, ob das angemeldete Konto Mitglied ist.
+   (Ausnahme sind dynamische Verteilerlisten aus Exchange – die gibt es nur dort
+   und nicht als Objekt im Verzeichnis, sie lassen sich also nicht berechtigen.) Ausgewertet wird das beim angemeldeten Konto: Welche Gruppen-IDs hat
+   es? Dafür reichen die vorhandenen Berechtigungen – die eigenen Mitgliedschaften
+   darf jedes Konto lesen. Nur die Suche im Verzeichnis (für die Auswahl in den
+   Einstellungen) verlangt mehr; scheitert sie, bietet die Oberfläche die
+   eigenen Gruppen und die Eingabe per Objekt-ID an. */
+
+/* Dieselben Berechtigungen wie überall, ergänzt um User.Read (steht seit jeher
+   in der Anmeldung). Damit fragt niemand neu um Zustimmung – und schlägt der
+   Tokenantrag für diese Kombination doch fehl, tut es der gewohnte auch. */
+const _GRUPPEN_SCOPES = SP.scopes.concat(['https://graph.microsoft.com/User.Read']);
+
+async function _gruppenToken() {
+  try { return await acquireToken(_GRUPPEN_SCOPES); }
+  catch (e) { return await acquireToken(SP.scopes); }
+}
+let _meineGruppen = null;     // [{ id, name }] – einmal je Sitzung
+let _gruppenLesbar = null;    // null = noch nicht versucht
+
+/** Konnten die eigenen Gruppen gelesen werden? (für den Hinweis in den Einstellungen) */
+function spGruppenLesbar() { return _gruppenLesbar; }
+
+/** Art der Gruppe – nur zur Anzeige; berechtigt werden alle gleich. */
+function gruppenArtVon(g) {
+  if (Array.isArray(g.groupTypes) && g.groupTypes.includes('Unified')) return 'm365';
+  if (g.securityEnabled) return 'sicherheit';
+  if (g.mailEnabled) return 'verteiler';
+  return 'sicherheit';
+}
+
+const _GRUPPEN_FELDER = 'id,displayName,mail,mailEnabled,securityEnabled,groupTypes';
+
+/** Gruppen des angemeldeten Kontos, verschachtelte eingeschlossen –
+ *  Sicherheits-, Verteiler- und Microsoft-365-Gruppen gleichermaßen. */
+async function spGetMyGroups() {
+  if (_meineGruppen) return _meineGruppen;
+  const token = await _gruppenToken();
+  if (!token) return [];
+  const wege = [
+    `${SP.graphBase}/me/transitiveMemberOf/microsoft.graph.group?$select=${_GRUPPEN_FELDER}&$top=200`,
+    `${SP.graphBase}/me/memberOf/microsoft.graph.group?$select=${_GRUPPEN_FELDER}&$top=200`,
+  ];
+  let letzter = null;
+  for (const url of wege) {
+    try {
+      const roh = await _getAll(url, token, 500);
+      _meineGruppen = roh.map(g => ({
+        id: String(g.id || '').toLowerCase(), name: g.displayName || '',
+        mail: g.mail || '', art: gruppenArtVon(g),
+      })).filter(g => g.id);
+      _gruppenLesbar = true;
+      return _meineGruppen;
+    } catch (e) { letzter = e; }
+  }
+  console.info('[sp] Gruppen-Mitgliedschaften nicht lesbar, gruppenbasierte Freigaben greifen nicht:',
+    letzter && letzter.message);
+  _gruppenLesbar = false;
+  _meineGruppen = [];
+  return _meineGruppen;
+}
+
+/** Gruppen im Verzeichnis suchen (Auswahl in den Einstellungen).
+ *  Wirft, wenn das Konto das Verzeichnis nicht durchsuchen darf – der Aufrufer
+ *  weicht dann auf die eigenen Gruppen aus. */
+/** Gruppen im Verzeichnis suchen – über den Namen und über die Adresse, denn
+ *  Verteiler kennt man oft eher als „einkauf@…" denn unter ihrem Anzeigenamen. */
+async function spSearchGroups(text) {
+  const q = String(text || '').trim().replace(/'/g, "''");
+  if (q.length < 2) return [];
+  const token = await _gruppenToken();
+  if (!token) return [];
+  const filter = encodeURIComponent(`startswith(displayName,'${q}') or startswith(mail,'${q}')`);
+  const r = await _get(`${SP.graphBase}/groups?$filter=${filter}`
+    + `&$select=${_GRUPPEN_FELDER}&$top=25`, token);
+  return (r.value || []).map(g => ({
+    id: String(g.id || '').toLowerCase(), name: g.displayName || '', mail: g.mail || '',
+    art: gruppenArtVon(g),
+  })).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+/* ═══════════════════════════════════════════════════
+   Mail-Versand (Graph /me/sendMail, Scope Mail.Send)
+═══════════════════════════════════════════════════ */
+
+/** Firmendomain des angemeldeten Users (Sicherheits-Grenze für Empfänger). */
+function _myMailDomain() {
+  const u = (typeof getAuthUser === 'function' && getAuthUser()?.username) || '';
+  const at = u.lastIndexOf('@');
+  return at >= 0 ? u.slice(at + 1).toLowerCase() : '';
+}
+
+/**
+ * Mail im Namen des angemeldeten Users senden.
+ * Sicherheit: Empfänger müssen gültige Adressen der EIGENEN Firmendomain sein
+ * (kein Versand an Externe). Scope Mail.Send wird separat angefordert.
+ * @returns true bei Versand, false bei Redirect (Consent erforderlich)
+ */
+async function spSendMail(toUpns, subject, htmlBody, attachments, ccUpns, extraDomains) {
+  const domain = _myMailDomain();
+  // Erlaubte Domains: eigene Firmendomain + optional admin-gepflegte Ausnahmen
+  // (z. B. Betriebsrats-Mails auf Gruppengesellschafts-Domains wie ewa-guss.de).
+  const allowed = new Set([domain, ...(Array.isArray(extraDomains) ? extraDomains : [])]
+    .map(d => String(d || '').trim().toLowerCase()).filter(Boolean));
+  const clean = list => [...new Set((Array.isArray(list) ? list : [list])
+    .map(u => String(u || '').trim().toLowerCase())
+    .filter(u => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u) && (!allowed.size || allowed.has(u.split('@').pop()))))];
+  const unique = clean(toUpns);
+  if (!unique.length) throw new Error('Keine gültigen internen Empfänger (nur @' + (domain || 'Firmendomain') + ').');
+  const cc = clean(ccUpns).filter(a => !unique.includes(a));   // keine Doppel-Empfänger
+
+  const token = await acquireToken(['https://graph.microsoft.com/Mail.Send']);
+  if (!token) return false;   // Redirect zum Consent läuft
+
+  const message = {
+    subject: String(subject || '').slice(0, 255),
+    body: { contentType: 'HTML', content: htmlBody || '' },
+    toRecipients: unique.map(a => ({ emailAddress: { address: a } })),
+  };
+  if (cc.length) message.ccRecipients = cc.map(a => ({ emailAddress: { address: a } }));
+  if (attachments && attachments.length) message.attachments = attachments;
+
+  await _post(`${SP.graphBase}/me/sendMail`, token, { message, saveToSentItems: true });
+  return true;
+}
+
+/** Regelwerkdokument als E-Mail-Anhang (fileAttachment, base64) – oder null (zu groß/fehlt). */
+async function spGetDocAttachment(driveId, itemId, fallbackName) {
+  if (!driveId || !itemId) return null;
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  try {
+    const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size,file,@microsoft.graph.downloadUrl`, token);
+    if ((meta.size || 0) > 3 * 1024 * 1024) return null;   // > 3 MB → nur Link (Graph-Limit für einfache Anhänge)
+    let bytes = null;
+    // 1) Bevorzugt der vorsignierte downloadUrl (kein Auth-Header nötig)
+    const url = meta['@microsoft.graph.downloadUrl'];
+    if (url) {
+      try { const r = await fetch(url); if (r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (e) { bytes = null; }
+    }
+    // 2) Fallback: manche Bibliotheken liefern keinen downloadUrl → /content mit Bearer
+    if (!bytes) {
+      const r = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) bytes = new Uint8Array(await r.arrayBuffer());
+    }
+    if (!bytes) return null;
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: meta.name || fallbackName || 'Anhang',
+      contentType: (meta.file && meta.file.mimeType) || 'application/octet-stream',
+      contentBytes: btoa(bin),
+    };
+  } catch (e) { console.warn('Anhang nicht ladbar:', e.message); return null; }
+}
+
+/* ═══════════════════════════════════════════════════
+   Dokument-Texterkennung (.docx) – für BPMN-Entwürfe aus Richtlinien
+   Liest word/document.xml direkt im Browser aus (ZIP + deflate-raw),
+   ohne Server/Fremdbibliothek. Rein clientseitig.
+═══════════════════════════════════════════════════ */
+
+/** DEFLATE-raw entpacken via DecompressionStream (modernes Edge/Chrome). */
+async function _inflateRaw(bytes) {
+  if (typeof DecompressionStream === 'undefined')
+    throw new Error('Dieser Browser kann .docx nicht automatisch entpacken. Bitte den Prozesstext manuell einfügen.');
+  const stream = new Response(bytes).body.pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Rohbytes einer Datei aus einem ZIP (Uint8Array) holen. @returns Uint8Array | null */
+async function _zipEntryBytes(buf, entryName) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const LE = true;
+  // End Of Central Directory (Signatur 0x06054b50) von hinten suchen
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i >= buf.length - 22 - 65557; i--) {
+    if (dv.getUint32(i, LE) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Ungültige .docx (kein ZIP-Verzeichnis).');
+  let cd = dv.getUint32(eocd + 16, LE);          // Offset Central Directory
+  const total = dv.getUint16(eocd + 10, LE);     // Anzahl Einträge
+  for (let n = 0; n < total; n++) {
+    if (dv.getUint32(cd, LE) !== 0x02014b50) break;
+    const method = dv.getUint16(cd + 10, LE);
+    const compSize = dv.getUint32(cd + 20, LE);
+    const nameLen = dv.getUint16(cd + 28, LE);
+    const extraLen = dv.getUint16(cd + 32, LE);
+    const commentLen = dv.getUint16(cd + 34, LE);
+    const lho = dv.getUint32(cd + 42, LE);         // Local Header Offset
+    const name = new TextDecoder('utf-8').decode(buf.subarray(cd + 46, cd + 46 + nameLen));
+    if (name === entryName) {
+      if (dv.getUint32(lho, LE) !== 0x04034b50) throw new Error('ZIP-Eintrag beschädigt.');
+      const lNameLen = dv.getUint16(lho + 26, LE);
+      const lExtraLen = dv.getUint16(lho + 28, LE);
+      const dataStart = lho + 30 + lNameLen + lExtraLen;
+      const data = buf.subarray(dataStart, dataStart + compSize);
+      if (method === 0) return data;               // gespeichert
+      if (method === 8) return await _inflateRaw(data);  // deflate
+      throw new Error('Nicht unterstützte ZIP-Kompression (' + method + ').');
+    }
+    cd += 46 + nameLen + extraLen + commentLen;
+  }
+  return null;
+}
+
+/** Häufige XML-Entities dekodieren. */
+function _decodeXmlEntities(s) {
+  return String(s)
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+}
+
+/** word/document.xml → Klartext (Absätze zeilenweise). */
+function _docxXmlToText(xml) {
+  let t = String(xml || '')
+    .replace(/<w:tab\b[^>]*\/?>/g, '\t')
+    .replace(/<w:br\b[^>]*\/?>/g, '\n')
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<[^>]+>/g, '');
+  t = _decodeXmlEntities(t);
+  return t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Klartext eines verknüpften .docx-Regelwerkdokuments (Texterkennung für BPMN). */
+async function spGetPolicyDocText(driveId, itemId) {
+  if (!driveId || !itemId) return '';
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const meta = await _get(`${SP.graphBase}/drives/${driveId}/items/${itemId}?$select=name,size`, token);
+  const name = (meta.name || '').toLowerCase();
+  if (!/\.docx$/.test(name))
+    throw new Error('Automatische Texterkennung nur für .docx möglich (Dokument: ' + (meta.name || '?') + '). Text bitte manuell einfügen.');
+  if ((meta.size || 0) > 8 * 1024 * 1024) throw new Error('Dokument zu groß für die Texterkennung (> 8 MB).');
+  // Inhalt direkt über /content laden (robust, unabhängig von der downloadUrl-Annotation).
+  const resp = await fetch(`${SP.graphBase}/drives/${driveId}/items/${itemId}/content`,
+    { headers: { Authorization: `Bearer ${token}` } });
+  if (!resp.ok) throw new Error('Dokument-Download fehlgeschlagen (' + resp.status + ').');
+  const buf = new Uint8Array(await resp.arrayBuffer());
+  const xmlBytes = await _zipEntryBytes(buf, 'word/document.xml');
+  if (!xmlBytes) throw new Error('word/document.xml nicht gefunden. Ist das eine gültige .docx?');
+  return _docxXmlToText(new TextDecoder('utf-8').decode(xmlBytes));
+}
+
+/* ── Prozesslandkarte (prozesslandkarte.json im Konfig-Ordner) ──
+   Dieselbe Mechanik wie die Governance-Struktur: eine Datei, keine Liste,
+   keine Spalte. Die Karte ist Aufbauwissen, kein Bestand. */
+const LANDKARTE_DATEI = 'prozesslandkarte.json';
+function _landkartePfad() { return `${SP.configFolder}/${LANDKARTE_DATEI}`; }
+
+/** @returns {Promise<{daten:object, geaendertAm:string}|null>} null = noch nie gespeichert. */
+async function spLoadLandkarte() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_landkartePfad()}`;
+  let meta;
+  try {
+    meta = await _get(`${basis}?$select=lastModifiedDateTime`, token);
+  } catch (e) {
+    return null;      // 404 = Startbestand gilt
+  }
+  const resp = await fetch(`${basis}:/content`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (!resp.ok) throw new Error(`Governance-Struktur nicht lesbar (HTTP ${resp.status})`);
+  return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/** Zeitstempel der gespeicherten Karte (für die Gleichzeitigkeits-Prüfung). */
+async function spLandkarteMeta() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  try {
+    const meta = await _get(
+      `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_landkartePfad()}?$select=lastModifiedDateTime`, token);
+    return meta.lastModifiedDateTime || '';
+  } catch (e) { return null; }
+}
+
+async function spSaveLandkarte(daten) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const json = JSON.stringify(daten, null, 2);
+  const item = await _uploadFile(token, _landkartePfad(), new TextEncoder().encode(json), 'application/json');
+  return (item && item.lastModifiedDateTime) || '';
+}
+
+/* ═══════════════════════════════════════════════════
+   Prozesse (BPMN 2.0) – .bpmn-Dateien im Ordner „Prozesse"
+   der ISMS-Dokumentbibliothek (sites/ISMS). Verknüpfung zu Richtlinien
+   liegt im BPMN-XML selbst (Prozess-Dokumentation), keine Extra-Liste nötig.
+═══════════════════════════════════════════════════ */
+const PROCESS_FOLDER = 'Prozesse';
+// Anlagen liegen neben den Modellen, nicht zwischen ihnen: ein eigener
+// Unterordner haelt die Prozessliste sauber (sie liest nur .bpmn).
+const PROC_DOC_FOLDER = 'Anlagen';
+const PROC_FELDER = '?$select=id,name,size,webUrl,folder,lastModifiedDateTime,lastModifiedBy&$top=200';
+
+/** Werk-Kürzel auf einen unbedenklichen Ordnernamen eindampfen ('' = ohne Werk). */
+function _prozessOrdnerName(werk) {
+  return String(werk || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+}
+
+/**
+ * Ordner „Prozesse" und darin den Werk-Ordner anlegen, falls sie fehlen.
+ * Jedes Werk führt eine eigene Landkarte – seine Modelle liegen deshalb auch
+ * in einem eigenen Ordner. Sonst wäre „Vertrieb" aus HOL dieselbe Datei wie
+ * „Vertrieb" aus SHB.
+ */
+async function _prozessOrdnerSicherstellen(token, werk) {
+  const anlegen = async (elternPfad, name) => {
+    const url = elternPfad
+      ? `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${elternPfad}:/children`
+      : `${SP.graphBase}/drives/${_sp.ismsDriveId}/root/children`;
+    const res = await _fetchRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+    });
+    // 409 heißt: gibt es schon - genau das ist der Normalfall.
+    if (!res.ok && res.status !== 409) console.warn(`Ordner „${name}" nicht angelegt (${res.status})`);
+  };
+  await anlegen('', PROCESS_FOLDER);
+  const ordner = _prozessOrdnerName(werk);
+  if (ordner) await anlegen(encodeURIComponent(PROCESS_FOLDER), ordner);
+  return ordner;
+}
+
+/** Pfad einer Prozessdatei: mit Werk im Unterordner, ohne Werk direkt darin. */
+function _prozessPfad(werk, fname) {
+  const teile = [PROCESS_FOLDER];
+  const ordner = _prozessOrdnerName(werk);
+  if (ordner) teile.push(ordner);
+  teile.push(fname);
+  return teile.map(encodeURIComponent).join('/');
+}
+
+/** Ein DriveItem auf einen Prozess abbilden; `ordner` ist das Werk ('' = keins). */
+function _mapProcess(f, ordner) {
+  return {
+    itemId:     f.id,
+    name:       f.name,
+    title:      f.name.replace(/\.bpmn$/i, ''),
+    ordner:     ordner || '',
+    webUrl:     f.webUrl || '',
+    size:       f.size || 0,
+    modified:   f.lastModifiedDateTime || '',
+    modifiedBy: (f.lastModifiedBy && f.lastModifiedBy.user && f.lastModifiedBy.user.displayName) || '',
+  };
+}
+
+/** Alle .bpmn-Dateien auflisten - im Prozesse-Ordner und in den Werk-Ordnern
+ *  darunter (leer, wenn der Ordner noch fehlt). */
+async function spListProcesses() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  await _ismsLib(token);
+  const bpmn = (liste, ordner) => (liste || []).filter(f => /\.bpmn$/i.test(f.name || '')).map(f => _mapProcess(f, ordner));
+  let wurzel;
+  try {
+    wurzel = await _get(
+      `${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${encodeURIComponent(PROCESS_FOLDER)}:/children${PROC_FELDER}`, token);
+  } catch (e) {
+    if (e.status === 404 || /itemNotFound|404/i.test(e.message || '')) return [];   // Ordner existiert noch nicht
+    throw e;
+  }
+  const kinder = wurzel.value || [];
+  // Jeder Unterordner ist ein Werk. Ein Ordner, der keinem bekannten Werk
+  // entspricht, wird trotzdem gelesen - lieber anzeigen als verschlucken.
+  const unter = await Promise.all(kinder.filter(f => f.folder && f.name !== PROC_DOC_FOLDER).map(async (o) => {
+    try {
+      const d = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${o.id}/children${PROC_FELDER}`, token);
+      return bpmn(d.value, o.name);
+    } catch (e) { console.warn(`Ordner „${o.name}" nicht lesbar:`, e.message); return []; }
+  }));
+  return bpmn(kinder, '').concat(...unter)
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+}
+
+/* Modelle, die in dieser Sitzung schon gelesen wurden: Kennung → { stand, xml }.
+   Fälligkeiten, Kennzahlen und die Verantwortung lesen jeweils ALLE Modelle, um
+   ein paar Angaben herauszuholen. Gemessen am 16.11.2026: gut hundert Downloads
+   und rund zehn Sekunden je Ansicht, jedes Mal neu. Wer den Stand aus der Liste
+   mitgibt, bekommt eine unveränderte Datei aus dem Speicher. Ohne Stand wird
+   immer frisch gelesen: Der Editor und die Freigabe brauchen die Datei, wie sie
+   jetzt ist, nicht wie sie beim letzten Auflisten war. */
+const _procXml = new Map();
+
+/** Der Stand einer Datei aus der Liste (spListProcesses). Ändert sich ihr Inhalt, ändert er sich mit. */
+function spProzessStand(p) { return (p && p.modified) ? `${p.modified}|${p.size || 0}` : ''; }
+
+/**
+ * BPMN-XML einer Prozessdatei laden.
+ * @param {string} itemId
+ * @param {string} [stand] aus spProzessStand(): dann genügt die Fassung aus dem Speicher, solange der Stand gleich ist.
+ * @returns {Promise<string>}
+ */
+async function spGetProcessXml(itemId, stand) {
+  const gemerkt = stand ? _procXml.get(itemId) : null;
+  if (gemerkt && gemerkt.stand === stand) return gemerkt.xml;
+  const lauf = (async () => {
+    const token = await acquireToken(SP.scopes);
+    if (!token) throw new Error('Nicht angemeldet');
+    await _ismsLib(token);
+    const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}/content`,
+      { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Prozess laden fehlgeschlagen (${res.status})`);
+    return res.text();
+  })();
+  if (stand) {
+    const eintrag = { stand, xml: lauf };
+    _procXml.set(itemId, eintrag);
+    // Ein gescheiterter Abruf bleibt nicht liegen, der nächste versucht es neu.
+    lauf.catch(() => { if (_procXml.get(itemId) === eintrag) _procXml.delete(itemId); });
+  }
+  return lauf;
+}
+
+/** Prozess speichern (Upload .bpmn; legt „Prozesse" und den Werk-Ordner bei
+ *  Bedarf automatisch an). Gleicher Pfad → neue Version derselben Datei.
+ *  @param werk Werk-Kürzel; leer lässt die Datei direkt im Prozesse-Ordner.
+ *  @returns das DriveItem. */
+/** Der Dateiname (ohne .bpmn), unter dem ein Modell dieses Namens liegt – SharePoint
+ *  verträgt nicht jedes Zeichen. Wer Namen vergleicht, vergleicht diese Form:
+ *  „Ein-/Auslagern" und „Ein_/Auslagern" wären dieselbe Datei. */
+function spProzessDateiname(name) {
+  return String(name || 'Prozess').replace(/[#%&{}\\<>*?/$!'":@+`|=]/g, '_').trim() || 'Prozess';
+}
+
+async function spSaveProcess(name, xml, werk) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const safe = spProzessDateiname(name);
+  const fname = /\.bpmn$/i.test(safe) ? safe : safe + '.bpmn';
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const path = _prozessPfad(ordner, fname);
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${path}:/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/xml' },
+    body: xml,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(`Speichern fehlgeschlagen (${res.status}): ${String(t).slice(0, 200)}`);
+  }
+  _procXml.clear();   // der Stand ändert sich ohnehin, aber sicher ist sicher
+  return res.json();
+}
+
+/**
+ * Eine Prozessdatei in den Ordner eines Werks verschieben. Die Kennung der
+ * Datei bleibt dabei erhalten - alle Verknüpfungen überstehen den Umzug,
+ * denn Landkarte und Mindmap merken sich die Kennung, nicht den Pfad.
+ */
+async function spMoveProcess(itemId, werk, neuerName) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const pfad = ordner
+    ? `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(ordner)}`
+    : encodeURIComponent(PROCESS_FOLDER);
+  const ziel = await _get(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${pfad}`, token);
+  const rumpf = { parentReference: { id: ziel.id } };
+  // Umbenennen im selben Zug: auch dabei bleibt die Kennung erhalten – anders
+  // als beim Anlegen unter neuem Namen, das eine zweite Datei erzeugen würde.
+  if (neuerName) rumpf.name = /\.bpmn$/i.test(neuerName) ? neuerName : neuerName + '.bpmn';
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(rumpf),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(/nameAlreadyExists/i.test(String(t))
+      ? 'Dort gibt es bereits ein Modell mit diesem Namen.'
+      : `Verschieben fehlgeschlagen (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * Ein Dokument an einem Prozess hinterlegen. Die Datei landet neben dem Modell
+ * in „Prozesse/<Werk>/Anlagen". Zurück kommt die Kennung, nicht der Pfad:
+ * verschiebt jemand die Datei später, hält der Verweis trotzdem.
+ */
+async function spUploadProcessDoc(werk, filename, bytes, contentType) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const ordner = await _prozessOrdnerSicherstellen(token, werk);
+  const eltern = ordner
+    ? `${encodeURIComponent(PROCESS_FOLDER)}/${encodeURIComponent(ordner)}`
+    : encodeURIComponent(PROCESS_FOLDER);
+  const angelegt = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${eltern}:/children`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: PROC_DOC_FOLDER, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+  });
+  // 409 heißt: gibt es schon – der Normalfall ab der zweiten Anlage.
+  if (!angelegt.ok && angelegt.status !== 409) console.warn(`Ordner „${PROC_DOC_FOLDER}" nicht angelegt (${angelegt.status})`);
+  const safe = String(filename || 'dokument').replace(/[<>:"/\\|?*]/g, '_').trim() || 'dokument';
+  const teile = [PROCESS_FOLDER];
+  if (ordner) teile.push(ordner);
+  teile.push(PROC_DOC_FOLDER, safe);
+  const pfad = teile.map(encodeURIComponent).join('/');
+  const res = await _fetchRetry(`${SP.graphBase}/drives/${_sp.ismsDriveId}/root:/${pfad}:/content`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream' },
+    body: bytes,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.status);
+    throw new Error(`Hochladen fehlgeschlagen (${res.status}): ${String(t).slice(0, 200)}`);
+  }
+  const d = await res.json();
+  return { driveId: _sp.ismsDriveId, itemId: d.id, name: d.name, url: d.webUrl || '' };
+}
+
+/** Prozessdatei löschen. */
+async function spDeleteProcess(itemId) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await _ismsLib(token);
+  const res = await fetch(`${SP.graphBase}/drives/${_sp.ismsDriveId}/items/${itemId}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok && res.status !== 404) throw new Error(`Löschen fehlgeschlagen (${res.status})`);
+  _procXml.delete(itemId);
+}
+
+/* ═══════════════════════════════════════════════════
+   access-config.json (Rollen)
+═══════════════════════════════════════════════════ */
+
+async function spLoadAccessConfig() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/access-config.json:/content`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return null; // 404 = noch nicht angelegt
+  return resp.json();
+}
+
+async function spSaveAccessConfig(config) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const json = JSON.stringify(config, null, 2);
+  await _uploadFile(token, `${SP.configFolder}/access-config.json`,
+    new TextEncoder().encode(json), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   governance-struktur.json (Konzernregelwerk-Matrix)
+   ═══════════════════════════════════════════════════
+   Die Matrix wird in der App gepflegt und liegt als JSON neben
+   access-config.json – keine neue Liste, keine neuen Spalten. Solange die Datei
+   fehlt, gilt der Startbestand aus dem Import der CGB-Mappe (js/govstruktur.js).
+   Gegen gegenseitiges Überschreiben merkt sich die App den Änderungszeitstempel
+   der Datei und prüft ihn vor dem Speichern. */
+
+const GOV_STRUKTUR_DATEI = 'governance-struktur.json';
+
+function _govStrukturPfad() {
+  return `${SP.configFolder}/${GOV_STRUKTUR_DATEI}`;
+}
+
+/** Gespeicherte Matrix laden. @returns {Promise<{daten:object, geaendertAm:string}|null>} */
+async function spLoadGovStruktur() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_govStrukturPfad()}`;
+  let meta;
+  try {
+    meta = await _get(`${basis}?$select=lastModifiedDateTime`, token);
+  } catch (e) {
+    if (/\(404\)/.test(e.message || '')) return null;      // noch nie gespeichert → Startbestand gilt
+    throw e;
+  }
+  const resp = await fetch(`${basis}:/content`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (!resp.ok) throw new Error(`Governance-Struktur nicht lesbar (HTTP ${resp.status})`);
+  return { daten: await resp.json(), geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/** Änderungszeitstempel der gespeicherten Datei (für den Gleichzeitigkeits-Schutz). */
+async function spGovStrukturMeta() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  try {
+    const meta = await _get(
+      `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_govStrukturPfad()}?$select=lastModifiedDateTime`, token);
+    return meta.lastModifiedDateTime || '';
+  } catch (e) { return null; }
+}
+
+/** Matrix speichern. @returns {Promise<string>} neuer Änderungszeitstempel */
+async function spSaveGovStruktur(daten) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const json = JSON.stringify(daten, null, 2);
+  const item = await _uploadFile(token, _govStrukturPfad(), new TextEncoder().encode(json), 'application/json');
+  return (item && item.lastModifiedDateTime) || '';
+}
+
+/* ═══════════════════════════════════════════════════
+   soa-config.json (Erklärung zur Anwendbarkeit, ISO 27001 6.1.3 d)
+   Struktur: { controls: { "A.5.1": { anwendbar, begruendung, status } }, meta: {...} }
+═══════════════════════════════════════════════════ */
+
+async function spLoadSoa() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/soa-config.json:/content`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return null; // 404 = noch nicht angelegt
+  return resp.json();
+}
+
+async function spSaveSoa(data) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  await _uploadFile(token, `${SP.configFolder}/soa-config.json`,
+    new TextEncoder().encode(JSON.stringify(data, null, 2)), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   M365-Nachweise aus dem Compliance-Cockpit (nur lesen)
+   Das Cockpit (compliance.dihag.de) ruft Live-Werte aus
+   Microsoft 365 ab und sichert sie je Annex-A-Control mit Stichtag in der
+   Liste „Compliance_M365Nachweise" auf der App-Site. Die SoA zeigt davon je
+   Control den jüngsten Eintrag. Ergebnis: { "A.8.5": { wert, stand, zeit } }.
+═══════════════════════════════════════════════════ */
+
+async function spGetM365Nachweise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return {};
+  await spInit();
+  let listId;
+  try {
+    listId = await _findListId(token, SP.m365NachweisList);
+  } catch (e) {
+    return {};   // Liste gibt es erst, wenn das Cockpit sie angelegt hat
+  }
+  const out = {};
+  let url = `${SP.graphBase}/sites/${_sp.appSiteId}/lists/${listId}/items?$expand=fields($select=Title,Wert,Stand,Zeit)&$top=500`;
+  while (url) {
+    const r = await _get(url, token);
+    for (const it of (r.value || [])) {
+      const f = it.fields || {};
+      const id = String(f.Title || '').trim();
+      if (!id) continue;
+      const zeit = String(f.Zeit || f.Stand || '');
+      if (!out[id] || zeit > out[id].zeit) out[id] = { wert: f.Wert || '', stand: f.Stand || '', zeit };
+    }
+    url = r['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════
+   Reifegrad-Assessment „IT und OT Betrieb" (reifegrad-config.json)
+═══════════════════════════════════════════════════ */
+
+async function spLoadReifegrad() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  await spInit();
+  if (!_sp.appDriveId) return null;
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${SP.configFolder}/reifegrad-config.json:/content`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (resp.status === 404) return null; // noch nicht angelegt
+  if (!resp.ok) throw new Error(`Reifegrad nicht lesbar (HTTP ${resp.status})`);
+  return resp.json();
+}
+
+async function spSaveReifegrad(data) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  await _uploadFile(token, `${SP.configFolder}/reifegrad-config.json`,
+    new TextEncoder().encode(JSON.stringify(data, null, 2)), 'application/json');
+}
+
+/* ═══════════════════════════════════════════════════
+   Risiko-Register (SharePoint-Liste „Risiken", wird bei Bedarf angelegt)
+═══════════════════════════════════════════════════ */
+
+/* Erwartete Spalten der Liste „Risiken" – EINE Quelle für: Auto-Anlage,
+   Fehlende-Spalten-Warnung und die Anleitung beim manuellen Anlegen.
+   Interne Namen exakt so (ASCII, keine Umlaute → kein kodierter interner Name). */
+const RISK_COLUMNS = [
+  { name: 'Beschreibung',          typ: 'Mehrere Zeilen Text' },
+  { name: 'Kategorie',             typ: 'Einzelne Textzeile' },
+  { name: 'Eigner',                typ: 'Einzelne Textzeile' },
+  { name: 'Schutzziele',           typ: 'Einzelne Textzeile' },
+  { name: 'BruttoEintritt',        typ: 'Zahl' },
+  { name: 'BruttoAuswirkung',      typ: 'Zahl' },
+  { name: 'NettoEintritt',         typ: 'Zahl' },
+  { name: 'NettoAuswirkung',       typ: 'Zahl' },
+  { name: 'Behandlung',            typ: 'Einzelne Textzeile' },
+  { name: 'BehandlungBegruendung', typ: 'Mehrere Zeilen Text' },
+  { name: 'MassnahmenJson',        typ: 'Mehrere Zeilen Text' },
+  { name: 'ControlsJson',          typ: 'Mehrere Zeilen Text' },
+  { name: 'RichtlinienJson',       typ: 'Mehrere Zeilen Text' },
+  { name: 'AssetsJson',            typ: 'Mehrere Zeilen Text' },
+  { name: 'RiskStatus',            typ: 'Einzelne Textzeile' },
+  { name: 'NaechsteReview',        typ: 'Datum und Uhrzeit' },
+  { name: 'HistorieJson',          typ: 'Mehrere Zeilen Text' },
+];
+
+/** Menschlicher Spaltentyp → Graph-Spaltendefinition (für die Auto-Anlage). */
+function _riskColGraphDef(typ) {
+  if (typ === 'Zahl')                return { number: {} };
+  if (typ === 'Datum und Uhrzeit')   return { dateTime: {} };
+  if (typ === 'Mehrere Zeilen Text') return { text: { allowMultipleLines: true } };
+  return { text: {} };   // Einzelne Textzeile
+}
+
+let _riskCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
+
+async function _loadRiskCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.riskListId}/columns?$select=name`, token);
+    _riskCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _riskCols = null; }
+}
+
+/** Risiken-Liste robust finden – oder anlegen. Liegt BEWUSST auf der ISMS-Site
+ *  (sites/ISMS), nicht auf der App-Site – so gewünscht. */
+async function spEnsureRiskList(create = true) {
+  if (_sp.riskListId) return _sp.riskListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.riskList);   // 'risiken'
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) { _sp.riskListId = hit.id; await _loadRiskCols(token, siteId); return _sp.riskListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.riskList,
+    list: { template: 'genericList' },
+    columns: RISK_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  };
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, body);
+  _sp.riskListId = created.id;
+  await _loadRiskCols(token, siteId);
+  return _sp.riskListId;
+}
+
+function _riskParseJson(s, fallback) {
+  try { const v = JSON.parse(s || ''); return v == null ? fallback : v; } catch (e) { return fallback; }
+}
+
+/** SP-Item → Risiko-Objekt (App-Modell). */
+function _mapRisk(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:        f.Title || '',
+    beschreibung: f.Beschreibung || '',
+    kategorie:    f.Kategorie || '',
+    eigner:       f.Eigner || '',
+    // CIA-Schutzziele (englisch). Altbestand „V" (Vertraulichkeit) → „C" (Confidentiality).
+    schutzziele:  String(f.Schutzziele || '').split(',').map(s => s.trim()).filter(Boolean).map(z => z === 'V' ? 'C' : z),
+    brutto:       { e: Number(f.BruttoEintritt) || 0, a: Number(f.BruttoAuswirkung) || 0 },
+    netto:        { e: Number(f.NettoEintritt) || 0, a: Number(f.NettoAuswirkung) || 0 },
+    behandlung:   f.Behandlung || '',
+    behandlungBegruendung: f.BehandlungBegruendung || '',
+    massnahmen:   _riskParseJson(f.MassnahmenJson, []),
+    controls:     _riskParseJson(f.ControlsJson, []),
+    richtlinien:  _riskParseJson(f.RichtlinienJson, []),
+    assets:       _riskParseJson(f.AssetsJson, []),
+    status:       f.RiskStatus || 'offen',
+    naechsteReview: f.NaechsteReview || '',
+    historie:     _riskParseJson(f.HistorieJson, []),
+    created:      it.createdDateTime || '',
+    modified:     it.lastModifiedDateTime || '',
+  };
+}
+
+/** Risiko-Objekt → SP-Felder (nur vorhandene Spalten). */
+function _riskFields(r) {
+  const all = {
+    Title:                 String(r.titel || '(ohne Titel)').slice(0, 255),
+    Beschreibung:          r.beschreibung || '',
+    Kategorie:             String(r.kategorie || '').slice(0, 255),
+    Eigner:                String(r.eigner || '').slice(0, 255),
+    Schutzziele:           (r.schutzziele || []).join(','),
+    BruttoEintritt:        Number(r.brutto?.e) || 0,
+    BruttoAuswirkung:      Number(r.brutto?.a) || 0,
+    NettoEintritt:         Number(r.netto?.e) || 0,
+    NettoAuswirkung:       Number(r.netto?.a) || 0,
+    Behandlung:            String(r.behandlung || '').slice(0, 60),
+    BehandlungBegruendung: r.behandlungBegruendung || '',
+    MassnahmenJson:        JSON.stringify(r.massnahmen || []),
+    ControlsJson:          JSON.stringify(r.controls || []),
+    RichtlinienJson:       JSON.stringify(r.richtlinien || []),
+    AssetsJson:            JSON.stringify(r.assets || []),
+    RiskStatus:            String(r.status || 'offen').slice(0, 60),
+    HistorieJson:          JSON.stringify(r.historie || []),
+  };
+  if (r.naechsteReview) all.NaechsteReview = r.naechsteReview;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_riskCols || _riskCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Risiken-Liste (nach spEnsureRiskList). */
+function spMissingRiskColumns() {
+  if (!_riskCols) return [];
+  return RISK_COLUMNS.map(c => c.name).filter(n => !_riskCols.has(n));
+}
+
+async function spGetRisks() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureRiskList(true);
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapRisk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddRisk(r) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _riskFields(r) });
+  return created && created.id;
+}
+
+async function spUpdateRisk(id, r) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(false);
+  if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _riskFields(r));
+}
+
+async function spDeleteRisk(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureRiskList(false);
+  if (!listId) throw new Error('Risiken-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Ausnahmeregister (SharePoint-Liste „Ausnahmen", wird bei Bedarf angelegt)
+   ===================================================
+   Eine genehmigte, befristete Abweichung von einer Richtlinie. Der
+   Reifegrad-Katalog verlangt sie in R130 („Ausnahmen: Mit Risikobewertung,
+   befristet, Entscheidung dokumentiert, ISB einbeziehen") – jedes dieser vier
+   Worte hat hier eine Spalte. Die Liste liegt neben den Risiken auf der
+   ISMS-Site: Eine Ausnahme beruft sich auf ein Risiko, das man in Kauf nimmt.
+═══════════════════════════════════════════════════ */
+
+/* Erwartete Spalten der Liste „Ausnahmen" – EINE Quelle für Auto-Anlage,
+   Fehlende-Spalten-Warnung und die Anleitung zum manuellen Anlegen.
+   Interne Namen exakt so (ASCII, keine Umlaute → kein kodierter interner Name). */
+const EXC_COLUMNS = [
+  { name: 'Beschreibung',      typ: 'Mehrere Zeilen Text' },
+  { name: 'RichtlinieId',      typ: 'Einzelne Textzeile' },
+  { name: 'RichtlinieTitel',   typ: 'Einzelne Textzeile' },
+  { name: 'Abschnitt',         typ: 'Einzelne Textzeile' },
+  { name: 'Begruendung',       typ: 'Mehrere Zeilen Text' },
+  { name: 'Antragsteller',     typ: 'Einzelne Textzeile' },
+  { name: 'Werke',             typ: 'Einzelne Textzeile' },
+  { name: 'RisikoEintritt',    typ: 'Zahl' },
+  { name: 'RisikoAuswirkung',  typ: 'Zahl' },
+  { name: 'RisikoId',          typ: 'Einzelne Textzeile' },
+  { name: 'Kompensation',      typ: 'Mehrere Zeilen Text' },
+  { name: 'ExcStatus',         typ: 'Einzelne Textzeile' },
+  { name: 'BefristetBis',      typ: 'Datum und Uhrzeit' },
+  { name: 'EntscheiderUPN',    typ: 'Einzelne Textzeile' },
+  { name: 'EntschiedenAm',     typ: 'Datum und Uhrzeit' },
+  { name: 'EntscheidungKommentar', typ: 'Mehrere Zeilen Text' },
+  { name: 'IsbUPN',            typ: 'Einzelne Textzeile' },
+  { name: 'IsbAm',             typ: 'Datum und Uhrzeit' },
+  { name: 'HistorieJson',      typ: 'Mehrere Zeilen Text' },
+];
+
+let _excCols = null;   // vorhandene Spalten (für spaltentolerantes Schreiben)
+
+async function _loadExcCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.excListId}/columns?$select=name`, token);
+    _excCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _excCols = null; }
+}
+
+/** Ausnahmen-Liste robust finden – oder anlegen. Liegt wie die Risiken auf der ISMS-Site. */
+async function spEnsureExceptionList(create = true) {
+  if (_sp.excListId) return _sp.excListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.exceptionList);   // 'ausnahmen'
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) { _sp.excListId = hit.id; await _loadExcCols(token, siteId); return _sp.excListId; }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const body = {
+    displayName: SP.exceptionList,
+    list: { template: 'genericList' },
+    columns: EXC_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  };
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, body);
+  _sp.excListId = created.id;
+  await _loadExcCols(token, siteId);
+  return _sp.excListId;
+}
+
+/** SP-Item → Ausnahme-Objekt (App-Modell). */
+function _mapException(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:            f.Title || '',
+    beschreibung:     f.Beschreibung || '',
+    richtlinieId:     f.RichtlinieId || '',
+    richtlinieTitel:  f.RichtlinieTitel || '',
+    abschnitt:        f.Abschnitt || '',
+    begruendung:      f.Begruendung || '',
+    antragsteller:    f.Antragsteller || '',
+    werke:            String(f.Werke || '').split(',').map(s => s.trim()).filter(Boolean),
+    risiko:           { e: Number(f.RisikoEintritt) || 0, a: Number(f.RisikoAuswirkung) || 0 },
+    risikoId:         f.RisikoId || '',
+    kompensation:     f.Kompensation || '',
+    status:           f.ExcStatus || 'beantragt',
+    befristetBis:     f.BefristetBis || '',
+    entscheider:      f.EntscheiderUPN || '',
+    entschiedenAm:    f.EntschiedenAm || '',
+    entscheidungKommentar: f.EntscheidungKommentar || '',
+    isb:              f.IsbUPN || '',
+    isbAm:            f.IsbAm || '',
+    historie:         _riskParseJson(f.HistorieJson, []),
+    created:          it.createdDateTime || '',
+    modified:         it.lastModifiedDateTime || '',
+  };
+}
+
+/** Ausnahme-Objekt → SP-Felder (nur vorhandene Spalten). */
+function _excFields(a) {
+  const all = {
+    Title:           String(a.titel || '(ohne Titel)').slice(0, 255),
+    Beschreibung:    a.beschreibung || '',
+    RichtlinieId:    String(a.richtlinieId || '').slice(0, 255),
+    RichtlinieTitel: String(a.richtlinieTitel || '').slice(0, 255),
+    Abschnitt:       String(a.abschnitt || '').slice(0, 255),
+    Begruendung:     a.begruendung || '',
+    Antragsteller:   String(a.antragsteller || '').slice(0, 255),
+    Werke:           (a.werke || []).join(','),
+    RisikoEintritt:   Number(a.risiko?.e) || 0,
+    RisikoAuswirkung: Number(a.risiko?.a) || 0,
+    RisikoId:        String(a.risikoId || '').slice(0, 255),
+    Kompensation:    a.kompensation || '',
+    ExcStatus:       String(a.status || 'beantragt').slice(0, 60),
+    EntscheiderUPN:  String(a.entscheider || '').slice(0, 255),
+    EntscheidungKommentar: a.entscheidungKommentar || '',
+    IsbUPN:          String(a.isb || '').slice(0, 255),
+    HistorieJson:    JSON.stringify(a.historie || []),
+  };
+  // Datumsfelder nur setzen, wenn belegt – ein leerer String ist für Graph kein Datum.
+  if (a.befristetBis)  all.BefristetBis  = a.befristetBis;
+  if (a.entschiedenAm) all.EntschiedenAm = a.entschiedenAm;
+  if (a.isbAm)         all.IsbAm         = a.isbAm;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_excCols || _excCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Ausnahmen-Liste (nach spEnsureExceptionList). */
+function spMissingExceptionColumns() {
+  if (!_excCols) return [];
+  return EXC_COLUMNS.map(c => c.name).filter(n => !_excCols.has(n));
+}
+
+async function spGetExceptions() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureExceptionList(true);
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapException(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/**
+ * Ausnahmen lesen, ohne etwas anzulegen.
+ *
+ * Für den Hinweis an der Richtlinie: Den ruft jede Anmeldung auf. Der normale
+ * Weg legt die Liste bei Bedarf an – das ist beim Öffnen des Reiters richtig
+ * und beim Zeichnen der Startseite falsch. Rückgabe `null` heißt „die Liste
+ * gibt es (noch) nicht"; ein leeres Feld heißt „es gibt sie, sie ist leer".
+ */
+async function spGetExceptionsLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) return null;
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapException(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddException(a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _excFields(a) });
+  return created && created.id;
+}
+
+async function spUpdateException(id, a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) throw new Error('Ausnahmen-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _excFields(a));
+}
+
+async function spDeleteException(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureExceptionList(false);
+  if (!listId) throw new Error('Ausnahmen-Liste nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Wirksamkeit & Verbesserung (SharePoint-Liste „Wirksamkeit")
+   ===================================================
+   Drei ISO-Kapitel, die das RMS bisher nur benennen, aber nicht belegen
+   konnte – und die in der Sache zusammenhängen:
+
+     9.2  Internes Audit          → findet Abweichungen
+     10.2 Nichtkonformität und    → behandelt sie, prüft die Wirksamkeit
+          Korrekturmaßnahmen
+     9.3  Managementbewertung     → sieht auf beide und entscheidet
+
+   Deshalb EIN Register mit drei Satzarten statt drei Registern mit derselben
+   Mechanik. Eine Auditfeststellung ist keine Kopie einer Abweichung, sie IST
+   eine – sie trägt nur ein Feld mehr, das sagt, woher sie kommt.
+═══════════════════════════════════════════════════ */
+
+const WIRK_COLUMNS = [
+  { name: 'Art',              typ: 'Einzelne Textzeile' },   // abweichung | audit | bewertung | uebung | pruefung
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'WDatum',           typ: 'Datum und Uhrzeit' },
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'Beteiligte',       typ: 'Einzelne Textzeile' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },
+  { name: 'WStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'Quelle',           typ: 'Einzelne Textzeile' },
+  { name: 'HerkunftId',       typ: 'Einzelne Textzeile' },
+  { name: 'Ursache',          typ: 'Mehrere Zeilen Text' },
+  { name: 'MassnahmenJson',   typ: 'Mehrere Zeilen Text' },
+  { name: 'Wirksamkeit',      typ: 'Mehrere Zeilen Text' },
+  { name: 'WirksamAm',        typ: 'Datum und Uhrzeit' },
+  { name: 'Umfang',           typ: 'Mehrere Zeilen Text' },
+  { name: 'EingabenJson',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Ergebnis',         typ: 'Mehrere Zeilen Text' },
+  { name: 'Normbezug',        typ: 'Einzelne Textzeile' },
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+  // Vierte Satzart „Notfallübung": welcher Plan geübt wurde (WERK:kachel) und wie.
+  { name: 'Prozess',          typ: 'Einzelne Textzeile' },
+  { name: 'Uebungsart',       typ: 'Einzelne Textzeile' },
+];
+
+let _wirkCols = null;
+
+async function _loadWirkCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.wirkListId}/columns?$select=name`, token);
+    _wirkCols = new Set((cols.value || []).map(c => c.name));
+  } catch (e) { _wirkCols = null; }
+}
+
+/**
+ * Spalten nachziehen, die seit dem Anlegen der Liste dazugekommen sind.
+ *
+ * `_wirkFields` schreibt nur Spalten, die es gibt – eine neue Spalte würde
+ * sonst still verschluckt: Der Eintrag ist gespeichert, das Feld ist weg,
+ * und niemand merkt es. Deshalb wird hier angelegt, was fehlt. Wer das Recht
+ * dazu nicht hat, bekommt weiter die Warnung im Reiter; nichts bricht.
+ */
+async function _ergaenzeWirkSpalten(token, siteId) {
+  if (!_wirkCols) return;
+  const fehlend = WIRK_COLUMNS.filter(c => !_wirkCols.has(c.name));
+  if (!fehlend.length) return;
+  let angelegt = 0;
+  for (const c of fehlend) {
+    try {
+      await _post(`${SP.graphBase}/sites/${siteId}/lists/${_sp.wirkListId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) });
+      angelegt++;
+    } catch (e) { console.warn('[wirksamkeit] Spalte nicht anlegbar:', c.name, e.message); }
+  }
+  if (angelegt) await _loadWirkCols(token, siteId);
+}
+
+/** Liste „Wirksamkeit" finden – oder anlegen. Auf der ISMS-Site, wie Risiken und Ausnahmen. */
+async function spEnsureWirkList(create = true) {
+  if (_sp.wirkListId) return _sp.wirkListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.wirkList);
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) {
+        _sp.wirkListId = hit.id;
+        await _loadWirkCols(token, siteId);
+        if (create) await _ergaenzeWirkSpalten(token, siteId);
+        return _sp.wirkListId;
+      }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, {
+    displayName: SP.wirkList,
+    list: { template: 'genericList' },
+    columns: WIRK_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  });
+  _sp.wirkListId = created.id;
+  await _loadWirkCols(token, siteId);
+  return _sp.wirkListId;
+}
+
+function _mapWirk(it) {
+  const f = it.fields || {};
+  return {
+    id: it.id,
+    titel:          f.Title || '',
+    art:            f.Art || 'abweichung',
+    beschreibung:   f.Beschreibung || '',
+    datum:          f.WDatum || '',
+    verantwortlich: f.Verantwortlich || '',
+    beteiligte:     String(f.Beteiligte || '').split(',').map(s => s.trim()).filter(Boolean),
+    werke:          String(f.Werke || '').split(',').map(s => s.trim()).filter(Boolean),
+    status:         f.WStatus || 'offen',
+    quelle:         f.Quelle || '',
+    herkunftId:     f.HerkunftId || '',
+    ursache:        f.Ursache || '',
+    massnahmen:     _riskParseJson(f.MassnahmenJson, []),
+    wirksamkeit:    f.Wirksamkeit || '',
+    wirksamAm:      f.WirksamAm || '',
+    umfang:         f.Umfang || '',
+    eingaben:       _riskParseJson(f.EingabenJson, []),
+    ergebnis:       f.Ergebnis || '',
+    normbezug:      f.Normbezug || '',
+    historie:       _riskParseJson(f.HistorieJson, []),
+    prozess:        f.Prozess || '',
+    uebungsart:     f.Uebungsart || '',
+    created:        it.createdDateTime || '',
+    modified:       it.lastModifiedDateTime || '',
+  };
+}
+
+function _wirkFields(w) {
+  const all = {
+    Title:          String(w.titel || '(ohne Titel)').slice(0, 255),
+    Art:            String(w.art || 'abweichung').slice(0, 40),
+    Beschreibung:   w.beschreibung || '',
+    Verantwortlich: String(w.verantwortlich || '').slice(0, 255),
+    Beteiligte:     (w.beteiligte || []).join(','),
+    Werke:          (w.werke || []).join(','),
+    WStatus:        String(w.status || 'offen').slice(0, 60),
+    Quelle:         String(w.quelle || '').slice(0, 100),
+    HerkunftId:     String(w.herkunftId || '').slice(0, 100),
+    Ursache:        w.ursache || '',
+    MassnahmenJson: JSON.stringify(w.massnahmen || []),
+    Wirksamkeit:    w.wirksamkeit || '',
+    Umfang:         w.umfang || '',
+    EingabenJson:   JSON.stringify(w.eingaben || []),
+    Ergebnis:       w.ergebnis || '',
+    Normbezug:      String(w.normbezug || '').slice(0, 255),
+    HistorieJson:   JSON.stringify(w.historie || []),
+    Prozess:        String(w.prozess || '').slice(0, 120),
+    Uebungsart:     String(w.uebungsart || '').slice(0, 40),
+  };
+  if (w.datum)     all.WDatum    = w.datum;
+  if (w.wirksamAm) all.WirksamAm = w.wirksamAm;
+  const fields = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k === 'Title' || !_wirkCols || _wirkCols.has(k)) fields[k] = v;
+  }
+  return fields;
+}
+
+/** Fehlende Spalten der Liste „Wirksamkeit". */
+function spMissingWirkColumns() {
+  if (!_wirkCols) return [];
+  return WIRK_COLUMNS.map(c => c.name).filter(n => !_wirkCols.has(n));
+}
+
+async function spGetWirk() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureWirkList(true);
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapWirk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/** Wie spGetWirk, aber ohne die Liste anzulegen (für Kacheln und Berichte). */
+async function spGetWirkLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureWirkList(false);
+  if (!listId) return null;
+  const siteId = await _ismsSiteId(token);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) out.push(_mapWirk(it));
+    url = resp['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+async function spAddWirk(w) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _wirkFields(w) });
+  return created && created.id;
+}
+
+async function spUpdateWirk(id, w) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(false);
+  if (!listId) throw new Error('Liste „Wirksamkeit" nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _wirkFields(w));
+}
+
+async function spDeleteWirk(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureWirkList(false);
+  if (!listId) throw new Error('Liste „Wirksamkeit" nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+/* ═══════════════════════════════════════════════════
+   Maßnahmen, Ziele, Kennzahlen: die bestehenden Listen des ISMS
+   Auf der ISMS-Site führt das Haus dafür seit 2025 eigene Listen:
+   „Maßnahmen", „ISMS Ziele", „Kennzahlen" und „Kennzahlen Tracking" (die
+   Messwerte), dazu die Nachschlagelisten „Teams", „Standorte" und
+   „ISO/IEC 27001:2022". Das RMS arbeitet mit ihnen, wie sie sind: Es liest
+   und schreibt Einträge, legt aber keine Liste an und ändert keine Spalte.
+   Spalten werden über ihren Anzeigenamen gefunden; was fehlt, bleibt leer.
+═══════════════════════════════════════════════════ */
+
+const HAUS_LISTEN = {
+  massnahmen: 'Maßnahmen', ziele: 'ISMS Ziele', kennzahlen: 'Kennzahlen', tracking: 'Kennzahlen Tracking',
+  teams: 'Teams', standorte: 'Standorte', iso2022: 'ISO/IEC 27001:2022',
+};
+
+/** Die Spalten je Liste: Feld im RMS → Anzeigename (oder interner Name) in SharePoint. */
+const HAUS_SPALTEN = {
+  massnahmen: {
+    titel: 'Title', beschreibung: 'Detailbeschreibung', durchfuehrung: 'Durchführung', status: 'Status',
+    quellen: 'Entspringt aus', bericht: 'Quelle / Bericht',
+    auswirkungEintritt: 'Auswirkung auf die Eintrittswahrscheinlichkeit', auswirkungSchaden: 'Auswirkung auf die Schadenshöhe',
+    teams: 'Team', verantwortlich: 'Verantwortlich zur Umsetzung', iso: 'ISO/IEC 27001:2022',
+    termin: 'Geplante Umsetzung', umgesetztAm: 'Umsetzungsdatum', ressourcen: 'Ressourcen', archiv: 'Archiv',
+    dokumente: 'Zugehörige Dokumente',
+  },
+  ziele: {
+    titel: 'Title', beschreibung: 'Beschreibung', termin: 'Umsetzung bis', messung: 'Messung', erreicht: 'Zielerreichung',
+    archiv: 'Archiv', bemerkung: 'Bemerkung', zieltyp: 'Zieltyp', status: 'Status', teams: 'Verantwortlich',
+    massnahmen: 'Maßnahmen', standort: 'Standort', prioritaet: 'Priorität',
+  },
+  kennzahlen: {
+    name: 'Title', typ: 'Kennzahl-Typ', turnus: 'Turnus', beschreibung: 'Beschreibung', einheit: 'Einheit',
+    team: 'Verantwortlich', umfang: 'Umfang', zweck: 'Zweck', normalwert: 'Normalwert', bereiche: 'Betroffener Bereich',
+    archiv: 'Archiv', messung: 'Messung', standorte: 'Standort',
+  },
+  tracking: {
+    wert: 'Title', kennzahl: 'Kennzahl', datum: 'Datum der Erhebung', von: 'Erhoben durch', massnahmen: 'Maßnahme',
+    bemerkung: 'Bemerkung', standorte: 'Standorte',
+  },
+};
+
+const _haus = { ids: null, spalten: {}, nachschlagen: {}, personen: null };
+
+/** Die Listen der ISMS-Site einmal auflösen (Anzeigename → ID). */
+async function _hausListenIds(token) {
+  if (_haus.ids) return _haus.ids;
+  const siteId = await _ismsSiteId(token);
+  const alle = await _getAll(`${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`, token);
+  const ids = {};
+  for (const [key, anzeige] of Object.entries(HAUS_LISTEN)) {
+    const ziel = _normName(anzeige);
+    const hit = alle.find(l => _normName(l.displayName) === ziel) || alle.find(l => _normName(l.name) === ziel);
+    ids[key] = hit ? hit.id : null;
+  }
+  _haus.ids = ids;
+  return ids;
+}
+
+/** Art einer Spalte aus ihrer Definition. */
+function _hausArt(c) {
+  if (c.lookup) return c.lookup.allowMultipleValues ? 'multilookup' : 'lookup';
+  if (c.personOrGroup) return c.personOrGroup.allowMultipleSelection ? 'multiperson' : 'person';
+  if (c.choice) return c.choice.displayAs === 'checkBoxes' ? 'multichoice' : 'choice';
+  if (c.dateTime) return 'date';
+  if (c.number) return 'num';
+  if (c.boolean) return 'bool';
+  if (c.text) return c.text.allowMultipleLines ? 'mtext' : 'text';
+  return 'text';
+}
+
+/** Spalten einer Liste: Feld → { name, art, auswahl, nurLesen } (fehlende Felder fehlen). */
+async function _hausSpaltenVon(key, token) {
+  if (_haus.spalten[key]) return _haus.spalten[key];
+  const ids = await _hausListenIds(token);
+  if (!ids[key]) throw new Error(`Die Liste „${HAUS_LISTEN[key]}" gibt es auf der ISMS-Site nicht.`);
+  const siteId = await _ismsSiteId(token);
+  const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/columns?$select=name,displayName,readOnly,hidden,text,choice,dateTime,number,lookup,personOrGroup,boolean`, token);
+  const out = {};
+  for (const [feld, anzeige] of Object.entries(HAUS_SPALTEN[key] || {})) {
+    const c = (cols.value || []).find(x => x.name === anzeige) || (cols.value || []).find(x => x.displayName === anzeige);
+    if (c) out[feld] = { name: c.name, art: _hausArt(c), auswahl: (c.choice && c.choice.choices) || [], nurLesen: !!c.readOnly };
+  }
+  _haus.spalten[key] = out;
+  return out;
+}
+
+/** Felder, die in der Liste fehlen (Anzeigenamen), nach dem ersten Lesen. */
+function spHausFehlendeSpalten(key) {
+  const s = _haus.spalten[key];
+  if (!s) return [];
+  return Object.entries(HAUS_SPALTEN[key] || {}).filter(([feld]) => !s[feld]).map(([, anzeige]) => anzeige);
+}
+
+/** Personen der ISMS-Site (Benutzerinformationsliste): LookupId → { name, email }. */
+async function _hausPersonen(token) {
+  if (_haus.personen) return _haus.personen;
+  const siteId = await _ismsSiteId(token);
+  const listId = await _ismsUserInfoListId(siteId, token);
+  const map = {};
+  if (listId) {
+    try {
+      const items = await _getAll(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title,EMail,UserName)&$top=500`, token);
+      for (const it of items) {
+        const f = it.fields || {};
+        const email = String(f.EMail || (/@/.test(f.UserName || '') ? f.UserName : '') || '').toLowerCase();
+        map[String(it.id)] = { name: f.Title || email, email };
+        if (email) _ismsUserLookup[email] = parseInt(it.id, 10) || it.id;
+      }
+    } catch (e) { /* ohne Namen: dann steht die ID da */ }
+  }
+  _haus.personen = map;
+  return map;
+}
+
+/** Einträge einer Nachschlageliste (Teams, Standorte, ISO 27001:2022) als [{ id, wert }]. */
+async function spHausNachschlagen(key) {
+  if (_haus.nachschlagen[key]) return _haus.nachschlagen[key];
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const ids = await _hausListenIds(token);
+  if (!ids[key]) return [];
+  const siteId = await _ismsSiteId(token);
+  const items = await _getAll(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items?$expand=fields($select=Title)&$top=500`, token);
+  const out = items.map(it => ({ id: String(it.id), wert: (it.fields && it.fields.Title) || '' }))
+    .sort((a, b) => a.wert.localeCompare(b.wert, 'de', { numeric: true }));
+  _haus.nachschlagen[key] = out;
+  return out;
+}
+
+/** Ein Datum aus SharePoint als Kalendertag. Datumsspalten speichern Mitternacht
+ *  Ortszeit in UTC (2027-02-27T23:00:00Z ist der 28.02.); +12 Stunden trifft den Tag. */
+function _hausTag(iso) {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t + 12 * 3600 * 1000).toISOString().slice(0, 10) : '';
+}
+/** Und zurück: Kalendertag → Mitternacht Ortszeit, so wie SharePoint selbst speichert. */
+function _hausDatum(tag) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(String(tag || ''));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toISOString() : null;
+}
+
+/** Einen Eintrag lesen: je Feld nach Spaltenart. */
+function _hausFeldLesen(f, c, nachschlagen, personen) {
+  const v = f[c.name];
+  switch (c.art) {
+    case 'multichoice': return Array.isArray(v) ? v.map(String) : (v ? String(v).split(/;#|,/).map(s => s.trim()).filter(Boolean) : []);
+    case 'date': return _hausTag(v);
+    case 'bool': return v === true || v === 'true' || v === 1;
+    case 'num': return (v === null || v === undefined || v === '') ? '' : Number(v);
+    case 'multilookup': return Array.isArray(v) ? v.map(x => ({ id: String(x.LookupId), wert: String(x.LookupValue || '') })) : [];
+    case 'lookup': {
+      const id = f[c.name + 'LookupId'];
+      if (!id) return null;
+      const hit = (nachschlagen || []).find(x => x.id === String(id));
+      return { id: String(id), wert: hit ? hit.wert : (typeof v === 'string' ? v : '') };
+    }
+    case 'person': {
+      const id = f[c.name + 'LookupId'];
+      if (!id) return null;
+      const p = (personen || {})[String(id)] || {};
+      return { id: String(id), name: p.name || '', email: p.email || '' };
+    }
+    default: return (v === null || v === undefined) ? '' : String(v);
+  }
+}
+
+/** Alle Einträge einer Liste, Felder nach HAUS_SPALTEN. → [{ id, created, modified, …felder }] */
+async function _hausLesen(key) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const spalten = await _hausSpaltenVon(key, token);
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  // Einzel-Nachschlagewerte kommen nur als ID; ihre Texte aus der Nachschlageliste.
+  const brauchtTeams = Object.values(spalten).some(c => c.art === 'lookup');
+  const [items, personen, teams, standorte] = await Promise.all([
+    _getAll(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items?$expand=fields&$top=500`, token),
+    Object.values(spalten).some(c => c.art === 'person') ? _hausPersonen(token) : Promise.resolve({}),
+    brauchtTeams ? spHausNachschlagen('teams') : Promise.resolve([]),
+    brauchtTeams ? spHausNachschlagen('standorte') : Promise.resolve([]),
+  ]);
+  const quelleFuer = (feld) => (/standort/i.test(feld) ? standorte : /kennzahl/i.test(feld) ? [] : teams);
+  return items.map(it => {
+    const f = it.fields || {};
+    const o = { id: String(it.id), created: it.createdDateTime || '', modified: it.lastModifiedDateTime || '' };
+    for (const [feld, c] of Object.entries(spalten)) o[feld] = _hausFeldLesen(f, c, quelleFuer(feld), personen);
+    return o;
+  });
+}
+
+/**
+ * Einen Eintrag schreiben (neu, wenn id leer). Gesendet werden nur Felder, die
+ * im Objekt stehen und die es in der Liste gibt. Nachschlagewerte als IDs,
+ * Personen als E-Mail (aufgelöst über die Benutzerinformationsliste).
+ * @returns {Promise<string>} die ID des Eintrags
+ */
+async function _hausSchreiben(key, id, obj) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const spalten = await _hausSpaltenVon(key, token);
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  const felder = {};
+  for (const [feld, wert] of Object.entries(obj || {})) {
+    const c = spalten[feld];
+    if (!c || c.nurLesen || wert === undefined) continue;
+    switch (c.art) {
+      case 'multichoice':
+        felder[c.name + '@odata.type'] = 'Collection(Edm.String)';
+        felder[c.name] = (Array.isArray(wert) ? wert : []).map(String);
+        break;
+      case 'date': felder[c.name] = _hausDatum(wert); break;
+      case 'bool': felder[c.name] = !!wert; break;
+      case 'num': felder[c.name] = (wert === '' || wert === null) ? null : Number(wert); break;
+      case 'multilookup':
+        felder[c.name + 'LookupId@odata.type'] = 'Collection(Edm.Int32)';
+        felder[c.name + 'LookupId'] = (Array.isArray(wert) ? wert : []).map(x => parseInt(x, 10)).filter(Number.isFinite);
+        break;
+      case 'lookup': felder[c.name + 'LookupId'] = wert ? String(wert) : null; break;
+      case 'person': {
+        if (!wert) { felder[c.name + 'LookupId'] = null; break; }
+        const lid = await spEnsureIsmsUserLookupId(String(wert));
+        if (!lid) throw new Error(`${wert} ist auf der ISMS-Site noch nicht bekannt. Die Person muss die Site einmal geöffnet haben.`);
+        felder[c.name + 'LookupId'] = String(lid);
+        break;
+      }
+      case 'multiperson': break;   // kommt in diesen Listen nicht vor
+      case 'choice': felder[c.name] = wert ? String(wert) : null; break;   // leer = keine Auswahl
+      default: felder[c.name] = (wert === null) ? '' : String(wert);
+    }
+  }
+  const basis = `${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items`;
+  if (id) { await _patch(`${basis}/${id}/fields`, token, felder); return String(id); }
+  const neu = await _post(basis, token, { fields: felder });
+  return String(neu && neu.id);
+}
+
+async function _hausLoeschen(key, id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const ids = await _hausListenIds(token);
+  const siteId = await _ismsSiteId(token);
+  await _del(`${SP.graphBase}/sites/${siteId}/lists/${ids[key]}/items/${id}`, token);
+}
+
+/* Die Zugriffe, wie die Ansichten sie rufen. Abgebildet aufs RMS-Modell wird
+   in den Modellen (mnAusHaus, zlAusHaus, kzAusHaus), wenn sie geladen sind.
+   „Leise" gibt null statt eines Fehlers (Cockpit, Audit Report, Fälligkeiten). */
+const _hausLeise = (fn) => async () => { try { return await fn(); } catch (e) { console.warn('[isms-listen]', e.message); return null; } };
+
+async function spGetMassnahmen() {
+  const roh = await _hausLesen('massnahmen');
+  return (typeof mnAusHaus === 'function') ? roh.map(mnAusHaus) : roh;
+}
+async function spGetZiele() {
+  const roh = await _hausLesen('ziele');
+  return (typeof zlAusHaus === 'function') ? roh.map(zlAusHaus) : roh;
+}
+async function spGetKennzahlen() {
+  const [kpi, werte] = await Promise.all([_hausLesen('kennzahlen'), _hausLesen('tracking')]);
+  return (typeof kzAusHaus === 'function') ? kzAusHaus(kpi, werte) : kpi;
+}
+const spGetMassnahmenLeise = _hausLeise(spGetMassnahmen);
+const spGetZieleLeise = _hausLeise(spGetZiele);
+const spGetKennzahlenLeise = _hausLeise(spGetKennzahlen);
+
+async function spSaveMassnahme(m) { return _hausSchreiben('massnahmen', m.id, (typeof mnZuHaus === 'function') ? mnZuHaus(m) : m); }
+async function spDeleteMassnahme(id) { return _hausLoeschen('massnahmen', id); }
+async function spSaveZiel(z) { return _hausSchreiben('ziele', z.id, (typeof zlZuHaus === 'function') ? zlZuHaus(z) : z); }
+async function spDeleteZiel(id) { return _hausLoeschen('ziele', id); }
+async function spSaveKennzahl(k) { return _hausSchreiben('kennzahlen', k.id, (typeof kzZuHaus === 'function') ? kzZuHaus(k) : k); }
+async function spDeleteKennzahl(id) { return _hausLoeschen('kennzahlen', id); }
+/** Ein Messwert ist ein Eintrag in „Kennzahlen Tracking". */
+async function spAddKennzahlWert(w) { return _hausSchreiben('tracking', null, (typeof kzWertZuHaus === 'function') ? kzWertZuHaus(w) : w); }
+async function spDeleteKennzahlWert(id) { return _hausLoeschen('tracking', id); }
+
+/** Nach dem Speichern frisch lesen; die Nachschlagelisten bleiben im Speicher. */
+function spHausNeuLesen() { _haus.personen = null; }
+
+/* ═══════════════════════════════════════════════════
+   Assets / Werte (ISMS-Liste „Assets", nur lesen) – zum Verknüpfen mit Risiken
+═══════════════════════════════════════════════════ */
+
+/** Kurz-Beschreibung eines Assets aus gängigen Zusatzspalten (best effort). */
+function _assetSub(f) {
+  const keys = ['Kategorie', 'Category', 'Typ', 'Type', 'AssetTyp', 'AssetType', 'Klassifizierung',
+    'Schutzbedarf', 'Standort', 'Location', 'Verantwortlich', 'Owner', 'Eigentuemer', 'Eigner'];
+  const parts = [];
+  for (const k of keys) {
+    const v = f[k];
+    if (v && typeof v === 'string' && !parts.includes(v)) parts.push(v);
+    if (parts.length >= 2) break;
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * Das Werk eines Assets – die Liste trägt es schon, in welcher Spalte auch
+ * immer (Standort, Standorte, Werk …). Wie gelesen wird, steht im Modell
+ * (amWerkeVon): „Wittenberge (WGC)" trifft WGC, „Alle DIHAG-Standorte" heißt
+ * konzernweit. Ohne Modell (Kern allein) gibt es keine Zuordnung.
+ * @returns {{werke: string[], text: string}}
+ */
+function _assetWerke(f) {
+  const keys = ['Standort', 'Standorte', 'Werk', 'Werke', 'Location', 'Site', 'Gesellschaft'];
+  let roh = null;
+  for (const k of keys) { if (f[k] !== undefined && f[k] !== null && f[k] !== '') { roh = f[k]; break; } }
+  if (typeof amWerkeVon !== 'function') return { werke: [], text: '' };
+  return amWerkeVon(roh, (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : []);
+}
+
+/** Assets aus der ISMS-Liste „Assets" laden (nur lesen). Wirft, wenn die Liste
+ *  fehlt/kein Zugriff – die UI fängt das ab und zeigt einen Hinweis. */
+async function spGetAssets() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.assetsList);
+  let listId = null;
+  let lurl = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  while (lurl && !listId) {
+    const r = await _get(lurl, token);
+    const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+    if (hit) listId = hit.id;
+    lurl = r['@odata.nextLink'] || null;
+  }
+  if (!listId) throw new Error(`ISMS-Liste „${SP.assetsList}" nicht gefunden (Site ${SP.ismsSiteHost}).`);
+  const out = [];
+  let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=500`;
+  while (url) {
+    const resp = await _get(url, token);
+    for (const it of (resp.value || [])) {
+      const f = it.fields || {};
+      const w = _assetWerke(f);
+      out.push({ id: String(it.id), title: f.Title || f.LinkTitle || ('#' + it.id), sub: _assetSub(f), url: it.webUrl || '',
+        werke: w.werke, werkText: w.text });
+    }
+    url = resp['@odata.nextLink'] || null;
+  }
+  out.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  return out;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   Assetregister – die Liste „Assets" auf der ISMS-Site, geführt statt nur gelesen
+   ==============================================================================
+   Es gibt die Liste schon; sie wird nicht verdoppelt. Die App liest, was da
+   ist (auch unter älteren Spaltennamen), und schreibt in die Spalten, die es
+   gibt. Welche sie erwartet, steht in ASSET_COLUMNS – der Reiter nennt die
+   fehlenden mit Typ, und legt sie NUR auf Knopfdruck an, nie still: Die Liste
+   gehört dem Haus, nicht der App. Was das Modell nicht als Spalte kennt, liegt
+   als JSON (Zusatzfelder aus den Einstellungen).
+═══════════════════════════════════════════════════ */
+const ASSET_COLUMNS = [
+  { name: 'Art',              typ: 'Einzelne Textzeile' },   // primär | unterstützend (im Haus: „Asset-Typ")
+  { name: 'Kategorie',        typ: 'Einzelne Textzeile' },
+  { name: 'Beschreibung',     typ: 'Mehrere Zeilen Text' },
+  { name: 'Werke',            typ: 'Einzelne Textzeile' },   // Kürzel, kommagetrennt; ALLE = konzernweit
+  { name: 'Standort',         typ: 'Einzelne Textzeile' },   // Gebäude, Raum, Rack – frei
+  { name: 'Verantwortlich',   typ: 'Einzelne Textzeile' },
+  { name: 'Vertretung',       typ: 'Einzelne Textzeile' },
+  { name: 'Betreiber',        typ: 'Einzelne Textzeile' },
+  { name: 'Vertraulichkeit',  typ: 'Einzelne Textzeile' },   // normal | hoch | sehr hoch
+  { name: 'Integritaet',      typ: 'Einzelne Textzeile' },
+  { name: 'Verfuegbarkeit',   typ: 'Einzelne Textzeile' },
+  { name: 'Klassifizierung',  typ: 'Einzelne Textzeile' },   // öffentlich … streng vertraulich
+  { name: 'Personenbezogen',  typ: 'Einzelne Textzeile' },   // ja | nein
+  { name: 'AStatus',          typ: 'Einzelne Textzeile' },
+  { name: 'Inbetriebnahme',   typ: 'Datum und Uhrzeit' },
+  { name: 'EOL',              typ: 'Datum und Uhrzeit' },
+  { name: 'Wiederherstellung', typ: 'Zahl' },                // Stunden
+  { name: 'Rpo',              typ: 'Zahl' },                 // Stunden
+  { name: 'Backup',           typ: 'Mehrere Zeilen Text' },
+  { name: 'AbhaengigJson',    typ: 'Mehrere Zeilen Text' },  // Ids anderer Assets (im Haus: „Informationsträger", Nachschlagen auf die Liste selbst)
+  { name: 'Link',             typ: 'Einzelne Textzeile' },   // wo die Information liegt (im Haus: „Link zu den Informationen", Hyperlink)
+  { name: 'Hersteller',       typ: 'Einzelne Textzeile' },
+  { name: 'Lieferant',        typ: 'Einzelne Textzeile' },
+  { name: 'SupportKontakt',   typ: 'Einzelne Textzeile' },
+  { name: 'Vertragsende',     typ: 'Datum und Uhrzeit' },
+  { name: 'Tags',             typ: 'Einzelne Textzeile' },
+  { name: 'ZusatzJson',       typ: 'Mehrere Zeilen Text' },  // Zusatzfelder aus den Einstellungen
+  { name: 'HistorieJson',     typ: 'Mehrere Zeilen Text' },
+];
+
+
+let _assetCols = null;        // interne Spaltennamen
+let _assetColMeta = [];       // [{name, displayName, typ, choices, lookupListId, lookupMulti}] – die Liste, wie sie wirklich ist
+let _assetMulti = new Set();  // Spalten, die beim Lesen Arrays liefern (Mehrfachauswahl)
+
+/** Spaltennamen vergleichbar machen – das Modell weiß, wie (amSpaltenNorm). */
+function _assetNorm(s) { return (typeof amSpaltenNorm === 'function') ? amSpaltenNorm(s) : String(s || '').toLowerCase(); }
+
+/**
+ * Die Spalte der Liste zu einem erwarteten Namen – über internen Namen,
+ * Anzeigenamen oder Alias (amSpalteFinden); null, wenn es sie nicht gibt.
+ * Solange keine Spaltenmeta geladen sind: optimistisch der erwartete Name.
+ */
+function _assetFeld(erwartet) {
+  if (!_assetCols) return erwartet;
+  if (typeof amSpalteFinden !== 'function') return _assetCols.has(erwartet) ? erwartet : null;
+  return amSpalteFinden(_assetColMeta, erwartet);
+}
+function _assetMeta(erwartet) { const n = _assetFeld(erwartet); return n ? (_assetColMeta.find(c => c.name === n) || { name: n }) : null; }
+
+/** Ein Nachschlagefeld: zeigt es auf die Liste „Assets" selbst (dann sind seine Ids Asset-Ids), und erlaubt es mehrere Werte? */
+function _assetLookupInfo(name) {
+  const m = _assetColMeta.find(c => c.name === name);
+  if (!m || m.typ !== 'lookup') return null;
+  const guid = (s) => String(s || '').toLowerCase().replace(/[{}]/g, '');
+  return { selbst: !!_sp.assetRegListId && guid(m.lookupListId) === guid(_sp.assetRegListId), multi: !!m.lookupMulti };
+}
+
+/** Gibt es diese Spalte in der Liste – unter irgendeinem ihrer Namen? */
+function spAssetSpalteDa(name) { return !!_assetFeld(name); }
+
+async function _loadAssetCols(token, siteId) {
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${siteId}/lists/${_sp.assetRegListId}/columns?$select=name,displayName,choice,boolean,number,dateTime,text,personOrGroup,lookup,hyperlinkOrPicture`, token);
+    _assetColMeta = (cols.value || []).map(c => ({
+      name: c.name, displayName: c.displayName || c.name,
+      // Ohne jede Typangabe kommt von Graph, was als klassische Hyperlink-Spalte
+      // angelegt wurde („Link zu den Informationen" im Haus) – und Systemspalten
+      // wie Attachments. Als Text behandelt hieße: ein '' hineinschreiben, und
+      // genau daran ist das Anlegen eines Assets mit 500 gescheitert.
+      typ: c.boolean ? 'boolean' : c.number ? 'number' : c.dateTime ? 'dateTime' : c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.hyperlinkOrPicture ? 'link' : c.text ? 'text' : 'unbekannt',
+      choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
+      lookupListId: c.lookup ? (c.lookup.listId || '') : '',
+      lookupMulti: !!(c.lookup && c.lookup.allowMultipleValues),
+    }));
+    _assetCols = new Set(_assetColMeta.map(c => c.name));
+  } catch (e) { _assetCols = null; _assetColMeta = []; }
+}
+
+/** Was die App erwartet und was die Liste dafür hat – für den Reiter, damit niemand raten muss. */
+function spAssetSpaltenBericht() {
+  return ASSET_COLUMNS.map(c => {
+    const m = _assetMeta(c.name);
+    const lk = m ? _assetLookupInfo(m.name) : null;
+    return { erwartet: c.name, typ: c.typ, gefunden: m ? m.name : null, anzeige: m ? m.displayName : null, spaltentyp: m ? m.typ : null, choices: m ? (m.choices || []) : [],
+      selbst: !!(lk && lk.selbst), nurLesen: !!(m && (m.typ === 'person' || (m.typ === 'lookup' && !(lk && lk.selbst)))) };
+  });
+}
+
+/**
+ * Fehlende Spalten anlegen – ausdrücklich, auf Knopfdruck im Reiter. Nur die,
+ * die es unter keinem Namen gibt. Wer das Recht nicht hat, bekommt die
+ * Fehlermeldung; die Liste bleibt, wie sie war.
+ * @returns {Promise<{angelegt:string[], fehler:string[]}>}
+ */
+async function spErgaenzeAssetSpalten() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureAssetRegister(false);
+  if (!listId) throw new Error('Liste „Assets" nicht gefunden.');
+  const siteId = await _ismsSiteId(token);
+  if (!_assetCols) await _loadAssetCols(token, siteId);
+  const fehlend = ASSET_COLUMNS.filter(c => !_assetFeld(c.name));
+  const angelegt = [], fehler = [];
+  for (const c of fehlend) {
+    try {
+      await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/columns`, token, { name: c.name, ..._riskColGraphDef(c.typ) });
+      angelegt.push(c.name);
+    } catch (e) { fehler.push(`${c.name}: ${e.message}`); }
+  }
+  await _loadAssetCols(token, siteId);
+  return { angelegt, fehler };
+}
+
+async function spEnsureAssetRegister(create = true) {
+  if (_sp.assetRegListId) return _sp.assetRegListId;
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const siteId = await _ismsSiteId(token);
+  const target = _normName(SP.assetRegList);
+  let url = `${SP.graphBase}/sites/${siteId}/lists?$select=id,displayName,name&$top=200`;
+  try {
+    while (url) {
+      const r = await _get(url, token);
+      const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+      if (hit) {
+        _sp.assetRegListId = hit.id;
+        await _loadAssetCols(token, siteId);
+        return _sp.assetRegListId;
+      }
+      url = r['@odata.nextLink'] || null;
+    }
+  } catch (e) { /* weiter → ggf. anlegen */ }
+  if (!create) return null;
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists`, token, {
+    displayName: SP.assetRegList,
+    list: { template: 'genericList' },
+    columns: ASSET_COLUMNS.map(c => ({ name: c.name, ..._riskColGraphDef(c.typ) })),
+  });
+  _sp.assetRegListId = created.id;
+  await _loadAssetCols(token, siteId);
+  return _sp.assetRegListId;
+}
+
+/** Fehlende Spalten – die es unter keinem ihrer Namen gibt. */
+function spMissingAssetColumns() {
+  if (!_assetCols) return [];
+  return ASSET_COLUMNS.map(c => c.name).filter(n => !_assetFeld(n));
+}
+
+const _assetZahl = (v) => { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? '' : n; };
+
+/** Ein Feld, das Text, Auswahl, Mehrfachauswahl, Lookup, Person oder Hyperlink sein kann – als Text (amFeldText). */
+function _assetText(v) {
+  if (typeof amFeldText === 'function') return amFeldText(v);
+  return v === null || v === undefined ? '' : (typeof v === 'object' ? '' : String(v));
+}
+
+/** Den Wert eines erwarteten Feldes aus dem Datensatz – über Alias, Anzeigename, Umlautkodierung (amFeldKey). Rohwert, nicht Text. */
+function _assetRoh(f, erwartet) {
+  if (typeof amFeldKey !== 'function') { const n = _assetFeld(erwartet); return (n && f[n] !== undefined) ? f[n] : null; }
+  const k = amFeldKey(f, erwartet, _assetCols ? _assetFeld(erwartet) : undefined);
+  return k ? f[k] : null;
+}
+function _assetLesen(f, erwartet) { return _assetText(_assetRoh(f, erwartet)).trim(); }
+
+/**
+ * Ein Eintrag der Liste, gelesen wie das Haus ihn führt – das Modell weiß wie
+ * (amAusFeldern): „Asset-Typ" ist die Art, „Standorte" sind die Werke,
+ * „Asset-Owner" der Verantwortliche, „Informationsträger" die Abhängigkeit,
+ * „Link zu den Informationen" der Link, „weitere Infos" die Beschreibung.
+ */
+function _mapAsset(it) {
+  const f = it.fields || {};
+  for (const [k, v] of Object.entries(f)) if (Array.isArray(v)) _assetMulti.add(k);
+  if (typeof amAusFeldern !== 'function') throw new Error('Assetmodell nicht geladen.');
+  return amAusFeldern(it, {
+    feld: _assetCols ? _assetFeld : undefined,
+    standorte: (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [],
+    lookup: _assetLookupInfo,
+  });
+}
+
+/**
+ * Einen Wert in die Auswahl der Spalte übersetzen: Unsere Stufe „sehr hoch"
+ * wird zu der Wahl, die dieselbe Stufe meint („3 – sehr hoch", „very high"),
+ * falls die Spalte Wahlmöglichkeiten hat. Sonst der Wert selbst.
+ */
+function _assetInWahl(wert, meta, art) {
+  const w = String(wert || '');
+  if (!meta || !meta.choices || !meta.choices.length || !w) return w;
+  if (meta.choices.includes(w)) return w;
+  const gleich = meta.choices.find(c => String(c).toLowerCase() === w.toLowerCase())
+    || meta.choices.find(c => _assetNorm(c) === _assetNorm(w));
+  if (gleich) return gleich;
+  // Dieselbe Bedeutung in den Worten der Spalte: „sehr hoch" → „3 – sehr hoch", „aktiv" → „in Betrieb".
+  if (art === 'stufe' && typeof amRang === 'function') { const r = amRang(w); const t = r >= 0 ? meta.choices.find(c => amRang(c) === r) : null; if (t) return t; }
+  if (art === 'status' && typeof amStatusVon === 'function') { const t = meta.choices.find(c => amStatusVon(c) === amStatusVon(w)); if (t) return t; }
+  if (art === 'klasse' && typeof amKlasseVon === 'function') { const t = meta.choices.find(c => amKlasseVon(c) === amKlasseVon(w)); if (t) return t; }
+  if (art === 'art' && typeof amArtVon === 'function') { const t = meta.choices.find(c => amArtVon(c) === amArtVon(w)); if (t) return t; }
+  return w;
+}
+const _ASSET_WAHLART = { Vertraulichkeit: 'stufe', Integritaet: 'stufe', Verfuegbarkeit: 'stufe', AStatus: 'status', Klassifizierung: 'klasse', Art: 'art' };
+
+function _assetFields(a) {
+  const datum = (d) => (d ? new Date(String(d).slice(0, 10) + 'T00:00:00Z').toISOString() : null);
+  const zahl = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+  const werke = Array.isArray(a.werke) ? a.werke : [];
+  const link = (a.link && typeof a.link === 'object') ? a.link : { url: '', text: '' };
+  const artText = (typeof amArtText === 'function') ? amArtText(a.art) : String(a.art || '');
+  const all = {
+    Title:          String(a.titel || a.title || '(ohne Titel)').slice(0, 255),
+    Art:            artText,
+    // Teilen sich Art und Kategorie eine Textspalte („Typ"), darf die Art nicht verloren gehen.
+    Kategorie:      String(a.kategorie || ((_assetFeld('Kategorie') && !_assetFeld('Art')) ? artText : '')).slice(0, 60),
+    Beschreibung:   a.beschreibung || '',
+    Link:           link.url ? (link.url + (link.text ? ', ' + link.text : '')) : (link.text || ''),
+    Werke:          werke.join(','),
+    Standort:       String(a.standort || '').slice(0, 255),
+    Verantwortlich: String(a.verantwortlich || '').slice(0, 255),
+    Vertretung:     String(a.vertretung || '').slice(0, 255),
+    Betreiber:      String(a.betreiber || '').slice(0, 255),
+    Vertraulichkeit: String(a.vertraulichkeit || '').slice(0, 40),
+    Integritaet:    String(a.integritaet || '').slice(0, 40),
+    Verfuegbarkeit: String(a.verfuegbarkeit || '').slice(0, 40),
+    Klassifizierung: String(a.klassifizierung || '').slice(0, 40),
+    Personenbezogen: a.personenbezogen ? 'ja' : 'nein',
+    AStatus:        String(a.status || 'aktiv').slice(0, 40),
+    Inbetriebnahme: datum(a.inbetriebnahme),
+    EOL:            datum(a.eol),
+    Wiederherstellung: zahl(a.wiederherstellung),
+    Rpo:            zahl(a.rpo),
+    Backup:         a.backup || '',
+    AbhaengigJson:  JSON.stringify(Array.isArray(a.abhaengigVon) ? a.abhaengigVon : []),
+    Hersteller:     String(a.hersteller || '').slice(0, 255),
+    Lieferant:      String(a.lieferant || '').slice(0, 255),
+    SupportKontakt: String(a.supportKontakt || '').slice(0, 255),
+    Vertragsende:   datum(a.vertragsende),
+    Tags:           (Array.isArray(a.tags) ? a.tags : []).join(','),
+    ZusatzJson:     JSON.stringify(a.zusatz || {}),
+    HistorieJson:   JSON.stringify(a.historie || []),
+  };
+  const fields = { Title: all.Title };
+  const belegt = new Set(['Title']);
+  for (const [erwartet, v] of Object.entries(all)) {
+    if (erwartet === 'Title') continue;
+    const ziel = _assetFeld(erwartet);
+    if (!ziel || belegt.has(ziel)) continue;       // keine Spalte dafür – oder schon von einem anderen Feld belegt (Werke ↔ Standort)
+    belegt.add(ziel);
+    const meta = _assetColMeta.find(c => c.name === ziel);
+    let wert = v;
+    if (meta && meta.typ === 'boolean') wert = (erwartet === 'Personenbezogen') ? !!a.personenbezogen : !!v;
+    else if (meta && meta.typ === 'choice') {
+      // Mehrfachauswahl (Werke als Standorte) bekommt ein Array, Einzelauswahl den passenden Eintrag.
+      if (_assetMulti.has(ziel) || erwartet === 'Werke') wert = (erwartet === 'Werke' ? werke : String(v || '').split(',').map(x => x.trim()).filter(Boolean)).map(x => _assetInWahl(x, meta, _ASSET_WAHLART[erwartet]));
+      else wert = _assetInWahl(v, meta, _ASSET_WAHLART[erwartet]);
+    } else if (meta && meta.typ === 'link') {
+      wert = link.url ? { Url: link.url, Description: link.text || link.url } : null;
+    } else if (meta && meta.typ === 'lookup') {
+      // Nachschlagefelder auf die Liste selbst („Informationsträger"): die Ids der Assets, als LookupId.
+      const lk = _assetLookupInfo(ziel);
+      if (erwartet === 'AbhaengigJson' && lk && lk.selbst) {
+        const ids = (Array.isArray(a.abhaengigVon) ? a.abhaengigVon : []).map(x => Number(typeof x === 'object' && x ? x.id : x)).filter(n => Number.isFinite(n) && n > 0);
+        if (lk.multi) { fields[ziel + 'LookupId@odata.type'] = 'Collection(Edm.Int32)'; fields[ziel + 'LookupId'] = ids; }
+        else fields[ziel + 'LookupId'] = ids.length ? ids[0] : null;
+      }
+      continue;   // andere Nachschlagefelder (Asset-Owner, Standorte) pflegt man in SharePoint – die App kennt deren Ids nicht
+    } else if (meta && meta.typ === 'person') {
+      continue;   // Personenfelder schreibt die App nicht
+    } else if (meta && meta.typ === 'unbekannt') {
+      // Die Hyperlink-Spalte ohne Typangabe: ein Link geht als {Url, Description};
+      // leer bleibt sie unangetastet. Alles andere Unbekannte lassen wir in Ruhe.
+      if (erwartet === 'Link' && link.url) fields[ziel] = { Url: link.url, Description: link.text || link.url };
+      continue;
+    }
+    fields[ziel] = wert;
+  }
+  return fields;
+}
+
+/**
+ * Alle Einträge – mit ausdrücklicher Feldauswahl: Nachschlage- und
+ * Personenfelder („Asset-Owner", „Standorte", „Informationsträger") liefern
+ * ihren Anzeigewert nur so, sonst kommt bloß die LookupId. Lehnt Graph die
+ * Auswahl ab, geht es ohne sie weiter. Das Modell wird bei Bedarf nachgeladen –
+ * die Risiken lesen Assets, ohne dass ihre Ansicht es mitbringt.
+ */
+async function _spAssetRegisterItems(listId, token) {
+  if (typeof amAusFeldern !== 'function' && typeof modulLaden === 'function') await modulLaden('assetmodell');
+  const siteId = await _ismsSiteId(token);
+  const select = (_assetCols && typeof amSelectVon === 'function') ? amSelectVon(_assetColMeta, _assetFeld) : '';
+  const lade = async (mitAuswahl) => {
+    const roh = [];
+    let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}&$top=200`;
+    while (url) {
+      const resp = await _get(url, token);
+      for (const it of (resp.value || [])) roh.push(it);
+      url = resp['@odata.nextLink'] || null;
+    }
+    return roh;
+  };
+  let items;
+  try { items = await lade(!!select); }
+  catch (e) { if (!select) throw e; items = await lade(false); }
+  const out = items.map(_mapAsset);
+  if (typeof amTraegerAufloesen === 'function') amTraegerAufloesen(out);
+  out.sort((x, y) => (x.titel || '').localeCompare(y.titel || '', 'de'));
+  return out;
+}
+
+async function spGetAssetRegister() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return [];
+  const listId = await spEnsureAssetRegister(true);
+  return _spAssetRegisterItems(listId, token);
+}
+
+/** Wie spGetAssetRegister, aber ohne die Liste anzulegen – null, wenn es sie nicht gibt. */
+async function spGetAssetRegisterLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureAssetRegister(false);
+  if (!listId) return null;
+  return _spAssetRegisterItems(listId, token);
+}
+
+/** Die Assets, wie Risiken und Notfall sie brauchen – aus der Liste, ohne sie anzulegen; leer, wenn es sie nicht gibt. */
+async function spGetAssetsVereint() {
+  const reg = await spGetAssetRegisterLeise();
+  return Array.isArray(reg) ? reg : [];
+}
+
+async function spAddAsset(a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureAssetRegister(true);
+  const siteId = await _ismsSiteId(token);
+  const created = await _post(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items`, token, { fields: _assetFields(a) });
+  return created && created.id;
+}
+
+async function spUpdateAsset(id, a) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureAssetRegister(false);
+  if (!listId) throw new Error('Liste „Assetregister" nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  return _patch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}/fields`, token, _assetFields(a));
+}
+
+async function spDeleteAsset(id) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  const listId = await spEnsureAssetRegister(false);
+  if (!listId) throw new Error('Liste „Assetregister" nicht verfügbar.');
+  const siteId = await _ismsSiteId(token);
+  const resp = await fetch(`${SP.graphBase}/sites/${siteId}/lists/${listId}/items/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Löschen fehlgeschlagen (${resp.status})`);
+}
+
+/* ═══════════════════════════════════════════════════
+   Tickets – die Liste „Tickets" auf der Site „ticket" (nur lesen)
+   =================================================================
+   Dort landen Störungen, Änderungen und Dokumentationsaufträge, getrennt nach
+   der Art des Tickets. Die App liest sie – über die Kategorie, was
+   Informationssicherheit ist – und schreibt nie hinein: Das Ticket wird im
+   Ticketsystem bearbeitet. Was das ISMS darüber legt (Beurteilung, Fristen,
+   Lehren), liegt in vorfaelle.json im Konfig-Ordner der App.
+═══════════════════════════════════════════════════ */
+const _tk = { siteId: null, listId: null, webUrl: '', cols: null };   // cols: [{name, displayName, typ, choices}]
+
+/** Browser-URL der Ticketliste. */
+function spTicketListUrl() { return 'https://' + SP.ticketSiteHost.replace(':/', '/') + '/Lists/' + encodeURIComponent(SP.ticketList) + '/AllItems.aspx'; }
+/** Browser-URL eines Tickets – die Anzeige im Ticketsystem. */
+function spTicketUrl(id) {
+  const basis = _tk.webUrl || ('https://' + SP.ticketSiteHost.replace(':/', '/') + '/Lists/' + encodeURIComponent(SP.ticketList));
+  return `${basis}/DispForm.aspx?ID=${encodeURIComponent(String(id))}`;
+}
+
+/** Die Spalten der Ticketliste, wie sie sind – für die Einstellungen (welche Kategorien gibt es?) und die Zuordnung. */
+function spTicketSpalten() { return _tk.cols || []; }
+function _tkFeld(erwartet) {
+  if (!_tk.cols) return undefined;
+  return (typeof amSpalteFinden === 'function' && typeof VF_ALIASE !== 'undefined') ? amSpalteFinden(_tk.cols, erwartet, VF_ALIASE) : null;
+}
+
+/* Wie bei der ISMS-Site: Der laufende Abruf wird geteilt, damit Cockpit und
+   Audit Report die Liste nicht zweimal gleichzeitig suchen. */
+let _tkListeLauf = null;
+async function _ticketListe(token) {
+  if (_tk.listId) return _tk;
+  if (!_tkListeLauf) _tkListeLauf = _ticketListeSuchen(token).finally(() => { _tkListeLauf = null; });
+  return _tkListeLauf;
+}
+
+async function _ticketListeSuchen(token) {
+  const site = await _get(`${SP.graphBase}/sites/${SP.ticketSiteHost}`, token);
+  _tk.siteId = site.id;
+  const target = _normName(SP.ticketList);
+  let url = `${SP.graphBase}/sites/${_tk.siteId}/lists?$select=id,displayName,name,webUrl&$top=200`;
+  while (url && !_tk.listId) {
+    const r = await _get(url, token);
+    const hit = (r.value || []).find(l => _normName(l.displayName) === target || _normName(l.name) === target);
+    if (hit) { _tk.listId = hit.id; _tk.webUrl = hit.webUrl || ''; }
+    url = r['@odata.nextLink'] || null;
+  }
+  if (!_tk.listId) throw new Error(`Liste „${SP.ticketList}" auf ${SP.ticketSiteHost} nicht gefunden.`);
+  try {
+    const cols = await _get(`${SP.graphBase}/sites/${_tk.siteId}/lists/${_tk.listId}/columns?$select=name,displayName,choice,personOrGroup,lookup,dateTime,text`, token);
+    _tk.cols = (cols.value || []).map(c => ({
+      name: c.name, displayName: c.displayName || c.name,
+      typ: c.choice ? 'choice' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : c.dateTime ? 'dateTime' : 'text',
+      choices: (c.choice && Array.isArray(c.choice.choices)) ? c.choice.choices.slice() : [],
+    }));
+  } catch (e) { _tk.cols = null; }
+  return _tk;
+}
+
+/* Die Ticketliste ist groß. Gemessen am 16.11.2026: 8.161 Tickets in 24 Monaten,
+   17 Seiten. Seite für Seite nacheinander dauerte das 42 Sekunden, bei jedem
+   Öffnen von Cockpit, Vorfällen, Audit Report und Einstellungen neu. In acht
+   Zeitfenstern gleichzeitig sind es 7 Sekunden, mit demselben Ergebnis.
+   Ein Filter auf die Kategorien wäre noch schneller, ließe aber Tickets aus,
+   deren Kategorie nicht mehr zur Auswahl der Spalte gehört. Das war in der
+   Messung eines von 95 Sicherheitstickets. Deshalb wird weiter alles gelesen. */
+const TICKET_FENSTER = 8;
+/* So lange gilt ein gelesener Stand für alle Ansichten. „Aktualisieren" liest sofort neu. */
+const TICKET_TTL = 5 * 60 * 1000;
+const _tkLesen = new Map();   // Monate → { am, lauf } – die rohen Einträge, wie Graph sie liefert
+
+/** Den gemerkten Stand der Tickets verwerfen: Der nächste Aufruf liest neu. */
+function spTicketsVergessen() { _tkLesen.clear(); }
+
+/**
+ * Die rohen Einträge der Ticketliste ab `monate` zurück.
+ * @returns {Promise<{items: object[], seit: string}>}
+ */
+async function _ticketsRoh(token, monate) {
+  const jetzt = Date.now();
+  const seit = new Date(jetzt - monate * 30.44 * 86400000).toISOString();
+  const select = (_tk.cols && typeof amSelectVon === 'function') ? amSelectVon(_tk.cols, _tkFeld, VF_ALIASE) + ',Created,Modified' : '';
+  const basis = `${SP.graphBase}/sites/${_tk.siteId}/lists/${_tk.listId}/items?$expand=fields`;
+  const seiten = async (url) => {
+    const out = [];
+    while (url) {
+      const resp = await _get(url, token, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+      for (const it of (resp.value || [])) out.push(it);
+      url = resp['@odata.nextLink'] || null;
+      if (out.length >= 10000) break;
+    }
+    return out;
+  };
+  const lade = (mitAuswahl, mitFilter) =>
+    seiten(`${basis}${mitAuswahl ? `($select=${select})` : ''}${mitFilter ? `&$filter=fields/Created ge '${seit}'` : ''}&$top=500`);
+  // Der Zeitraum in gleich lange Fenster geteilt, jedes für sich gelesen. Das
+  // Ende liegt einen Tag in der Zukunft: Uhren gehen nicht überall gleich.
+  const inFenstern = async () => {
+    const von = Date.parse(seit), bis = jetzt + 86400000;
+    const grenze = (i) => new Date(von + (bis - von) * i / TICKET_FENSTER).toISOString();
+    const teile = await Promise.all(Array.from({ length: TICKET_FENSTER }, (_, i) =>
+      seiten(`${basis}($select=${select})&$filter=fields/Created ge '${grenze(i)}' and fields/Created lt '${grenze(i + 1)}'&$top=500`)));
+    // Jedes Ticket genau einmal, auch wenn eine Antwort mehr liefert, als ihr Fenster verlangt.
+    const gesehen = new Set();
+    return teile.flat().filter(it => { const k = String(it.id); if (gesehen.has(k)) return false; gesehen.add(k); return true; });
+  };
+  let items = null;
+  if (select) { try { items = await inFenstern(); } catch (e0) { items = null; } }
+  if (!items) {
+    try { items = await lade(!!select, true); }
+    catch (e1) {
+      try { items = await lade(!!select, false); }
+      catch (e2) { items = await lade(false, false); }
+    }
+  }
+  return { items, seit };
+}
+
+/**
+ * Die Tickets der letzten Monate – normalisiert (vfAusFeldern), NICHT auf
+ * Sicherheit gefiltert: Die Einstellungen wollen alle Kategorien sehen, um
+ * die richtigen zu wählen. Gelesen mit ausdrücklicher Feldauswahl und
+ * Zeitfilter; lehnt Graph eines davon ab, geht es ohne weiter.
+ *
+ * Gelesen wird einmal für alle Ansichten: Ein laufender Abruf wird geteilt, ein
+ * fertiger gilt TICKET_TTL lang. Gemerkt sind die rohen Einträge, die Zuordnung
+ * aus den Einstellungen greift also bei jedem Aufruf neu.
+ * @param {object} [opt] { monate, frisch } – frisch: true liest in jedem Fall neu
+ * @returns {Promise<{tickets: object[], kategorien: string[], arten: string[]}>}
+ */
+async function spGetTickets(opt) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return { tickets: [], kategorien: [], arten: [] };
+  if (typeof modulLaden === 'function') {
+    if (typeof amFeldKey !== 'function') await modulLaden('assetmodell');
+    if (typeof vfAusFeldern !== 'function') await modulLaden('vorfallmodell');
+  }
+  if (typeof vfAusFeldern !== 'function') throw new Error('Vorfallmodell nicht geladen.');
+  await _ticketListe(token);
+  const monate = Math.max(1, Number((opt && opt.monate) || (typeof VF_MONATE !== 'undefined' ? VF_MONATE : 24)));
+  let eintrag = _tkLesen.get(monate);
+  if (!eintrag || (opt && opt.frisch) || Date.now() - eintrag.am > TICKET_TTL) {
+    const neu = { am: Date.now(), lauf: _ticketsRoh(token, monate) };
+    _tkLesen.set(monate, neu);
+    // Ein gescheiterter Abruf bleibt nicht liegen, der nächste versucht es neu.
+    neu.lauf.catch(() => { if (_tkLesen.get(monate) === neu) _tkLesen.delete(monate); });
+    eintrag = neu;
+  }
+  const { items, seit } = await eintrag.lauf;
+  const cfg = (typeof getAccessConfig === 'function') ? getAccessConfig() : {};
+  const standorte = (typeof STANDORTE !== 'undefined' && Array.isArray(STANDORTE)) ? STANDORTE : [];
+  const tickets = items.map(it => vfAusFeldern(it, { feld: _tk.cols ? _tkFeld : undefined, standorte, zuordnung: cfg.vorfallArtZuordnung, urlVon: spTicketUrl }))
+    .filter(t => !t.erstellt || t.erstellt >= seit);
+  tickets.sort((a, b) => (b.erstellt || '').localeCompare(a.erstellt || ''));
+  const werte = (feld) => { const s = new Set(); for (const t of tickets) if (t[feld]) s.add(t[feld]); return [...s].sort((a, b) => a.localeCompare(b, 'de')); };
+  const spalte = (e) => { const n = _tkFeld(e); const c = n && _tk.cols ? _tk.cols.find(x => x.name === n) : null; return c ? c.choices : []; };
+  return {
+    tickets,
+    kategorien: [...new Set(spalte('Kategorie').concat(werte('kategorie')))].sort((a, b) => a.localeCompare(b, 'de')),
+    arten: [...new Set(spalte('Art').concat(werte('artRoh')))].sort((a, b) => a.localeCompare(b, 'de')),
+  };
+}
+
+/** Wie spGetTickets, aber null statt Fehler – fürs Cockpit und den Audit Report. */
+async function spGetTicketsLeise(opt) {
+  try { return await spGetTickets(opt); } catch (e) { console.warn('[sp] Tickets nicht ladbar:', e.message); return null; }
+}
+
+/* ── Die ISMS-Bewertung je Ticket: vorfaelle.json im Konfig-Ordner ── */
+function _vorfaellePfad() { return `${SP.configFolder}/${SP.vorfaelleDatei}`; }
+
+/** @returns {Promise<{daten:{version:number, bewertungen:object}, geaendertAm:string}>} – leer, wenn noch nie gespeichert. */
+async function spLoadVorfaelle() {
+  const leer = { daten: { version: 1, bewertungen: {} }, geaendertAm: '' };
+  const token = await acquireToken(SP.scopes);
+  if (!token) return leer;
+  await spInit();
+  if (!_sp.appDriveId) return leer;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_vorfaellePfad()}`;
+  let meta;
+  try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); } catch (e) { return leer; }
+  const resp = await fetch(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return leer;
+  const d = await resp.json();
+  return { daten: { version: 1, bewertungen: (d && d.bewertungen && typeof d.bewertungen === 'object') ? d.bewertungen : {} }, geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/**
+ * Eine Bewertung speichern – erst die Datei frisch laden, dann nur diesen
+ * Eintrag setzen: Zwei, die verschiedene Tickets beurteilen, überschreiben
+ * sich so nicht. @returns {Promise<{daten, geaendertAm}>}
+ */
+async function spSaveVorfallBewertung(ticketId, bewertung) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  const akt = await spLoadVorfaelle();
+  const daten = akt.daten;
+  if (bewertung === null) delete daten.bewertungen[String(ticketId)];
+  else daten.bewertungen[String(ticketId)] = bewertung;
+  const item = await _uploadFile(token, _vorfaellePfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
+  return { daten, geaendertAm: (item && item.lastModifiedDateTime) || '' };
+}
+
+/* ═══════════════════════════════════════════════════
+   Wissen – die Bibliothek (wissen.json im Konfig-Ordner)
+   Eine Datei für alle: Themen, Beiträge, Fragen. Gepflegt von wenigen,
+   gelesen von allen – deshalb reicht der Änderungsstempel der Datei als
+   Schutz: Wer auf einem alten Stand speichert, wird abgewiesen.
+═══════════════════════════════════════════════════ */
+function _wissenPfad() { return `${SP.configFolder}/${SP.wissenDatei}`; }
+
+/** @returns {Promise<{daten:object, geaendertAm:string}>} – leer, wenn die Datei noch fehlt */
+async function spLoadWissen() {
+  const leer = { daten: { version: 1, themen: [], beitraege: [] }, geaendertAm: '' };
+  const token = await acquireToken(SP.scopes);
+  if (!token) return leer;
+  await spInit();
+  if (!_sp.appDriveId) return leer;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}`;
+  let meta;
+  try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); } catch (e) { return leer; }
+  const resp = await _fetchRetry(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) return leer;
+  const d = await resp.json().catch(() => null);
+  return { daten: (d && typeof d === 'object') ? d : leer.daten, geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/**
+ * Speichern – nur auf dem Stand, den man gelesen hat. Ist die Datei seitdem
+ * geändert worden, kommt ein Fehler („zwischenzeitlich geändert"): Zwei, die
+ * gleichzeitig pflegen, überschreiben sich so nicht still.
+ * @returns {Promise<{geaendertAm:string}>}
+ */
+async function spSaveWissen(daten, erwartetAm) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  if (erwartetAm) {
+    let meta = null;
+    try { meta = await _get(`${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}?$select=lastModifiedDateTime`, token); } catch (e) { /* Datei weg – dann neu anlegen */ }
+    if (meta && meta.lastModifiedDateTime && meta.lastModifiedDateTime !== erwartetAm) throw new Error('Die Bibliothek wurde zwischenzeitlich geändert.');
+  }
+  const item = await _uploadFile(token, _wissenPfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
+  return { geaendertAm: (item && item.lastModifiedDateTime) || '' };
+}
+
+/* ═══════════════════════════════════════════════════
+   Graph-Helper
+═══════════════════════════════════════════════════ */
+
+/** fetch mit Backoff-Retry bei transientem Throttling (429/503/504, max. 3×). */
+async function _fetchRetry(url, options, _attempt = 0) {
+  const resp = await fetch(url, options);
+  if ((resp.status === 429 || resp.status === 503 || resp.status === 504) && _attempt < 3) {
+    const retryAfter = parseFloat(resp.headers.get('Retry-After')) || 0;   // Sekunden, falls gesetzt
+    const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(8000, 500 * 2 ** _attempt);
+    console.warn(`[sp] Graph ${resp.status}, Retry ${_attempt + 1}/3 in ${waitMs} ms`);
+    await new Promise(r => setTimeout(r, waitMs));
+    return _fetchRetry(url, options, _attempt + 1);
+  }
+  return resp;
+}
+
+async function _uploadFile(token, path, bytes, contentType) {
+  const url = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${path}:/content`;
+  const resp = await _fetchRetry(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
+    body: bytes,
+  });
+  if (!resp.ok) throw new Error(`Upload ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  return resp.json();
+}
+
+async function _get(url, token, extraHeaders) {
+  const resp = await _fetchRetry(url, { headers: Object.assign({ Authorization: `Bearer ${token}`, Accept: 'application/json' }, extraHeaders || {}) });
+  if (!resp.ok) throw new Error(`Graph GET (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  return resp.json();
+}
+
+/**
+ * Mehrere Abfragen gleichzeitig abarbeiten, aber nicht alle auf einmal.
+ * Ordner nacheinander zu holen kostete pro Ordner eine volle Wartezeit; alle
+ * gleichzeitig quittiert Graph mit 429. Vier parallel ist der Punkt, an dem es
+ * deutlich schneller wird, ohne gedrosselt zu werden.
+ * @param {Array<() => Promise<any>>} aufgaben
+ */
+async function _parallel(aufgaben, gleichzeitig = 4) {
+  const rest = aufgaben.slice();
+  const laeufer = Array.from({ length: Math.min(gleichzeitig, rest.length) }, async () => {
+    while (rest.length) await rest.shift()();
+  });
+  await Promise.all(laeufer);
+}
+
+/** Alle Seiten einer Graph-Collection laden (folgt @odata.nextLink, cap gegen Endlosschleifen). */
+async function _getAll(url, token, cap = 5000, extraHeaders) {
+  let out = [], next = url;
+  while (next) {
+    const page = await _get(next, token, extraHeaders);
+    out = out.concat(page.value || []);
+    next = page['@odata.nextLink'] || null;
+    if (out.length >= cap) { console.warn(`[sp] _getAll: cap ${cap} erreicht`); break; }
+  }
+  return out;
+}
+
+/** Antwort als JSON lesen – tolerant gegenüber leeren Bodies (z. B. 202/204 bei /sendMail). */
+async function _jsonOrNull(resp) {
+  if (resp.status === 204 || resp.status === 202) return null;
+  const txt = await resp.text();
+  if (!txt) return null;
+  try { return JSON.parse(txt); } catch (e) { return null; }
+}
+
+async function _post(url, token, body) {
+  const resp = await _fetchRetry(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`Graph POST (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  return _jsonOrNull(resp);
+}
+
+async function _patch(url, token, fields) {
+  const resp = await _fetchRetry(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  if (!resp.ok) throw new Error(`Graph PATCH (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  return _jsonOrNull(resp);
+}
+
+async function _del(url, token) {
+  const resp = await _fetchRetry(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!resp.ok && resp.status !== 204) throw new Error(`Graph DELETE (${resp.status}): ${(await resp.text()).slice(0, 200)}`);
+}

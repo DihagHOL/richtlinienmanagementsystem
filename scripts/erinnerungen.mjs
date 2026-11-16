@@ -1,0 +1,1300 @@
+#!/usr/bin/env node
+/**
+ * Richtlinien-Erinnerungen (zeitgesteuert, App-only via Microsoft Graph).
+ *
+ * Läuft als GitHub-Action-Cron unbeaufsichtigt im Tenant – unabhängig davon,
+ * ob jemand die Browser-App offen hat. Liest die SharePoint-Liste „Richtlinien"
+ * + access-config.json, ermittelt überfällige Workflow-Schritte und schickt
+ * Erinnerungs-Mails an die noch ausstehenden Prüfer / Geschäftsleitung.
+ *
+ * Verhalten kommt aus den APP-EINSTELLUNGEN (access-config.json, Reiter „Einstellungen →
+ * Erinnerungen & Eskalation"): erinnerungenAktiv, mailSender, erinnerungErsteNachTagen,
+ * erinnerungDannAlleTage, eskalationAbTagen, eskalationMail. Standard: erste Erinnerung nach
+ * 7 Tagen, danach alle 3 Tage; ab 14 Tagen zusätzlich an die Eskalations-Mail.
+ *
+ * Benötigte Umgebungsvariablen (GitHub-Action-Secrets):
+ *   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET   – App-Registrierung (App-only), PFLICHT
+ *   MAIL_SENDER                                              – Absender-Postfach. Hat Vorrang vor
+ *                                                              „mailSender" aus den App-Einstellungen
+ *                                                              (siehe absenderWaehlen())
+ * Optional (überschreiben Defaults, App-Einstellungen haben aber Vorrang):
+ *   SITE_HOST (Default dihag.sharepoint.com:/sites/IT), POLICY_LIST (Richtlinien),
+ *   CONFIG_FOLDER (Richtlinienmanagement), APP_URL, ESKALATION_AB_TAGEN, DRY_RUN
+ *
+ * Benötigte Graph-APPLICATION-Rechte (Admin-Consent): Sites.Read.All, Mail.Send.
+ * Für die Erinnerung an offene Kenntnisnahmen zusätzlich User.Read.All (Zielgruppen
+ * auflösen). Fehlt das Recht, überspringt der Lauf nur diesen Teil.
+ */
+
+/* Das Notfall-Modell der App – ohne Browser-Abhängigkeit, deshalb hier
+   verwendbar. Eine Regel, zwei Stellen: Was der Reiter als Lücke zeigt,
+   mahnt der Cron. */
+import { createRequire } from 'module';
+import { readFileSync } from 'fs';
+const _require = createRequire(import.meta.url);
+const NF = _require('../js/notfallmodell.js');
+const WI = _require('../js/wissenmodell.js');   // die Bibliothek „Wissen": Pflichtschulungen, Fristen, Stand je Person
+/** Die Werke der App (STANDORTE in js/admin.js) – der Krisenstab gilt je Werk, ob mit Landkarte oder ohne. */
+function standorteDerApp() {
+  try {
+    const src = readFileSync(new URL('../js/admin.js', import.meta.url), 'utf8');
+    const m = src.match(/const STANDORTE = \[([^\]]*)\]/);
+    return m ? m[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) : [];
+  } catch { return []; }
+}
+
+const TENANT = need('AZURE_TENANT_ID');
+const CLIENT_ID = need('AZURE_CLIENT_ID');
+const CLIENT_SECRET = need('AZURE_CLIENT_SECRET');
+const ENV_SENDER = process.env.MAIL_SENDER || '';   // gewinnt immer – siehe absenderWaehlen()
+
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const SITE_HOST = process.env.SITE_HOST || 'dihag.sharepoint.com:/sites/IT';
+const ISMS_SITE_HOST = process.env.ISMS_SITE_HOST || 'dihag.sharepoint.com:/sites/ISMS';
+const TICKET_SITE_HOST = process.env.TICKET_SITE_HOST || 'dihag.sharepoint.com:/sites/ticket';   // das Ticketsystem (nur lesen)
+const TICKET_LIST = process.env.TICKET_LIST || 'Tickets';
+const POLICY_LIST = process.env.POLICY_LIST || 'Richtlinien';
+const CONFIG_FOLDER = process.env.CONFIG_FOLDER || 'Richtlinienmanagement';
+const APP_URL = process.env.APP_URL || 'https://rms.dihag.de/';
+const ESKALATION_AB_ENV = Number(process.env.ESKALATION_AB_TAGEN || 0);
+const DRY_RUN = String(process.env.DRY_RUN || '').toLowerCase() === 'true';
+// Werden erst nach dem Laden der App-Einstellungen (access-config.json) gesetzt:
+let SENDER = '';
+let ALLOWED_DOMAIN = '';
+const posInt = (v, def) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : def; };
+
+function need(k) {
+  const v = process.env[k];
+  if (!v) { console.error(`FEHLT: Umgebungsvariable ${k}`); process.exit(1); }
+  return v;
+}
+
+/**
+ * Als welches Postfach sendet der Cron?
+ *
+ * Das Secret MAIL_SENDER gewinnt. Früher gewann „mailSender" aus
+ * access-config.json – eine Datei in SharePoint, die jede:r mit Schreibrecht
+ * auf den Konfig-Ordner ändern kann. Mail.Send als App-Recht darf ohne
+ * Application Access Policy als JEDES Postfach im Tenant senden: Ein Eintrag
+ * dort genügte, und die täglichen Mails kämen etwa „von der Geschäftsführung".
+ * Die Einstellung zählt deshalb nur noch, wenn kein Secret gesetzt ist
+ * (lokaler Lauf); weicht sie ab, sagt das Protokoll es.
+ *
+ * @returns {{ sender: string, hinweis: string }}
+ */
+function absenderWaehlen(envSender, cfgSender) {
+  const env = String(envSender || '').trim();
+  const cfg = String(cfgSender || '').trim();
+  if (env) {
+    return {
+      sender: env,
+      hinweis: cfg && cfg.toLowerCase() !== env.toLowerCase()
+        ? `Absender „${cfg}" aus den App-Einstellungen ignoriert – es gilt das Secret MAIL_SENDER (${env}).` : '',
+    };
+  }
+  return { sender: cfg, hinweis: cfg ? 'Kein Secret MAIL_SENDER – Absender aus den App-Einstellungen.' : '' };
+}
+
+/** App-only-Token (Client-Credentials-Flow). */
+async function getToken() {
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    grant_type: 'client_credentials',
+    scope: 'https://graph.microsoft.com/.default',
+  });
+  const r = await fetch(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  if (!r.ok) throw new Error(`Token (${r.status}): ${(await r.text()).slice(0, 300)}`);
+  return (await r.json()).access_token;
+}
+
+let TOKEN = '';
+async function gget(path, extraHeaders) {
+  const r = await fetch(path.startsWith('http') ? path : GRAPH + path, {
+    headers: Object.assign({ Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' }, extraHeaders || {}),
+  });
+  if (!r.ok) throw new Error(`GET ${path} (${r.status}): ${(await r.text()).slice(0, 300)}`);
+  return r.json();
+}
+
+/** Tage seit Referenzdatum (ganzzahlig). */
+function daysSince(iso) {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return -1;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+/** Ist heute ein Erinnerungstag? Erste Erinnerung nach `erste` Tagen, danach alle `alle` Tage. */
+function isDue(tage, erste, alle) {
+  if (tage < 1 || tage < erste) return false;
+  return (tage - erste) % alle === 0;
+}
+
+const lc = (s) => String(s || '').toLowerCase();
+const inDomain = (upn) => ALLOWED_DOMAIN && lc(upn).endsWith('@' + ALLOWED_DOMAIN);
+
+/** Stammt der Eintrag aus einem Probelauf? Die Kennzeichnung steht im Titel (js/probelauf.js). */
+const PROBELAUF_KENNUNG = '[Probelauf]';
+const istProbelauf = (f) => String((f && f.Title) || '').startsWith(PROBELAUF_KENNUNG);
+
+/**
+ * Probelauf-Reste je Person, die sie angelegt hat – für den wöchentlichen
+ * Hinweis aufzuräumen. Gezählt wird ab dem ältesten Eintrag: Wer heute einen
+ * Probelauf macht, hat eine Woche Zeit, bevor sich jemand meldet.
+ * → [{ upn, name, tage, titel: [] }]
+ */
+function probelaufNachPerson(eintraege) {
+  const je = new Map();
+  for (const it of eintraege) {
+    const u = (it.createdBy && it.createdBy.user) || {};
+    const upn = lc(u.email || '');
+    if (!upn) continue;
+    const x = je.get(upn) || { upn, name: u.displayName || upn, tage: -1, titel: [] };
+    x.tage = Math.max(x.tage, daysSince(it.createdDateTime || it.lastModifiedDateTime || ''));
+    x.titel.push(String((it.fields && it.fields.Title) || ''));
+    je.set(upn, x);
+  }
+  return [...je.values()];
+}
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+
+/* Die ISMS-Site. Dort liegen „Risiken" und „Ausnahmen" – bewusst nicht auf der
+   App-Site, siehe js/sharepoint.js. Der Risiko-Digest suchte sie bis hierher
+   auf der App-Site und meldete dann „existiert (noch) nicht": eine Zeile, die
+   wie ein normaler Zustand aussieht und deshalb nie jemandem auffiel. */
+let _ismsSiteIdCache = null;
+async function ismsSiteId() {
+  if (_ismsSiteIdCache) return _ismsSiteIdCache;
+  const site = await gget(`/sites/${ISMS_SITE_HOST}`);
+  _ismsSiteIdCache = site.id;
+  return _ismsSiteIdCache;
+}
+
+/** Eine Liste auf der ISMS-Site suchen; null, wenn es sie noch nicht gibt. */
+async function ismsListe(name) {
+  const sid = await ismsSiteId();
+  const r = await gget(`/sites/${sid}/lists?$filter=displayName eq '${name}'`);
+  return (r.value || [])[0] || null;
+}
+
+/** Die Spalten einer Liste auf der ISMS-Site – Name, Anzeigename, Typ (für die tolerante Zuordnung). */
+async function ismsSpalten(listId) {
+  const sid = await ismsSiteId();
+  const r = await gget(`/sites/${sid}/lists/${listId}/columns?$select=name,displayName,choice,lookup,personOrGroup`);
+  return r.value || [];
+}
+
+/**
+ * Alle Elemente einer Liste auf der ISMS-Site (mit Feldern). Mit `select`
+ * werden genau diese Felder angefordert – Nachschlage- und Personenfelder
+ * liefern ihren Anzeigewert nur so; lehnt Graph die Auswahl ab, geht es ohne.
+ */
+async function ismsItems(listId, select) {
+  const sid = await ismsSiteId();
+  const lade = async (mitAuswahl) => {
+    const out = [];
+    let url = `/sites/${sid}/lists/${listId}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}&$top=200`;
+    while (url) {
+      const resp = await gget(url);
+      for (const it of (resp.value || [])) out.push(it.fields || {});
+      url = resp['@odata.nextLink'] || null;
+    }
+    return out;
+  };
+  try { return await lade(!!select); }
+  catch (e) { if (!select) throw e; return lade(false); }
+}
+
+async function resolveSiteAndList() {
+  const site = await gget(`/sites/${SITE_HOST}`);
+  const lists = await gget(`/sites/${site.id}/lists?$filter=displayName eq '${encodeURIComponent(POLICY_LIST)}'`);
+  const list = (lists.value || [])[0];
+  if (!list) throw new Error(`Liste „${POLICY_LIST}" auf ${SITE_HOST} nicht gefunden.`);
+  return { siteId: site.id, listId: list.id };
+}
+
+/** access-config.json aus der Dokumentbibliothek lesen (Rollen/Schwellen). */
+async function loadConfig(siteId) {
+  const drives = await gget(`/sites/${siteId}/drives`);
+  const docDrive = (drives.value || []).find((d) =>
+    ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
+  ) || (drives.value || [])[0];
+  if (!docDrive) return {};
+  try {
+    const r = await fetch(`${GRAPH}/drives/${docDrive.id}/root:/${CONFIG_FOLDER}/access-config.json:/content`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (!r.ok) return {};
+    return await r.json();
+  } catch { return {}; }
+}
+
+/** Eine JSON-Datei aus dem Konfig-Ordner der Dokumentbibliothek; null wenn es sie nicht gibt. */
+async function loadKonfigJson(siteId, name) {
+  const drives = await gget(`/sites/${siteId}/drives`);
+  const docDrive = (drives.value || []).find((d) =>
+    ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name)
+  ) || (drives.value || [])[0];
+  if (!docDrive) return null;
+  try {
+    const r = await fetch(`${GRAPH}/drives/${docDrive.id}/root:/${CONFIG_FOLDER}/${name}:/content`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+async function loadPolicies(siteId, listId) {
+  const out = [];
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;
+  while (url) {
+    const page = await gget(url);
+    (page.value || []).forEach((it) => out.push(it));
+    url = page['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/**
+ * @param {string[]} [extraErlaubt] Adressen, die trotz fremder Domain zugestellt
+ *   werden dürfen – die Betriebsrats-Adressen liegen auf Gruppengesellschafts-
+ *   Domains (z. B. ewa-guss.de) und sind von Admins gepflegt, also vertrauenswürdig.
+ */
+async function sendMail(toList, subject, html, attachments = [], extraErlaubt = []) {
+  const erlaubt = new Set(extraErlaubt.map(lc));
+  const recipients = [...new Set(toList.filter((u) => inDomain(u) || erlaubt.has(lc(u))).map(lc))];
+  if (!recipients.length) { console.log(`   ⚠ keine gültigen Empfänger (Domain ${ALLOWED_DOMAIN}) – übersprungen`); return false; }
+  const mitAnhang = attachments && attachments.length ? ' (mit Anhang)' : '';
+  if (DRY_RUN) { console.log(`   [DRY_RUN] würde senden an: ${recipients.join(', ')}${mitAnhang}`); return true; }
+  const message = {
+    subject: subject.slice(0, 255),
+    body: { contentType: 'HTML', content: html },
+    toRecipients: recipients.map((a) => ({ emailAddress: { address: a } })),
+  };
+  if (attachments && attachments.length) message.attachments = attachments;
+  const r = await fetch(`${GRAPH}/users/${encodeURIComponent(SENDER)}/sendMail`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, saveToSentItems: false }),
+  });
+  if (!r.ok) { console.log(`   ✗ sendMail (${r.status}): ${(await r.text()).slice(0, 200)}`); return false; }
+  console.log(`   ✓ gesendet an: ${recipients.join(', ')}${mitAnhang}`);
+  return true;
+}
+
+const MAX_ATTACH = 2.5 * 1024 * 1024;   // ~2,5 MB roh → base64 bleibt unter Graphs 4-MB-Mailgrenze
+
+function guessType(name = '') {
+  const e = String(name).toLowerCase().split('.').pop();
+  return ({
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  }[e]) || 'application/octet-stream';
+}
+
+/** Graph-Shares-ID aus einer Freigabe-/Web-URL (für Dokumente ohne gespeicherte DriveId/ItemId). */
+function encodeShareUrl(u) {
+  const b64 = Buffer.from(u, 'utf8').toString('base64').replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+  return 'u!' + b64;
+}
+
+/** Dokument der Richtlinie als E-Mail-Anhang (oder null → nur Link). */
+async function fetchAttachment(driveId, itemId, fallbackName, docUrl) {
+  let metaPath, contentPath;
+  if (driveId && itemId) {
+    metaPath = `/drives/${driveId}/items/${itemId}?$select=name,size,file`;
+    contentPath = `/drives/${driveId}/items/${itemId}/content`;
+  } else if (docUrl) {
+    const sid = encodeShareUrl(docUrl);
+    metaPath = `/shares/${sid}/driveItem?$select=name,size,file`;
+    contentPath = `/shares/${sid}/driveItem/content`;
+  } else {
+    return null;
+  }
+  let meta;
+  try { meta = await gget(metaPath); }
+  catch (e) { console.log(`   ⚠ Anhang-Metadaten nicht ladbar: ${e.message} – Mail nur mit Link`); return null; }
+  if ((meta.size || 0) > MAX_ATTACH) { console.log(`   ⚠ Dokument ${((meta.size || 0) / 1048576).toFixed(1)} MB > ${(MAX_ATTACH / 1048576).toFixed(1)} MB – Mail nur mit Link`); return null; }
+  try {
+    // /content liefert 302 auf eine vorab-authentifizierte URL; fetch folgt dem Redirect.
+    const r = await fetch(GRAPH + contentPath, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!r.ok) { console.log(`   ⚠ Anhang-Download ${r.status} – Mail nur mit Link`); return null; }
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > MAX_ATTACH) { console.log('   ⚠ Anhang zu groß – Mail nur mit Link'); return null; }
+    return {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: meta.name || fallbackName || 'Richtlinie',
+      contentType: (meta.file && meta.file.mimeType) || guessType(meta.name || fallbackName),
+      contentBytes: buf.toString('base64'),
+    };
+  } catch (e) { console.log(`   ⚠ Anhang-Fehler: ${e.message} – Mail nur mit Link`); return null; }
+}
+
+/* ── Vertretung (Urlaub, Krankheit) ──
+   Dieselbe Regel wie in der App: Läuft der Zeitraum, geht die Erinnerung auch an
+   die Vertretung, und ihr Votum zählt für die vertretene Person – sonst würde
+   weiter gemahnt, obwohl längst entschieden ist. */
+
+function vertretungAktiv(eintrag, heute) {
+  if (!eintrag || !eintrag.vertreter) return false;
+  const tag = (heute || new Date().toISOString()).slice(0, 10);
+  const von = String(eintrag.von || '').slice(0, 10);
+  const bis = String(eintrag.bis || '').slice(0, 10);
+  if (von && tag < von) return false;
+  if (bis && tag > bis) return false;
+  return true;
+}
+
+/** Empfänger um die gerade aktiven Vertretungen erweitern. */
+function mitVertretern(liste, vertretungen) {
+  const v = vertretungen || {};
+  const out = [];
+  for (const u of (liste || []).filter(Boolean)) {
+    const key = lc(u);
+    if (!out.includes(key)) out.push(key);
+    const e = v[key];
+    if (vertretungAktiv(e) && !out.includes(lc(e.vertreter))) out.push(lc(e.vertreter));
+  }
+  return out;
+}
+
+/** Wer hat abgestimmt – auch, wenn es die Vertretung war (Feld „fuer"). */
+function abgestimmtVon(votes) {
+  const out = [];
+  for (const v of (votes || [])) {
+    if (v.upn) out.push(lc(v.upn));
+    if (v.fuer) out.push(lc(v.fuer));
+  }
+  return out;
+}
+
+/** Direktlink in die App, der genau diese Richtlinie im Freigabe-Reiter öffnet. */
+function policyLink(id, aktion, token, empf) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=freigaben`
+    + (aktion ? '&aktion=' + aktion : '')
+    + (aktion && token ? '&t=' + encodeURIComponent(token) : '')
+    // Adressat im Link: Microsoft meldet ihn ohne Kontoauswahl an.
+    + (aktion && empf ? '&u=' + encodeURIComponent(empf) : '');
+}
+
+/** Geltungsbereich als Text ('' = nicht gepflegt). Steht im Sammelfeld DatenJson,
+ *  bei Altbestand in der Spalte GeltungsbereichJson. */
+function geltungsbereich(f) {
+  let arr = [];
+  try {
+    const d = JSON.parse(f.DatenJson || '{}') || {};
+    arr = Array.isArray(d.geltungsbereich) ? d.geltungsbereich : [];
+  } catch { arr = []; }
+  if (!arr.length) {
+    try { const g = JSON.parse(f.GeltungsbereichJson || '[]'); if (Array.isArray(g)) arr = g; } catch { /* keiner */ }
+  }
+  if (!arr.length) return '';
+  return arr.includes('ALLE') ? 'Alle Standorte' : arr.join(', ');
+}
+
+/** Einmal-Token der laufenden Runde aus dem Sammelfeld (für den Ein-Klick-Link). */
+function aktionToken(f, art) {
+  try {
+    const t = (JSON.parse(f.DatenJson || '{}') || {}).aktionToken;
+    return (t && t.art === art && t.wert) ? t.wert : '';
+  } catch { return ''; }
+}
+
+/** Konzepte liegen nicht im Freigaben-Reiter, sondern im Regelwerk-Dashboard. */
+function konzeptLink(id, aktion, token) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}konzept=${encodeURIComponent(id)}${aktion ? '&aktion=' + aktion : ''}`
+    + (aktion && token ? `&t=${encodeURIComponent(token)}` : '');
+}
+
+const _btn = (href, bg, label) => `<a href="${esc(href)}" style="background:${bg};color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600;margin:0 8px 8px 0">${label}</a>`;
+
+function mailHtml(id, title, phase, tage, pending, eskaliert, attachmentName, token, geltung, empf) {
+  const konzept = phase === 'Konzeptprüfung';
+  const link = konzept ? konzeptLink(id) : policyLink(id);
+  const actions = konzept
+    ? _btn(konzeptLink(id, 'annehmen', token), '#16a34a', '✓ Annehmen → Regelwerk')
+      + _btn(konzeptLink(id, 'zurueckstellen', token), '#64748b', '⏸ Zurückstellen')
+      + _btn(konzeptLink(id, 'ablehnen', token), '#dc2626', '✗ Ablehnen')
+    : phase === 'Freigabe'
+      ? _btn(policyLink(id, 'freigeben', token, empf), '#16a34a', '✓ Freigeben') + _btn(policyLink(id, 'zurueck', token, empf), '#dc2626', '✗ Zurück (nicht konform)')
+      // Der Betriebsrat entscheidet über die Mitbestimmung, nicht über die Konformität –
+      // dieselben Knöpfe, aber ein anderer Vorgang. Ohne Empfänger im Link: Adressat ist
+      // ein Betriebsrats-Postfach, angemeldet wird sich persönlich.
+      : phase === 'Mitbestimmung'
+        ? _btn(policyLink(id, 'mb_konform', token), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'mb_nicht_konform', token), '#dc2626', '✗ Nicht konform')
+        : _btn(policyLink(id, 'konform', token, empf), '#16a34a', '✓ Konform') + _btn(policyLink(id, 'nicht_konform', token, empf), '#dc2626', '✗ Nicht konform');
+  const gegenstand = konzept ? 'das Regelwerk-Konzept' : 'das Regelwerk';
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937">
+    <p>Guten Tag,</p>
+    <p>für ${gegenstand} <a href="${esc(link)}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(title)}</a>
+       steht seit <b>${tage} Tagen</b> der Schritt <b>${esc(phase)}</b> aus.</p>
+    ${geltung ? `<p><b>Geltungsbereich:</b> ${esc(geltung)}</p>` : ''}
+    <p>Bitte um Sichtung und ggf. Anmerkung. Noch ausstehend:</p>
+    <ul>${pending.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>
+    ${attachmentName ? `<p>📎 Das aktuelle Dokument ist dieser E-Mail angehängt: <b>${esc(attachmentName)}</b>.</p>` : ''}
+    ${eskaliert ? `<p style="color:#b45309"><b>Eskalation:</b> Diese Erinnerung geht aufgrund der Verzögerung zusätzlich an den Ersatz-Empfänger.</p>` : ''}
+    <p style="margin:18px 0 6px"><b>Direkt entscheiden:</b></p>
+    <p>${actions}</p>
+    <p style="color:#6b7280;font-size:12px">Der Button öffnet den Vorgang in der App und führt die Entscheidung nach kurzer Rückfrage aus (Anmeldung nötig).
+       Oder <a href="${esc(link)}" style="color:#17509e">nur ansehen &amp; bearbeiten</a>.<br>Automatische Erinnerung vom DIHAG Regelwerk-Management-System.</p>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════
+   Kenntnisnahmen der Mitarbeitenden
+   ═══════════════════════════════════════════════════
+   Der Cron erinnerte nur die Fachrollen (Prüfung, Mitbestimmung, Freigabe).
+   Wer ein veröffentlichtes Regelwerk lesen und bestätigen muss, hörte nach der
+   Veröffentlichungsmail nie wieder etwas davon – dabei hängt genau daran der
+   Nachweis. Jede Person bekommt eine Mail über alle ihre offenen Regelwerke,
+   nicht eine Mail je Regelwerk. */
+
+/** Aktive Mitarbeitende aus Entra. Braucht das Anwendungsrecht User.Read.All. */
+async function ladeMitarbeitende() {
+  const out = [];
+  let url = '/users?$select=displayName,userPrincipalName,mail,department,accountEnabled&$top=999';
+  while (url) {
+    const page = await gget(url);
+    for (const u of (page.value || [])) {
+      if (u.accountEnabled === false) continue;
+      const upn = String(u.userPrincipalName || u.mail || '').trim();
+      if (!upn.includes('@')) continue;
+      out.push({ upn, name: u.displayName || upn, abteilung: String(u.department || '').trim() });
+    }
+    url = page['@odata.nextLink'] || null;
+  }
+  return out;
+}
+
+/** Bestätigungen als Nachschlagewerk: „regelwerkId|version|upn" → Eintrag. */
+async function ladeBestaetigungen(siteId) {
+  const lists = await gget(`/sites/${siteId}/lists?$filter=displayName eq 'Bestaetigungen'`);
+  const list = (lists.value || [])[0];
+  if (!list) return null;
+  const map = new Map();
+  let url = `/sites/${siteId}/lists/${list.id}/items?$expand=fields&$top=500`;
+  while (url) {
+    const page = await gget(url);
+    for (const it of (page.value || [])) {
+      const f = it.fields || {};
+      map.set(`${f.RichtlinieId}|${f.RichtlinienVersion}|${lc(f.BenutzerUPN)}`, {
+        richtlinieId: f.RichtlinieId || '', version: f.RichtlinienVersion || '', benutzerUpn: f.BenutzerUPN || '',
+        gelesenAm: f.GelesenAm || '',
+        quizBestanden: f.QuizBestanden === true,
+        abgeschlossenAm: f.AbgeschlossenAm || '',
+      });
+    }
+    url = page['@odata.nextLink'] || null;
+  }
+  return map;
+}
+
+/** Rollen einer Person: AD-Abteilung plus manuelle Zuordnung aus der Konfiguration. */
+function rollenVon(user, userRoles) {
+  const manuell = (userRoles && (userRoles[lc(user.upn)] || userRoles[user.upn])) || [];
+  return [user.abteilung, ...(Array.isArray(manuell) ? manuell : [])]
+    .filter(Boolean).map((r) => lc(String(r).trim()));
+}
+
+/** Gilt das Regelwerk für diese Rollen? Leere Zielgruppe oder „ALLE" heißt: für alle. */
+function zielgruppeTrifft(zielgruppen, rollen) {
+  const zg = (Array.isArray(zielgruppen) ? zielgruppen : []).filter(Boolean);
+  if (!zg.length || zg.some((z) => lc(z) === 'alle')) return true;
+  const set = new Set((rollen || []).map(lc));
+  return zg.some((z) => set.has(lc(String(z).trim())));
+}
+
+/** Ist die Kenntnisnahme offen? Auch dann, wenn die Wiederholungsfrist abgelaufen ist. */
+function kenntnisOffen(ack, quizNoetig, wiederholungMonate) {
+  if (!ack || !ack.gelesenAm) return true;
+  if (quizNoetig && !ack.quizBestanden) return true;
+  const monate = Number(wiederholungMonate || 0);
+  if (monate > 0) {
+    const faellig = new Date(ack.abgeschlossenAm || ack.gelesenAm);
+    if (!isNaN(faellig)) {
+      faellig.setMonth(faellig.getMonth() + monate);
+      if (faellig.getTime() < Date.now()) return true;
+    }
+  }
+  return false;
+}
+
+/** Direktlink auf ein Regelwerk in der Leseansicht („Meine Regelwerke").
+ *  Die Ansicht steht ausdrücklich im Link – sonst hinge das Ziel an der Rolle
+ *  des Empfängers, und eine Geschäftsleitung landete in der Freigabe. */
+function regelwerkLink(id) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}richtlinie=${encodeURIComponent(id)}&ansicht=meine`;
+}
+
+function kenntnisMailHtml(name, posten) {
+  const zeilen = posten.map((x) => `<li style="margin-bottom:6px">
+      <a href="${esc(regelwerkLink(x.id))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(x.title)}</a>
+      <span style="color:#6b7280"> – seit ${x.tage} Tag(en) veröffentlicht${x.quizNoetig ? ', mit Wissenstest' : ''}${x.geltung ? ' · gilt für ' + esc(x.geltung) : ''}</span></li>`).join('');
+  const eins = posten.length === 1;
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+    <p>Guten Tag ${esc(name)},</p>
+    <p>${eins ? 'ein Regelwerk wartet' : `${posten.length} Regelwerke warten`} noch auf Ihre Kenntnisnahme:</p>
+    <ul style="padding-left:18px">${zeilen}</ul>
+    <p>Bitte öffnen, lesen und die Kenntnisnahme bestätigen${posten.some((x) => x.quizNoetig) ? ' – bei Regelwerken mit Wissenstest zusätzlich den Test bestehen' : ''}.
+       Das dauert meist wenige Minuten.</p>
+    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=meine`, '#17509e', 'Meine Regelwerke öffnen →')}</p>
+    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung vom DIHAG Regelwerk-Management-System.
+       Ist etwas bereits erledigt, kreuzt sich diese Mail nur mit Ihrer Bestätigung – dann bitte ignorieren.</p>
+  </div>`;
+}
+
+/** Gilt die Schulung für diese Person? Nach Geltungsbereich und der Gesellschaft ihrer Domäne. */
+function schulungGiltFuer(kurs, user, cfg) {
+  const g = Array.isArray(kurs.geltung) ? kurs.geltung : [];
+  if (!g.length || g.includes('ALLE')) return true;
+  const dom = lc(user.upn).split('@')[1] || '';
+  const ges = (cfg.gesellschaften && cfg.gesellschaften[dom]) || null;
+  const werke = ges && Array.isArray(ges.werke) ? ges.werke.map(String) : [];
+  if (!werke.length) return true;                    // ohne Zuordnung: lieber einmal zu viel
+  return g.some((w) => werke.includes(String(w)));
+}
+
+/** Direktlink auf eine Schulung in der Bibliothek. */
+function schulungLink(id) {
+  const sep = APP_URL.includes('?') ? '&' : '?';
+  return `${APP_URL}${sep}ansicht=wissen&beitrag=${encodeURIComponent(id)}`;
+}
+
+function schulungMailHtml(name, posten) {
+  const zeile = (x) => {
+    const was = x.art === 'offen' ? 'noch nicht abgeschlossen'
+      : x.art === 'bald' ? `Auffrischung fällig ${x.tage <= 1 ? 'morgen' : 'in ' + x.tage + ' Tagen'} (bis ${WI.wiTag(x.bis)})`
+      : `Auffrischung seit ${x.tage} Tag(en) überfällig`;
+    return `<li style="margin-bottom:6px"><a href="${esc(schulungLink(x.id))}" style="color:#17509e;font-weight:700;text-decoration:none">${esc(x.titel)}</a>
+      <span style="color:${x.art === 'abgelaufen' ? '#b45309' : '#6b7280'}"> – ${esc(was)}${x.dauer ? `, ca. ${x.dauer} Minuten` : ''}</span></li>`;
+  };
+  const eins = posten.length === 1;
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+    <p>Guten Tag ${esc(name)},</p>
+    <p>${eins ? 'eine Pflichtschulung wartet' : `${posten.length} Pflichtschulungen warten`} auf Sie:</p>
+    <ul style="padding-left:18px">${posten.map(zeile).join('')}</ul>
+    <p>Die Module lassen sich in Etappen durchgehen – der Stand bleibt gespeichert. Zum Schluss ein kurzer Wissenstest, danach steht die Bescheinigung bereit.</p>
+    <p style="margin:18px 0 6px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=wissen`, '#17509e', 'Zur Bibliothek „Wissen" →')}</p>
+    <p style="color:#6b7280;font-size:12px">Automatische Erinnerung vom DIHAG Regelwerk-Management-System.
+       Ist die Schulung bereits abgeschlossen, kreuzt sich diese Mail nur mit Ihrem Abschluss – dann bitte ignorieren.</p>
+  </div>`;
+}
+
+function kenntnisEskalationHtml(posten) {
+  const rows = posten.map((x) => `<tr>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.title)}</td>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;color:#b45309;font-weight:600">seit ${x.tage} Tagen</td>
+      <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${x.offen.length} offen</td></tr>
+    <tr><td colspan="3" style="padding:0 8px 8px;color:#6b7280;font-size:12px">${esc(x.offen.join(', '))}</td></tr>`).join('');
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+    <p><b>Offene Kenntnisnahmen – Eskalation</b></p>
+    <p>Bei folgenden Regelwerken fehlen Bestätigungen deutlich über die vorgesehene Frist hinaus:</p>
+    <table style="border-collapse:collapse;width:100%">${rows}</table>
+    <p style="margin-top:16px">${_btn(`${APP_URL}${APP_URL.includes('?') ? '&' : '?'}ansicht=compliance`, '#17509e', 'Audit Report öffnen →')}</p>
+    <p style="color:#6b7280;font-size:12px">Zweck ist der Nachweis der Unterweisung, keine Leistungskontrolle.
+       Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p>
+  </div>`;
+}
+
+(async function main() {
+  console.log(`Richtlinien-Erinnerungen · ${new Date().toISOString()} · DRY_RUN=${DRY_RUN}`);
+  TOKEN = await getToken();
+  const { siteId, listId } = await resolveSiteAndList();
+  const cfg = await loadConfig(siteId);
+  if (cfg.erinnerungenAktiv === false) {
+    console.log('Erinnerungen sind in den App-Einstellungen deaktiviert – nichts zu tun.');
+    return;
+  }
+  const absender = absenderWaehlen(ENV_SENDER, cfg.mailSender);
+  SENDER = absender.sender;
+  if (absender.hinweis) console.log('⚠ ' + absender.hinweis);
+  if (!SENDER) { console.error('FEHLT: Absender. Secret MAIL_SENDER hinterlegen.'); process.exit(1); }
+  ALLOWED_DOMAIN = SENDER.split('@')[1]?.toLowerCase() || '';
+  const erste = posInt(process.env.ERINNERUNG_ERSTE, posInt(cfg.erinnerungErsteNachTagen, 7));
+  const alle = posInt(process.env.ERINNERUNG_ALLE, posInt(cfg.erinnerungDannAlleTage, 3));
+  const eskalationAb = posInt(cfg.eskalationAbTagen, ESKALATION_AB_ENV || 14);
+  const pruefer = (cfg.pruefer || []).filter(Boolean);
+  const gl = (cfg.geschaeftsleitung || []).filter(Boolean);
+  const kbrMail = (cfg.kbrMail || '').trim();
+  const brMails = (cfg.brMails && typeof cfg.brMails === 'object') ? cfg.brMails : {};
+  const eskalationMail = cfg.eskalationMail || '';
+  console.log(`Absender: ${SENDER} · Prüfer: ${pruefer.length} · GL: ${gl.length} · Taktung: erst nach ${erste}d, dann alle ${alle}d · Eskalation ab ${eskalationAb}d → ${eskalationMail || '–'}`);
+
+  // Einträge aus einem Probelauf (js/probelauf.js) erinnert dieser Lauf nicht:
+  // Ein liegen gebliebener Vorgang bekäme sonst Erinnerungen an Prüfer und
+  // Geschäftsleitung, ab 14 Tagen die Eskalation, und ein veröffentlichter die
+  // Kenntnisnahme-Mahnung an die ganze Belegschaft. Alle Abschnitte unten
+  // lesen deshalb nur `items`. Wer den Probelauf gemacht hat, bekommt
+  // stattdessen einmal die Woche den Hinweis aufzuräumen (am Ende).
+  const alleEintraege = await loadPolicies(siteId, listId);
+  const probelaufReste = alleEintraege.filter((it) => istProbelauf(it.fields || {}));
+  const items = alleEintraege.filter((it) => !istProbelauf(it.fields || {}));
+  console.log(`Richtlinien gesamt: ${alleEintraege.length}${probelaufReste.length
+    ? ` (davon ${probelaufReste.length} aus Probeläufen – werden nicht erinnert)` : ''}`);
+
+  let sent = 0, checked = 0;
+  for (const it of items) {
+    const f = it.fields || {};
+    const status = f.Status || '';
+    const title = f.Title || '(ohne Titel)';
+    let ref = f.PruefungSeit || it.lastModifiedDateTime || '';
+    if ((f.Typ2 || '') === 'Konzept') {
+      try { ref = (JSON.parse(f.KonzeptJson || '{}') || {}).eingereichtAm || ref; } catch { /* Standard */ }
+    }
+    const tage = daysSince(ref);
+
+    let phase = '', roleRecipients = [], voted = [];
+    // Konzepte: liegen bei der Geschäftsleitung, solange keine Entscheidung
+    // gefallen ist. Sie tragen keinen Status, sondern stecken in KonzeptJson –
+    // ohne diesen Zweig wurde die erste Etappe des Ablaufs nie erinnert.
+    if ((f.Typ2 || '') === 'Konzept') {
+      let ko = {};
+      try { ko = JSON.parse(f.KonzeptJson || '{}') || {}; } catch { ko = {}; }
+      const entschieden = ko.entscheidung && ko.entscheidung.status;
+      if (!ko.eingereichtAm || entschieden) continue;      // Entwurf oder erledigt
+      phase = 'Konzeptprüfung';
+      roleRecipients = mitVertretern(gl, cfg.vertretungen);
+      voted = [];
+    } else if (status === 'Mitbestimmung') {
+      // Beim Betriebsrat: KBR und/oder die Betriebsräte der betroffenen Werke.
+      let mb = {};
+      try { mb = JSON.parse(f.MitbestimmungJson || '{}') || {}; } catch { mb = {}; }
+      if (mb.bestaetigung && mb.bestaetigung.konform) continue;   // schon bestätigt
+      const werke = Array.isArray(mb.werke) ? mb.werke : [];
+      phase = 'Mitbestimmung';
+      roleRecipients = [mb.kbrBetroffen ? kbrMail : '', ...werke.map((w) => brMails[w] || '')]
+        .filter(Boolean);
+      voted = [];
+    } else if (status === 'Konformitätsprüfung' || status === 'InReview') {
+      phase = 'Konformitätsprüfung';
+      // Pro-Richtlinie-Prüfer haben Vorrang; sonst die globale Prüferliste.
+      let ownPruefer = [];
+      try { const pk = JSON.parse(f.PruefKonfigJson || '{}'); if (Array.isArray(pk.pruefer)) ownPruefer = pk.pruefer.filter(Boolean); } catch { ownPruefer = []; }
+      roleRecipients = mitVertretern(ownPruefer.length ? ownPruefer : pruefer, cfg.vertretungen);
+      try { voted = abgestimmtVon(JSON.parse(f.KonformitaetJson || '[]')); } catch { voted = []; }
+    } else if (status === 'Freigabe' || status === 'Freigabe ausstehend') {
+      phase = 'Freigabe';
+      // Pro-Richtlinie-Freigeber haben Vorrang; sonst die globale GL-Liste.
+      let ownFreigeber = [];
+      try { const fk = JSON.parse(f.FreigabeKonfigJson || '{}'); if (Array.isArray(fk.freigeber)) ownFreigeber = fk.freigeber.filter(Boolean); } catch { ownFreigeber = []; }
+      roleRecipients = mitVertretern(ownFreigeber.length ? ownFreigeber : gl, cfg.vertretungen);
+      try { voted = abgestimmtVon(JSON.parse(f.FreigabeJson || '[]')); } catch { voted = []; }
+    } else {
+      continue; // nur laufende Workflow-Schritte
+    }
+    checked++;
+
+    if (!isDue(tage, erste, alle)) { console.log(`• ${title} [${phase}] – ${tage}d, heute keine Erinnerung`); continue; }
+
+    const vertretungen = cfg.vertretungen || {};
+    const erledigt = (u) => {
+      const key = lc(u);
+      if (voted.includes(key)) return true;
+      // Hat die Person, die diese hier vertritt, schon entschieden? Und andersherum.
+      const e = vertretungen[key];
+      if (vertretungAktiv(e) && voted.includes(lc(e.vertreter))) return true;
+      return Object.entries(vertretungen).some(([fuer, x]) =>
+        vertretungAktiv(x) && lc(x.vertreter) === key && voted.includes(lc(fuer)));
+    };
+    const pending = roleRecipients.filter((u) => !erledigt(u));
+    if (!pending.length) { console.log(`• ${title} [${phase}] – ${tage}d, alle haben bereits reagiert`); continue; }
+
+    const eskaliert = eskalationAb > 0 && tage >= eskalationAb && !!eskalationMail;
+    const docUrl = typeof f.DokumentUrl === 'string' ? f.DokumentUrl : ((f.DokumentUrl && f.DokumentUrl.Url) || '');
+    console.log(`   doc-Felder: driveId=${f.DokumentDriveId ? 'ja' : 'nein'}, itemId=${f.DokumentItemId ? 'ja' : 'nein'}, url=${docUrl ? 'ja' : 'nein'}, name=${f.DokumentName || '-'}`);
+    const att = await fetchAttachment(f.DokumentDriveId, f.DokumentItemId, f.DokumentName, docUrl);
+    console.log(`• ${title} [${phase}] – ${tage}d, ausstehend: ${pending.join(', ')}${eskaliert ? ' (+Eskalation)' : ''}${att ? ' (+Anhang)' : ''}`);
+    // Bei der Mitbestimmung sind die Empfänger admin-gepflegte BR-Adressen –
+    // sie dürfen auch auf Gruppengesellschafts-Domains liegen.
+    // Einzelversand: Der Ein-Klick-Link trägt die Adresse des Empfängers, sonst müsste
+    // sich jeder erst anmelden. Die Eskalation geht zusätzlich raus – ohne persönlichen
+    // Link, sie entscheidet ja nicht.
+    const tok = aktionToken(f, phase === 'Freigabe' ? 'freigabe'
+      : phase === 'Mitbestimmung' ? 'mitbestimmung'
+        : phase === 'Konzeptprüfung' ? 'konzept' : 'pruefung');
+    const bau = (empf) => mailHtml(it.id, title, phase, tage, pending, eskaliert,
+      att ? att.name : '', tok, geltungsbereich(f), empf);
+    const erlaubt = phase === 'Mitbestimmung' ? roleRecipients : [];
+    let zugestellt = 0;
+    for (const empf of pending) {
+      if (await sendMail([empf], `Erinnerung: ${phase} – ${title}`, bau(empf), att ? [att] : [], erlaubt)) zugestellt++;
+    }
+    if (eskaliert && await sendMail([eskalationMail], `Erinnerung: ${phase} – ${title}`,
+      bau(''), att ? [att] : [], erlaubt)) zugestellt++;
+    if (zugestellt) sent++;
+  }
+
+  // ── Offene Kenntnisnahmen: Erinnerung an die Mitarbeitenden ──
+  try {
+    if (cfg.kenntnisErinnerungAktiv === false) {
+      console.log('Kenntnisnahme-Erinnerungen: in den App-Einstellungen abgeschaltet.');
+    } else {
+      const kErste = posInt(cfg.kenntnisErsteNachTagen, 7);
+      const kAlle = posInt(cfg.kenntnisDannAlleTage, 7);
+      const kEskAb = posInt(cfg.kenntnisEskalationAbTagen, 21);
+      const kEskMail = String(cfg.kenntnisEskalationMail || cfg.eskalationMail || '').trim();
+      const acks = await ladeBestaetigungen(siteId);
+      let users = [];
+      if (!acks) {
+        console.log('Kenntnisnahme: Liste „Bestaetigungen" nicht gefunden – übersprungen.');
+      } else {
+        try {
+          users = await ladeMitarbeitende();
+        } catch (e) {
+          console.log(`Kenntnisnahme: Mitarbeitende nicht lesbar (${e.message}). Dem App-Konto fehlt`
+            + ' vermutlich das Anwendungsrecht „User.Read.All" (Admin-Consent) – Teil übersprungen.');
+        }
+      }
+      if (acks && users.length) {
+        const userRoles = (cfg.userRoles && typeof cfg.userRoles === 'object') ? cfg.userRoles : {};
+        const jeUser = new Map();     // upn → { upn, name, posten: [] }
+        const eskalation = [];        // { title, tage, offen: [Namen] }
+        for (const it of items) {
+          const f = it.fields || {};
+          if ((f.Status || '') !== 'Veröffentlicht') continue;
+          if (f.Pflicht === false) continue;            // freiwillige Lektüre wird nicht angemahnt
+          const tage = daysSince(f.VeroeffentlichtAm || it.lastModifiedDateTime || '');
+          const faellig = isDue(tage, kErste, kAlle);
+          const eskaliert = kEskAb > 0 && tage >= kEskAb && !!kEskMail;
+          if (!faellig && !eskaliert) continue;
+          const title = f.Title || '(ohne Titel)';
+          const version = f.Version1 || '1.0';
+          let zg = []; try { zg = JSON.parse(f.Zielgruppen || '[]'); } catch { zg = []; }
+          let fragen = 0; try { fragen = (JSON.parse(f.QuizJson || '[]') || []).length; } catch { fragen = 0; }
+          const quizNoetig = !!f.QuizErforderlich && fragen > 0;
+          const offeneNamen = [];
+          for (const u of users) {
+            if (!zielgruppeTrifft(zg, rollenVon(u, userRoles))) continue;
+            if (!kenntnisOffen(acks.get(`${it.id}|${version}|${lc(u.upn)}`), quizNoetig, f.WiederholungMonate)) continue;
+            offeneNamen.push(u.name);
+            if (!faellig) continue;                     // an diesem Tag nur für die Eskalation zählen
+            if (!jeUser.has(lc(u.upn))) jeUser.set(lc(u.upn), { upn: u.upn, name: u.name, posten: [] });
+            jeUser.get(lc(u.upn)).posten.push({ id: it.id, title, tage, quizNoetig, geltung: geltungsbereich(f) });
+          }
+          if (eskaliert && offeneNamen.length) eskalation.push({ title, tage, offen: offeneNamen });
+          console.log(`• Kenntnisnahme „${title}" – ${tage}d, offen: ${offeneNamen.length}`);
+        }
+        for (const u of jeUser.values()) {
+          const betreff = u.posten.length === 1
+            ? `Bitte um Kenntnisnahme: ${u.posten[0].title}`
+            : `${u.posten.length} Regelwerke warten auf Ihre Kenntnisnahme`;
+          if (await sendMail([u.upn], betreff, kenntnisMailHtml(u.name, u.posten), [])) sent++;
+        }
+        console.log(`Kenntnisnahme: ${jeUser.size} Person(en) erinnert.`);
+        if (eskalation.length && kEskMail) {
+          eskalation.sort((a, b) => b.tage - a.tage);
+          if (await sendMail([kEskMail], `Offene Kenntnisnahmen: ${eskalation.length} Regelwerk(e) überfällig`,
+            kenntnisEskalationHtml(eskalation), [])) sent++;
+          console.log(`Kenntnisnahme-Eskalation: ${eskalation.length} Regelwerk(e) an ${kEskMail}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Kenntnisnahme-Erinnerungen übersprungen:', e.message); }
+
+  // ── Pflichtschulungen (Reiter „Wissen"): offen, Auffrischung steht bevor, abgelaufen ──
+  // Eine Mail je Person über alle ihre Schulungen. Freiwillige Beiträge werden
+  // nie angemahnt – das ist der Unterschied zwischen Bibliothek und Pflicht.
+  try {
+    if (cfg.schulungErinnerungAktiv === false) {
+      console.log('Schulungs-Erinnerungen: in den App-Einstellungen abgeschaltet.');
+    } else {
+      const wj = await loadKonfigJson(siteId, 'wissen.json');
+      const wissen = WI.wiNormalisieren(wj || {});
+      const pflicht = wissen.beitraege.filter((b) => b.art === 'kurs' && b.pflicht && b.aktiv !== false);
+      if (!pflicht.length) {
+        console.log('Schulungs-Erinnerungen: keine Pflichtschulung in wissen.json.');
+      } else {
+        const sErste = posInt(cfg.schulungErsteNachTagen, 7);
+        const sAlle = posInt(cfg.schulungDannAlleTage, 14);
+        const sVorlauf = posInt(cfg.schulungVorlaufTage, 14);
+        const acks = await ladeBestaetigungen(siteId);
+        let users = [];
+        try { users = await ladeMitarbeitende(); }
+        catch (e) { console.log(`Schulungen: Mitarbeitende nicht lesbar (${e.message}) – Teil übersprungen.`); }
+        if (acks && users.length) {
+          const jeUser = new Map();   // upn → { upn, name, posten: [] }
+          const heute = new Date().toISOString();
+          for (const k of pflicht) {
+            let offen = 0, bald = 0, abgelaufen = 0;
+            for (const u of users) {
+              if (!schulungGiltFuer(k, u, cfg)) continue;
+              const ack = acks.get(`${WI.wiAckId(k.id)}|${k.stand || '1'}|${lc(u.upn)}`) || null;
+              const st = WI.wiStand(k, ack ? [ack] : [], heute);
+              let art = '', tage = 0;
+              if (st.gueltig) {
+                const bis = Math.ceil((Date.parse(st.faelligAm) - Date.now()) / 86400000);
+                if (st.faelligAm && bis <= sVorlauf && (bis === sVorlauf || bis === 3 || bis === 1)) { art = 'bald'; tage = bis; bald++; }
+              } else if (st.abgelaufen) {
+                tage = daysSince(st.faelligAm); abgelaufen++;
+                if (isDue(tage + 1, 1, sAlle)) art = 'abgelaufen';
+              } else {
+                tage = daysSince(k.erstelltAm || heute); offen++;
+                if (isDue(tage, sErste, sAlle)) art = 'offen';
+              }
+              if (!art) continue;
+              if (!jeUser.has(lc(u.upn))) jeUser.set(lc(u.upn), { upn: u.upn, name: u.name, posten: [] });
+              jeUser.get(lc(u.upn)).posten.push({ id: k.id, titel: k.titel, dauer: k.dauer, art, tage, bis: st.faelligAm });
+            }
+            console.log(`• Pflichtschulung „${k.titel}" – offen: ${offen}, Auffrischung bald: ${bald}, abgelaufen: ${abgelaufen}`);
+          }
+          for (const u of jeUser.values()) {
+            const eins = u.posten.length === 1;
+            const betreff = eins
+              ? (u.posten[0].art === 'offen' ? `Pflichtschulung: ${u.posten[0].titel}` : `Auffrischung ${u.posten[0].art === 'bald' ? 'steht an' : 'fällig'}: ${u.posten[0].titel}`)
+              : `${u.posten.length} Pflichtschulungen warten auf Sie`;
+            if (await sendMail([u.upn], betreff, schulungMailHtml(u.name, u.posten), [])) sent++;
+          }
+          console.log(`Schulungen: ${jeUser.size} Person(en) erinnert.`);
+        }
+      }
+    }
+  } catch (e) { console.log('Schulungs-Erinnerungen übersprungen:', e.message); }
+
+  // ── Review-Fälligkeiten (Wiedervorlage) als Sammel-Mail an die Admins (ISO 27001 A.5.1) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    const reviewVorlauf = posInt(cfg.reviewVorlaufTage, 14);
+    if (!admins.length) {
+      console.log('Review-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const due = [];
+      for (const it of items) {
+        const f = it.fields || {};
+        if ((f.Status || '') === 'Archiviert' || !f.NaechsteReview) continue;
+        const d = new Date(f.NaechsteReview); if (isNaN(d)) continue;
+        d.setHours(0, 0, 0, 0);
+        const tageBis = Math.round((d - today) / 86400000);
+        if (tageBis <= reviewVorlauf) due.push({ title: f.Title || '(ohne Titel)', tageBis });
+      }
+      if (!due.length) {
+        console.log('Review-Digest: keine fälligen Überprüfungen.');
+      } else {
+        due.sort((a, b) => a.tageBis - b.tageBis);
+        const rows = due.map((x) => {
+          const lab = x.tageBis < 0 ? `überfällig seit ${-x.tageBis} Tag(en)` : (x.tageBis === 0 ? 'heute fällig' : `fällig in ${x.tageBis} Tag(en)`);
+          const col = x.tageBis < 0 ? '#b91c1c' : (x.tageBis <= 7 ? '#b45309' : '#374151');
+          return `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.title)}</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${col};font-weight:600;white-space:nowrap">${esc(lab)}</td></tr>`;
+        }).join('');
+        const overdue = due.filter((x) => x.tageBis < 0).length;
+        const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:600px">
+          <p><b>Fällige Richtlinien-Überprüfungen (Wiedervorlage)</b></p>
+          <p>Folgende Richtlinien sind überfällig oder werden in den nächsten ${reviewVorlauf} Tagen zur internen Überprüfung fällig (ISO&nbsp;27001 A.5.1):</p>
+          <table style="border-collapse:collapse;width:100%">${rows}</table>
+          <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=faelligkeit" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Fälligkeiten öffnen →</a></p>
+          <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+        const ok = await sendMail(admins, `Richtlinien-Überprüfung: ${due.length} fällig/überfällig${overdue ? ` (davon ${overdue} überfällig)` : ''}`, html, []);
+        if (ok) sent++;
+        console.log(`Review-Digest: ${due.length} fällige Überprüfung(en) (${overdue} überfällig) an ${admins.join(', ')}`);
+      }
+    }
+  } catch (e) { console.log('Review-Digest übersprungen:', e.message); }
+
+  // ── Risiko-Digest: überfällige Maßnahmen + Risiko-Reviews an die Admins (ISO 27001 6.1.3/8.3) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Risiko-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      // Liste „Risiken" suchen – auf der ISMS-Site, dort legt die App sie an.
+      // Bis hierher wurde auf der App-Site gesucht; gefunden wurde nie etwas.
+      const riskList = await ismsListe('Risiken');
+      if (!riskList) {
+        console.log('Risiko-Digest: Liste „Risiken" existiert (noch) nicht – übersprungen.');
+      } else {
+        const risks = await ismsItems(riskList.id);
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const rowsOut = [];
+        for (const f of risks) {
+          if ((f.RiskStatus || 'offen') === 'geschlossen') continue;
+          let ms = [];
+          try { ms = JSON.parse(f.MassnahmenJson || '[]'); } catch (e) { ms = []; }
+          for (const m of ms) {
+            if (m && m.status !== 'erledigt' && m.frist && String(m.frist).slice(0, 10) < todayStr) {
+              rowsOut.push({ risiko: f.Title || '(ohne Titel)', was: `Maßnahme „${m.titel || '?'}" überfällig seit ${String(m.frist).slice(0, 10)}`, wer: m.verantwortlich || '' });
+            }
+          }
+          if (f.NaechsteReview && String(f.NaechsteReview).slice(0, 10) < todayStr) {
+            rowsOut.push({ risiko: f.Title || '(ohne Titel)', was: `Risiko-Review überfällig (${String(f.NaechsteReview).slice(0, 10)})`, wer: f.Eigner || '' });
+          }
+        }
+        if (!rowsOut.length) {
+          console.log('Risiko-Digest: nichts überfällig.');
+        } else {
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.risiko)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#b91c1c;font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Risiko-Register: überfällige Maßnahmen und Reviews</b></p>
+            <p>Im Risiko-Register sind Fristen abgelaufen (ISO&nbsp;27001 6.1.3/8.3):</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=risiken" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Risiko-Register öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Risiko-Register: ${rowsOut.length} überfällige Frist(en)`, html, []);
+          if (ok) sent++;
+          console.log(`Risiko-Digest: ${rowsOut.length} überfällige Frist(en) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Risiko-Digest übersprungen:', e.message); }
+
+
+  // ── Ausnahmen-Digest: abgelaufene und auslaufende Abweichungen (Reifegrad R130) ──
+  // „Befristet" ist nur dann eine Eigenschaft, wenn jemand vom Ablauf erfährt.
+  // Ohne diese Mail wäre die Frist im Register bloß ein Datum in einer Spalte.
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Ausnahmen-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Ausnahmen');
+      if (!liste) {
+        console.log('Ausnahmen-Digest: Liste „Ausnahmen" existiert (noch) nicht – übersprungen.');
+      } else {
+        const vorlauf = posInt(cfg.ausnahmenVorlaufTage, 30);
+        const heute = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
+        const rowsOut = [];
+        for (const f of await ismsItems(liste.id)) {
+          const status = f.ExcStatus || 'beantragt';
+          const titel = f.Title || '(ohne Titel)';
+          const wer = f.Antragsteller || '';
+          if (status === 'beantragt') {
+            rowsOut.push({ titel, was: 'wartet auf Entscheidung', wer, rang: 1 });
+            continue;
+          }
+          if (status !== 'genehmigt') continue;
+          if (!f.BefristetBis) {
+            rowsOut.push({ titel, was: 'genehmigt, aber ohne Enddatum', wer, rang: 1 });
+            continue;
+          }
+          const ende = new Date(String(f.BefristetBis).slice(0, 10) + 'T00:00:00Z').getTime();
+          const tage = Math.round((ende - heute) / 86400000);
+          if (tage < 0) {
+            rowsOut.push({ titel, was: `abgelaufen seit ${-tage} Tag(en) – die Richtlinie gilt wieder uneingeschränkt`, wer, rang: 0 });
+          } else if (tage <= vorlauf) {
+            rowsOut.push({ titel, was: `läuft in ${tage} Tag(en) aus (${String(f.BefristetBis).slice(0, 10)})`, wer, rang: 2 });
+          }
+        }
+        if (!rowsOut.length) {
+          console.log('Ausnahmen-Digest: nichts fällig.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const abgelaufen = rowsOut.filter((x) => x.rang === 0).length;
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Ausnahmeregister: Fristen und offene Anträge</b></p>
+            <p>Genehmigte Abweichungen von Richtlinien sind befristet (Reifegrad&nbsp;R130). Folgende Einträge brauchen eine Entscheidung:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=ausnahmen" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Ausnahmeregister öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Ausnahmeregister: ${rowsOut.length} Eintrag/Einträge fällig${abgelaufen ? ` (davon ${abgelaufen} abgelaufen)` : ''}`, html, []);
+          if (ok) sent++;
+          console.log(`Ausnahmen-Digest: ${rowsOut.length} Eintrag/Einträge an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Ausnahmen-Digest übersprungen:', e.message); }
+
+
+  // ── Wirksamkeits-Digest: überfällige Maßnahmen, unvollständige Nachweise,
+  //    überfällige Managementbewertung (ISO 27001 9.2 / 9.3 / 10.2) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Wirksamkeits-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Wirksamkeit');
+      if (!liste) {
+        console.log('Wirksamkeits-Digest: Liste „Wirksamkeit" existiert (noch) nicht – übersprungen.');
+      } else {
+        const monate = posInt(cfg.bewertungAlleMonate, 12);
+        const heuteStr = new Date().toISOString().slice(0, 10);
+        const eintraege = await ismsItems(liste.id);
+        const rowsOut = [];
+        let letzteBewertung = '';
+
+        for (const f of eintraege) {
+          const titel = f.Title || '(ohne Titel)';
+          const art = f.Art || 'abweichung';
+          const status = f.WStatus || 'offen';
+          if (art === 'bewertung' && f.WDatum) {
+            const d = String(f.WDatum).slice(0, 10);
+            if (d > letzteBewertung) letzteBewertung = d;
+          }
+          if (status === 'verworfen') continue;
+
+          let ms = [];
+          try { ms = JSON.parse(f.MassnahmenJson || '[]'); } catch (e) { ms = []; }
+          for (const m of ms) {
+            if (m && m.status !== 'erledigt' && m.frist && String(m.frist).slice(0, 10) < heuteStr) {
+              rowsOut.push({ titel, was: `Maßnahme „${m.titel || '?'}" überfällig seit ${String(m.frist).slice(0, 10)}`,
+                wer: m.verantwortlich || f.Verantwortlich || '', rang: 0 });
+            }
+          }
+          // Der Schritt, der übersprungen wird: abgeschlossen, ohne dass jemand
+          // nachgesehen hat, ob die Maßnahme geholfen hat.
+          if (art === 'abweichung' && status === 'abgeschlossen' && !String(f.Wirksamkeit || '').trim()) {
+            rowsOut.push({ titel, was: 'abgeschlossen, aber ohne Wirksamkeitsbewertung (ISO 10.2)',
+              wer: f.Verantwortlich || '', rang: 1 });
+          }
+        }
+
+        // 9.3 verlangt die Bewertung „in geplanten Abständen". Ohne Aufzeichnung
+        // ist sie im Audit nicht vorhanden – deshalb hier ausdrücklich.
+        const grenze = new Date(Date.now() - monate * 30.44 * 86400000).toISOString().slice(0, 10);
+        if (!letzteBewertung) {
+          rowsOut.push({ titel: 'Managementbewertung', was: 'nie aufgezeichnet (ISO 9.3)', wer: '', rang: 0 });
+        } else if (letzteBewertung < grenze) {
+          rowsOut.push({ titel: 'Managementbewertung', was: `zuletzt am ${letzteBewertung} – länger als ${monate} Monate her`, wer: '', rang: 0 });
+        }
+
+        if (!rowsOut.length) {
+          console.log('Wirksamkeits-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Wirksamkeit &amp; Verbesserung: offene Punkte</b></p>
+            <p>Aus dem Register zu ISO&nbsp;27001 9.2 (internes Audit), 9.3 (Managementbewertung) und 10.2 (Korrekturmaßnahmen):</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=wirksamkeit" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Register öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Wirksamkeit: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Wirksamkeits-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Wirksamkeits-Digest übersprungen:', e.message); }
+
+  // ── Notfall-Digest: kritische Prozesse ohne Plan, fällige Übungen, veraltete
+  //    Krisenstäbe (ISO 27001 A.5.29/A.5.30, BSI 200-4) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Notfall-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const lk = await loadKonfigJson(siteId, 'prozesslandkarte.json');
+      if (!lk || !lk.karten) {
+        console.log('Notfall-Digest: keine Prozesslandkarte – übersprungen.');
+      } else {
+        // Übungen aus dem Wirksamkeits-Register – in der Feldform der App.
+        let uebungen = [];
+        const wl = await ismsListe('Wirksamkeit');
+        if (wl) {
+          uebungen = (await ismsItems(wl.id))
+            .filter((f) => f.Art === 'uebung')
+            .map((f) => ({ art: 'uebung', prozess: f.Prozess || '', datum: f.WDatum || '', status: f.WStatus || 'offen', uebungsart: f.Uebungsart || '' }));
+        }
+        const rowsOut = [];
+        const assetRto = NF.nfAssetRto(lk);
+        for (const { werk, kachel } of NF.nfAlleKacheln(lk)) {
+          const b = NF.nfBcmVon(kachel);
+          if (b.kritikalitaet !== 'hoch') continue;
+          const wer = b.plan.verantwortlich || kachel.verantwortlich || '';
+          const titel = `${kachel.name} (${werk})`;
+          const pr = NF.nfPruefung(kachel, { assetRto, uebungen, werk });
+          if (!NF.nfHatPlan(kachel)) {
+            rowsOut.push({ titel, was: 'kritischer Prozess ohne Notfallplan (A.5.30)', wer, rang: 0 });
+          } else {
+            const letzte = NF.nfLetzteUebung(uebungen, werk, kachel.id);
+            if (!letzte) rowsOut.push({ titel, was: 'Notfallplan nie geübt', wer, rang: 1 });
+            else if (NF.nfUebungFaellig(letzte)) rowsOut.push({ titel, was: `zuletzt geübt am ${String(letzte.datum).slice(0, 10)} – länger als ${NF.NF_UEBUNG_MONATE} Monate her`, wer, rang: 1 });
+          }
+          if (pr.rtoKonflikt) rowsOut.push({ titel, was: 'RTO nicht haltbar – ein Asset braucht länger zur Wiederherstellung', wer, rang: 0 });
+          if (!b.assets.length) rowsOut.push({ titel, was: 'keine Assets zugeordnet – der Plan sagt nicht, wovor er schützt', wer, rang: 1 });
+        }
+        // Jeder Standort braucht einen Krisenstab – auch der ohne Landkarte.
+        const standorte = standorteDerApp();
+        const pflicht = standorte.length ? standorte
+          : Object.keys(lk.karten).filter((w) => Array.isArray(lk.karten[w].kacheln) && lk.karten[w].kacheln.length);
+        for (const werk of pflicht) {
+          const karte = lk.karten[werk] || {};
+          const lu = NF.nfStabLuecken(karte.krisenstab || null);
+          if (!karte.krisenstab) rowsOut.push({ titel: `Krisenstab ${werk}`, was: 'nicht angelegt (A.5.29)', wer: '', rang: 0 });
+          else if (lu.length) rowsOut.push({ titel: `Krisenstab ${werk}`, was: `${lu.length} Lücke(n): ${lu.slice(0, 2).join(' ')}`, wer: '', rang: 1 });
+        }
+
+        if (!rowsOut.length) {
+          console.log('Notfall-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Notfall &amp; Krisenstab: offene Punkte</b></p>
+            <p>Aus der Business-Impact-Analyse, den Notfallplänen und den Krisenstäben (ISO&nbsp;27001 A.5.29/A.5.30, BSI 200-4). Ein Plan ohne Übung ist Papier; ein Krisenstab ohne aktuelle Nummern auch:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=notfall" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Notfall-Reiter öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Notfall: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Notfall-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Notfall-Digest übersprungen:', e.message); }
+
+  // ── Asset-Digest: auslaufender Support, fehlende Verantwortliche, fehlende
+  //    Wiederherstellzeiten (ISO 27001 A.5.9, Reifegrad R093) ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Asset-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const liste = await ismsListe('Assets');
+      if (!liste) {
+        console.log('Asset-Digest: Liste „Assets" existiert (noch) nicht – übersprungen.');
+      } else {
+        const AM = _require('../js/assetmodell.js');
+        // Gelesen wie im Reiter: die Spalten des Hauses (Asset-Typ, Standorte, Asset-Owner, Informationsträger …) über dieselbe Zuordnung.
+        const spalten = await ismsSpalten(liste.id);
+        const feld = (erwartet) => AM.amSpalteFinden(spalten, erwartet);
+        const guid = (s) => String(s || '').toLowerCase().replace(/[{}]/g, '');
+        const lookup = (name) => { const c = spalten.find(x => x.name === name); return (c && c.lookup) ? { selbst: guid(c.lookup.listId) === guid(liste.id), multi: !!c.lookup.allowMultipleValues } : null; };
+        const roh = AM.amTraegerAufloesen((await ismsItems(liste.id, AM.amSelectVon(spalten, feld)))
+          .map((f) => AM.amAusFeldern(f, { feld, lookup, standorte: standorteDerApp() })));
+        const rowsOut = [];
+        for (const f of AM.amFaelligkeiten(roh, AM.AM_VORLAUF_TAGE)) {
+          rowsOut.push({ titel: f.asset.titel, was: `${f.was} ${f.ueberfaellig ? `abgelaufen seit ${-f.tage} Tag(en)` : `endet in ${f.tage} Tag(en)`} (${f.datum})`,
+            wer: f.asset.verantwortlich, rang: f.ueberfaellig ? 0 : 1 });
+        }
+        for (const r of roh) {
+          const a = AM.amVon(r);
+          if (a.status === 'außer Betrieb') continue;
+          if (!a.verantwortlich) rowsOut.push({ titel: a.titel, was: 'kein Verantwortlicher (A.5.9)', wer: '', rang: 0 });
+          if (a.verfuegbarkeit === 'sehr hoch' && a.wiederherstellung === '') rowsOut.push({ titel: a.titel, was: 'Verfügbarkeit „sehr hoch" ohne Wiederherstellzeit (R093)', wer: a.verantwortlich, rang: 1 });
+        }
+        if (!rowsOut.length) {
+          console.log('Asset-Digest: nichts offen.');
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Assetregister: offene Punkte</b></p>
+            <p>Aus dem Inventar (ISO&nbsp;27001 A.5.9): Was ausläuft, was niemand verantwortet, was „sehr hoch" verfügbar sein soll und keine Wiederherstellzeit hat:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=assets" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Assetregister öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Assets: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Asset-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Asset-Digest übersprungen:', e.message); }
+
+  // ── Vorfall-Digest: aus dem Ticketsystem, was Informationssicherheit ist –
+  //    unbeurteilte Ereignisse (A.5.25), überfällige Meldefristen (NIS2 Art. 23),
+  //    erledigte Vorfälle ohne Lehre (A.5.27). Gelesen wie im Reiter. ──
+  try {
+    const admins = (cfg.admins || []).filter(Boolean);
+    if (!admins.length) {
+      console.log('Vorfall-Digest: keine Admins in der Config – übersprungen.');
+    } else {
+      const AM = _require('../js/assetmodell.js');
+      const VF = _require('../js/vorfallmodell.js');
+      const tsite = await gget(`/sites/${TICKET_SITE_HOST}`);
+      const tl = (await gget(`/sites/${tsite.id}/lists?$select=id,displayName,name,webUrl&$top=200`)).value
+        .find((l) => [l.displayName, l.name].some((n) => String(n || '').toLowerCase() === TICKET_LIST.toLowerCase()));
+      if (!tl) {
+        console.log(`Vorfall-Digest: Liste „${TICKET_LIST}" nicht gefunden – übersprungen.`);
+      } else {
+        const spalten = (await gget(`/sites/${tsite.id}/lists/${tl.id}/columns?$select=name,displayName,choice,lookup,personOrGroup`)).value || [];
+        const feld = (e) => AM.amSpalteFinden(spalten, e, VF.VF_ALIASE);
+        const seit = new Date(Date.now() - VF.VF_MONATE * 30.44 * 86400000).toISOString();
+        const select = AM.amSelectVon(spalten, feld, VF.VF_ALIASE) + ',Created,Modified';
+        const lade = async (mitAuswahl, mitFilter) => {
+          const out = [];
+          let url = `/sites/${tsite.id}/lists/${tl.id}/items?$expand=fields${mitAuswahl ? `($select=${select})` : ''}${mitFilter ? `&$filter=fields/Created ge '${seit}'` : ''}&$top=500`;
+          while (url) {
+            const resp = await gget(url, { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' });
+            for (const it of (resp.value || [])) out.push(it);
+            url = resp['@odata.nextLink'] || null;
+            if (out.length >= 10000) break;
+          }
+          return out;
+        };
+        let items;
+        try { items = await lade(true, true); } catch (e1) { try { items = await lade(true, false); } catch (e2) { items = await lade(false, false); } }
+        const urlVon = (id) => `${tl.webUrl || ''}/DispForm.aspx?ID=${id}`;
+        const tickets = items.map((it) => VF.vfAusFeldern(it, { feld, standorte: standorteDerApp(), zuordnung: cfg.vorfallArtZuordnung, urlVon }))
+          .filter((t) => (!t.erstellt || t.erstellt >= seit) && VF.vfIstSicherheit(t.kategorie, cfg));
+        const vj = (await loadKonfigJson(siteId, 'vorfaelle.json')) || {};
+        const bewertungen = (vj.bewertungen && typeof vj.bewertungen === 'object') ? vj.bewertungen : {};
+        let massnahmen = [];
+        const wl2 = await ismsListe('Wirksamkeit');
+        if (wl2) massnahmen = (await ismsItems(wl2.id)).map((f) => ({ herkunftId: f.HerkunftId || '', titel: f.Title || '', status: f.WStatus || '' }));
+        const rowsOut = [];
+        for (const t of tickets) {
+          if (t.art !== 'incident') continue;
+          const l = VF.vfLuecken(t, bewertungen[t.id], { massnahmen });
+          for (const f of l.fehler) rowsOut.push({ titel: `#${t.id} ${t.titel}${t.werke.length ? ` (${t.werke.join(', ')})` : ''}`, was: f, wer: t.zugewiesen, rang: /überfällig|Frühwarnung|Meldung/.test(f) ? 0 : 1 });
+        }
+        if (!rowsOut.length) {
+          console.log(`Vorfall-Digest: nichts offen (${tickets.length} Tickets mit Sicherheitsbezug).`);
+        } else {
+          rowsOut.sort((a, b) => a.rang - b.rang);
+          const rows = rowsOut.map((x) =>
+            `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(x.titel)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:${x.rang === 0 ? '#b91c1c' : '#b45309'};font-weight:600">${esc(x.was)}</td>
+             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${esc(x.wer)}</td></tr>`).join('');
+          const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+            <p><b>Vorfälle &amp; Ereignisse: offene Punkte</b></p>
+            <p>Aus dem Ticketsystem, was Informationssicherheit ist (ISO&nbsp;27001 A.5.24–A.5.28, NIS2 Art. 23): unbeurteilte Ereignisse, laufende und überfällige Meldefristen, erledigte Vorfälle ohne Lehre:</p>
+            <table style="border-collapse:collapse;width:100%">${rows}</table>
+            <p style="margin-top:16px"><a href="${esc(APP_URL)}?ansicht=vorfaelle" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Vorfälle öffnen →</a></p>
+            <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+          const ok = await sendMail(admins, `Vorfälle: ${rowsOut.length} offene(r) Punkt(e)`, html, []);
+          if (ok) sent++;
+          console.log(`Vorfall-Digest: ${rowsOut.length} Punkt(e) an ${admins.join(', ')}`);
+        }
+      }
+    }
+  } catch (e) { console.log('Vorfall-Digest übersprungen:', e.message); }
+
+  // ── Probelauf-Reste: einmal die Woche an die Person, die sie angelegt hat ──
+  try {
+    for (const x of probelaufNachPerson(probelaufReste)) {
+      if (!isDue(x.tage, 7, 7)) { console.log(`Probelauf-Reste von ${x.upn}: ${x.titel.length}, ${x.tage}d – heute kein Hinweis`); continue; }
+      const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;max-width:640px">
+        <p>Hallo ${esc(x.name)},</p>
+        <p>aus einem Probelauf stehen seit ${x.tage} Tagen noch ${x.titel.length} Einträge in den Listen des RMS:</p>
+        <ul>${x.titel.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+        <p>Erinnerungen an Prüfer, Geschäftsleitung und Belegschaft gehen dafür nicht raus. Bitte trotzdem aufräumen:
+          Probelauf starten, dann „🧹 Aufräumen“. Einträge aus einem anderen Browser stehen dort gesondert zum Ankreuzen.</p>
+        <p style="margin-top:16px"><a href="${esc(APP_URL)}?probelauf=1" style="background:#17509e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block;font-weight:600">Probelauf öffnen →</a></p>
+        <p style="color:#6b7280;font-size:12px">Automatische Nachricht vom DIHAG Regelwerk-Management-System.</p></div>`;
+      if (await sendMail([x.upn], `Probelauf: ${x.titel.length} Einträge noch nicht aufgeräumt`, html, [])) sent++;
+    }
+  } catch (e) { console.log('Probelauf-Hinweis übersprungen:', e.message); }
+
+  console.log(`Fertig. Laufende Schritte geprüft: ${checked}, Erinnerungen gesendet: ${sent}.`);
+
+
+})().catch((e) => { console.error('FEHLER:', e.message); process.exit(1); });

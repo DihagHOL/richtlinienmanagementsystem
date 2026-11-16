@@ -1,0 +1,134 @@
+/**
+ * Wächter gegen veraltete Dokumentation.
+ *
+ * Hintergrund: Nach mehreren Ausbaustufen beschrieb die In-App-Doku Funktionen
+ * nicht mehr, die es längst gab (Konzepte, Geltungsbereich, Historie …).
+ * Dieser Test verknüpft jedes Feature mit einem Beleg im Code UND einem Beleg
+ * in der Doku: Wer ein Feature einbaut, ohne es zu dokumentieren, bekommt hier
+ * einen roten Test.
+ */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ADMIN_DATEIEN = ['admin.js', 'freigaben.js', 'einstellungen.js'];   // admin.js wurde aufgeteilt
+
+let pass = 0, fail = 0;
+const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
+
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const doku = read('js/dokumentation.js');
+const anleitung = read('js/anleitung.js');
+const admin = ADMIN_DATEIEN.map(f => read('js/' + f)).join('\n');
+const konzepte = read('js/konzepte.js');
+const governance = read('js/governance.js');
+const prozesse = read('js/prozesse.js');
+const indexHtml = read('index.html');
+
+/**
+ * Ein Feature gilt als dokumentiert, wenn es im Code existiert (codeBeleg)
+ * und in der Doku vorkommt (dokuBegriffe – alle müssen auftauchen).
+ */
+const FEATURES = [
+  { name: 'Regelwerk-Konzepte',      code: () => /function openKonzeptEditor/.test(konzepte),        begriffe: ['Regelwerk-Konzept', 'GF-Prüfung', 'Annehmen'] },
+  { name: 'Konzept-Anhang',          code: () => /function konzeptUploadAttachment/.test(konzepte),  begriffe: ['Anhang'] },
+  { name: 'Konzept-Rückmeldung',     code: () => /function notifyKonzeptErsteller/.test(konzepte),   begriffe: ['Rückmeldung an die einreichende Person'] },
+  { name: 'Weiche nach der Annahme', code: () => /function konzeptWeiche/.test(konzepte),            begriffe: ['Wie soll es weitergehen?', 'direkt zur Konformitätsprüfung'] },
+  { name: 'Konzept als Word-Datei',  code: () => /function _plDocxBauen/.test(read('js/probelauf.js')), begriffe: ['Word-Datei'] },
+  { name: 'Typ (Dokumentart)',       code: () => /const REGELWERK_TYPEN/.test(admin),                begriffe: ['Dokumentart', 'Konzernfachregelung', 'Leitfaden'] },
+  { name: 'Geltungsbereich',         code: () => /const STANDORTE/.test(admin),                      begriffe: ['Geltungsbereich', 'HOL', 'EWA'] },
+  { name: 'Änderungshistorie',       code: () => /function renderHistorieSection/.test(admin),       begriffe: ['Änderungshistorie'] },
+  { name: 'Archivieren/Reaktivieren',code: () => /function archivierePolicy/.test(admin),            begriffe: ['Archivieren', 'Reaktivieren'] },
+  { name: 'Massen-Import',           code: () => /function openImportDialog/.test(admin),            begriffe: ['Importieren'] },
+  { name: 'Dashboard-Filter',        code: () => /filter-admin-standort/.test(indexHtml),            begriffe: ['Filter'] },
+  { name: 'Volltextsuche',           code: () => /function policyMatchesQuery/.test(admin),          begriffe: ['Suche'] },
+  { name: 'Gleichzeitigkeits-Schutz',code: () => /function pruefeFremdaenderung/.test(admin),        begriffe: ['zwischenzeitlich geändert'] },
+  { name: 'Muster-Vorlage',          code: () => /MUSTER_VORLAGE_URL/.test(admin),                   begriffe: ['Muster-Vorlage'] },
+  { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
+  { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
+  { name: 'Prozesse des RMS',        code: () => /const RMS_PROZESSE/.test(read('js/rmsprozesse.js')), begriffe: ['Die Prozesse des RMS', '13 Hauptprozesse', 'Nebenprozesse, die mit eigenem Ablauf', 'Ablage des Konzerns'] },
+  { name: 'Sprünge im Hausschema',   code: () => /function _psRueckWeg/.test(read('js/prozessschema.js')), begriffe: ['| Ende: Text', '| zurück: Schritt', '| weiter: Schritt', 'Zurück: Schritt'] },
+  { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
+  { name: 'IST, SOLL und EOL',       code: () => /key: 'eol'/.test(read('js/prozessmodell.js')), begriffe: ['IST-Modell eines anderen Prozesses (EOL)', 'noch in Benutzung', 'Außer Betrieb seit', 'kein Prozess verknüpft', 'wer gibt frei? offen', '✎ Angaben', 'Rubriken', 'Review ab dem POC'] },
+  { name: 'Vergleich IST/SOLL',      code: () => /function pvOeffnen\(/.test(read('js/prozessvergleich.js')), begriffe: ['⇄ Vergleich IST/SOLL', 'Gegenüberstellung', 'Delta- oder Gap-Analyse', 'Nummer und Farbe', 'Vorschläge übernehmen', 'Vergleich mit dem IST', 'Anmerkungen je Zuordnung', 'Name und Zeitpunkt', 'nur die eigenen'] },
+  { name: 'BPM-Lebenszyklus',        code: () => /function pzKarten\(/.test(read('js/prozessmodell.js')) && /function pzKriterien\(/.test(read('js/prozessmodell.js')), begriffe: ['BPM-Lebenszyklus', 'Dumas', 'Identifiziert', 'IST-Aufnahme', 'Analyse', 'SOLL-Design', 'Umsetzung', 'Betrieb', 'Eine Karte je Prozess', 'Kriterien je Phase', 'Definition of Done'] },
+  { name: 'Prozesse einfach bearbeiten', code: () => /function pbSchrittOeffnen\(/.test(read('js/prozessbacklog.js')) && /WI_KURS_PROZESSE_RMS/.test(read('js/wissenmodell.js')), begriffe: ['Nächster Schritt zum Anklicken', 'Erklärung im Brett', 'So arbeiten Sie mit dem Backlog', 'Prozesse im RMS bearbeiten'] },
+  { name: 'Freigabe von Prozessen',  code: () => /function pfAnlegen/.test(read('js/prozessfreigabe.js')), begriffe: ['Freigabe von Prozessen', '📋 Zur Freigabe', 'Arbeits-/Prozessanweisung', 'Beschreibung aktualisieren', 'Freigabe über'] },
+  { name: 'Modelle je Werk',         code: () => /function prozessAblageAufraeumen/.test(prozesse),  begriffe: ['Ablage aufräumen', 'eigenen Ordner'] },
+  { name: 'Prozessverantwortliche',  code: () => /function lkVerantwortlich/.test(read('js/landkarte.js')), begriffe: ['Prozessverantwortliche'] },
+  { name: 'Zuständigkeitsmatrix',    code: () => /function pmZeilen/.test(read('js/prozessmatrix.js')),     begriffe: ['Matrix', 'Abdeckung'] },
+  { name: 'Prozess-Backlog',         code: () => /function renderProzessBacklog/.test(read('js/prozessbacklog.js')), begriffe: ['Backlog', 'Prozesseigner', 'Standardisierungsgrad', 'nächste Überprüfung'] },
+  { name: 'Modelle als Prozesse',    code: () => /function pbNeuAnlegen/.test(read('js/prozessbacklog.js')),  begriffe: ['Modelle sind Prozesse', '+ Prozess anlegen'] },
+  { name: 'Dokumente am Schritt',    code: () => /function procElementDocsSetzen/.test(prozesse),                begriffe: ['Dokumente am Schritt', 'Dokumente an diesem Schritt'] },
+  { name: 'Reifegrad und Kennzahlen', code: () => /function pzKpiBewertung/.test(read('js/prozessmodell.js')),  begriffe: ['Reifegrad und Kennzahlen', 'ISO/IEC 33020', 'Kennzahl verfehlt'] },
+  { name: 'Mindmap als Baum',        code: () => /function vbBaum/.test(read('js/mindmapbaum.js')),          begriffe: ['Baum', 'Nahsicht'] },
+  { name: 'Landkarten-Vorlagen',     code: () => /const LK_KONZERN/.test(read('js/landkarte.js')),           begriffe: ['Vorlage', 'Führungsholding'] },
+  { name: 'Diagramm als Bild',       code: () => /function downloadProcessSvg/.test(prozesse) && /function downloadProcessPng/.test(prozesse), begriffe: ['PNG', 'als Bild'] },
+  { name: 'Reihenfolge Freigabe/MB', code: () => /function edSwapWorkflowOrder/.test(admin),         begriffe: ['Reihenfolge'] },
+  { name: 'Einführungs-Schritte',    code: () => /const RW_SCHRITTE/.test(admin),                     begriffe: ['So wird ein Regelwerk eingeführt'] },
+  { name: 'Probelauf',               code: () => /function probelaufAktivieren/.test(read('js/probelauf.js')), begriffe: ['Probelauf', 'echten Vorgang', 'Aufräumen', 'Selbsttest'] },
+  { name: 'Geführte Vorführung',     code: () => /function tourSchritte/.test(read('js/tour.js')),      begriffe: ['Geführte Vorführung', 'Vormachen'] },
+  { name: 'Verweise zw. Prozessen',  code: () => /const LK_VERWEIS_ARTEN/.test(read('js/landkarte.js')),      begriffe: ['Prozesslandschaft', 'Danach folgt', 'Zeigt hierher'] },
+  { name: 'SAP-Landkarte',           code: () => /const LK_SAP/.test(read('js/landkarte.js')),                begriffe: ['Lead to Cash', 'Source to Pay', 'Design to Operate'] },
+  { name: 'Übergänge im Diagramm',   code: () => /const PROC_KACHEL_MARKER/.test(prozesse),                   begriffe: ['Übergang zu einem anderen Prozess', 'Dokumentation des Elements'] },
+  { name: 'Trennung n. Gesellschaft',code: () => /const RECHT_DOMAENE/.test(read('js/access.js')),            begriffe: ['Trennung nach Gesellschaft', 'E-Mail-Domäne', 'Administratoren sind ausgenommen'] },
+  { name: 'Inhalte getrennt',        code: () => /function filterNachGesellschaft/.test(read('js/access.js')),  begriffe: ['Konzernsicht', 'Geltungsbereich', 'trennt die <b>Sicht</b>, nicht den Zugriff'] },
+  { name: 'Geteilte Unterprozesse',  code: () => /function lkHauptprozesseVon/.test(read('js/landkarte.js')),   begriffe: ['einmal gepflegt', 'Eine Änderung hier wirkt in allen'] },
+  { name: 'Gliederung ausklappbar',  code: () => /function _lkUnterbaumHtml/.test(read('js/landkarte.js')),     begriffe: ['Ausklappbare Gliederung', 'Kreise', 'eingeordnet'] },
+  { name: 'Werks-Landkarten',        code: () => /const LK_WGC/.test(read('js/landkarte.js')),                  begriffe: ['Coswig (WGC)', 'Zaigler (ZAI)', 'Schmiedeberg (SCH)'] },
+  { name: 'Bereiche bearbeiten',     code: () => /function lkBandDialog/.test(read('js/landkarte.js')),         begriffe: ['Bereiche bearbeiten und anlegen', 'verschoben, nicht gelöscht'] },
+  { name: 'Vorlage ergänzen',        code: () => /function _lkVorlageErgaenzen/.test(read('js/landkarte.js')),  begriffe: ['Vorlage ergänzen statt ersetzen', 'Ergänzen'] },
+  { name: 'Untertitel gliedern',     code: () => /function lkGliedernDialog/.test(read('js/landkarte.js')),     begriffe: ['Untertitel gliedern', 'verwendet statt neu angelegt'] },
+  { name: 'Eigene Vorlagen',         code: () => /function lkVorlageSpeichern/.test(read('js/landkarte.js')),   begriffe: ['Eigene Vorlagen sichern', 'ausgeblendet'] },
+  { name: 'Abhängigkeiten-Ansicht',  code: () => /function vkHerkunftWege/.test(read('js/verknuepfungen.js')),  begriffe: ['Abhängigkeiten', 'Herkunft', 'geteilter'] },
+  { name: 'Wissen (Bibliothek)',     code: () => /function initWissen/.test(read('js/wissen.js')),             begriffe: ['Wissen: die Bibliothek', 'Ich habe das angesehen', 'Startbestand', 'Für die Pflege'] },
+  { name: 'BPMN einfach erklärt',    code: () => /function prozessHilfeOeffnen/.test(read('js/bpmnhilfe.js')),  begriffe: ['BPMN einfach erklärt', 'Stufe 1', 'Stufe 2', '❓ Hilfe'] },
+  { name: 'Modeler auf Deutsch',     code: () => /additionalModules: _procSprachmodule\(\)/.test(prozesse) && /const BPMN_DEUTSCH\b/.test(read('js/bpmndeutsch.js')),
+    begriffe: ['Der Modeler spricht Deutsch', 'Art ändern', 'Aufgabe (Mensch)'] },
+  { name: 'Alte Pfeile korrigieren',  code: () => /function prozessPfeilePruefen/.test(prozesse) && /function prozessPfeileReparieren/.test(read('js/prozessschema.js')),
+    begriffe: ['↪ Pfeile prüfen', 'Versionsverlauf', 'durch den eigenen Kasten'] },
+  { name: 'BPMN-Anleitung als Word', code: () => /function bpmnAnleitungHerunterladen/.test(read('js/bpmnanleitung.js')),
+    begriffe: ['Für Kolleginnen und Kollegen ohne RMS', 'Word-Datei', 'Spickzettel', 'Vorlage zum Ausfüllen', 'Ansprechpartner'] },
+  { name: 'Ziele (6.2)',             code: () => /function zlAusHaus/.test(read('js/zielmodell.js')),
+    begriffe: ['ISMS Ziele', 'Zieleplanung und -erreichung', 'Neue Maßnahme zu diesem Ziel'] },
+  { name: 'Maßnahmen (Gesamtliste)', code: () => /function mnAusHaus/.test(read('js/massnahmenmodell.js')),
+    begriffe: ['Kategorisieren nach', 'Entspringt aus', 'Zwei Orte für dieselbe Maßnahme'] },
+  { name: 'Kennzahlen (9.1)',        code: () => /function kzSoll/.test(read('js/kennzahlmodell.js')),
+    begriffe: ['Kennzahlen Tracking', 'Ampel aus dem Normalwert', 'Vom RMS gemessen', 'Prozesskennzahlen'] },
+  { name: 'Versandprotokoll',        code: () => /function wfMailProtokoll/.test(read('js/freigaben.js')),
+    begriffe: ['Versandprotokoll', 'Mail nicht versendet'] },
+  { name: 'Funktionsprüfung fällig', code: () => /function faelligFunktionspruefung/.test(read('js/faelligkeit.js')),
+    begriffe: ['Funktionsprüfung des RMS'] },
+];
+
+for (const f of FEATURES) {
+  ok(f.code(), `Feature vorhanden: ${f.name}`);
+  const fehlend = f.begriffe.filter(b => !doku.includes(b));
+  ok(fehlend.length === 0, `Dokumentiert: ${f.name}${fehlend.length ? ' – fehlt: ' + fehlend.join(', ') : ''}`);
+}
+
+/* Inhaltsverzeichnis und Abschnitte müssen zusammenpassen. */
+const tocIds = [...doku.matchAll(/^\s{2}\['([a-z]+)',/gm)].map(m => m[1]);
+const secIds = [...doku.matchAll(/^\s{4}sec\('([a-z]+)'/gm)].map(m => m[1]);
+ok(tocIds.length > 0 && tocIds.length === secIds.length,
+  `Inhaltsverzeichnis und Abschnitte gleich lang (${tocIds.length} / ${secIds.length})`);
+const fehltImToc = secIds.filter(id => !tocIds.includes(id));
+const fehltAlsSec = tocIds.filter(id => !secIds.includes(id));
+ok(fehltImToc.length === 0, `Jeder Abschnitt steht im Inhaltsverzeichnis${fehltImToc.length ? ' – fehlt: ' + fehltImToc.join(', ') : ''}`);
+ok(fehltAlsSec.length === 0, `Jeder Eintrag hat einen Abschnitt${fehltAlsSec.length ? ' – fehlt: ' + fehltAlsSec.join(', ') : ''}`);
+
+/* Die Mitarbeiter-Anleitung soll die wichtigsten Neuerungen zumindest streifen. */
+for (const b of ['Konzept', 'Geltungsbereich', 'Änderungshistorie'])
+  ok(anleitung.includes(b), `Anleitung erwähnt: ${b}`);
+
+/* Umbenennungs-Altlasten: falsche Grammatik aus „Richtlinie" → „Regelwerk". */
+const grammatik = [/\bdie Regelwerk\b/, /\bNeue Regelwerk\b/, /\bden Regelwerke\b/, /\bmit Regelwerke\b/, /\bder Regelwerk\b/];
+for (const re of grammatik) {
+  const treffer = [];
+  if (re.test(doku)) treffer.push('dokumentation.js');
+  if (re.test(anleitung)) treffer.push('anleitung.js');
+  ok(treffer.length === 0, `Keine Grammatik-Altlast ${re.source}${treffer.length ? ' in ' + treffer.join(', ') : ''}`);
+}
+
+console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
+process.exit(fail ? 1 : 0);

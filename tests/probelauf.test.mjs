@@ -1,0 +1,510 @@
+/**
+ * Probelauf: echter Vorgang, Buchführung, Aufräumen, Zugriffsschutz –
+ * und die Schrittfolge der geführten Vorführung.
+ *
+ * Der Probelauf arbeitet bewusst auf den echten Listen. Zwei Dinge müssen
+ * deshalb verlässlich stimmen: Er darf die Datenschicht nicht heimlich
+ * ersetzen (sonst prüft er nichts Echtes), und er muss genau das wieder
+ * löschen können, was er selbst angelegt hat – nicht mehr.
+ */
+import fs from 'fs';
+import vm from 'vm';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+let pass = 0, fail = 0;
+const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
+const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+
+/* ── Umgebung: nur so viel Anwendung, wie probelauf.js und tour.js brauchen ── */
+const echt = { gespeichert: [], acks: [], geloescht: [], ackGeloescht: [], hochgeladen: [], dateiGeloescht: [] };
+let naechsteId = 100;
+
+const ctx = {
+  console,
+  esc: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
+  toast: () => {}, openModal: () => {}, closeModal: () => {}, showSync: () => {},
+  confirm: () => true,
+  // Winziges Schein-DOM: genug, damit die Führung wirklich läuft
+  document: (() => {
+    const reg = new Map();
+    const mk = () => ({ id: '', className: '', innerHTML: '', style: { cssText: '' },
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      setAttribute() {}, offsetHeight: 200, offsetWidth: 360, textContent: '',
+      getBoundingClientRect: () => ({ left: 10, top: 10, width: 100, height: 30, right: 110, bottom: 40 }),
+      scrollIntoView() {}, remove() {} });
+    return {
+      getElementById: (id) => reg.get(id) || null,
+      querySelector: () => null, querySelectorAll: () => [],
+      createElement: () => new Proxy(mk(), { set(t, k, v) { t[k] = v; if (k === 'id') reg.set(v, t); return true; } }),
+      body: { appendChild() {}, classList: { add() {}, remove() {} } },
+    };
+  })(),
+  location: { search: '', pathname: '/', href: 'https://rms.dihag.de/' },
+  URL, URLSearchParams, setTimeout, clearInterval, setInterval,
+  addEventListener: () => {},
+  localStorage: (() => { const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; })(),
+  State: { user: { upn: 'chef@dihag.com', name: 'Test Chef' }, policies: [], konzepte: [], acks: [] },
+  getPruefer: () => ['pruefer@dihag.com'],
+  getGeschaeftsleitung: () => ['gf@dihag.com'],
+  getKbrMail: () => 'kbr@dihag.com',
+  // Die ECHTEN Datenfunktionen – der Probelauf muss sie wirklich aufrufen
+  spSavePolicy: async (p) => { const id = p.id || String(naechsteId++); echt.gespeichert.push({ id, neu: !p.id }); return { id }; },
+  spSaveAcknowledgement: async (a) => { const id = a.id || 'a' + naechsteId++; echt.acks.push({ id, neu: !a.id }); return { id }; },
+  spDeletePolicy: async (id) => { echt.geloescht.push(String(id)); },
+  spDeleteAcknowledgement: async (id) => { echt.ackGeloescht.push(String(id)); },
+  spDeleteDriveItem: async (driveId, itemId) => { echt.dateiGeloescht.push(String(itemId)); },
+  spUploadPolicyDoc: async (name, bytes, typ) => {
+    echt.hochgeladen.push({ name, typ, bytes });
+    return { driveId: 'd1', itemId: 'f1', name, url: 'https://sp/' + name };
+  },
+  geltungsbereichLabel: (a) => (a || []).join(', '),
+  Uint8Array, Uint32Array, TextEncoder,
+  reloadData: async () => {}, reloadAcks: async () => {},
+};
+ctx.window = ctx; ctx.globalThis = ctx;
+vm.createContext(ctx);
+vm.runInContext(lies('js/probelauf.js'), ctx);
+vm.runInContext(lies('js/tour.js'), ctx);
+const run = (s) => vm.runInContext(s, ctx);
+const quelle = lies('js/probelauf.js');
+const tour = lies('js/tour.js');
+
+/* ── 1) Kein Sandkasten: die echte Datenschicht bleibt stehen ── */
+for (const verboten of ['g.spGetPolicies', 'g.spSavePolicy', 'spGetPolicies =', 'spLoadAccessConfig =',
+  'spGetMembers =', 'spGetDocAttachment =', 'DemoDaten'])
+  ok(!quelle.includes(verboten), `Die Datenschicht wird nicht ersetzt (${verboten})`);
+ok(!fs.existsSync(path.join(ROOT, 'js/demo.js')), 'Der alte Sandkasten-Modus ist entfernt');
+ok(/echten SharePoint-Listen/.test(quelle), 'Der Kopfkommentar sagt, dass echte Listen bespielt werden');
+
+/* ── 2) Kennzeichnung im Titel ── */
+run(`globalThis.__t1 = probelaufTitel('Regelwerk zur Nutzung von KI');
+     globalThis.__t2 = probelaufTitel(globalThis.__t1);`);
+ok(ctx.__t1 === '[Probelauf] Regelwerk zur Nutzung von KI', 'Der Titel wird gekennzeichnet');
+ok(ctx.__t2 === ctx.__t1, 'Zweimal Kennzeichnen ändert nichts');
+ok(/probelaufTitel\(/.test(tour), 'Auch die Führung kennzeichnet ihren Vorgang');
+
+/* ── 3) Buchführung: die echten Funktionen werden wirklich aufgerufen ── */
+run('_plBuchfuehrung();');
+run(`globalThis.__r = [];
+     spSavePolicy({ title: 'Neu 1' }).then(r => globalThis.__r.push(r));
+     spSavePolicy({ id: '77', title: 'Bestehend' }).then(r => globalThis.__r.push(r));
+     spSaveAcknowledgement({ richtlinieId: '1' }).then(r => globalThis.__r.push(r));`);
+await new Promise(r => setTimeout(r, 20));
+ok(echt.gespeichert.length === 2, 'Die echte Speicherfunktion wurde durchgereicht');
+ok(echt.acks.length === 1, 'Auch Kenntnisnahmen laufen durch die echte Funktion');
+run('globalThis.__anz = probelaufAnzahl();');
+ok(ctx.__anz === 2, `Nur die NEUEN Einträge werden mitgeschrieben (ist ${ctx.__anz})`);
+
+/* ── 4) Aufräumen löscht genau diese Einträge ── */
+run('probelaufLoeschen();');
+await new Promise(r => setTimeout(r, 30));
+ok(echt.geloescht.length === 1, 'Ein angelegtes Regelwerk wird gelöscht');
+ok(!echt.geloescht.includes('77'), 'Der vorhandene Eintrag „77" wird NICHT angefasst');
+ok(echt.ackGeloescht.length === 1, 'Die angelegte Kenntnisnahme wird gelöscht');
+run('globalThis.__nach = probelaufAnzahl();');
+ok(ctx.__nach === 0, 'Danach ist die Spur leer');
+
+ok(/function spDeleteAcknowledgement/.test(lies('js/sharepoint.js')),
+  'Die Datenschicht kann Kenntnisnahmen löschen');
+
+/* ── 4b) Das Dokument zum Regelwerk ──
+   Ohne Datei geht die Mail ohne Anhang raus – genau das war in der Erprobung das Problem. */
+run(`globalThis.__rw = { title: '[Probelauf] Regelwerk zur Nutzung von KI', regelwerkTyp: 'Konzernrichtlinie',
+       geltungsbereich: ['ALLE'], version: '1.0' };
+     globalThis.__dok = null;
+     probelaufDokument(globalThis.__rw).then(r => { globalThis.__dok = r; });`);
+await new Promise(r => setTimeout(r, 20));
+ok(ctx.__dok === true, 'Das Beispieldokument wird abgelegt');
+ok(echt.hochgeladen.length === 1, 'Es geht wirklich durch den Upload der Datenschicht');
+const datei = echt.hochgeladen[0];
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+ok(datei.typ === DOCX, 'Auch das Regelwerk kommt als Word-Datei');
+ok(/\.docx$/.test(datei.name), `Mit Dateiendung (${datei.name})`);
+const rohRw = Buffer.from(datei.bytes).toString('latin1');
+ok(rohRw.slice(0, 4) === 'PK' + String.fromCharCode(3, 4), 'Gültiger ZIP-Kopf');
+for (const teil of ['[Content_Types].xml', '_rels/.rels', 'word/document.xml'])
+  ok(rohRw.includes(teil), `Enthält ${teil}`);
+ok(!/%PDF-/.test(rohRw), 'Kein PDF mehr im Spiel');
+ok(!/application\/pdf/.test(quelle) && !/_plPdfBauen/.test(quelle),
+  'Der PDF-Erzeuger ist restlos entfernt');
+ok(ctx.__rw.dokumentItemId === 'f1' && ctx.__rw.dokumentDriveId === 'd1',
+  'Die Datei ist am Regelwerk hinterlegt');
+ok(!!ctx.__rw.dokumentUrl, 'Und über SharePoint erreichbar');
+run('globalThis.__anz2 = probelaufAnzahl();');
+ok(ctx.__anz2 === 1, `Die Datei zählt zum Aufräumen dazu (ist ${ctx.__anz2})`);
+
+run('probelaufLoeschen();');
+await new Promise(r => setTimeout(r, 30));
+ok(echt.dateiGeloescht.includes('f1'), 'Aufräumen löscht die Datei wieder');
+ok(/function spDeleteDriveItem/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann Dateien löschen');
+ok(/probelaufDokument/.test(tour), 'Auch die Führung legt beim Vormachen ein Dokument ab');
+ok(/nochSkizze = \/\^Konzept-Skizze\/i\.test/.test(tour),
+  'Bleibt die Skizze doch am Regelwerk hängen, legt Vormachen ein Dokument mit richtigem Namen ab');
+const kz = lies('js/konzepte.js');
+ok(kz.includes('const ohneSkizze') && kz.includes('Konzept[-'),
+  'Beim Übernehmen wird die Skizze umbenannt – am Regelwerk ist sie keine Skizze mehr');
+ok(/spRenameDoc\(rw\.dokumentDriveId, rw\.dokumentItemId, ohneSkizze\)/.test(kz),
+  'Umbenannt wird die Datei selbst, nicht nur das Feld');
+ok(/k\.dokumentName = rw\.dokumentName;/.test(kz),
+  'Das Konzept zieht mit – es zeigt auf dieselbe Datei');
+ok(/catch \(e\) \{ console\.warn\('Skizze nicht umbenannt/.test(kz),
+  'Scheitert das Umbenennen, geht die Annahme trotzdem durch');
+ok(/async function spRenameDoc/.test(lies('js/sharepoint.js')), 'Die Datenschicht kann umbenennen');
+ok(/Dokument in der Bibliothek abgelegt/.test(quelle), 'Der Selbsttest prüft das Dokument');
+
+/* ── 4c) Konzept-Anhang: die Skizze geht an die Geschäftsleitung mit ── */
+echt.hochgeladen.length = 0;
+run(`globalThis.__k = { title: '[Probelauf] Regelwerk zur Nutzung von KI', regelwerkTyp: 'Konzernrichtlinie',
+       kategorie: 'IT-Sicherheit', geltungsbereich: ['ALLE'],
+       konzept: { motivation: 'KI-Werkzeuge werden bereits genutzt.', skizze: 'Zulaessige Werkzeuge, Freigabewege.' } };
+     globalThis.__kdok = null;
+     probelaufDokument(globalThis.__k, 'konzept').then(r => { globalThis.__kdok = r; });`);
+await new Promise(r => setTimeout(r, 20));
+ok(ctx.__kdok === true, 'Auch das Konzept bekommt eine Datei');
+const kdatei = echt.hochgeladen[0];
+ok(/^Konzept-Skizze /.test(kdatei.name), `Sie heißt nach der Skizze (${kdatei.name})`);
+const kpdf = Buffer.from(kdatei.bytes).toString('latin1');
+ok(kpdf.includes('Konzept-Skizze'), 'Das PDF ist als Skizze überschrieben');
+ok(kpdf.includes('Muster'), 'Es nennt die Muster-Vorlage als Grundlage');
+ok(kpdf.includes('Motivation'), 'Die Frage „Warum?" steht drin');
+ok(ctx.__k.dokumentItemId === 'f1', 'Die Datei hängt am Konzept');
+ok(/probelaufDokument\(_kEditing, 'konzept'\)/.test(tour), 'Die Führung hängt sie beim Konzept an');
+
+/* Das Konzept kommt als Word-Datei – sie soll in SharePoint weitergeschrieben werden. */
+ok(/\.docx$/.test(kdatei.name), `Es ist eine Word-Datei (${kdatei.name})`);
+ok(kdatei.typ === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'Mit dem Inhaltstyp, den Office erwartet');
+const zipKopf = Buffer.from(kdatei.bytes.slice(0, 4)).toString('hex');
+ok(zipKopf === '504b0304', `Gültiger ZIP-Kopf (${zipKopf})`);
+const roh = Buffer.from(kdatei.bytes).toString('latin1');
+for (const teil of ['[Content_Types].xml', '_rels/.rels', 'word/document.xml'])
+  ok(roh.includes(teil), `Enthält ${teil}`);
+ok(roh.includes('wordprocessingml'), 'Es ist ein Word-Dokument, kein leeres Archiv');
+ok(/function _plZip/.test(quelle) && /function _plCrc32/.test(quelle),
+  'Das Archiv wird ohne Fremdbibliothek gebaut');
+run('_plSpurLeeren();');
+
+/* ── 5) Vor dem Start wird gesagt, was passiert ── */
+ok(/Das wird ein echter Vorgang/.test(quelle), 'Der Startdialog warnt deutlich');
+ok(/getPruefer/.test(quelle) && /getGeschaeftsleitung/.test(quelle) && /getKbrMail/.test(quelle),
+  'Er nennt die tatsächlichen Empfänger der E-Mails');
+for (const etappe of ['Konzeptprüfung (Geschäftsleitung)', 'Entscheidung zum Konzept',
+  'Konformitätsprüfung', 'Mitbestimmung (KBR)', 'Freigabe (Geschäftsleitung)'])
+  ok(quelle.includes(etappe), `Etappe im Startdialog aufgeführt: ${etappe}`);
+ok(/nicht zurückholen/.test(quelle), 'Und sagt, dass versendete Mails bleiben');
+ok(/function probelaufAufraeumen/.test(quelle), 'Es gibt eine Aufräumfunktion');
+ok(/Endgültig löschen/.test(quelle), 'Gelöscht wird erst nach Rückfrage');
+
+/* ── 6) Zugriffsschutz ── */
+const acc = lies('js/access.js');
+ok(/function darfProbelauf\(/.test(acc), 'access.js kennt darfProbelauf()');
+ok(/isAdmin\(u\)\s*\|\|\s*_has\(_cfg\(\)\.probelaufUser, u\)/.test(acc),
+  'Freigeschaltet sind Admins und die Liste probelaufUser');
+ok(/probelaufUser: Array\.isArray\(cfg\.probelaufUser\)/.test(acc), 'Die Liste kommt aus der Konfiguration');
+ok(!/darfDemo|demoUser/.test(acc), 'Keine Reste der alten Benennung');
+ok(/darfProbelauf\(\)/.test(quelle), 'probelauf.js prüft die Freischaltung');
+ok(/function probelaufKeinZugriff/.test(quelle), 'Es gibt einen Hinweis für Nicht-Freigeschaltete');
+
+const app = lies('js/app.js');
+ok(/probelaufGewuenscht\(\)[\s\S]{0,160}probelaufAktivieren\(\)/.test(app),
+  'Der Probelauf startet erst nach der Anmeldung');
+ok(!/authInit|loginRedirect/.test(quelle), 'probelauf.js umgeht die Anmeldung nicht');
+
+const anl = lies('js/anleitung.js');
+ok(/darfProbelauf\(\)\)\s*\?/.test(anl), 'Die Anleitung zeigt den Knopf nur Freigeschalteten');
+ok(/probelaufStart\(\)/.test(anl), 'Die Anleitung hat den Startknopf');
+ok(/echter Vorgang/.test(anl), 'Sie sagt, dass es ein echter Vorgang ist');
+
+const eins = lies('js/einstellungen.js');
+ok(/cfg-probelaufUser/.test(eins), 'Einstellungen pflegen die Freischaltliste');
+ok(/'probelaufUser'/.test(lies('js/admin.js')), 'renderCfgLists zeigt die Liste an');
+
+/* ── 7) Dokument: Anhang und Fundstelle in SharePoint ── */
+const fg = lies('js/freigaben.js');
+ok(/function _wfDokumentHtml/.test(fg), 'Die Workflow-Mail hat eine Dokumentzeile');
+ok(/Dokument in SharePoint öffnen/.test(fg), 'Prüfer und Geschäftsleitung bekommen den SharePoint-Link');
+ok(/Versionsverlauf/.test(fg), 'Mit dem Hinweis, warum der Link nützlich ist');
+ok(/Dokument in SharePoint öffnen/.test(lies('js/konzepte.js')), 'Auch die Konzept-Mail verlinkt das Dokument');
+
+/* ── 8) Selbsttest ── */
+ok(/async function probelaufSelbsttest/.test(quelle), 'Es gibt einen Selbsttest');
+for (const stufe of ['Konzept anlegen', 'Konzept eingereicht', 'Konzept angenommen (echter Weg)',
+  'Regelwerk-Entwurf automatisch entstanden', 'Konzept-Freigabe steht in der Historie',
+  'Status Konformitätsprüfung', 'Konformität bestätigt', 'Freigegeben und veröffentlicht',
+  'Kenntnisnahme gespeichert', 'Änderungshistorie geschrieben', 'Als Probelauf erkennbar'])
+  ok(quelle.includes(stufe), `Selbsttest prüft: ${stufe}`);
+ok(/legt einen echten Vorgang an und versendet echte/.test(quelle), 'Der Selbsttest fragt vorher nach');
+ok(/konzeptDecide\(kEing\.id, 'angenommen', \{ ohneRueckfrage: true, ohneWeiche: true \}\)/.test(quelle),
+  'Er nimmt das Konzept über die echte Funktion an, statt den Entwurf selbst zu bauen');
+ok(/konzeptDecide\(id, decision, \{ ohneRueckfrage: einKlick, ohneWeiche: true \}\)/.test(lies('js/konzepte.js')),
+  'Der Klick aus der Mail entscheidet ohne Folgefrage – ohne Nachfrage aber nur mit dem Token der Runde');
+ok(/Warum wird das Konzept abgelehnt\? \(Pflicht\)/.test(lies('js/konzepte.js')),
+  'Die Begründung einer Ablehnung bleibt Pflicht – sie ist keine Rückfrage, sondern eine Angabe');
+ok(!/const rw = newPolicy\(\)/.test(quelle), 'Kein nachgebauter Entwurf mehr im Selbsttest');
+const kq2 = lies('js/konzepte.js');
+ok(/opts && opts\.ohneRueckfrage/.test(kq2), 'konzeptDecide kann die Dialoge überspringen');
+ok(/return rwId;/.test(kq2), 'Und gibt die Id des entstandenen Regelwerks zurück');
+
+/* ── 9) Schritte der geführten Vorführung ── */
+run('globalThis.__s = tourSchritte();');
+const schritte = ctx.__s;
+ok(schritte.length >= 14, `Mindestens fünfzehn Schritte (ist ${schritte.length})`);
+ok(schritte.every(s => s.titel && s.text && s.symbol), 'Jeder Schritt hat Titel, Text und Symbol');
+const titel = schritte.map(s => s.titel).join(' | ');
+for (const wort of ['Dashboard', 'Konzept ausfüllen', 'GF-Prüfung einreichen', 'Postfach', 'Entwurf',
+  'Konformitätsprüfung', 'Mitbestimmung', 'Freigabe', 'Kenntnisnahme', 'Audit'])
+  ok(titel.includes(wort), `Die Vorführung deckt ab: ${wort}`);
+const alle = schritte.map(s => s.text + ' ' + (s.hinweis || '')).join(' ');
+ok(/echter Vorgang/.test(alle), 'Sie sagt gleich zu Beginn, dass es echt ist');
+ok(/Aufräumen/.test(alle), 'Und weist auf das Aufräumen hin');
+ok(/Dokument/.test(alle), 'Das Dokument kommt vor');
+
+const mit = schritte.filter(s => typeof s.erfuellt === 'function');
+ok(mit.length >= 9, `Die meisten Schritte warten auf eine echte Aktion (${mit.length})`);
+// Ausfüllen und Einreichen sind zwei getrennt entscheidbare Schritte
+const iAus = schritte.findIndex(x => /ausfüllen/i.test(x.titel));
+const iEin = schritte.findIndex(x => /einreichen/i.test(x.titel));
+ok(iAus >= 0 && iEin === iAus + 1, 'Ausfüllen und Einreichen sind zwei aufeinanderfolgende Schritte');
+const iTab = schritte.findIndex(x => /Freigaben-Reiter/.test(x.titel));
+const iKon = schritte.findIndex(x => /Konformitätsprüfung/.test(x.titel) && !/Reiter/.test(x.titel));
+ok(iTab >= 0 && iKon === iTab + 1, 'Erst der Reiter, dann die Entscheidungen');
+ok(typeof schritte[iTab].erfuellt === 'function' && typeof schritte[iKon].erfuellt === 'function',
+  'Beide warten je für sich');
+// Entschieden wird per Mail: Die drei Stufen sind ein Schritt, der wartet, bis
+// veroeffentlicht ist. Ein eigener Klick im System ist dafuer nicht noetig.
+ok(!schritte.some(x => /^Entscheiden$/.test(x.titel)),
+  'Kein eigener Klick-Schritt fuers Entscheiden – das passiert in der Mail');
+ok(/Meine Regelwerke öffnen/.test(titel) && /Kenntnisnahme, Wissenstest und Video/.test(titel),
+  'Die Kenntnisnahme ist in Aufruf und Erklärung geteilt');
+ok(schritte.filter(x => x.platz === 'ecke').length >= 2,
+  'Bei Formularschritten steht die Sprechblase in der Ecke – sonst deckt sie die Felder ab');
+ok(typeof schritte[iAus].erfuellt === 'function' && typeof schritte[iEin].erfuellt === 'function',
+  'Beide warten je für sich auf die Ausführung');
+let geworfen = 0;
+for (const s of mit) { try { s.erfuellt(0); } catch (e) { geworfen++; } }
+ok(geworfen === 0, 'Keine Bedingung wirft bei leerem Zustand');
+
+ok(/tour-mask/.test(tour) && /_tourPositioniere/.test(tour),
+  'Die Hervorhebung lässt das Ziel als Ausschnitt frei (anklickbar)');
+ok(/probelaufAktiv\(\)/.test(tour), 'Die Führung läuft nur im Probelauf');
+ok(/tour-fortschritt/.test(tour) && /tour-wartet/.test(tour), 'Fortschritt und Wartezustand sind sichtbar');
+
+/* ── 10) Der gemeldete Fehler: Schritt 1 lief von allein weiter ── */
+run(`_plAn = true;
+     _tourListe = tourSchritte();
+     _tourAnsicht = () => true;              // Ansicht ist schon offen
+     _tourGehe(1);
+     globalThis.__vorerf = _tourVorerf;
+     _tourSeit = 0;                          // Mindestverweildauer aushebeln
+     _tourTakt(); _tourTakt();
+     globalThis.__idxDanach = _tourIdx;`);
+ok(ctx.__vorerf === true, 'Ein bereits erfüllter Schritt wird als erledigt erkannt');
+ok(ctx.__idxDanach === 1, 'Er bleibt trotzdem stehen und springt nicht weiter');
+
+run(`_tourAnsicht = () => false;
+     _tourGehe(1);
+     globalThis.__wartet = _tourVorerf;
+     _tourSeit = 0; _tourTakt();
+     globalThis.__idxWartend = _tourIdx;
+     _tourAnsicht = () => true;              // jetzt führt der Anwender den Schritt aus
+     _tourSeit = 0; _tourTakt();
+     globalThis.__nachKlick = _tourVorerf;`);
+ok(ctx.__wartet === false, 'Ein offener Schritt wartet');
+ok(ctx.__idxWartend === 1, 'Und bleibt stehen, solange nichts passiert');
+ok(ctx.__nachKlick === true, 'Nach der echten Aktion wird er als erledigt erkannt');
+run('tourEnde();');
+
+/* ── 10b) Angehaltene Führung: dort weitermachen, wo man aufgehört hat ──
+   In einer Vorführung will man zwischendurch etwas anderes zeigen. Das Schließen
+   der Sprechblase darf den Fortschritt deshalb nicht wegwerfen. */
+run(`_plAn = true; tourStandVergessen();
+     tourStart(0); _tourGehe(4); tourEnde();
+     globalThis.__stand = tourStand();
+     globalThis.__label = tourKnopfText();`);
+ok(ctx.__stand === 4, `Der Schritt bleibt gemerkt (ist ${ctx.__stand})`);
+ok(ctx.__label === '▶ Weiter bei Schritt 5', `Der Knopf bietet ihn an: „${ctx.__label}"`);
+
+run(`tourStart(); globalThis.__wieder = _tourIdx; tourEnde();`);
+ok(ctx.__wieder === 4, 'Ein Start ohne Angabe macht genau dort weiter');
+
+run(`tourStart(0); globalThis.__vonVorn = _tourIdx; tourEnde();`);
+ok(ctx.__vonVorn === 0, 'Mit ausdrücklicher Schrittnummer geht es trotzdem von vorn');
+
+run(`tourNeu(); globalThis.__neu = _tourIdx; tourEnde();`);
+ok(ctx.__neu === 0, '„Von vorn" beginnt wieder bei Schritt 1');
+
+run(`tourStart(0); _tourGehe(tourSchritte().length - 1); tourWeiter();
+     globalThis.__nachFertig = tourStand();`);
+ok(ctx.__nachFertig === 0, 'Nach „Fertig" ist der Stand verworfen');
+
+run(`tourStart(0); _tourGehe(3); tourEnde(); probelaufLoeschen();`);
+await new Promise(r => setTimeout(r, 30));
+run('globalThis.__nachAufraeumen = tourStand();');
+ok(ctx.__nachAufraeumen === 0, 'Aufräumen verwirft den Stand mit (der Vorgang ist ja weg)');
+ok(/function probelaufBannerAktualisieren/.test(quelle), 'Der Streifen wird beim Schließen nachgeführt');
+
+/* ── 10b2) Aufgeräumte Leiste für die Aufnahme ── */
+ok(/function probelaufNavFiltern/.test(quelle), 'Im Probelauf wird die Navigation aufgeräumt');
+ok(/'nav-verwaltung'/.test(quelle) === false && /'nav-freigaben'/.test(quelle) === false,
+  'Dashboard und Freigaben bleiben stehen – ohne sie liefe die Vorführung nicht');
+ok(/'nav-vorschlaege'/.test(quelle) === false,
+  'Vorschläge ebenfalls – einen Änderungsvorschlag einzureichen tut jede:r, das gehört ins Video');
+{
+  // Eine Leiste wie in der index.html: Gruppen-Überschriften und Reiter als Geschwister.
+  const leiste = [];
+  const knoten = (cls, view, sichtbar = true) => {
+    const el = { cls, view, style: { display: sichtbar ? '' : 'none' },
+      classList: { contains: (c) => c === cls }, getAttribute: (a) => (a === 'data-view' ? view : null) };
+    leiste.push(el); return el;
+  };
+  const sepRw = knoten('nav-sep'); const verw = knoten('nav-item', 'verwaltung'); const ein = knoten('nav-item', 'einstellungen');
+  const sepIsms = knoten('nav-sep'); const ris = knoten('nav-item', 'risiken'); const neu = knoten('nav-item', 'reiter-von-morgen');
+  const sepKi = knoten('nav-sep'); const ki = knoten('nav-item', null);
+  leiste.forEach((el, i) => { el.nextElementSibling = leiste[i + 1] || null; });
+  const qsa = ctx.document.querySelectorAll;
+  ctx.document.querySelectorAll = (sel) => (sel === '.nav-sep' ? leiste.filter(x => x.cls === 'nav-sep')
+    : sel === '.nav-item[data-view]' ? leiste.filter(x => x.cls === 'nav-item' && x.view) : []);
+  run('_plAn = true; probelaufNavFiltern();');
+  ctx.document.querySelectorAll = qsa;
+  ok(ein.style.display === 'none' && ris.style.display === 'none', 'Was im Video nur verwirrt, wird ausgeblendet');
+  ok(neu.style.display === 'none', 'Ein neuer Reiter bleibt von allein weg – festgelegt ist, was bleibt');
+  ok(verw.style.display === '' && sepRw.style.display === '', 'Das Regelwerk Dashboard und seine Überschrift bleiben');
+  ok(sepIsms.style.display === 'none', 'Eine Überschrift ohne sichtbaren Reiter fällt mit weg');
+  ok(ki.style.display === '' && sepKi.style.display === '', 'Links ohne eigene Ansicht (KI, Apps) bleiben stehen');
+}
+ok(/if \(!_plAn\) return;/.test(quelle), 'Und nur, solange wirklich ein Probelauf läuft');
+ok(/probelaufNavFiltern/.test(lies('js/access.js')),
+  'initRoleNav ruft den Filter zuletzt auf – sonst überschreibt die Rollenlogik ihn wieder');
+ok(/pl-tour-neu/.test(quelle), 'Es gibt einen Knopf, um von vorn zu beginnen');
+
+/* ── 10c) Die Führung steuert im Freigaben-Reiter den richtigen Abschnitt an ── */
+ok(/function _tourFreigabenAbschnitt/.test(tour), 'Es gibt eine Vorbereitung je Abschnitt');
+ok(/beim: \(\) => _tourFreigabenAbschnitt\('pruef'\)/.test(tour),
+  'Die Warteschlange steht offen, während in der Mail entschieden wird');
+ok(/focusPolicyCard\(p\.id\)/.test(tour), 'Die Karte des Vorgangs wird angesteuert');
+ok(/typeof s\.beim === 'function'/.test(tour), 'Der Einstiegs-Hook wird beim Schrittwechsel ausgeführt');
+ok(/typeof ziel === 'function'/.test(tour), 'Ziele dürfen zur Laufzeit berechnet werden');
+
+const fg2 = lies('js/freigaben.js');
+ok(/function fgOpenSection/.test(fg2), 'Ein Abschnitt lässt sich gezielt aufklappen');
+ok(/if \(!el && _freigabenScope !== 'alle'\)/.test(fg2),
+  'Steht der Vorgang unter „Alle Vorgänge", wird dorthin gewechselt statt zu meckern');
+
+/* Konzeptfreigabe von der Freigabe des Regelwerks unterscheiden */
+ok(/Konzeptfreigabe \(GL\)/.test(fg2), 'Die Konzeptfreigabe steht in „Bereits freigegeben"');
+ok(/Freigabe des Regelwerks \(GL\)/.test(fg2), 'Die spätere Freigabe heißt eindeutig anders');
+ok(/aktion === 'Konzept freigegeben'/.test(fg2), 'Quelle ist der Historien-Eintrag');
+
+/* ── 10d) Nachladen: Führung und Selbsttest brauchen mehr als probelauf.js ──
+   Der Start über ?probelauf=1 lädt nur probelauf.js. Ohne tour.js und den
+   Verwaltungsblock liefen „Geführte Vorführung" und „Selbsttest" ins Leere. */
+{
+  const geladen = [];
+  ctx.modulFuerAnsicht = async (v) => { geladen.push(v); };
+  run('_plModule = null;');
+  await vm.runInContext('probelaufModule()', ctx);
+  await vm.runInContext('probelaufModule()', ctx);
+  ok(geladen.length === 1 && geladen[0] === 'probelauf', 'Die Module des Probelaufs werden einmal nachgeladen');
+  ctx.modulFuerAnsicht = async () => { throw new Error('weg'); };
+  run('_plModule = null;');
+  const ergebnis = await vm.runInContext('_plMitModulen()', ctx);
+  ok(ergebnis === false && vm.runInContext('_plModule', ctx) === null, 'Scheitert das Laden, wird es beim nächsten Klick neu versucht');
+  delete ctx.modulFuerAnsicht;
+  run('_plModule = null;');
+}
+const modKarte = lies('js/module.js');
+const plGruppe = (modKarte.match(/probelauf:\s*MODUL_ADMIN\.concat\(\[([^\]]*)\]/) || [])[1] || '';
+ok(/'probelauf'/.test(plGruppe) && /'tour'/.test(plGruppe), 'Eigene Gruppe: Verwaltungsblock, probelauf.js und tour.js');
+ok(/probelaufModule\(\)\.then/.test(quelle), 'Beim Aktivieren wird im Hintergrund nachgeladen');
+ok(/onclick="probelaufTour\(\)"/.test(quelle) && /onclick="probelaufTour\(true\)"/.test(quelle),
+  'Die Knöpfe der Führung warten auf die Module');
+ok(!/onclick="tourStart\(\)"/.test(quelle), 'Kein Knopf ruft tour.js direkt auf');
+ok(/async function probelaufSelbsttest\(\) \{[\s\S]{0,200}_plMitModulen\(\)/.test(quelle), 'Der Selbsttest wartet ebenfalls');
+
+/* ── 10e) Selbsttest: Fortschritt, kein doppeltes Neuladen ── */
+const st = (quelle.match(/async function probelaufSelbsttest[\s\S]*?\n\}/) || [''])[0];
+ok(/Selbsttest \$\{i\}\/\$\{n\}/.test(st), 'Der Selbsttest zeigt, bei welchem Schritt er steht');
+// Die Kette steht inzwischen in eigenen Bausteinen – geprüft wird deshalb die ganze Datei.
+for (const f of ['konzeptSubmitGF', 'konzeptDecide', 'setStatus', 'markKonform', 'markMitbestimmung', 'markFreigabe'])
+  ok(!new RegExp('await ' + f + '\\([^\\n]*\\n(\\s*//[^\\n]*\\n)*\\s*await reloadData').test(quelle), `Nach ${f} kein zweites Neuladen (lädt selbst)`);
+ok(!/await confirmRead\([^\n]*\n\s*await reloadAcks/.test(quelle), 'Nach confirmRead kein zweites Neuladen');
+ok(/await _plSelbsttestFragen\(\)/.test(st) && !/confirm\(/.test(st), 'Die Rückfrage ist der App-Dialog, nicht das Browser-Fenster');
+
+/* ── 10f) Reste früherer Probeläufe ── */
+{
+  echt.geloescht.length = 0; echt.dateiGeloescht.length = 0; echt.ackGeloescht.length = 0;
+  ctx.State.policiesAlle = [
+    { id: '501', title: '[Probelauf] Alt', typ: 'Konzept', dokumentName: '[Probelauf] Alt.docx', dokumentDriveId: 'd', dokumentItemId: 'f9' },
+    { id: '502', title: '[Probelauf] Alt', status: 'Veröffentlicht', dokumentName: '[Probelauf] Alt.docx', dokumentDriveId: 'd', dokumentItemId: 'f9' },
+    { id: '503', title: 'Echtes Regelwerk', status: 'Veröffentlicht', dokumentName: 'Echt.docx', dokumentDriveId: 'd', dokumentItemId: 'f1' },
+  ];
+  ctx.State.acks = [{ id: 'a77', richtlinieId: '502' }, { id: 'a78', richtlinieId: '503' }];
+  run('globalThis.__reste = _plReste().map(p => p.id).join(",");');
+  ok(ctx.__reste === '501,502', 'Reste werden am Titel erkannt, Echtes nicht');
+  const wahl = { checked: false };
+  const gid = ctx.document.getElementById;
+  ctx.document.getElementById = (id) => (id === 'pl-reste' ? wahl : gid(id));
+  run('probelaufLoeschen();');
+  await new Promise(r => setTimeout(r, 30));
+  ok(echt.geloescht.length === 0, 'Ohne Häkchen bleiben die Reste stehen');
+  wahl.checked = true;
+  run('probelaufLoeschen();');
+  await new Promise(r => setTimeout(r, 30));
+  ok(echt.geloescht.sort().join() === '501,502', 'Mit Häkchen gehen Konzept und Regelwerk der Reste');
+  ok(echt.dateiGeloescht.join() === 'f9', 'Die gemeinsame Datei geht einmal, die echte bleibt');
+  ok(echt.ackGeloescht.join() === 'a77', 'Die eigene Kenntnisnahme zum Rest geht mit, die zum echten Regelwerk nicht');
+  ctx.document.getElementById = gid;
+  delete ctx.State.policiesAlle; ctx.State.acks = [];
+}
+
+/* ── 11) Einbindung ── */
+const html = lies('index.html');
+// Seit dem Nachladen tragen beide keine <script>-Tags mehr – sie gehören zur
+// Gruppe der Anleitung. Geprüft wird deshalb die Gruppe.
+const karte = lies('js/module.js');
+const anleitung = (karte.match(/anleitung:\s*MODUL_ADMIN\.concat\(\[([^\]]*)\]/) || [])[1] || '';
+const reihen = [...anleitung.matchAll(/'([a-z-]+)'/g)].map(x => x[1]);
+for (const f of ['probelauf', 'tour']) ok(reihen.includes(f), `${f}.js wird mit der Anleitung geladen`);
+ok(!/'demo'/.test(karte), 'demo.js wird nirgends geladen');
+ok(!/'tutorial'/.test(karte), 'Der alte Rundgang wird nirgends geladen');
+ok(/const TOUR_BEISPIEL/.test(tour), 'Die Führung bringt ihr Beispiel selbst mit');
+ok(reihen.indexOf('probelauf') < reihen.indexOf('anleitung'), 'probelauf.js lädt vor anleitung.js');
+const css = lies('css/style.css');
+ok(/\.pl-warnung\b/.test(css) && /\.tour-tip\b/.test(css), 'Die Formatierung ist vorhanden');
+
+/* ── 12) Navigation: Cockpit gehört ins ISMS ── */
+const html2 = lies('index.html');
+const navIdx = (t) => html2.indexOf(t);
+ok(navIdx('id="nav-cockpit"') > navIdx('id="nav-grp-isms"'),
+  'Das Cockpit steht in der ISMS-Gruppe');
+ok(navIdx('id="nav-cockpit"') < navIdx('id="nav-ismsdocs"'),
+  'Und dort an erster Stelle');
+ok(!html2.includes('nav-grp-uebersicht'), 'Die Gruppe „Übersicht" ist entfallen');
+ok(/ISMS-Cockpit/.test(html2), 'Der Reiter heißt ISMS-Cockpit');
+ok(/cockpit: 'ISMS-Cockpit'/.test(lies('js/app.js')), 'Auch der Seitentitel');
+ok(/v\.cockpit \|\| v\.ismsdocs/.test(lies('js/access.js')), 'Die Gruppen-Überschrift kennt das Cockpit');
+
+ok(!/kurse/i.test(html2), 'Kurse sind vollständig entfernt');
+ok(!fs.existsSync(path.join(ROOT, 'js/kurse.js')), 'kurse.js ist gelöscht');
+
+ok(navIdx('KI-Governance') > navIdx('id="nav-grp-isms"'), 'KI-Governance steht weiter unten');
+ok(navIdx('DIHAG-Apps') > navIdx('KI-Governance'), 'DIHAG-Apps darunter');
+ok(navIdx('DIHAG-Apps') < navIdx('nav-grp-verwaltung'), 'Beide über der Verwaltung');
+
+/* ── 13) Einführungs-Schritte im Regelwerk-Dashboard ── */
+const adm = lies('js/admin.js');
+ok(/const RW_SCHRITTE/.test(adm), 'Die Schritte sind hinterlegt');
+ok(/function renderRwSchritte/.test(adm), 'Und werden gerendert');
+ok(/renderRwSchritte\(\);/.test(adm), 'renderAdminList zeichnet sie mit');
+ok(/id="rw-schritte"/.test(html2), 'Das Dashboard hat den Platz dafür');
+for (const stufe of ['Konzept', 'Entwurf', 'Prüfung', 'Mitbestimmung', 'Freigabe', 'Veröffentlicht'])
+  ok(new RegExp("'" + stufe + "'").test(adm), `Schritt genannt: ${stufe}`);
+ok(/function rwSchritteToggle/.test(adm), 'Ein- und ausklappbar');
+ok(/rms_rw_schritte/.test(adm), 'Die Wahl wird gemerkt');
+ok(/\.rw-schritte\b/.test(lies('css/style.css')), 'Die Formatierung ist vorhanden');
+
+console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
+process.exit(fail ? 1 : 0);
