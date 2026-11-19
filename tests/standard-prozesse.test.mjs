@@ -1,7 +1,8 @@
 /**
  * Die Prozesse des RMS selbst (js/rmsprozesse.js)
  *
- * 13 Hauptprozesse, darunter ihre Unter- und Nebenprozesse, 61 Modelle. Ein
+ * Ein Gesamtprozess, darunter 13 Hauptprozesse mit ihren Unter- und
+ * Nebenprozessen, 62 Modelle. Ein
  * Katalog dieser Größe ist nur so gut wie seine Prüfung: Ein Rücksprung, der
  * sein Ziel verfehlt, wird stillschweigend zu einem Ende; eine Beschriftung
  * über 58 Zeichen wird abgeschnitten und verliert ihr Verb; ein Pfeil, der
@@ -28,7 +29,7 @@ const R = require(ROOT + '/js/rmsprozesse.js');
 const { RMS_PROZESSE } = R;
 
 /* ── 1) Der Katalog als Ganzes ── */
-ok(RMS_PROZESSE.length === 61, `61 Modelle im Katalog (ist ${RMS_PROZESSE.length})`);
+ok(RMS_PROZESSE.length === 62, `62 Modelle im Katalog (ist ${RMS_PROZESSE.length})`);
 ok(new Set(RMS_PROZESSE.map(p => p.name)).size === RMS_PROZESSE.length, 'Jeder Name kommt einmal vor');
 ok(new Set(RMS_PROZESSE.map(p => p.kennung)).size === RMS_PROZESSE.length, 'Jede Prozess-Kennung kommt einmal vor');
 ok(RMS_PROZESSE.every(p => /\(RMS\)$/.test(p.name)), 'Alle Namen enden auf „(RMS)"');
@@ -52,10 +53,46 @@ ok(haupt.length === 13, `13 Hauptprozesse oben (ist ${haupt.length})`);
   'Konzernregelwerk lenken (RMS)', 'RMS betreiben und ändern (RMS)'].forEach(n =>
   ok(haupt.includes(n), `Hauptprozess „${n}"`));
 
+/* Der Gesamtprozess verbindet die 13: die Kette im Jahreszyklus als ⊞, was
+   anlassbezogen dazukommt, als Nebenprozess. Sonst nennt ihn niemand. */
+const gesamt = R.rmsGesamtprozess();
+ok(gesamt && gesamt.name === 'Managementsystem im Jahreszyklus steuern (RMS)' && gesamt.kennung === 'Process_RMS_gesamt'
+  && RMS_PROZESSE.filter(p => p.gesamt).length === 1, 'Genau ein Gesamtprozess, mit fester Kennung');
+const kg = R.rmsKinder(gesamt);
+ok([...kg.aufrufe, ...kg.unter, ...kg.neben].sort().join('|') === haupt.slice().sort().join('|'),
+  'Der Gesamtprozess bindet genau die 13 Hauptprozesse ein oder nennt sie');
+ok(kg.neben.join('|') === 'Sicherheitsvorfälle behandeln (RMS)|KI-Systeme genehmigen (RMS)|RMS betreiben und ändern (RMS)' && kg.aufrufe.length === 10,
+  'Vorfälle, KI-Anträge und der Betrieb des RMS laufen anlassbezogen daneben, die übrigen zehn als Kette');
+ok(!haupt.includes(gesamt.name) && RMS_PROZESSE.every(p => { const k = R.rmsKinder(p); return ![...k.aufrufe, ...k.unter, ...k.neben].includes(gesamt.name); }),
+  'Den Gesamtprozess bindet niemand ein, er ist kein Hauptprozess');
+
 /* Jedes Modell steht irgendwo: oben oder unter einem anderen. */
 const darunter = new Set();
-RMS_PROZESSE.forEach(p => { const k = R.rmsKinder(p); [...k.aufrufe, ...k.unter, ...k.neben].forEach(n => darunter.add(n)); });
-ok(RMS_PROZESSE.every(p => haupt.includes(p.name) || darunter.has(p.name)), 'Jedes übrige Modell hängt unter einem Hauptprozess');
+RMS_PROZESSE.forEach(p => { if (p.gesamt) return; const k = R.rmsKinder(p); [...k.aufrufe, ...k.unter, ...k.neben].forEach(n => darunter.add(n)); });
+ok(RMS_PROZESSE.every(p => p.gesamt || haupt.includes(p.name) || darunter.has(p.name)), 'Jedes übrige Modell hängt unter einem Hauptprozess');
+
+/* Themen: eines je Hauptprozess, jedes Modell außer dem Gesamtprozess in genau einem. */
+ok(R.RMS_THEMEN.length === 13 && R.RMS_THEMEN.map(t => t.haupt).sort().join('|') === haupt.slice().sort().join('|'),
+  'Dreizehn Themen, je eines für einen Hauptprozess');
+ok(R.RMS_THEMEN.every(t => R.rmsThemaVon(t.haupt) === t), 'Jeder Hauptprozess gehört zu seinem eigenen Thema');
+ok(RMS_PROZESSE.every(p => p.gesamt ? R.rmsThemaVon(p.name) === null : !!R.rmsThemaVon(p.name)), 'Jedes Modell hat ein Thema, der Gesamtprozess keines');
+ok(R.rmsThemaVon('Maßnahme umsetzen (RMS)').key === 'ziele' && R.rmsThemaVon('Ausfall bewältigen (RMS)').key === 'notfall',
+  'Ein mehrfach eingebundenes Modell bleibt in seinem Abschnitt: Maßnahmen bei den Zielen, der Ausfall bei der Notfallvorsorge');
+ok(R.RMS_THEMEN.every(t => (t.phase === 'anlass') === kg.neben.includes(t.haupt)) && R.RMS_THEMEN.every(t => ['planen', 'umsetzen', 'pruefen', 'anlass'].includes(t.phase)),
+  'Anlassbezogen sind genau die Themen, deren Hauptprozess Nebenprozess des Gesamtprozesses ist');
+const kette = kg.aufrufe.map(n => R.RMS_THEMEN.find(t => t.haupt === n).phase);
+ok(kette.join(',') === kette.slice().sort((a, b) => ['planen', 'umsetzen', 'pruefen'].indexOf(a) - ['planen', 'umsetzen', 'pruefen'].indexOf(b)).join(','),
+  'Die Kette des Gesamtprozesses läuft von Planen über Umsetzen zu Prüfen');
+ok(new Set(R.RMS_THEMEN.map(t => t.key)).size === 13 && R.RMS_THEMEN.every(t => Array.isArray(t.reiter) && t.reiter.length),
+  'Jedes Thema hat eine eigene Kennung und mindestens einen Reiter');
+
+/* Datenbezüge: zwischen zwei Modellen des Katalogs, nie doppelt zu einem Aufruf oder einer Zuordnung. */
+ok(R.RMS_BEZUEGE.every(b => R.rmsProzess(b.von) && R.rmsProzess(b.nach) && b.von !== b.nach && b.text && b.text.length <= 70),
+  'Jeder Datenbezug verbindet zwei Modelle des Katalogs und sagt kurz, worum es geht');
+ok(R.RMS_BEZUEGE.every(b => { const k = R.rmsKinder(R.rmsProzess(b.von)), r = R.rmsKinder(R.rmsProzess(b.nach));
+  return ![...k.aufrufe, ...k.unter, ...k.neben].includes(b.nach) && ![...r.aufrufe, ...r.unter, ...r.neben].includes(b.von); }),
+  'Kein Datenbezug wiederholt einen Aufruf oder eine Zuordnung');
+ok(new Set(R.RMS_BEZUEGE.map(b => b.von + '>' + b.nach)).size === R.RMS_BEZUEGE.length, 'Kein Datenbezug steht zweimal');
 ok([...darunter].every(n => R.rmsProzess(n)), 'Jede Einbindung und Zuordnung zeigt auf ein Modell des Katalogs');
 
 /* Unter- und Nebenprozesse, die mehrere Eltern haben: einmal gepflegt. */
@@ -150,7 +187,7 @@ for (const p of RMS_PROZESSE) {
 }
 ok(befunde.length === 0, befunde.length
   ? `${befunde.length} Befund(e): ${befunde.slice(0, 6).join(' · ')}`
-  : 'Alle 61 Modelle: Hausschema ohne Verstoß und ohne Hinweis, jede Beschriftung ganz, jeder Sprung mit Ziel, nichts übereinander, kein Pfeil durch einen Kasten oder auf einem anderen');
+  : 'Alle 62 Modelle: Hausschema ohne Verstoß und ohne Hinweis, jede Beschriftung ganz, jeder Sprung mit Ziel, nichts übereinander, kein Pfeil durch einen Kasten oder auf einem anderen');
 
 /* Die Dokumentation des Prozesses: Beschreibung, Normbezug, Gliederung. */
 const h1 = R.rmsProzess('Regelwerk einführen und pflegen');
@@ -205,8 +242,8 @@ vm.runInContext('initProzesse = async () => {}', ctx);
 
 antworten = [true];
 await vm.runInContext('seedStandardProcesses()', ctx);
-ok(gespeichert.length === 61 && gespeichert.every(g => g.werk === 'KONZERN'), 'Alle 61 Modelle werden in der Ablage KONZERN gespeichert');
-ok(fragen.length === 1 && /61 Modelle/.test(fragen[0].text) && /13 Hauptprozesse/.test(fragen[0].text) && fragen[0].o.okLabel === '61 anlegen',
+ok(gespeichert.length === 62 && gespeichert.every(g => g.werk === 'KONZERN'), 'Alle 62 Modelle werden in der Ablage KONZERN gespeichert');
+ok(fragen.length === 1 && /62 Modelle/.test(fragen[0].text) && /13 Hauptprozesse/.test(fragen[0].text) && /Gesamtprozess/.test(fragen[0].text) && fragen[0].o.okLabel === '62 anlegen',
   'Vorher fragt das RMS, mit Zahl der Modelle und Hauptprozesse');
 const idVon = {};
 gespeichert.forEach(g => { idVon[g.name] = g.id; });
@@ -217,14 +254,19 @@ const xmlH1Live = gespeichert.find(g => g.name === h1.name).xml;
 ok(xmlH1Live.includes('[[rms:modell=' + idVon['Regelwerk-Konzept entscheiden (RMS)'] + ']]')
   && xmlH1Live.includes('[[rms:neben=' + ['Änderung vorschlagen (RMS)', 'Regelwerk-Dokumente prüfen (RMS)', 'Ausnahme genehmigen (RMS)'].map(n => idVon[n]).join(',') + ']]'),
   'Eingebundene und zugeordnete Modelle tragen die Datei-Kennungen, die SharePoint gerade vergeben hat');
-ok(meldungen.some(m => /61 angelegt/.test(m.t) && m.art === 'success'), 'Danach meldet das RMS, wie viele angelegt sind');
+ok(meldungen.some(m => /62 angelegt/.test(m.t) && m.art === 'success'), 'Danach meldet das RMS, wie viele angelegt sind');
+const xmlGesamt = gespeichert.find(g => g.name === gesamt.name).xml;
+ok(gespeichert[gespeichert.length - 1].name === gesamt.name
+  && kg.aufrufe.every(n => xmlGesamt.includes('[[rms:modell=' + idVon[n] + ']]'))
+  && xmlGesamt.includes('[[rms:neben=' + kg.neben.map(n => idVon[n]).join(',') + ']]'),
+  'Der Gesamtprozess kommt zuletzt und zeigt mit Datei-Kennungen auf alle 13 Hauptprozesse');
 
 /* Ein zweites Mal: Alles ist da. Überspringen ändert nichts. */
 ctx._liste = gespeichert.map(g => ({ itemId: g.id, title: g.name, ordner: g.werk }));
 gespeichert.length = 0; fragen.length = 0; meldungen.length = 0;
 antworten = [true, false];
 await vm.runInContext('seedStandardProcesses()', ctx);
-ok(fragen.length === 2 && /61<\/b> gibt es dort schon/.test(fragen[0].text) && fragen[1].o.cancelLabel === 'Überspringen',
+ok(fragen.length === 2 && /62<\/b> gibt es dort schon/.test(fragen[0].text) && fragen[1].o.cancelLabel === 'Überspringen',
   'Gibt es die Modelle schon, fragt ein zweiter Schritt: aktualisieren oder überspringen');
 ok(gespeichert.length === 0 && meldungen.some(m => /Nichts zu tun/.test(m.t)), 'Überspringen schreibt nichts');
 
@@ -232,16 +274,25 @@ ok(gespeichert.length === 0 && meldungen.some(m => /Nichts zu tun/.test(m.t)), '
 antworten = [true, true];
 fragen.length = 0; meldungen.length = 0;
 await vm.runInContext('seedStandardProcesses()', ctx);
-ok(gespeichert.length === 61 && gespeichert.every(g => ctx._liste.some(p => p.itemId === g.id)),
+ok(gespeichert.length === 62 && gespeichert.every(g => ctx._liste.some(p => p.itemId === g.id)),
   'Aktualisieren schreibt in dieselben Dateien, die Datei-Kennungen bleiben');
-ok(meldungen.some(m => /61 aktualisiert/.test(m.t)), 'und meldet die Zahl der aktualisierten');
+ok(meldungen.some(m => /62 aktualisiert/.test(m.t)), 'und meldet die Zahl der aktualisierten');
+
+/* Der Bestand vom November: 61 Modelle da, nur der Gesamtprozess fehlt. Überspringen legt genau ihn an. */
+ctx._liste = gespeichert.filter(g => g.name !== gesamt.name).map(g => ({ itemId: g.id, title: g.name, ordner: g.werk }));
+gespeichert.length = 0; fragen.length = 0; meldungen.length = 0;
+antworten = [true, false];
+await vm.runInContext('seedStandardProcesses()', ctx);
+ok(fragen[0].o.okLabel === '1 anlegen' && gespeichert.length === 1 && gespeichert[0].name === gesamt.name
+  && kg.aufrufe.every(n => gespeichert[0].xml.includes('[[rms:modell=' + ctx._liste.find(p => p.title === n).itemId + ']]')),
+  'Fehlt nur der Gesamtprozess, legt „Überspringen" genau ihn an, verknüpft mit den vorhandenen Modellen');
 
 /* Ein Modell gleichen Namens in einem anderen Werk ist ein anderes Modell. */
 ctx._liste = [{ itemId: '7', title: 'Maßnahme umsetzen (RMS)', ordner: 'SHB' }];
 gespeichert.length = 0; fragen.length = 0;
 antworten = [true];
 await vm.runInContext('seedStandardProcesses()', ctx);
-ok(gespeichert.length === 61 && fragen.length === 1, 'Gleichnamiges in einer anderen Ablage zählt nicht als vorhanden');
+ok(gespeichert.length === 62 && fragen.length === 1, 'Gleichnamiges in einer anderen Ablage zählt nicht als vorhanden');
 
 /* Ohne Schreibrecht passiert nichts. */
 gespeichert.length = 0; meldungen.length = 0;

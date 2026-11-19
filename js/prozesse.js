@@ -183,7 +183,7 @@ function _procSprachmodule() {
 /* Zwei Sichten auf dieselben Prozesse: die Landkarte zeigt die Landschaft,
    die Liste die Modelle. Beide brauchen dieselbe Prozessliste – deshalb ein
    Reiter mit Umschalter statt zweier Reiter. */
-let _prozModus = 'karte';   // 'karte' | 'netz' | 'matrix' | 'backlog' | 'liste'
+let _prozModus = 'karte';   // 'karte' | 'gesamt' | 'netz' | 'matrix' | 'kette' | 'backlog' | 'liste'
 
 /** Umschalter, den beide Ansichten oben einblenden. */
 function prozessModusLeiste(aktiv) {
@@ -191,6 +191,7 @@ function prozessModusLeiste(aktiv) {
       onclick="setProzessModus(${jsArg(key)})" title="${titel}">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap">
       ${knopf('karte', '🗺 Landkarte', 'Prozesslandschaft mit Geltungsbereich und Modell')}
+      ${knopf('gesamt', '🧭 Gesamtkarte', 'Alle Prozesse des RMS auf einer Karte: Gesamtprozess, Themen, Unter- und Nebenprozesse, Abhängigkeiten. Zum Hineinzoomen')}
       ${knopf('netz', '🕸 Verknüpfungen', 'Wer hängt woran: Prozesse, Modelle, Regelwerke, Standorte')}
       ${knopf('matrix', '👤 Matrix', 'Wer ist für welchen Prozess zuständig, und wo fehlt noch etwas')}
       ${knopf('kette', '🏛 Verantwortung', 'Wer verantwortet den Prozess: Holding, Werk und Rollen im Ablauf')}
@@ -200,13 +201,14 @@ function prozessModusLeiste(aktiv) {
 }
 
 function setProzessModus(m) {
-  _prozModus = ['liste', 'netz', 'matrix', 'kette', 'backlog', 'karte'].includes(m) ? m : 'karte';
+  _prozModus = ['liste', 'gesamt', 'netz', 'matrix', 'kette', 'backlog', 'karte'].includes(m) ? m : 'karte';
   renderProzesseAktuell();
 }
 
 /** Die gerade gewählte Ansicht zeichnen. */
 function renderProzesseAktuell() {
   if (_prozModus === 'karte' && typeof initLandkarte === 'function') { initLandkarte(); return; }
+  if (_prozModus === 'gesamt' && typeof initGesamtkarte === 'function') { initGesamtkarte(); return; }
   if (_prozModus === 'netz' && typeof initVerknuepfungen === 'function') { initVerknuepfungen(); return; }
   if (_prozModus === 'matrix' && typeof initProzessMatrix === 'function') { initProzessMatrix(); return; }
   if (_prozModus === 'kette' && typeof initVerantwortung === 'function') { initVerantwortung(); return; }
@@ -278,7 +280,7 @@ function renderProzesseList() {
       <button class="btn btn-sm btn-ghost" onclick="refreshProzesse()" title="Aktualisieren">↻ Aktualisieren</button>
       ${canWrite && (_processes || []).length ? `<button class="btn btn-outline btn-sm" onclick="prozessPfeilePruefen()" title="Alle Modelle auf Pfeile prüfen, die ins Leere oder durch den eigenen Kasten laufen, und sie korrigieren. Erst nach Rückfrage wird gespeichert.">↪ Pfeile prüfen</button>` : ''}
       ${canWrite && (_processes || []).some(p => !(p.ordner || '')) ? `<button class="btn btn-outline btn-sm" onclick="prozessAblageAufraeumen()" title="Modelle, die noch direkt im Prozesse-Ordner liegen, in den Ordner ihres Werks verschieben">🗂 Ablage aufräumen</button>` : ''}
-      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Die Prozesse des RMS selbst als BPMN-Modelle anlegen: ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length + ' Modelle, ' : ''}13 Hauptprozesse mit Unter- und Nebenprozessen, in der Ablage des Konzerns. Vorhandene werden übersprungen oder auf Wunsch aktualisiert.">📋 Standard-Prozesse</button>` : ''}
+      ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="seedStandardProcesses()" title="Die Prozesse des RMS selbst als BPMN-Modelle anlegen: ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length + ' Modelle, ' : ''}der Gesamtprozess über 13 Hauptprozessen mit Unter- und Nebenprozessen, in der Ablage des Konzerns. Vorhandene werden übersprungen oder auf Wunsch aktualisiert.">📋 Standard-Prozesse</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="openProcessDraftPicker()" title="Starter-Prozess (Entwurf) aus einer Richtlinie erzeugen">✨ Aus Richtlinie</button>` : ''}
       ${canWrite ? `<button class="btn btn-outline btn-sm" onclick="document.getElementById('proc-import-input').click()" title="BPMN-Datei (.bpmn/.xml) importieren">⬆ Importieren</button>` : ''}
       ${canWrite ? `<button class="btn btn-primary btn-sm" onclick="openProcessEditor(null)">+ Neuer Prozess</button>` : ''}
@@ -3834,7 +3836,7 @@ async function seedStandardProcesses() {
   const neu = reihe.filter(p => !ids[p.name]);
   const da = reihe.length - neu.length;
   const ok = await uiConfirm(`<p style="margin:0 0 8px">Die Prozesse des RMS als BPMN-Modelle anlegen: <b>${reihe.length} Modelle</b>,
-      davon <b>${rmsHauptprozesse().length} Hauptprozesse</b> mit ihren Unter- und Nebenprozessen. Jedes nach Hausschema, mit Bahnen,
+      darin der <b>Gesamtprozess</b> über <b>${rmsHauptprozesse().length} Hauptprozessen</b> mit ihren Unter- und Nebenprozessen. Jedes nach Hausschema, mit Bahnen,
       Beschreibung und Normbezug; eingebundene Unterprozesse (⊞) zeigen auf ihr Modell, die Gliederung steht beim übergeordneten.</p>
     <p style="margin:0">Ablage: <b>${esc(ablageName)}</b>. ${neu.length ? `Neu angelegt werden <b>${neu.length}</b>.` : 'Neu anzulegen ist nichts.'}
       ${da ? ` <b>${da}</b> gibt es dort schon; was mit ihnen geschieht, fragt der nächste Schritt.` : ''}</p>`,

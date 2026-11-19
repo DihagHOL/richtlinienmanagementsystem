@@ -60,7 +60,7 @@ const MODUL_ANSICHTEN = {
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'verantwortung', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'prozessmatrix', 'verantwortung', 'prozessbacklog', 'mindmapbaum', 'verknuepfungen', 'gesamtkarte', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.

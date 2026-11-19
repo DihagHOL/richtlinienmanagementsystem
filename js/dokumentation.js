@@ -92,7 +92,11 @@ function _dokuRmsProzesse(li, ol, h3) {
       return `<li style="${li}">${zeichen} <b>${kurz(c.name)}</b>: ${esc((c.beschreibung || [])[0] || '')}${zweig(c)}</li>`;
     }).join('')}</ul>`;
   };
-  return rmsHauptprozesse().map((p, i) => {
+  const g = (typeof rmsGesamtprozess === 'function') ? rmsGesamtprozess() : null;
+  const kopf = g ? `<div style="${h3}">Gesamtprozess: ${kurz(g.name)}</div>
+      <p style="margin:0 0 4px;line-height:1.55">${(g.beschreibung || []).map(esc).join(' ')}</p>
+      <div style="font-size:.8rem;color:var(--c-muted)">Normbezug: ${esc(g.norm || '')}</div>` : '';
+  return kopf + rmsHauptprozesse().map((p, i) => {
     gezeigt.add(p.name);
     return `<div style="${h3}">${i + 1}. ${kurz(p.name)}</div>
       <p style="margin:0 0 4px;line-height:1.55">${(p.beschreibung || []).map(esc).join(' ')}</p>
@@ -722,7 +726,7 @@ function _dokuSections() {
 
     sec('prozesse', 'Prozesse (BPMN 2.0)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Prozesse"</b>: Abläufe als <b>BPMN 2.0</b> im Camunda-Stil selbst modellieren und <b>mit Regelwerken verknüpfen</b> („im Einklang mit den Regelwerken"). Gespeichert als <b>.bpmn</b>-Datei im Ordner „Prozesse" der ISMS-Bibliothek.</p>
-      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat fünf Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🕸 Verknüpfungen</b> (wer hängt woran), <b>👤 Matrix</b> (wer ist zuständig), <b>📌 Backlog</b> (woran gearbeitet wird) und <b>📋 Modelle</b> (alle BPMN-Dateien, nach Gesamtprozess gegliedert).</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter hat sieben Ansichten: <b>🗺 Landkarte</b> (der Einstieg), <b>🧭 Gesamtkarte</b> (alle Prozesse des RMS auf einer Karte zum Hineinzoomen), <b>🕸 Verknüpfungen</b> (wer hängt woran), <b>👤 Matrix</b> (wer ist zuständig), <b>🏛 Verantwortung</b> (wer verantwortet den Prozess), <b>📌 Backlog</b> (woran gearbeitet wird) und <b>📋 Modelle</b> (alle BPMN-Dateien, nach Gesamtprozess gegliedert).</p>
       <div style="${h3}">🗺 Prozesslandkarte</div>
       <p style="margin:0 0 8px;line-height:1.55">Die Prozesslandschaft als Zeilen: je Bereich eine Zeile mit farbiger Titelspalte, <b>Kernprozesse</b> als Pfeile. Jede Kachel ist anklickbar.</p>
       <p style="margin:0 0 8px;line-height:1.55"><b>Jedes Werk führt seine eigene Landkarte</b>, dazu gibt es die Ebene <b>Konzern / Holding</b>. Oben links wird gewählt, welche Karte offen ist. Ein Werk ohne Karte kann bei null anfangen oder <b>die Struktur eines anderen Werks übernehmen</b> und dort anpassen, wo es abweicht. Der Geltungsbereich wird dabei auf das eigene Werk gesetzt, die Quelle bleibt unverändert.</p>
@@ -822,6 +826,17 @@ function _dokuSections() {
         <li style="${li}"><b>Im Reiter Freigaben, in den Workflow-Mails und im Editor</b> steht bei einem solchen Regelwerk, welchen Prozess es freigibt, mit wie vielen Unter- und Nebenprozessen und von welchem Stand das Dokument ist. Prüfer, Geschäftsleitung und Mitarbeitende lesen den Prozess im Dokument und brauchen dafür keinen Zugang zum Reiter Prozesse.</li>
         <li style="${li}">Gespeichert wird der Bezug am Regelwerk im Sammelfeld (<code>prozess</code>: Hauptprozess und der Stand, aus dem das Dokument entstand), ohne neue SharePoint-Spalte. Anlegen und Aktualisieren brauchen Schreibrecht auf <b>Prozesse</b> und auf <b>Richtlinien Dashboard</b>.</li>
       </ul>
+      <div style="${h3}">🧭 Gesamtkarte</div>
+      <p style="margin:0 0 8px;line-height:1.55">Alle Prozesse des RMS auf einer Karte, die sich verschieben und zoomen lässt. Oben steht der <b>Gesamtprozess</b> „Managementsystem im Jahreszyklus steuern": die Kette der Hauptprozesse von Planen über Umsetzen bis Prüfen und Verbessern, darunter die Nebenprozesse, die anlassbezogen dazukommen (Vorfälle, KI-Anträge, Betrieb des RMS). Darunter stehen die <b>13 Themen</b> in vier Spalten (Planen, Umsetzen, Prüfen und verbessern, Anlassbezogen), in jedem Thema der Hauptprozess mit seinen Unter- und Nebenprozessen als Baum.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Je näher, desto mehr:</b> Von weitem zeigt die Karte die Themen als Flächen mit Schild, näher die Namen der Prozesse, ganz nah Beschreibung, Rollen, Zahl der Schritte und Bezüge zu anderen Themen. Mausrad oder zwei Finger zoomen, Ziehen verschiebt, Doppelklick zoomt hinein. Mit der Tastatur: + und − zoomen, 0 zeigt die ganze Karte, die Pfeiltasten verschieben, Esc hebt die Auswahl auf. Unten links zeigt die Übersicht, wo man gerade ist; ein Klick dort springt hin.</li>
+        <li style="${li}"><b>Ein Klick auf ein Thema</b> (Schild, Kopf oder Glied der Kette) fährt hinein. Im Kopf jedes Themas stehen seine Reiter im RMS, etwa „Risiko-Register", soweit man sie sehen darf.</li>
+        <li style="${li}"><b>Ein Klick auf einen Prozess</b> öffnet rechts alles, was zu ihm gehört: Beschreibung, Normbezug, Rollen mit der Zahl ihrer Schritte, den Ablauf Schritt für Schritt, was er einbindet und wer ihn einbindet, welche Daten er von anderen Prozessen nutzt und an wen er welche liefert. Dazu das Modell im RMS mit seinen Regelwerken und der Reiter, in dem der Prozess läuft. Auf der Karte leuchten seine Abhängigkeiten auf, auch über Themen hinweg. Alles andere tritt zurück.</li>
+        <li style="${li}"><b>Vier Arten von Abhängigkeiten:</b> ⊞ bindet ein (durchgezogen), ↳ Unterprozess (gepunktet), ⇢ Nebenprozess (gestrichelt) und ↔ nutzt Daten (orange), etwa „Kennzahl messen" misst offene hohe Risiken. Blau sind Bezüge in ein anderes Thema. Der Knopf <b>„↔ Querbezüge"</b> blendet alle Bezüge außerhalb der Bäume aus und wieder ein.</li>
+        <li style="${li}"><b>Suche</b> nach Prozess, Rolle oder Normbezug, etwa „Betriebsrat" oder „A.5.24": Treffer leuchten auf, die Eingabetaste springt von einem zum nächsten.</li>
+        <li style="${li}"><b>Aus anderen Reitern:</b> Wo ein Reiter zu einem Thema der Karte gehört, etwa Risiko-Register oder Wirksamkeit, steht oben neben dem Titel <b>„🧭 Gesamtkarte"</b>. Der Knopf öffnet die Karte gleich in diesem Thema. Als Link geht das auch: <code>?ansicht=prozesse&amp;karte=gesamt&amp;thema=risiken</code> oder <code>&amp;prozess=Process_RMS_vorfall</code>.</li>
+        <li style="${li}">Die Karte rechnet aus dem Katalog der RMS-Prozesse, aus dem auch „📋 Standard-Prozesse" die Modelle baut, und speichert nichts. <b>„● Modell"</b> an einem Prozess heißt: Sein Modell liegt in der Ablage des Konzerns.</li>
+      </ul>
       <div style="${h3}">🕸 Verknüpfungen</div>
       <p style="margin:0 0 8px;line-height:1.55">Wer hängt woran? <b>Prozess ↔ Modell ↔ Regelwerk ↔ Standort</b> als Mindmap: In der Mitte steht ein Objekt, ringsum stehen seine Beziehungen, nach Art beschriftet („modelliert in", „setzt um", „gilt für"). Ein <b>Klick auf einen Nachbarn</b> rückt diesen in die Mitte, <b>← Zurück</b> führt den Weg zurück. Über die Auswahl <b>„In die Mitte"</b> springt man direkt zu einem beliebigen Objekt.</p>
       <ul style="${ol}">
@@ -833,7 +848,7 @@ function _dokuSections() {
         <li style="${li}">Die Ansicht liest beim Öffnen alle Modelle einmal ein (dafür der kurze Ladehinweis) und legt <b>keine eigenen Daten</b> an. Zuordnungen schreibt sie dorthin, wo sie hingehören: in die <b>BPMN-Datei</b>, dieselbe Stelle, die auch der Prozess-Editor beschreibt.</li>
       </ul>
       <div style="${h3}">📋 Standard-Prozesse</div>
-      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt <b>die Prozesse des RMS selbst</b> als BPMN-Modelle an: <b>13 Hauptprozesse</b> mit ihren Unter- und Nebenprozessen, zusammen ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length : 61} Modelle, vom Regelwerk über Unterweisung, Risiken, Vorfälle und Notfallvorsorge bis zum Betrieb des RMS. Jedes ist nach Hausschema gebaut, mit Bahnen, Beschreibung und Normbezug; eingebundene Unterprozesse (⊞) zeigen auf ihr Modell, zugeordnete Unter- und Nebenprozesse stehen in der Gliederung beim übergeordneten. Abgelegt wird in der <b>Ablage des Konzerns</b>. Was die Prozesse im Einzelnen tun, steht unter „Die Prozesse des RMS".</p>
+      <p style="margin:0 0 8px;line-height:1.55">Ein Klick legt <b>die Prozesse des RMS selbst</b> als BPMN-Modelle an: den <b>Gesamtprozess</b> und darunter <b>13 Hauptprozesse</b> mit ihren Unter- und Nebenprozessen, zusammen ${typeof RMS_PROZESSE !== 'undefined' ? RMS_PROZESSE.length : 62} Modelle, vom Regelwerk über Unterweisung, Risiken, Vorfälle und Notfallvorsorge bis zum Betrieb des RMS. Jedes ist nach Hausschema gebaut, mit Bahnen, Beschreibung und Normbezug; eingebundene Unterprozesse (⊞) zeigen auf ihr Modell, zugeordnete Unter- und Nebenprozesse stehen in der Gliederung beim übergeordneten. Abgelegt wird in der <b>Ablage des Konzerns</b>. Was die Prozesse im Einzelnen tun, steht unter „Die Prozesse des RMS".</p>
       <div style="${hint}">Der Vorgang ist <b>gefahrlos wiederholbar</b>: Angelegt wird erst nach Bestätigung, von unten nach oben. Gibt es Modelle schon, fragt ein zweiter Schritt, ob sie auf den Stand des Katalogs gebracht oder übersprungen werden; SharePoint behält die vorige Fassung im Versionsverlauf. Danach sind die Modelle frei anpassbar.</div>
       <div style="${h3}">„Aus Regelwerk": So entsteht der Entwurf</div>
       <ul style="${ol}">

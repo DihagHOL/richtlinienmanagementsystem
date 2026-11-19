@@ -22,7 +22,13 @@
  * Ein Schritt „… (Unterprozess)" bindet das Modell gleichen Namens (ohne
  * „(RMS)") als ⊞ ein. Die Gliederung entsteht daraus von selbst: Was ein
  * Schritt einbindet oder als Unter- oder Nebenprozess genannt ist, steht
- * darunter; oben bleiben die 13, die niemand nennt.
+ * darunter. Ganz oben steht der Gesamtprozess (gesamt: true), der die 13
+ * Hauptprozesse im Jahreszyklus verbindet; Hauptprozess ist, was außer ihm
+ * niemand nennt.
+ *
+ * Nach dem Katalog folgen die Themen (RMS_THEMEN, ein Thema je Abschnitt und
+ * Hauptprozess) und die Datenbezüge zwischen Prozessen, die kein Aufruf sind
+ * (RMS_BEZUEGE). Beides liest die Gesamtkarte im Reiter „Prozesse".
  *
  * Angelegt werden die Modelle über „📋 Standard-Prozesse" im Reiter
  * „Prozesse" (seedStandardProcesses in js/prozesse.js), in der Ablage des
@@ -34,6 +40,31 @@
 const RMS_PROZESS_ABLAGE = 'KONZERN';
 
 const RMS_PROZESSE = [
+
+  /* ═══ 0 · Gesamtprozess ════════════════════════════════════════════════ */
+
+  { name: 'Managementsystem im Jahreszyklus steuern (RMS)', kennung: 'Process_RMS_gesamt', gesamt: true,
+    beschreibung: [
+      'Der Gesamtprozess des RMS. Er verbindet die 13 Hauptprozesse zu einem Managementsystem im Kreislauf aus Planen, Umsetzen, Prüfen und Verbessern.',
+      'Geplant wird mit dem Konzernregelwerk, dem Inventar der Assets, der Behandlung der Risiken, der Erklärung zur Anwendbarkeit und den Zielen. Umgesetzt wird über Regelwerke, Unterweisung, Prozesse und Notfallvorsorge. Audit, Managementbewertung und Korrekturen prüfen und verbessern das Ganze.',
+      'Die Kette zeigt die Reihenfolge im Jahreszyklus. Im Betrieb laufen die Hauptprozesse nebeneinander weiter. Sicherheitsvorfälle, KI-Anträge und Änderungen am RMS kommen anlassbezogen dazu und stehen deshalb als Nebenprozesse daneben.',
+      'Hält die Geschäftsleitung das Managementsystem nach der Bewertung nicht für wirksam, beauftragt sie Verbesserungen, und der Zyklus setzt bei den Risiken neu an.',
+    ],
+    norm: 'ISO 27001 Klausel 4.4, 6.1, 8.1, 9.3 und 10.1; NIS2 Art. 20 und 21',
+    neben: ['Sicherheitsvorfälle behandeln (RMS)', 'KI-Systeme genehmigen (RMS)', 'RMS betreiben und ändern (RMS)'],
+    schritte: `Start: Neuer Jahreszyklus des Managementsystems
+Governance-Board: Konzernregelwerk lenken (Unterprozess)
+ISB: Assets inventarisieren (Unterprozess)
+ISB: Informationssicherheitsrisiken behandeln (Unterprozess)
+ISB: Normkonformität nachweisen (Unterprozess)
+Geschäftsleitung: Ziele, Maßnahmen und Kennzahlen steuern (Unterprozess)
+Administration: Regelwerk einführen und pflegen (Unterprozess)
+Administration: Unterweisen und sensibilisieren (Unterprozess)
+Prozesseigner: Prozesse managen (Unterprozess)
+Notfallmanagement: Notfallvorsorge betreiben (Unterprozess)
+ISB: Wirksamkeit prüfen und verbessern (Unterprozess)
+Geschäftsleitung: Managementsystem wirksam? | nein: Verbesserungen beauftragen | zurück: Informationssicherheitsrisiken behandeln
+Ende: Jahreszyklus abgeschlossen` },
 
   /* ═══ 1 · Regelwerke ═══════════════════════════════════════════════════ */
 
@@ -1174,6 +1205,65 @@ Administration: Probelauf aufräumen und beenden
 Ende: Vorgang vorgeführt und entfernt` },
 ];
 
+/**
+ * Die Themen des RMS: je Abschnitt des Katalogs eines, benannt nach seinem
+ * Hauptprozess. Zu einem Thema gehört jedes Modell, das im Katalog zwischen
+ * seinem Hauptprozess und dem nächsten steht; so bleibt „Maßnahme umsetzen"
+ * bei den Zielen, auch wenn Risiken und Wirksamkeit es einbinden.
+ *
+ *   phase   Stelle im Gesamtprozess: planen, umsetzen, pruefen, oder anlass
+ *           für die Nebenprozesse, die anlassbezogen dazukommen
+ *   reiter  die Reiter des RMS, in denen das Thema bearbeitet wird; der erste
+ *           ist der Einstieg
+ */
+const RMS_THEMEN = [
+  { key: 'regelwerke',   titel: 'Regelwerke',                   haupt: 'Regelwerk einführen und pflegen (RMS)',          phase: 'umsetzen', reiter: ['verwaltung', 'freigaben', 'faelligkeit', 'vorschlaege', 'ausnahmen', 'ismsdocs'] },
+  { key: 'unterweisung', titel: 'Unterweisung',                 haupt: 'Unterweisen und sensibilisieren (RMS)',          phase: 'umsetzen', reiter: ['wissen', 'meine'] },
+  { key: 'normen',       titel: 'Normkonformität',              haupt: 'Normkonformität nachweisen (RMS)',               phase: 'planen',   reiter: ['abdeckung', 'cockpit', 'compliance'] },
+  { key: 'risiken',      titel: 'Risiken',                      haupt: 'Informationssicherheitsrisiken behandeln (RMS)', phase: 'planen',   reiter: ['risiken'] },
+  { key: 'ziele',        titel: 'Ziele, Maßnahmen, Kennzahlen', haupt: 'Ziele, Maßnahmen und Kennzahlen steuern (RMS)', phase: 'planen',   reiter: ['ziele', 'massnahmen', 'kennzahlen'] },
+  { key: 'wirksamkeit',  titel: 'Wirksamkeit',                  haupt: 'Wirksamkeit prüfen und verbessern (RMS)',        phase: 'pruefen',  reiter: ['wirksamkeit'] },
+  { key: 'vorfaelle',    titel: 'Vorfälle',                     haupt: 'Sicherheitsvorfälle behandeln (RMS)',            phase: 'anlass',   reiter: ['vorfaelle'] },
+  { key: 'notfall',      titel: 'Notfallvorsorge',              haupt: 'Notfallvorsorge betreiben (RMS)',                phase: 'umsetzen', reiter: ['notfall'] },
+  { key: 'assets',       titel: 'Assets',                       haupt: 'Assets inventarisieren (RMS)',                   phase: 'planen',   reiter: ['assets'] },
+  { key: 'prozesse',     titel: 'Prozessmanagement',            haupt: 'Prozesse managen (RMS)',                         phase: 'umsetzen', reiter: ['prozesse'] },
+  { key: 'ki',           titel: 'KI-Governance',                haupt: 'KI-Systeme genehmigen (RMS)',                    phase: 'anlass',   reiter: ['ki'] },
+  { key: 'governance',   titel: 'Konzernregelwerk',             haupt: 'Konzernregelwerk lenken (RMS)',                  phase: 'planen',   reiter: ['governance', 'govstruktur'] },
+  { key: 'betrieb',      titel: 'Betrieb des RMS',              haupt: 'RMS betreiben und ändern (RMS)',                 phase: 'anlass',   reiter: ['einstellungen', 'anleitung'] },
+];
+
+/**
+ * Bezüge zwischen Prozessen, die kein Aufruf und keine Zuordnung sind: Ein
+ * Prozess liest oder verknüpft, was ein anderer pflegt. Jeder steht so in der
+ * Beschreibung eines der beiden; ändert sich die, wird er hier nachgezogen.
+ * Aufrufe (⊞), Unter- (↳) und Nebenprozesse (⇢) stehen nicht noch einmal hier.
+ */
+const RMS_BEZUEGE = [
+  { von: 'Informationssicherheitsrisiken behandeln (RMS)', nach: 'Assets inventarisieren (RMS)', text: 'verknüpft je Risiko die betroffenen Assets' },
+  { von: 'Informationssicherheitsrisiken behandeln (RMS)', nach: 'Erklärung zur Anwendbarkeit pflegen (RMS)', text: 'verknüpft je Risiko die Controls' },
+  { von: 'Informationssicherheitsrisiken behandeln (RMS)', nach: 'Regelwerk einführen und pflegen (RMS)', text: 'verknüpft je Risiko die Regelwerke' },
+  { von: 'Normabdeckung bewerten (RMS)', nach: 'Regelwerk einführen und pflegen (RMS)', text: 'rechnet die Abdeckung aus dem Normbezug der Regelwerke' },
+  { von: 'Erklärung zur Anwendbarkeit pflegen (RMS)', nach: 'Normabdeckung bewerten (RMS)', text: 'wird aus der Abdeckung vorbelegt' },
+  { von: 'Normkonformität nachweisen (RMS)', nach: 'Unterweisen und sensibilisieren (RMS)', text: 'Audit Report zeigt Soll und Ist der Unterweisung' },
+  { von: 'Reifegrad IT und OT bewerten (RMS)', nach: 'C-Level-Bericht versenden (RMS)', text: 'Handlungsbedarf geht in den Bericht ein' },
+  { von: 'Kennzahl messen (RMS)', nach: 'Kenntnisnahme bestätigen (RMS)', text: 'misst die Kenntnisnahme-Quote' },
+  { von: 'Kennzahl messen (RMS)', nach: 'Normabdeckung bewerten (RMS)', text: 'misst die Abdeckung' },
+  { von: 'Kennzahl messen (RMS)', nach: 'Informationssicherheitsrisiken behandeln (RMS)', text: 'misst offene hohe Risiken' },
+  { von: 'Kennzahl messen (RMS)', nach: 'Ausnahme genehmigen (RMS)', text: 'misst abgelaufene Ausnahmen' },
+  { von: 'Kennzahl messen (RMS)', nach: 'Sicherheitsvorfälle behandeln (RMS)', text: 'misst unbeurteilte Vorfälle' },
+  { von: 'Managementbewertung durchführen (RMS)', nach: 'Normkonformität nachweisen (RMS)', text: 'Eingaben aus Cockpit und Audit Report' },
+  { von: 'Managementbewertung durchführen (RMS)', nach: 'Ziele, Maßnahmen und Kennzahlen steuern (RMS)', text: 'Eingaben aus Zielen und Kennzahlen' },
+  { von: 'Managementbewertung durchführen (RMS)', nach: 'Informationssicherheitsrisiken behandeln (RMS)', text: 'Eingaben aus den Risiken' },
+  { von: 'Managementbewertung durchführen (RMS)', nach: 'Sicherheitsvorfälle behandeln (RMS)', text: 'Eingaben aus den Vorfällen' },
+  { von: 'Business-Impact-Analyse durchführen (RMS)', nach: 'Prozesslandkarte pflegen (RMS)', text: 'steht an der Kachel der Prozesslandkarte' },
+  { von: 'Business-Impact-Analyse durchführen (RMS)', nach: 'Assets inventarisieren (RMS)', text: 'nennt die Assets, von denen der Prozess abhängt' },
+  { von: 'Ausfall bewältigen (RMS)', nach: 'Assets inventarisieren (RMS)', text: 'geht vom ausgefallenen Asset aus' },
+  { von: 'Assets inventarisieren (RMS)', nach: 'Prozesslandkarte pflegen (RMS)', text: 'erbt den Schutzbedarf von den Prozessen' },
+  { von: 'Sicherheitsvorfälle behandeln (RMS)', nach: 'Krisenstab aufstellen (RMS)', text: 'ab der Stufe Notfall übernimmt der Krisenstab' },
+  { von: 'SOLL-Prozess entwerfen (RMS)', nach: 'Regelwerk einführen und pflegen (RMS)', text: 'modelliert mit Regelwerk und Freigeber' },
+  { von: 'Funktionsprüfung durchführen (RMS)', nach: 'Wirksamkeit prüfen und verbessern (RMS)', text: 'legt den Bericht im Register Wirksamkeit ab' },
+];
+
 /* ── Bausteine zum Anlegen ─────────────────────────────────────────────── */
 
 /** Der Name ohne „(RMS)": so heißt der Schritt, der das Modell einbindet. */
@@ -1204,11 +1294,31 @@ function rmsKinder(p) {
   };
 }
 
-/** Die Hauptprozesse: Modelle, die kein anderes einbindet oder nennt. */
+/** Der Gesamtprozess über allem. */
+function rmsGesamtprozess() {
+  return RMS_PROZESSE.find(p => p.gesamt) || null;
+}
+
+/** Die Hauptprozesse: Modelle, die außer dem Gesamtprozess keines einbindet oder nennt. */
 function rmsHauptprozesse() {
   const darunter = new Set();
-  RMS_PROZESSE.forEach(p => { const k = rmsKinder(p); [...k.aufrufe, ...k.unter, ...k.neben].forEach(n => darunter.add(n)); });
-  return RMS_PROZESSE.filter(p => !darunter.has(p.name));
+  RMS_PROZESSE.forEach(p => { if (p.gesamt) return; const k = rmsKinder(p); [...k.aufrufe, ...k.unter, ...k.neben].forEach(n => darunter.add(n)); });
+  return RMS_PROZESSE.filter(p => !p.gesamt && !darunter.has(p.name));
+}
+
+/**
+ * Das Thema eines Modells: der Abschnitt des Katalogs, in dem es steht. Der
+ * Gesamtprozess gehört zu keinem.
+ */
+function rmsThemaVon(name) {
+  const p = rmsProzess(name);
+  if (!p || p.gesamt) return null;
+  const i = RMS_PROZESSE.indexOf(p);
+  const davor = RMS_THEMEN
+    .map(t => ({ t, j: RMS_PROZESSE.findIndex(x => x.name === t.haupt) }))
+    .filter(x => x.j >= 0 && x.j <= i)
+    .sort((x, y) => y.j - x.j);
+  return davor.length ? davor[0].t : null;
 }
 
 /**
@@ -1273,6 +1383,6 @@ function rmsModellXml(p, ids) {
 
 if (typeof module !== 'undefined' && module.exports) {
   if (typeof prozessXmlBauen === 'undefined') Object.assign(globalThis, require('./prozessschema.js'));
-  module.exports = { RMS_PROZESSE, RMS_PROZESS_ABLAGE, rmsKurzname, rmsProzess, rmsKinder, rmsHauptprozesse,
-    rmsReihenfolge, rmsDokuText, rmsModellXml };
+  module.exports = { RMS_PROZESSE, RMS_PROZESS_ABLAGE, RMS_THEMEN, RMS_BEZUEGE, rmsKurzname, rmsProzess, rmsKinder,
+    rmsGesamtprozess, rmsHauptprozesse, rmsThemaVon, rmsReihenfolge, rmsDokuText, rmsModellXml };
 }

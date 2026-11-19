@@ -229,6 +229,12 @@ async function applyDeepLinkOrDefault() {
       if (abschnitt && typeof dokuGoto === 'function') dokuGoto(abschnitt);
       return;
     }
+    // Die Gesamtkarte der RMS-Prozesse, auf ein Thema oder einen Prozess gerichtet:
+    // ?ansicht=prozesse&karte=gesamt&thema=risiken oder &prozess=Process_RMS_vorfall
+    if (ansicht === 'prozesse' && typeof canReadTab === 'function' && canReadTab('prozesse')) {
+      if (params.get('karte') === 'gesamt') { await gesamtkarteOeffnen(params.get('thema') || '', params.get('prozess') || ''); return; }
+      await switchView('prozesse'); return;
+    }
     // Bare Ansichts-Deeplink (z. B. Fälligkeits-/Risiko-Digest), nur bei Leserecht.
     if (['faelligkeit', 'abdeckung', 'risiken', 'cockpit', 'ausnahmen', 'ziele', 'massnahmen', 'kennzahlen', 'wirksamkeit', 'notfall', 'vorfaelle', 'assets'].includes(ansicht)
         && typeof canReadTab === 'function' && canReadTab(ansicht)) {
@@ -455,6 +461,48 @@ async function _ansichtZielOeffnen(ansicht, params) {
   }
 }
 
+/* Reiter, deren Thema die Gesamtkarte im Reiter „Prozesse" zeigt. Dieselbe
+   Zuordnung steht in RMS_THEMEN (js/rmsprozesse.js); ein Test hält beide gleich.
+   Der Katalog selbst lädt erst mit dem Reiter, die Kopfzeile braucht sie vorher. */
+const GK_REITER_THEMA = {
+  verwaltung: 'regelwerke', freigaben: 'regelwerke', faelligkeit: 'regelwerke', vorschlaege: 'regelwerke',
+  ausnahmen: 'regelwerke', ismsdocs: 'regelwerke', wissen: 'unterweisung',
+  abdeckung: 'normen', cockpit: 'normen', compliance: 'normen', risiken: 'risiken',
+  ziele: 'ziele', massnahmen: 'ziele', kennzahlen: 'ziele', wirksamkeit: 'wirksamkeit', vorfaelle: 'vorfaelle',
+  notfall: 'notfall', assets: 'assets', governance: 'governance', govstruktur: 'governance', einstellungen: 'betrieb',
+};
+
+/**
+ * Die Gesamtkarte öffnen, auf ein Thema oder einen Prozess gerichtet. Erst die
+ * Module des Reiters: Die Karte und ihr Wunsch leben in Dateien, die mit ihm kommen.
+ */
+async function gesamtkarteOeffnen(thema, prozess) {
+  if (typeof modulFuerAnsicht === 'function') { try { await modulFuerAnsicht('prozesse'); } catch (e) { /* switchView meldet es */ } }
+  if (typeof gkWunschSetzen === 'function') gkWunschSetzen({ thema: thema || '', prozess: prozess || '' });
+  await switchView('prozesse');
+}
+
+/** In der Kopfzeile „🧭 Gesamtkarte": führt zum Thema des Reiters, wenn „Prozesse" lesbar ist. */
+function _gkKopfLink(view) {
+  const titel = document.getElementById('page-title');
+  if (!titel) return;
+  let knopf = document.getElementById('gk-kopf');
+  const thema = GK_REITER_THEMA[view];
+  if (!thema || (typeof canReadTab === 'function' && !canReadTab('prozesse'))) {
+    if (knopf) knopf.style.display = 'none';
+    return;
+  }
+  if (!knopf) {
+    knopf = document.createElement('button');
+    knopf.id = 'gk-kopf'; knopf.type = 'button'; knopf.className = 'btn btn-sm btn-ghost gk-kopf';
+    knopf.textContent = '🧭 Gesamtkarte';
+    knopf.title = 'Dieses Thema in der Gesamtkarte der RMS-Prozesse zeigen: Abläufe, Rollen und Abhängigkeiten';
+    titel.insertAdjacentElement('afterend', knopf);
+  }
+  knopf.onclick = () => gesamtkarteOeffnen(thema, '');
+  knopf.style.display = '';
+}
+
 async function switchView(view) {
   // Was früher jede:r sah, ist jetzt freizugeben (Einstellungen → Reiter-
   // Berechtigungen); von sich aus ist nur „Wissen" da. Über die Leiste kommt
@@ -486,6 +534,7 @@ async function switchView(view) {
   document.querySelectorAll('.nav-item').forEach(n =>
     n.classList.toggle('active', n.dataset.view === view));
   document.getElementById('page-title').textContent = PAGE_TITLES[view] || '';
+  _gkKopfLink(view);
   document.getElementById('sidebar')?.classList.remove('open');
   window.scrollTo(0, 0);
 

@@ -46,6 +46,7 @@ const FEATURES = [
   { name: 'Muster-Vorlage',          code: () => /MUSTER_VORLAGE_URL/.test(admin),                   begriffe: ['Muster-Vorlage'] },
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
+  { name: 'Gesamtkarte',             code: () => /function gkLayout/.test(read('js/gesamtkarte.js')), begriffe: ['🧭 Gesamtkarte', 'Gesamtprozess', 'Querbezüge', 'karte=gesamt', 'nutzt Daten'] },
   { name: 'Prozesse des RMS',        code: () => /const RMS_PROZESSE/.test(read('js/rmsprozesse.js')), begriffe: ['Die Prozesse des RMS', '13 Hauptprozesse', 'Nebenprozesse, die mit eigenem Ablauf', 'Ablage des Konzerns'] },
   { name: 'Sprünge im Hausschema',   code: () => /function _psRueckWeg/.test(read('js/prozessschema.js')), begriffe: ['| Ende: Text', '| zurück: Schritt', '| weiter: Schritt', 'Zurück: Schritt'] },
   { name: 'Gliederung der Modelle',  code: () => /function procGliederungWurzeln/.test(prozesse),   begriffe: ['Gliederung nach Gesamtprozess', 'Nebenprozess', '+ Unter-/Nebenprozess', '[[rms:neben=…]]'] },
