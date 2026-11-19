@@ -315,7 +315,11 @@ async function _spInitDurchfuehren() {
   const [policyListId, ackListId, drives] = await Promise.all([
     _findListId(token, SP.policyList),
     _findListId(token, SP.ackList),
-    _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token),
+    // Wer nur einzelne Dateien der Bibliothek lesen darf (Gäste in der Schulung,
+    // Leserecht auf wissen.json), sieht sie hier nicht oder wird abgewiesen.
+    // Dann bleibt appDriveId leer; gelesen wird über das Standardlaufwerk
+    // der Site (spLoadWissen). Am Start darf das nicht scheitern.
+    _get(`${SP.graphBase}/sites/${_sp.appSiteId}/drives`, token).catch(() => ({ value: [] })),
   ]);
   _sp.policyListId = policyListId;
   _sp.ackListId    = ackListId;
@@ -3999,8 +4003,13 @@ async function spLoadWissen() {
   const token = await acquireToken(SP.scopes);
   if (!token) return leer;
   await spInit();
-  if (!_sp.appDriveId) return leer;
-  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}`;
+  // Ohne Bibliothek in der Liste der Laufwerke (Gast mit Leserecht nur auf
+  // dieser Datei) über das Standardlaufwerk der Site: Geprüft wird dann das
+  // Recht auf die Datei selbst.
+  if (!_sp.appDriveId && !_sp.appSiteId) return leer;
+  const basis = _sp.appDriveId
+    ? `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_wissenPfad()}`
+    : `${SP.graphBase}/sites/${_sp.appSiteId}/drive/root:/${_wissenPfad()}`;
   let meta;
   try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); } catch (e) { return leer; }
   const resp = await _fetchRetry(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
