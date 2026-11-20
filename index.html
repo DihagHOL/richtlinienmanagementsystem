@@ -9,7 +9,7 @@
        fremde Skripte nachladen noch Daten an fremde Server schicken (nur Graph,
        Anmeldung, SharePoint). 'unsafe-inline' bleibt, solange die Oberfläche
        Inline-Handler nutzt. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com; frame-src 'self' https://login.microsoftonline.com https://*.sharepoint.com https://*.officeapps.live.com https://*.office.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com https://dihag-rms-gast.azurewebsites.net; frame-src 'self' https://login.microsoftonline.com https://*.sharepoint.com https://*.officeapps.live.com https://*.office.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'"/>
   <title>DIHAG · Regelwerk-Management</title>
   <link rel="icon" type="image/png" href="assets/dihag-zeichen.png"/>
   <!-- Vorladen: Die Sicherheitsrichtlinie oben steht als <meta> in der Seite. Chrome
@@ -19,16 +19,16 @@
        ausgeführt wird weiter in der Reihenfolge der <script>-Tags am Seitenende.
        Jede Adresse muss dem Tag aufs Zeichen gleichen, sonst lädt der Browser doppelt
        (tests/vorladen.test.mjs). -->
-  <link rel="preload" as="style" href="css/style.css?v=cccd2576"/>
+  <link rel="preload" as="style" href="css/style.css?v=19e5e97c"/>
   <link rel="preload" as="script" href="vendor/msal-browser/5.23.0/msal-browser.min.js"/>
   <link rel="preload" as="script" href="js/util.js?v=69ac0b45"/>
-  <link rel="preload" as="script" href="js/module.js?v=e9b846c6"/>
+  <link rel="preload" as="script" href="js/module.js?v=9f298bc5"/>
   <link rel="preload" as="script" href="js/mailbau.js?v=10d3fd4c"/>
   <link rel="preload" as="script" href="js/auth.js?v=c027a924"/>
   <link rel="preload" as="script" href="js/access.js?v=b419c971"/>
-  <link rel="preload" as="script" href="js/sharepoint.js?v=d6aeb7b3"/>
+  <link rel="preload" as="script" href="js/sharepoint.js?v=6d644996"/>
   <link rel="preload" as="script" href="js/quiz.js?v=c28a7779"/>
-  <link rel="preload" as="script" href="js/app.js?v=3b1ca65c"/>
+  <link rel="preload" as="script" href="js/app.js?v=a950a539"/>
   <link rel="preload" as="image" href="assets/dihag-zeichen.png"/>
   <!-- Die Schrift liegt im Repo (css/style.css). crossorigin gehört bei Schriften dazu, auch bei der eigenen Domain. -->
   <link rel="preload" as="font" type="font/woff2" href="assets/fonts/exo-latin.woff2" crossorigin/>
@@ -38,7 +38,7 @@
   <script src="js/rahmenschutz.js?v=bd3fdd93"></script>
   <!-- MSAL selbst ausgeliefert (npm @azure/msal-browser 5.23.0, Integrität geprüft) – keine fremde Skriptquelle -->
   <script src="vendor/msal-browser/5.23.0/msal-browser.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=cccd2576"/>
+  <link rel="stylesheet" href="css/style.css?v=19e5e97c"/>
 </head>
 <body>
 <a href="#hauptinhalt" class="skip-link">Zum Inhalt springen</a>
@@ -516,12 +516,12 @@
 
 <!-- Scripts -->
 <script src="js/util.js?v=69ac0b45"></script>
-<script src="js/module.js?v=e9b846c6"></script>
+<script src="js/module.js?v=9f298bc5"></script>
 <script src="js/mailbau.js?v=10d3fd4c"></script>
 <script src="js/auth.js?v=c027a924"></script>
 <script src="js/access.js?v=b419c971"></script>
-<script src="js/sharepoint.js?v=d6aeb7b3"></script>
+<script src="js/sharepoint.js?v=6d644996"></script>
 <script src="js/quiz.js?v=c28a7779"></script>
-<script src="js/app.js?v=3b1ca65c"></script>
+<script src="js/app.js?v=a950a539"></script>
 </body>
 </html>

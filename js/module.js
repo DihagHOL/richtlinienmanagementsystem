@@ -84,6 +84,9 @@ const MODUL_ANSICHTEN = {
   // Selbsttest an, und die gehen die ganze Kette durch. probelauf.js lädt das
   // beim Aktivieren nach (probelaufModule); der Test unten prüft die Hülle.
   probelauf:     MODUL_ADMIN.concat(['probelauf', 'tour']),
+  // Kein Reiter: Gäste aus anderen Mandanten starten ohne SharePoint (js/gast.js). Geladen
+  // wird es nur für sie, aus bootApp; Mitarbeitende laden es nie.
+  gast:          ['gast'],
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
   govstruktur:  ['govstruktur'],
@@ -108,7 +111,7 @@ const _modulGeladen = new Map();   // Name → Promise (auch der abgeschlossene 
    diese Zeile bei jeder Veröffentlichung neu, in der Kopie des Laufs. Im Repository
    steht ein alter Stand, von Hand ändert sie niemand. */
 /** @type {Record<string, string>} */
-const MODUL_VERSIONEN = {"abdeckung":"603fbbe8","admin":"869a0f3f","anleitung":"8f3b126b","assetmodell":"512dc5e2","assets":"7754a2ad","ausnahmen":"5b7cb81e","bpmnanleitung":"6393b4ae","bpmndeutsch":"761b2e71","bpmnhilfe":"9e27eb02","clevelreport":"4bb4d6ff","cockpit":"d6ab060d","dokumentation":"29189a75","einstellungen":"ae399ab0","faelligkeit":"b641091d","freigaben":"abb7e4f1","governance":"737081f7","govstruktur":"02140f6f","health":"a780db6c","ismsdocs":"b967a862","kennzahlen":"5a24fd8c","kennzahlmodell":"c06a8f7d","konzepte":"4167e6b8","landkarte":"f2d67364","massnahmen":"82f707b8","massnahmenmodell":"40fd1d55","mindmapbaum":"1d139bda","normen":"c7d52a6f","notfall":"dc5a94e7","notfallmodell":"800cd1cb","probelauf":"155a061a","proposals":"9784e749","prozessbacklog":"158f92cc","prozesse":"bb5b3f57","prozessfreigabe":"ee8f95dc","prozessmatrix":"278c1ad5","prozessmodell":"69ba4f62","prozessschema":"ee7e2502","prozessvergleich":"2dc0b5c9","redirect":"222da0db","reifegrad-katalog":"570a0d08","reifegrad":"1901cab9","risiken":"07ac1240","rmsprozesse":"f00554f7","soa":"3c861941","tour":"d6460880","verantwortung":"7dd5ed3b","verantwortungmodell":"154dd8d2","verknuepfungen":"8161107e","vorfaelle":"0efae8b1","vorfallmodell":"939dabbb","wirksamkeit":"0d9cb40a","wissen":"f06cf783","wissenmodell":"6346d317","ziele":"5a62abe9","zielmodell":"0e9557a6"};
+const MODUL_VERSIONEN = {"abdeckung":"603fbbe8","admin":"869a0f3f","anleitung":"8f3b126b","assetmodell":"512dc5e2","assets":"7754a2ad","ausnahmen":"5b7cb81e","bpmnanleitung":"6393b4ae","bpmndeutsch":"761b2e71","bpmnhilfe":"9e27eb02","clevelreport":"4bb4d6ff","cockpit":"d6ab060d","dokumentation":"a3946c83","einstellungen":"ae399ab0","faelligkeit":"b641091d","freigaben":"abb7e4f1","gast":"f26fa671","gesamtkarte":"ff51e454","governance":"737081f7","govstruktur":"02140f6f","health":"a780db6c","ismsdocs":"b967a862","kennzahlen":"5a24fd8c","kennzahlmodell":"c06a8f7d","konzepte":"4167e6b8","landkarte":"f2d67364","massnahmen":"82f707b8","massnahmenmodell":"40fd1d55","mindmapbaum":"1d139bda","normen":"c7d52a6f","notfall":"dc5a94e7","notfallmodell":"800cd1cb","probelauf":"155a061a","proposals":"9784e749","prozessbacklog":"158f92cc","prozesse":"b0f87309","prozessfreigabe":"ee8f95dc","prozessmatrix":"278c1ad5","prozessmodell":"69ba4f62","prozessschema":"ee7e2502","prozessvergleich":"2dc0b5c9","redirect":"222da0db","reifegrad-katalog":"570a0d08","reifegrad":"1901cab9","risiken":"07ac1240","rmsprozesse":"109d848f","soa":"3c861941","tour":"d6460880","verantwortung":"7dd5ed3b","verantwortungmodell":"154dd8d2","verknuepfungen":"8161107e","vorfaelle":"0efae8b1","vorfallmodell":"939dabbb","wirksamkeit":"0d9cb40a","wissen":"f06cf783","wissenmodell":"6346d317","ziele":"5a62abe9","zielmodell":"0e9557a6"};
 
 /**
  * Die Version eines Moduls.

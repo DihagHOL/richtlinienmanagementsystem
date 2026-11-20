@@ -77,8 +77,28 @@ document.addEventListener('DOMContentLoaded', () => {
   authInit();
 });
 
+/**
+ * Meldet sich das Konto über einen anderen Mandanten an (B2B-Gast)? Dann steht im ID-Token der
+ * Claim „idp“ mit dem Heimatmandanten. Gäste starten ohne SharePoint (js/gast.js). Zum Prüfen
+ * schaltet localStorage „rms_gast_test“ = „1“ den Gast-Start auch für ein eigenes Konto ein.
+ */
+function istGastKonto(account) {
+  try { if (localStorage.getItem('rms_gast_test') === '1') return true; } catch (e) { /* ohne Speicher kein Test */ }
+  const idp = String(((account && account.idTokenClaims) || {}).idp || '').toLowerCase();
+  const eigener = String((typeof _AUTH !== 'undefined' && _AUTH.tenantId) || '').toLowerCase();
+  return !!idp && !!eigener && !idp.includes(eigener);
+}
+
 async function bootApp(account) {
   State.user = { upn: account.username, name: account.name || account.username };
+  // Gäste aus anderen Mandanten: ohne SharePoint, nur „Wissen“ über den Gast-Dienst (js/gast.js)
+  if (istGastKonto(account)) {
+    try {
+      await modulLaden('gast');
+      if (typeof gastStart === 'function') await gastStart();
+    } catch (e) { console.error(e); toast('Fehler beim Laden: ' + e.message, 'error'); }
+    return;
+  }
   try {
     await spInit();
     zeitMarke('sharepoint-bereit');

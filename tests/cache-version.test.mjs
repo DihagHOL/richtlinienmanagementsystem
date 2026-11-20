@@ -116,8 +116,8 @@ const draussen = eingebunden.filter(p => !kopiert.some(k => p === k || p.startsW
 ok(eingebunden.length > 10 && draussen.length === 0, 'Jede eingebundene Datei liegt in einem veröffentlichten Ordner' + (draussen.length ? ' – fehlt: ' + draussen.join(', ') : ''));
 const oben = fs.readdirSync(ROOT).filter(n => !n.startsWith('.') && !['node_modules', 'test-results', 'playwright-report', '_site'].includes(n));
 const nichtOnline = oben.filter(n => !kopiert.includes(n)).sort();
-ok(nichtOnline.join(' ') === 'e2e package-lock.json package.json playwright.config.js scripts tests types',
-  'Was im Repository liegt und nicht online steht, ist bekannt. Ein neuer Ordner fällt hier auf' + (nichtOnline.join(' ') === 'e2e package-lock.json package.json playwright.config.js scripts tests types' ? '' : ': ' + nichtOnline.join(' ')));
+ok(nichtOnline.join(' ') === 'e2e gast-api package-lock.json package.json playwright.config.js scripts tests types',
+  'Was im Repository liegt und nicht online steht, ist bekannt. Ein neuer Ordner fällt hier auf' + (nichtOnline.join(' ') === 'e2e gast-api package-lock.json package.json playwright.config.js scripts tests types' ? '' : ': ' + nichtOnline.join(' ')));
 ok(/const MODUL_VERSIONEN = \{[^}]*\};/.test(fs.readFileSync(path.join(ROOT, 'js/module.js'), 'utf8')),
   'Die Tabelle steht im echten Lader so, wie das Skript sie sucht');
 
