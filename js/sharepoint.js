@@ -4066,9 +4066,49 @@ async function _uploadFile(token, path, bytes, contentType) {
   return resp.json();
 }
 
+/*
+ * Gäste (B2B) und SharePoint über Graph: Graph weist einen Gast manchmal mit 401 „There has been
+ * an error authenticating the request“ ab, obwohl Token, Rechte und SharePoint-Eintrag stimmen
+ * (Gienanth-Schulung, 19./20.11.2026). In Microsofts Foren berichten Betroffene, dass ein anderer
+ * SharePoint-Aufruf, der abgelehnt wird, den Gast „aufwärmt“ und die Wiederholung dann gelingt.
+ * Ursache von Microsoft nicht bestätigt. Darum: einmal je Seitenaufruf aufwärmen und wiederholen.
+ * Mitarbeitende bekommen diesen Fehler nicht, für sie ändert sich nichts. Scheitert es weiter,
+ * nennt die Meldung die Antworten der Aufwärm-Aufrufe (für die Fehlersuche).
+ */
+const _spGast = { aufgewaermt: null, pausen: [1500, 4000] };
+
+function _spGastAbweisung(status, text) {
+  return status === 401 && /error authenticating the request/i.test(text || '');
+}
+
+async function _spGastAufwaermen(token) {
+  const hdr = { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } };
+  const status = async (pfad) => {
+    try { return (await fetch(`${SP.graphBase}${pfad}`, hdr)).status; } catch (e) { return 0; }
+  };
+  return [`me/drive ${await status('/me/drive?$select=id')}`, `sites/root ${await status('/sites/root?$select=id')}`];
+}
+
 async function _get(url, token, extraHeaders) {
-  const resp = await _fetchRetry(url, { headers: Object.assign({ Authorization: `Bearer ${token}`, Accept: 'application/json' }, extraHeaders || {}) });
-  if (!resp.ok) throw new Error(`Graph GET (${resp.status}): ${(await resp.text()).slice(0, 300)}`);
+  const opts = { headers: Object.assign({ Authorization: `Bearer ${token}`, Accept: 'application/json' }, extraHeaders || {}) };
+  let resp = await _fetchRetry(url, opts);
+  if (!resp.ok) {
+    let text = await resp.text();
+    if (_spGastAbweisung(resp.status, text) && !_spGast.aufgewaermt) {
+      _spGast.aufgewaermt = { protokoll: [] };
+      for (const pause of _spGast.pausen) {
+        _spGast.aufgewaermt.protokoll.push(...await _spGastAufwaermen(token));
+        await new Promise(r => setTimeout(r, pause));
+        resp = await _fetchRetry(url, opts);
+        if (resp.ok) { console.info('[sp] Gast nach dem Aufwärmen angenommen', _spGast.aufgewaermt.protokoll); return resp.json(); }
+        text = await resp.text();
+        _spGast.aufgewaermt.protokoll.push(`Wiederholung ${resp.status}`);
+        if (!_spGastAbweisung(resp.status, text)) break;
+      }
+    }
+    const diag = _spGast.aufgewaermt && _spGastAbweisung(resp.status, text) ? ` [Aufwärmen: ${_spGast.aufgewaermt.protokoll.join(', ')}]` : '';
+    throw new Error(`Graph GET (${resp.status}): ${text.slice(0, 300)}${diag}`);
+  }
   return resp.json();
 }
 

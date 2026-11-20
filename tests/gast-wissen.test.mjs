@@ -18,15 +18,16 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
 const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
-function seite(drivesStatus) {
+function seite(drivesStatus, abweisungen = 0) {
   const gerufen = [];
+  let rest = abweisungen;
   const antwort = (status, body) => ({
     ok: status >= 200 && status < 300, status,
     headers: { get: () => null },
     json: async () => body, text: async () => JSON.stringify(body),
   });
   const ctx = {
-    console: { log() {}, warn() {}, error() {} }, JSON, Date, Array, Object, String, Math, Set, Map, Promise, RegExp, Number,
+    console: { log() {}, warn() {}, error() {}, info() {} }, JSON, Date, Array, Object, String, Math, Set, Map, Promise, RegExp, Number,
     encodeURIComponent, setTimeout, TextEncoder,
     localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     document: { getElementById: () => null, querySelectorAll: () => [], querySelector: () => null },
@@ -35,7 +36,12 @@ function seite(drivesStatus) {
     fetch: async (url) => {
       const u = decodeURIComponent(String(url));
       gerufen.push(u);
-      if (/\/sites\/dihag\.sharepoint\.com:\/sites\/IT$/.test(u)) return antwort(200, { id: 'S1' });
+      if (/\/sites\/dihag\.sharepoint\.com:\/sites\/IT$/.test(u)) {
+        if (rest-- > 0) return antwort(401, { error: { code: 'accessDenied', message: 'There has been an error authenticating the request.' } });
+        return antwort(200, { id: 'S1' });
+      }
+      if (/\/me\/drive\?/.test(u)) return antwort(404, { error: { code: 'itemNotFound' } });
+      if (/\/sites\/root\?/.test(u)) return antwort(403, { error: { code: 'accessDenied' } });
       if (/\/sites\/S1\/lists\?\$filter=displayName eq 'Richtlinien'/.test(u)) return antwort(200, { value: [{ id: 'L1' }] });
       if (/\/sites\/S1\/lists\?\$filter=displayName eq 'Bestaetigungen'/.test(u)) return antwort(200, { value: [{ id: 'L2' }] });
       if (/\/sites\/S1\/drives$/.test(u)) return drivesStatus === 200 ? antwort(200, { value: [{ id: 'D1', name: 'Dokumente' }] }) : antwort(drivesStatus, { error: { code: 'accessDenied' } });
@@ -48,6 +54,7 @@ function seite(drivesStatus) {
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(lies('js/sharepoint.js'), ctx);
+  vm.runInContext('_spGast.pausen = [0, 0]', ctx);
   return { ctx, gerufen };
 }
 
@@ -73,6 +80,27 @@ for (const status of [403, 401]) {
   await vm.runInContext('spLoadWissen()', ctx);
   ok(gerufen.some(u => u.includes('/drives/D1/root:/Richtlinienmanagement/wissen.json:/content'))
     && !gerufen.some(u => u.includes('/sites/S1/drive/root:')), 'und wissen.json kommt wie bisher über sie');
+}
+
+/* Gast, den Graph erst mit 401 „error authenticating the request“ abweist: aufwärmen, dann klappt es. */
+{
+  const { ctx, gerufen } = seite(403, 1);
+  let fehler = '';
+  try { await vm.runInContext('spInit()', ctx); } catch (e) { fehler = e.message; }
+  ok(!fehler && vm.runInContext('_sp.ready && _sp.appSiteId === "S1"', ctx), 'einmal abgewiesen: nach dem Aufwärmen gestartet');
+  ok(gerufen.some(u => u.includes('/me/drive?')) && gerufen.some(u => u.includes('/sites/root?')), 'Aufwärm-Aufrufe gemacht');
+}
+{
+  const { ctx } = seite(403, 99);
+  let fehler = '';
+  try { await vm.runInContext('spInit()', ctx); } catch (e) { fehler = e.message; }
+  ok(/Graph GET \(401\)/.test(fehler) && /\[Aufwärmen: me\/drive 404, sites\/root 403, Wiederholung 401, me\/drive 404, sites\/root 403, Wiederholung 401\]/.test(fehler),
+    'bleibt es beim 401: Meldung nennt die Antworten der Aufwärm-Aufrufe');
+}
+{
+  const { ctx, gerufen } = seite(200, 0);
+  await vm.runInContext('spInit()', ctx);
+  ok(!gerufen.some(u => u.includes('/me/drive?') || u.includes('/sites/root?')), 'Mitarbeitende: kein Aufwärmen');
 }
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`); process.exit(fail ? 1 : 0);
