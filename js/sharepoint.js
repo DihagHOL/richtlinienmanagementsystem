@@ -32,6 +32,7 @@ const SP = {
   ticketList:   'Tickets',
   vorfaelleDatei: 'vorfaelle.json',        // die ISMS-Bewertung je Ticket, im Konfig-Ordner
   wissenDatei:  'wissen.json',             // die Bibliothek: Themen, Videos, Artikel, Wissenstests
+  handbuchDatei: 'managementhandbuch.json', // die veröffentlichte Fassung des Managementhandbuchs
 
   scopes: [
     'https://graph.microsoft.com/Sites.ReadWrite.All',
@@ -4035,6 +4036,51 @@ async function spSaveWissen(daten, erwartetAm) {
     if (meta && meta.lastModifiedDateTime && meta.lastModifiedDateTime !== erwartetAm) throw new Error('Die Bibliothek wurde zwischenzeitlich geändert.');
   }
   const item = await _uploadFile(token, _wissenPfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
+  return { geaendertAm: (item && item.lastModifiedDateTime) || '' };
+}
+
+/* ═══════════════════════════════════════════════════
+   Managementhandbuch: die veröffentlichte Fassung (managementhandbuch.json)
+   Eine Datei neben wissen.json, keine neue Liste. Der Entwurf wird bei jedem
+   Öffnen aus den Daten gebaut und nicht gespeichert; gespeichert wird nur,
+   was jemand ausdrücklich veröffentlicht. Gelesen von allen mit Recht auf den
+   Reiter, gepflegt von wenigen: Wer auf einem alten Stand speichert, wird abgewiesen.
+═══════════════════════════════════════════════════ */
+function _handbuchPfad() { return `${SP.configFolder}/${SP.handbuchDatei}`; }
+
+/** @returns {Promise<{daten:object|null, geaendertAm:string}>} daten ist null, solange nichts veröffentlicht wurde */
+async function spLoadHandbuch() {
+  const leer = { daten: null, geaendertAm: '' };
+  const token = await acquireToken(SP.scopes);
+  if (!token) return leer;
+  await spInit();
+  if (!_sp.appDriveId) return leer;
+  const basis = `${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_handbuchPfad()}`;
+  let meta;
+  try { meta = await _get(`${basis}?$select=lastModifiedDateTime`, token); }
+  catch (e) { if (/\(404\)/.test(e.message || '')) return leer; throw e; }
+  const resp = await _fetchRetry(`${basis}:/content`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (!resp.ok) throw new Error(`Managementhandbuch nicht lesbar (HTTP ${resp.status})`);
+  const d = await resp.json().catch(() => null);
+  return { daten: (d && typeof d === 'object') ? d : null, geaendertAm: meta.lastModifiedDateTime || '' };
+}
+
+/**
+ * Speichern, nur auf dem Stand, den man gelesen hat: Ist die Datei seitdem
+ * geändert worden, kommt ein Fehler („zwischenzeitlich geändert").
+ * @returns {Promise<{geaendertAm:string}>}
+ */
+async function spSaveHandbuch(daten, erwartetAm) {
+  const token = await acquireToken(SP.scopes);
+  if (!token) throw new Error('Nicht angemeldet');
+  await spInit();
+  if (!_sp.appDriveId) throw new Error('Keine Dokumentbibliothek gefunden.');
+  if (erwartetAm) {
+    let meta = null;
+    try { meta = await _get(`${SP.graphBase}/drives/${_sp.appDriveId}/root:/${_handbuchPfad()}?$select=lastModifiedDateTime`, token); } catch (e) { /* Datei weg, dann neu anlegen */ }
+    if (meta && meta.lastModifiedDateTime && meta.lastModifiedDateTime !== erwartetAm) throw new Error('Das Managementhandbuch wurde zwischenzeitlich geändert.');
+  }
+  const item = await _uploadFile(token, _handbuchPfad(), new TextEncoder().encode(JSON.stringify(daten, null, 2)), 'application/json');
   return { geaendertAm: (item && item.lastModifiedDateTime) || '' };
 }
 

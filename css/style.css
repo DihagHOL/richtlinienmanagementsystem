@@ -1642,3 +1642,52 @@ body.demo-mode .main { padding-bottom: 64px; }
   .gk-panel.offen { flex: none; margin: 10px 0 0; height: auto; max-height: none; }
 }
 @media (max-width: 640px) { .gk-kopf { display: none; } }
+
+/* ── Managementhandbuch (js/managementhandbuch.js) ──────────────────── */
+.mh-leiste { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
+.mh-umschalter { display: flex; gap: 4px; }
+.mh-leer { padding: 28px 20px; text-align: center; color: var(--c-muted); border: 1px dashed var(--c-border); border-radius: 12px; }
+.mh-dok { max-width: 980px; margin: 0 auto; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; padding: 0 0 20px; overflow: hidden; }
+.mh-dok > :not(.mh-titel) { margin-left: 24px; margin-right: 24px; }
+.mh-titel { background: #1A2644; color: #fff; padding: 18px 24px 16px; border-bottom: 4px solid #F08300; margin-bottom: 16px; }
+.mh-ueber { color: #99B7CD; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.mh-titel h2 { margin: 4px 0 4px; font-size: 1.7rem; line-height: 1.15; color: #fff; }
+.mh-unter { color: #99B7CD; font-size: .82rem; }
+.mh-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 16px; margin-top: 0; margin-bottom: 10px; }
+.mh-meta dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--c-muted); }
+.mh-meta dd { margin: 0; font-weight: 600; color: #1A2644; }
+.mh-stand { font-size: .88rem; margin: 6px 24px; }
+.mh-legende { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mh-chip { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; background: #fff; vertical-align: 2px; }
+.mh-kap h3 .mh-chip { margin-left: 10px; }
+.mh-chip-daten { color: #15803d; border-color: #15803d; }
+.mh-chip-teils { color: #b45309; border-color: #F08300; }
+.mh-chip-offen { color: #b91c1c; border-color: #b91c1c; }
+.mh-h4 { margin: 14px 24px 4px; color: #1A2644; font-size: .95rem; }
+.mh-inhalt { list-style: none; padding: 0; margin: 4px 24px 12px; columns: 2; column-gap: 28px; font-size: .85rem; }
+.mh-inhalt li { margin: 0 0 3px; break-inside: avoid; }
+.mh-inhalt a { color: inherit; text-decoration: none; }
+.mh-inhalt a:hover { color: var(--c-primary); text-decoration: underline; }
+.mh-punkt { display: inline-block; width: 16px; }
+.mh-i-daten .mh-punkt { color: #15803d; } .mh-i-teils .mh-punkt { color: #F08300; } .mh-i-offen .mh-punkt { color: #b91c1c; }
+.mh-kap { margin-top: 20px; padding-top: 4px; border-top: 1px solid var(--c-border); scroll-margin-top: 16px; }
+.mh-kap h3 { margin: 10px 0 8px; color: #1A2644; font-size: 1.08rem; line-height: 1.3; }
+.mh-knr { color: #17509E; margin-right: 10px; font-variant-numeric: tabular-nums; }
+.mh-kap p { font-size: .88rem; line-height: 1.55; margin: 0 0 8px; }
+.mh-verfahren b { color: #1A2644; }
+.mh-offen { border-left: 4px solid #F08300; background: #FFF6EA; padding: 8px 12px; margin: 8px 0 10px; border-radius: 0 8px 8px 0; font-size: .86rem; }
+.mh-offen ul { margin: 4px 0 0; padding-left: 18px; } .mh-offen li { margin: 0 0 4px; line-height: 1.5; }
+.mh-offen-tag { color: #b45309; font-weight: 700; }
+.mh-norm { color: var(--c-muted); font-size: .78rem !important; }
+.mh-quellen { font-size: .8rem !important; color: var(--c-muted); }
+.mh-quelle { font: inherit; font-size: .78rem; border: 1px solid #cbd5e1; background: #f8fafc; color: var(--c-primary); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+.mh-quelle:hover { background: #e6eef8; }
+.mh-tab { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: .84rem; }
+.mh-tab caption { text-align: left; font-weight: 700; color: #1A2644; padding: 4px 0; font-size: .82rem; }
+.mh-tab th { background: #1A2644; color: #fff; text-align: left; font-weight: 600; padding: 6px 8px; font-size: .78rem; }
+.mh-tab td { border-bottom: 1px solid #E5E9F0; padding: 5px 8px; vertical-align: top; }
+.mh-tab td.mh-nr { white-space: nowrap; color: #17509E; font-weight: 600; width: 64px; }
+.mh-tab td.mh-kurz { white-space: nowrap; }
+.mh-tab tr.mh-g1 td { background: #EAF1FA; color: #17509E; font-weight: 700; }
+.mh-tab tr.mh-g2 td { background: #F6F8FB; color: #1A2644; font-weight: 600; padding-left: 18px; }
+@media (max-width: 720px) { .mh-inhalt { columns: 1; } .mh-dok > :not(.mh-titel) { margin-left: 14px; margin-right: 14px; } .mh-stand { margin: 6px 14px; } .mh-h4, .mh-inhalt { margin-left: 14px; margin-right: 14px; } }

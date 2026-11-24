@@ -90,6 +90,9 @@ const MODUL_ANSICHTEN = {
 
   // Diese stehen für sich – sie brauchen den Verwaltungsblock nicht.
   govstruktur:  ['govstruktur'],
+  // Das Handbuch liest den Katalog der RMS-Prozesse (prozessschema, rmsprozesse) und rechnet die Landkarte
+  // mit lkBerichtDaten (landkartebericht) durch; die Normen und die Pflichtschulungen kommen mit MODUL_ADMIN.
+  handbuch:     MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'landkartebericht', 'managementhandbuch']),
   abdeckung:    ['normen', 'abdeckung', 'soa', 'reifegrad-katalog', 'reifegrad'],
   risiken:      ['normen', 'risiken'],
   ausnahmen:    ['normen', 'risiken', 'ausnahmen'],

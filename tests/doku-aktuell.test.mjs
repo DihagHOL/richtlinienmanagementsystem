@@ -47,6 +47,7 @@ const FEATURES = [
   { name: 'Governance-Ordnerbaum',   code: () => /function _govBuildTree/.test(governance),          begriffe: ['Ordner-Baum'] },
   { name: 'Standard-Prozesse',       code: () => /function seedStandardProcesses/.test(prozesse),    begriffe: ['Standard-Prozesse'] },
   { name: 'Gesamtkarte',             code: () => /function gkLayout/.test(read('js/gesamtkarte.js')), begriffe: ['🧭 Gesamtkarte', 'Gesamtprozess', 'Querbezüge', 'karte=gesamt', 'nutzt Daten'] },
+  { name: 'Managementhandbuch',      code: () => /function mhBauen/.test(read('js/managementhandbuch.js')), begriffe: ['Managementhandbuch', 'Stand veröffentlichen', 'managementhandbuch.json', 'Anlage A', 'hergeleitet', 'nie den Entwurf'] },
   { name: 'Konzernkarte in der Gesamtkarte', code: () => /function gkKonzern/.test(read('js/gesamtkarte.js')), begriffe: ['Prozesslandkarte des Konzerns', 'Konzernkarte und RMS hängen zusammen', '🗺 In der Landkarte öffnen', 'P-Nr.'] },
   { name: 'Prozesse des RMS',        code: () => /const RMS_PROZESSE/.test(read('js/rmsprozesse.js')), begriffe: ['Die Prozesse des RMS', '13 Hauptprozesse', 'Nebenprozesse, die mit eigenem Ablauf', 'Ablage des Konzerns'] },
   { name: 'Sprünge im Hausschema',   code: () => /function _psRueckWeg/.test(read('js/prozessschema.js')), begriffe: ['| Ende: Text', '| zurück: Schritt', '| weiter: Schritt', 'Zurück: Schritt'] },

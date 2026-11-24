@@ -27,7 +27,7 @@ const DATA_TTL = 5 * 60 * 1000;
 
 const PAGE_TITLES = {
   meine: 'Meine Regelwerke', detail: 'Regelwerk', quiz: 'Wissenstest', wissen: 'Wissen: Themen, Videos, Awareness',
-  cockpit: 'ISMS-Cockpit', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
+  cockpit: 'ISMS-Cockpit', handbuch: 'Managementhandbuch', verwaltung: 'Regelwerk Dashboard', ismsdocs: 'IMS-Dokumente', governance: 'Governance-Board', govstruktur: 'Governance-Struktur', prozesse: 'Prozesse & Landkarte', abdeckung: 'IMS-Abdeckung', faelligkeit: 'Fälligkeiten / Wiedervorlage', risiken: 'Risiko-Register', wirksamkeit: 'Wirksamkeit & Verbesserung', vorschlaege: 'Vorschläge',
   ziele: 'Ziele', massnahmen: 'Maßnahmen', kennzahlen: 'Kennzahlen',
   freigaben: 'Freigaben', ausnahmen: 'Ausnahmeregister', compliance: 'Audit Report', einstellungen: 'Einstellungen', anleitung: 'Anleitung', dokumentation: 'Dokumentation',
 };
@@ -580,6 +580,7 @@ async function switchView(view) {
   }
 
   if (view === 'cockpit'      && typeof initCockpit === 'function')       initCockpit();
+  if (view === 'handbuch'     && typeof initHandbuch === 'function')      initHandbuch();
   if (view === 'verwaltung'   && typeof renderAdminList === 'function')   renderAdminList();
   if (view === 'ismsdocs'     && typeof initIsmsDocs === 'function')      initIsmsDocs();
   if (view === 'governance'   && typeof initGovernance === 'function')    initGovernance();

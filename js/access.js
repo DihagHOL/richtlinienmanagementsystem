@@ -704,6 +704,7 @@ const GOVERNABLE_TABS = [
   { view: 'anleitung',   label: 'Anleitung', kurz: 'Anleitung' },
   { view: 'dokumentation', label: 'Dokumentation', kurz: 'Doku' },
   { view: 'cockpit',     label: 'Cockpit' , kurz: 'Cockpit' },
+  { view: 'handbuch',    label: 'Managementhandbuch', kurz: 'Handbuch' },
   { view: 'verwaltung',  label: 'Regelwerk Dashboard', kurz: 'Dashboard' },
   { view: 'ismsdocs',    label: 'IMS-Dokumente', kurz: 'IMS-Dok.' },
   { view: 'governance',  label: 'Governance-Board' , kurz: 'Governance' },
@@ -845,7 +846,7 @@ function initRoleNav() {
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
   // Sichtbarkeit je Reiter einmal berechnen (auch für die Gruppen-Überschriften)
   const v = {};
-  ['cockpit', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
+  ['cockpit', 'handbuch', 'verwaltung', 'ismsdocs', 'governance', 'govstruktur', 'prozesse', 'abdeckung',
    'faelligkeit', 'risiken', 'vorschlaege', 'freigaben', 'compliance', 'ausnahmen',
    'wirksamkeit', 'notfall', 'vorfaelle', 'assets', 'ziele', 'massnahmen', 'kennzahlen'].forEach(t => { v[t] = canReadTab(t); });
 
@@ -864,6 +865,7 @@ function initRoleNav() {
 
   // Einzelne Reiter
   show('nav-cockpit',       v.cockpit);
+  show('nav-handbuch',      v.handbuch);
   show('nav-verwaltung',    v.verwaltung);
   show('nav-ismsdocs',      v.ismsdocs);
   show('nav-governance',    v.governance);
@@ -892,7 +894,7 @@ function initRoleNav() {
   // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
   show('nav-grp-governance',  v.governance || v.govstruktur);
   // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
-  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.abdeckung || v.risiken || v.ziele || v.massnahmen || v.kennzahlen || v.prozesse || v.wirksamkeit || v.notfall || v.vorfaelle || v.assets);
+  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.handbuch || v.abdeckung || v.risiken || v.ziele || v.massnahmen || v.kennzahlen || v.prozesse || v.wirksamkeit || v.notfall || v.vorfaelle || v.assets);
   show('nav-grp-verwaltung',  v.compliance || admin);
 
   // Zuletzt: Läuft gerade ein Probelauf, bleibt die Leiste auf das Nötige

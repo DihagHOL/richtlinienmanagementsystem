@@ -53,10 +53,14 @@ function lkBerichtDaten(daten, werk, opt) {
   const ketteVon = new Map();
   ketten.forEach(kt => kinder(kt).forEach(p => ketteVon.set(p.id, (ketteVon.get(p.id) || []).concat(kt))));
 
+  const geltung = (p) => { const g = Array.isArray(p.geltung) ? p.geltung : []; return !g.length ? '' : g.includes('ALLE') ? 'alle Standorte' : g.join(', '); };
   const zeileKette = (kt) => {
     const ps = kinder(kt);
     return { nr: nr(kt), name: kt.name || '', eigner: name(eigner(kt)), prozesse: ps.length,
-      modelliert: ps.filter(p => Array.isArray(p.prozesse) && p.prozesse.length).length };
+      modelliert: ps.filter(p => Array.isArray(p.prozesse) && p.prozesse.length).length,
+      // Die Prozesse selbst, für das Prozessverzeichnis im Managementhandbuch.
+      liste: ps.map(p => ({ nr: nr(p), name: p.name || '', modell: Array.isArray(p.prozesse) && p.prozesse.length > 0,
+        geltung: geltung(p), geltungOffen: offenGeltung(p) })) };
   };
   const bereiche = baender.map(b => ({ titel: b.titel || b.key, ketten: ketten.filter(k => k.band === b.key).map(zeileKette) }))
     .filter(b => b.ketten.length);
@@ -161,6 +165,8 @@ ${m.verantwortung.length ? `<h2>Verantwortungsketten im Betrieb</h2>
 
 /** Der Knopf: Fenster sofort öffnen (sonst greift der Pop-up-Blocker), dann füllen. */
 async function lkBerichtOeffnen() {
+  // Der Knopf steht in der Landkarte. Wo nur die Berechnung geladen ist (Reiter Managementhandbuch), gibt es nichts zu öffnen.
+  if (typeof _lkDaten === 'undefined' || !_lkDaten || typeof _lkWerk === 'undefined' || typeof lkPersonName !== 'function' || typeof lkWerkLabel !== 'function') return;
   const w = window.open('', '_blank');
   if (!w) { if (typeof toast === 'function') toast('Bitte Pop-ups für diese Seite erlauben.', 'error'); return; }
   w.document.write('<p style="font-family:Arial,sans-serif;margin:24px">Bericht wird erstellt …</p>');

@@ -55,6 +55,7 @@ const _DOKU_TOC = [
   ['notfall',       'Notfall & Krisenstab (BCM)'],
   ['vorfaelle',     'Vorfälle & Ereignisse (Ticketsystem)'],
   ['ismsdocs',      'IMS-Dokumente (alle Normen)'],
+  ['handbuch',      'Managementhandbuch'],
   ['governance',    'Governance-Board (Legal-Entwürfe)'],
   ['govstruktur',   'Governance-Struktur (Matrix)'],
   ['bpmn',          'BPMN einfach erklärt'],
@@ -657,6 +658,20 @@ function _dokuSections() {
         <li style="${li}"><b>„✏️ In Office bearbeiten"</b> (Desktop) oder <b>„🌐 Im Browser bearbeiten"</b>. Beim Speichern entsteht automatisch eine neue Version. Alternativ <b>„⬆ Neue Version"</b> mit Pflicht-Änderungsnotiz.</li>
       </ul>`,
       'ISO 27001 Klausel 7.5 (Dokumentierte Information: Lenkung &amp; Versionierung), A.5.37 (Dokumentierte Betriebsabläufe), A.5.12/A.5.13 (Klassifizierung/Kennzeichnung).'),
+
+    sec('handbuch', 'Managementhandbuch', 'admin', `
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>Managementhandbuch</b> (Gruppe „IMS und Prozesse“) leitet aus den Daten des RMS ein
+      Handbuch des integrierten Managementsystems her. Es ist gegliedert nach der gemeinsamen Struktur der ISO-Managementsystemnormen
+      (Abschnitte 4 bis 10), die ISO 9001, 14001, 45001, 50001 und 27001 teilen.</p>
+      <ul style="${ol}">
+        <li style="${li}"><b>Woraus es entsteht:</b> Das Verfahren und sein Normbezug kommen aus dem Katalog der RMS-Prozesse, die Prozesslandschaft und ihre Eigner aus der Konzernkarte der Landkarte, das Konzernregelwerk aus der Governance-Struktur, die Pflichtschulungen aus „Wissen“ und die Regelwerke nach Status aus dem Regelwerk Dashboard. Zahlen stehen mit ihrem Stand im Text. Kennzahlen zur Lage (offene Risiken, Vorfälle, BIA) stehen nicht darin, sie veralten in Tagen und gehören in den C-Level-Bericht.</li>
+        <li style="${li}"><b>Status je Abschnitt:</b> ● hergeleitet, ◐ teils hergeleitet (die Lücke steht dabei), ○ offen. Was nur die Geschäftsführung entscheiden kann, wird nicht erfunden, sondern als offen genannt: Kontext (4.1), interessierte Parteien (4.2), Zusagen der Leitung (5.1), Politik (5.2), Ziele aus der Unternehmensstrategie (6.2) und Kommunikation (7.4). So zeigt das Handbuch, was noch fehlt, und wird mit jeder Pflege der Landkarte, der Governance-Struktur und der Ziele vollständiger.</li>
+        <li style="${li}"><b>Entwurf und Fassung:</b> Der Entwurf entsteht bei jedem Öffnen neu aus den Daten und wird nicht gespeichert. <b>„Stand veröffentlichen“</b> legt eine Fassung mit Ausgabe (0.1, 0.2, … solange etwas offen ist, danach 1.0), Freigabe und Datum ab, in der Datei <code>managementhandbuch.json</code> neben <code>wissen.json</code>. Alle mit Leserecht sehen nur diese Fassung, frühere Ausgaben stehen in ihrer Historie. Die Freigabe durch die Geschäftsführung wird dort nur festgehalten, das RMS gibt das Handbuch nicht selbst frei.</li>
+        <li style="${li}"><b>Drucken:</b> <b>„🖨 Drucken / als PDF“</b> erzeugt eine A4-Fassung im DIHAG-Design mit Inhaltsverzeichnis. Anlage A ist das Prozessverzeichnis der Konzernkarte (Prozess, Modell, Geltung), Anlage B das Verzeichnis des Konzernregelwerks.</li>
+        <li style="${li}"><b>Quellen nicht lesbar:</b> Scheitert eine Quelle, steht das oben im Handbuch, und die betroffenen Abschnitte nennen ihre Lücke. Vor dem Veröffentlichen lohnt dann ein „↻ Aktualisieren“.</li>
+      </ul>
+      <div style="${hint}">Der Reiter ist von sich aus nur für die Administration sichtbar. Unter „Einstellungen“ vergeben Sie <b>lesen</b> für alle, die das Handbuch lesen sollen, und <b>schreiben</b> für die, die den Entwurf sehen und veröffentlichen. Mit „lesen“ allein sieht man nur die veröffentlichte Fassung, nie den Entwurf.</div>`,
+      'ISO 9001, 14001, 45001, 50001 und 27001, Abschnitte 4 bis 10 (gemeinsame Struktur); ISO 27001 Klausel 7.5 (Dokumentierte Information) und 4.3 (Anwendungsbereich).'),
 
     sec('governance', 'Governance-Board (Legal-Entwürfe)', 'admin', `
       <p style="margin:0 0 8px;line-height:1.55">Reiter <b>„Governance-Board"</b> zeigt die Entwürfe aus dem Legal-SharePoint (Corporate Governance-Board), mit demselben Zugriffsmechanismus wie bei den IMS-Dokumenten.</p>
