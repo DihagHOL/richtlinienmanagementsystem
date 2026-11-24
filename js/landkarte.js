@@ -1,0 +1,3492 @@
+'use strict';
+
+/**
+ * Prozesslandkarte – Ansicht „🗺 Landkarte" im Reiter Prozesse
+ * ============================================================
+ * Die Prozesslandschaft des Konzerns als anklickbare Karte: Führungs-,
+ * Kern- und Unterstützungsprozesse in der gewohnten Darstellung. Jede Kachel
+ * kennt ihren <b>Geltungsbereich</b> (Standorte) und – wo vorhanden – ihr
+ * <b>BPMN-Modell</b>. Ein Klick führt von der Übersicht ins Modell und von dort
+ * weiter zu den Regelwerken, die daran hängen.
+ *
+ * Drei Entscheidungen, die den Aufwand klein halten:
+ *
+ *  1. Die Karte liegt als `prozesslandkarte.json` im Konfig-Ordner – dieselbe
+ *     Mechanik wie die Governance-Struktur. Keine neue SharePoint-Liste, keine
+ *     neue Spalte, kein Administrationsaufwand.
+ *  2. Die Verknüpfung Prozess → Regelwerk wird NICHT hier gespeichert. Sie
+ *     steht längst im BPMN-XML (Marker `[[rms:policies=…]]`). Die Kachel merkt
+ *     sich nur, welches Modell zu ihr gehört – eine Wahrheit, nicht zwei.
+ *  3. Der Geltungsbereich nutzt dieselbe Auswahl wie Regelwerke
+ *     (`renderGeltungsbereichSection`) und dasselbe Vokabular (STANDORTE,
+ *     'ALLE'). Damit lässt sich fragen: „Welche Prozesse gelten in SHB?" –
+ *     und die Antwort passt zu der, die die Regelwerke geben.
+ */
+
+/* Jedes Werk führt seine eigene Landkarte; dazu die Konzern-Ebene für das,
+   was die Holding steuert. Die Reihenfolge bestimmt die Auswahl oben. */
+const LK_WERKE = ['KONZERN'].concat(typeof STANDORTE !== 'undefined' ? STANDORTE : []);
+function lkWerkLabel(w) { return w === 'KONZERN' ? 'Konzern / Holding' : w; }
+
+/**
+ * Die Werke, deren Landkarte sichtbar ist.
+ *
+ * „KONZERN" bleibt immer dabei: Was konzernweit gilt, gilt auch für die eigene
+ * Gesellschaft – genauso wie ein Regelwerk mit Geltungsbereich „ALLE".
+ */
+function lkWerkeSichtbar() {
+  if (typeof trennungGreift !== 'function' || !trennungGreift()) return LK_WERKE.slice();
+  const meine = meineWerke();
+  return LK_WERKE.filter(w => w === 'KONZERN' || meine.includes(w));
+}
+
+/* Die Holding führt keine eigene Karte mehr: Ihre Prozesse stehen seit dem
+   Ebenenmodell auf der Konzernkarte („Konzern / Holding“). In der Auswahl der
+   Landkarte und der Ablage neuer Modelle erscheint HOL nur noch, solange dort
+   Kacheln liegen. Als Standort bleibt HOL überall sonst: Krisenstab im Notfall,
+   Geltungsbereich, Verantwortung, Zugriff. */
+const LK_OHNE_EIGENE_KARTE = ['HOL'];
+function _lkHatKacheln(w) {
+  const k = (typeof _lkDaten !== 'undefined' && _lkDaten && _lkDaten.karten) ? _lkDaten.karten[w] : null;
+  return !!(k && Array.isArray(k.kacheln) && k.kacheln.length);
+}
+/** Die Karten zur Auswahl: sichtbar, ohne die Holding, solange sie leer ist. */
+function lkWerkeAuswahl() {
+  return lkWerkeSichtbar().filter(w => !LK_OHNE_EIGENE_KARTE.includes(w) || _lkHatKacheln(w));
+}
+
+/**
+ * Auf eine Karte stellen, die auch sichtbar ist.
+ *
+ * Offen ist zunächst HOL. Gehört jemand gar nicht zur Holding, wäre das der
+ * Einstieg in eine fremde Gesellschaft – und zwar auch dann, wenn gerade nichts
+ * gezeichnet wird: Suche, Sprünge und „+ Prozess" lesen dieselbe Variable.
+ */
+function lkWerkAbsichern() {
+  const sichtbar = lkWerkeSichtbar();
+  if (!sichtbar.includes(_lkWerk)) _lkWerk = sichtbar[0] || 'KONZERN';
+  return _lkWerk;
+}
+
+/* Bandfarben aus dem DIHAG-Corporate-Design. Ein Band, eine Farbe – für die
+   Bereiche, die keinem Prozesstyp entsprechen (die Konzernebene: Strategie,
+   Finanzierung, Beratung …). */
+const LK_FARBEN = ['#17509E', '#F08300', '#1A2644', '#5B8CB8', '#7A6417', '#424241'];
+
+/* ── Prozesstypen ───────────────────────────────────────────────────────
+   Jeder Prozess ist Führungs-, Kern- oder Unterstützungsprozess – die Farbe
+   sagt es, quer über alle Karten, auch dort, wo die Bänder anders heißen
+   (Strategie, Finanzierung, Beratung …). Was keinem Typ zugeordnet ist, ist
+   eine Kategorie: eine Überschrift, ein Sammelbegriff, kein Ablauf – dunkelblau.
+   In den klassischen drei Bändern ergibt sich der Typ aus dem Band; die
+   Kachel darf ihn überstimmen (ein Kernprozess im Band „Beratung"). */
+const LK_TYPEN = [
+  { key: 'fuehrung',       label: 'Führungsprozess',       kurz: 'Führung',       farbe: '#17509E' },   // Azurblau
+  { key: 'kern',           label: 'Kernprozess',           kurz: 'Kern',          farbe: '#F08300' },   // Orange
+  { key: 'unterstuetzung', label: 'Unterstützungsprozess', kurz: 'Unterstützung', farbe: '#5B8CB8' },   // Lichtblau
+];
+const LK_KATEGORIE_FARBE = '#1A2644';   // Navy – die Kategorie, die zu keiner Gruppe passt
+
+/* ── Kategorien: feste Farben nach Bedeutung ─────────────────────────────
+   Ein Bereich, der kein Prozesstyp ist (Strategie, Finanzierung, Beratung …),
+   und eine Kachel, die eine Kategorie ist, bekommen ihre Farbe nicht nach der
+   Reihenfolge auf der Karte, sondern nach dem, was sie bedeuten – dieselbe
+   Kategorie hat auf jeder Karte dieselbe Farbe. Erkannt wird über den Namen;
+   was zu keiner Gruppe passt, ist Navy. */
+const LK_KATEGORIE_FARBEN = [
+  { key: 'strategie',     name: 'Strategie & Führung',          farbe: '#17509E', muster: /strateg|vision|leitbild|f(ü|ue)hrung|management|steuer(n|ung)\b|unternehmen ?steuern|geschäftsf|gesch(ä|ae)ftsleit/ },
+  { key: 'wertschoepfung', name: 'Wertschöpfung & Betrieb',     farbe: '#F08300', muster: /kern|produktion|wertsch(ö|oe)pf|fertigung|gie(ß|ss)|operativ|t(ö|oe)chter|vertrieb|auftr(ä|ae)g|liefer/ },
+  { key: 'finanzen',      name: 'Finanzen & Controlling',       farbe: '#7A6417', muster: /finanz|controlling|buchhalt|steuern|treasury|kapital|rechnungswesen|abschluss|report/ },
+  { key: 'risiko',        name: 'Risiko, Recht & Compliance',   farbe: '#8B1E3F', muster: /risik|compliance|(ü|ue)berwach|revision|recht|legal|governance|datenschutz|sicherheit|audit/ },
+  { key: 'personal',      name: 'Personal & Organisation',      farbe: '#0F766E', muster: /personal|\bhr\b|mitarbeit|organisation|talent|recruit|arbeitssch/ },
+  { key: 'it',            name: 'IT & Technik',                 farbe: '#5B21B6', muster: /\bit\b|edv|digital|technik|system|software|infrastruktur|daten\b/ },
+  { key: 'kommunikation', name: 'Kommunikation & Markt',        farbe: '#0284C7', muster: /kommunikation|marketing|stakeholder|investor|presse|kunde/ },
+  { key: 'transformation', name: 'Transformation & Projekte',   farbe: '#6D28D9', muster: /transform|projekt|change|innovation|programm|verbesser|kvp|lean/ },
+  { key: 'beteiligungen', name: 'Beteiligungen & Konzern',      farbe: '#92400E', muster: /beteilig|portfolio|holding|konzern|gesellschaft/ },
+  { key: 'services',      name: 'Unterstützung & Services',     farbe: '#5B8CB8', muster: /unterst(ü|ue)tz|support|service|beratung|wissen|einkauf|beschaff|logistik|instandhalt|qualit|verwaltung|infrastruktur/ },
+];
+
+/** Die Kategorie-Gruppe zu einem Namen (Bereich oder Kachel) – null, wenn keine passt. */
+function lkKategorieVon(text) {
+  const s = String(text || '').toLowerCase();
+  if (!s.trim()) return null;
+  return LK_KATEGORIE_FARBEN.find(g => g.muster.test(s)) || null;
+}
+/** Die feste Farbe einer Kategorie – nach dem ersten Text, der eine Gruppe trifft; sonst Navy. */
+function lkKategorieFarbe(...texte) {
+  for (const t of texte) { const g = lkKategorieVon(t); if (g) return g.farbe; }
+  return LK_KATEGORIE_FARBE;
+}
+
+function lkTyp(key) { return LK_TYPEN.find(t => t.key === key) || null; }
+
+/* ── Ebenen ──────────────────────────────────────────────────────────────
+   Die Konzern-Landkarte ordnet in vier Ebenen: 0 das Band (Führung, Kern je
+   Geschäftsbereich, Unterstützung), 1 die Kette, 2 der Prozess, 3 seine
+   Modelle. Eine Kette ist eine Kachel mit `art: 'kette'`, die ihre Prozesse
+   als Unterprozesse führt. Sie ist kein eigener Ablauf und zählt deshalb
+   nicht als Prozess (Notfall, Backlog, Kennzahlen, Matrix).
+   Eine abgelöste Kachel (`abgeloest: { durch: ['KONZERN:id', …], am }`)
+   bleibt stehen und verweist auf ihr Ziel, statt gelöscht zu werden; auch
+   sie zählt nicht mehr. Ein Band mit `archiv: true` sammelt sie, zugeklappt.
+   Wo eine Angabe noch zu bestätigen ist, steht ihr Feld in `offen`
+   (etwa `['geltung']`). */
+function lkIstKette(k) { return !!k && k.art === 'kette'; }
+function lkIstAbgeloest(k) { return !!(k && k.abgeloest && typeof k.abgeloest === 'object'); }
+/** Ein Ablauf, der als Prozess zählt: keine Kette, nicht abgelöst. */
+function lkIstProzess(k) { return !!k && !lkIstKette(k) && !lkIstAbgeloest(k); }
+function lkIstOffen(k, feld) { return !!k && Array.isArray(k.offen) && k.offen.includes(feld); }
+
+/**
+ * Die Ebenen einer Karte prüfen, ohne etwas zu ändern: Jeder Prozess hängt
+ * (auch über einen anderen Prozess) unter genau einer Kette, jede Kachel steht
+ * in einem Band der Karte, kein Name kommt doppelt vor, jede abgelöste Kachel
+ * zeigt auf ein Ziel, das es gibt. Rechnet nur auf dem Datenobjekt.
+ * @returns {{ketten:number, prozesse:number, ohneKette:string[], mehrfach:string[],
+ *            ohneBand:string[], doppelt:string[], abgeloestOhneZiel:string[], leereKetten:string[]}}
+ */
+function lkEbenenPruefen(daten, werk) {
+  const w = werk || 'KONZERN';
+  const karte = daten && daten.karten && daten.karten[w];
+  const kacheln = (karte && Array.isArray(karte.kacheln)) ? karte.kacheln : [];
+  const baender = new Set((karte && Array.isArray(karte.baender) ? karte.baender : []).map(b => b.key));
+  const ids = new Map(kacheln.map(k => [k.id, k]));
+  const teile = (z) => { const s = String(z || ''); const i = s.indexOf(':'); return i < 0 ? { werk: w, id: s } : { werk: s.slice(0, i), id: s.slice(i + 1) }; };
+  const eltern = new Map();   // Kachel → Kacheln derselben Karte, die sie als Unterprozess führen
+  kacheln.forEach(k => (Array.isArray(k.verweise) ? k.verweise : []).forEach(v => {
+    if (v.art !== 'unterprozess') return;
+    const z = teile(v.ziel);
+    if (z.werk !== w || !ids.has(z.id)) return;
+    if (!eltern.has(z.id)) eltern.set(z.id, []);
+    eltern.get(z.id).push(k);
+  }));
+  const ketteVon = (k, gesehen) => {
+    for (const e of (eltern.get(k.id) || [])) {
+      if (lkIstKette(e)) return e;
+      if (gesehen.has(e.id)) continue;
+      gesehen.add(e.id);
+      const t = ketteVon(e, gesehen);
+      if (t) return t;
+    }
+    return null;
+  };
+  const name = (k) => ((Number.isInteger(k.nr) && k.nr > 0 ? 'P-' + String(k.nr).padStart(3, '0') + ' ' : '') + String(k.name || k.id)).trim();
+  const schluessel = (k) => String(k.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const zaehl = new Map();
+  kacheln.filter(k => !lkIstAbgeloest(k)).forEach(k => zaehl.set(schluessel(k), (zaehl.get(schluessel(k)) || 0) + 1));
+  const prozesse = kacheln.filter(lkIstProzess);
+  const ketten = kacheln.filter(lkIstKette);
+  return {
+    ketten: ketten.length,
+    prozesse: prozesse.length,
+    ohneKette: prozesse.filter(k => !ketteVon(k, new Set([k.id]))).map(name),
+    mehrfach: prozesse.filter(k => (eltern.get(k.id) || []).filter(lkIstKette).length > 1).map(name),
+    ohneBand: kacheln.filter(k => !baender.has(k.band)).map(name),
+    doppelt: kacheln.filter(k => !lkIstAbgeloest(k) && zaehl.get(schluessel(k)) > 1).map(name),
+    abgeloestOhneZiel: kacheln.filter(lkIstAbgeloest).filter(k => !(Array.isArray(k.abgeloest.durch) ? k.abgeloest.durch : [])
+      .some(z => { const t = teile(z); return t.werk !== w || ids.has(t.id); })).map(name),
+    leereKetten: ketten.filter(k => !(eltern.size && kacheln.some(x => (eltern.get(x.id) || []).includes(k)))).map(name),
+  };
+}
+
+/** Die Kette, unter der ein Prozess steht (direkt oder über einen anderen Prozess), sonst null. */
+function lkKetteVon(werk, k) {
+  const gesehen = new Set([k.id]);
+  let rand = [k];
+  while (rand.length) {
+    const naechste = [];
+    for (const x of rand) {
+      for (const v of lkHauptprozesseVon(werk, x.id)) {
+        if (v.werk !== werk || gesehen.has(v.kachel.id)) continue;
+        if (lkIstKette(v.kachel)) return v.kachel;
+        gesehen.add(v.kachel.id);
+        naechste.push(v.kachel);
+      }
+    }
+    rand = naechste;
+  }
+  return null;
+}
+
+/** Der Typ, den ein Band von sich aus trägt – „Kernprozesse" heißt Kern, ob als Schlüssel oder als Titel. */
+function lkBandTyp(band) {
+  const b = (band && typeof band === 'object') ? band : lkBaender().find(x => x.key === band) || { key: String(band || ''), titel: '' };
+  if (lkTyp(b.key)) return b.key;
+  const t = String(b.titel || '').toLowerCase();
+  if (/f(ü|ue)hrung|management|steuerung/.test(t)) return 'fuehrung';
+  if (/kern|wertsch(ö|oe)pfung|leistung/.test(t)) return 'kern';
+  if (/unterst(ü|ue)tz|support/.test(t)) return 'unterstuetzung';
+  return '';
+}
+
+/**
+ * Der Prozesstyp einer Kachel: ausdrücklich gesetzt, sonst aus dem Band;
+ * '' heißt Kategorie. `kategorie` an der Kachel überstimmt auch ein typisiertes Band.
+ */
+function lkTypVon(k, band) {
+  const eigen = String((k && k.typ) || '');
+  if (eigen === 'kategorie') return '';
+  if (lkTyp(eigen)) return eigen;
+  return lkBandTyp(band !== undefined ? band : (k && k.band));
+}
+/** Der Bereich zu einem Band-Schlüssel oder -Objekt – für die Farbe einer Kategorie zählt sein Titel. */
+function _lkBandObjekt(band) {
+  if (band && typeof band === 'object') return band;
+  return lkBaender().find(x => x.key === band) || { key: String(band || ''), titel: '' };
+}
+/**
+ * Die Farbe einer Kachel: ihr Prozesstyp – oder, als Kategorie, die feste
+ * Farbe ihres Bereichs. Alle Kategorien eines Bereichs in einer Farbe: Ein
+ * Band, das nach Kacheln bunt wird, sieht nach Zufall aus, nicht nach Ordnung.
+ */
+function lkTypFarbe(k, band) {
+  const b = _lkBandObjekt(band !== undefined ? band : (k && k.band));
+  // Hat der Bereich eine eigene Farbe, tragen sie alle Kacheln darin – außer denen, die ihren Typ selbst gesetzt haben.
+  if (lkFarbeGueltig(b.farbe) && !lkTyp(String((k && k.typ) || ''))) return b.farbe;
+  const t = lkTyp(lkTypVon(k, band));
+  if (t) return t.farbe;
+  return lkBandFarbe(b);
+}
+/** Eine Farbe, wie sie gespeichert werden darf: #rrggbb. */
+function lkFarbeGueltig(f) { return /^#[0-9a-fA-F]{6}$/.test(String(f || '')); }
+/** Die Farbe, die ein Bereich von sich aus hätte – ohne eigene Wahl. */
+function lkBandStandardFarbe(band) {
+  const b = _lkBandObjekt(band);
+  const t = lkTyp(lkBandTyp(b));
+  return t ? t.farbe : lkKategorieFarbe(b.titel, b.key);
+}
+/** Was die Standardfarbe eines Bereichs bedeutet – für den Dialog. */
+function lkBandStandardLabel(band) {
+  const b = _lkBandObjekt(band);
+  const t = lkTyp(lkBandTyp(b));
+  if (t) return t.label;
+  const g = _lkBandGruppe(b);
+  return g ? `Kategorie: ${g.name}` : 'Kategorie (sonstige)';
+}
+/* Farben zur schnellen Wahl im Bereichs-Dialog: das Corporate Design und die Kategorie-Gruppen. */
+const LK_FARBWAHL = ['#17509E', '#1A2644', '#F08300', '#5B8CB8', '#99B7CD', '#424241', '#7A6417', '#8B1E3F', '#0F766E', '#5B21B6', '#0284C7', '#6D28D9', '#92400E', '#15803D'];
+function lkTypLabel(k, band) {
+  const t = lkTyp(lkTypVon(k, band));
+  if (t) return t.label;
+  const g = _lkBandGruppe(band !== undefined ? band : (k && k.band));
+  return g ? `Kategorie: ${g.name}` : 'Kategorie';
+}
+/** Die Kategorie-Gruppe eines Bereichs – über seinen Titel, sonst seinen Schlüssel. */
+function _lkBandGruppe(band) {
+  const b = _lkBandObjekt(band);
+  return lkKategorieVon(b.titel) || lkKategorieVon(b.key);
+}
+/** Die Farbe eines Bereichs: die selbst gewählte, sonst sein Prozesstyp, sonst seine Kategorie, sonst Navy – fest, nicht nach Reihenfolge. */
+function lkBandFarbe(band) {
+  const b = _lkBandObjekt(band);
+  if (lkFarbeGueltig(b.farbe)) return b.farbe;
+  return lkBandStandardFarbe(b);
+}
+
+/**
+ * Die Legende unter der Karte: die drei Typen, die Kategorie-Gruppen der
+ * Bereiche – und ein Bereich mit eigener Farbe unter seinem Namen.
+ */
+function _lkLegendeHtml() {
+  const punkt = (farbe, text) => `<span class="lk-legende-punkt"><i style="background:${farbe}"></i>${esc(text)}</span>`;
+  const eintraege = new Map();
+  LK_TYPEN.forEach(t => eintraege.set(t.label, t.farbe));
+  lkBaender().forEach(b => {
+    if (lkFarbeGueltig(b.farbe)) { eintraege.set(b.titel, b.farbe); return; }
+    if (lkTyp(lkBandTyp(b))) return;
+    const g = _lkBandGruppe(b);
+    eintraege.set(g ? `Kategorie: ${g.name}` : 'Kategorie (sonstige)', g ? g.farbe : LK_KATEGORIE_FARBE);
+  });
+  return `<div class="lk-legende">${[...eintraege].map(([text, farbe]) => punkt(farbe, text)).join('')}</div>`;
+}
+
+/* ── Verweise zwischen Prozessen ──────────────────────────────────────────
+   Drei Arten reichen für das, was auf einer Prozesslandkarte vorkommt:
+   Hierarchie („besteht aus"), Kette („danach folgt") und Querbezug („nutzt").
+   Jede Art trägt ihre Gegenrichtung mit – wer eine Kachel öffnet, will auch
+   sehen, wer auf sie zeigt, nicht nur wohin sie selbst zeigt. */
+const LK_VERWEIS_ARTEN = [
+  { art: 'unterprozess', label: 'Unterprozesse',  zeichen: '↳', umkehr: 'Teil von' },
+  { art: 'folgt',        label: 'Danach folgt',   zeichen: '→', umkehr: 'Davor liegt' },
+  { art: 'nutzt',        label: 'Nutzt',          zeichen: '⇢', umkehr: 'Wird genutzt von' },
+];
+
+function lkVerweisArt(art) {
+  return LK_VERWEIS_ARTEN.find(a => a.art === art) || LK_VERWEIS_ARTEN[2];
+}
+
+/* ── Startbestand: die abgestimmte Landschaft – sie gehört zu HOL ──
+   (nur für einen Bestand ohne gespeicherte Daten; ist HOL leer, öffnet die
+   Konzernkarte, siehe lkDatenLaden) */
+const LK_START_WERK = 'HOL';
+const LK_START = {
+  baender: [
+    { key: 'fuehrung',       titel: 'Führungsprozesse' },
+    { key: 'kern',           titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    { id: 'strategie',     band: 'fuehrung', name: 'Strategie', unter: '' },
+    { id: 'projekte',      band: 'fuehrung', name: 'Programm- und Projektmanagement', unter: 'Changemanagement' },
+    { id: 'steuern',       band: 'fuehrung', name: 'Unternehmen steuern', unter: '' },
+    { id: 'governance',    band: 'fuehrung', name: 'Corporate Governance', unter: 'Prozessmanagement' },
+    { id: 'orgentwicklung',band: 'fuehrung', name: 'Organisations- und Mitarbeiterentwicklung', unter: '' },
+
+    { id: 'vertrieb',      band: 'kern', name: 'Vertrieb', unter: 'Gießdienstleistungen vermarkten · CRM' },
+    { id: 'produktion',    band: 'kern', name: 'Produktion', unter: 'Produkte herstellen' },
+    { id: 'auftraege',     band: 'kern', name: 'Aufträge abwickeln', unter: 'Versand / Faktura' },
+
+    { id: 'compliance',    band: 'unterstuetzung', name: 'Compliance', unter: 'Datenschutz · Legal' },
+    { id: 'buchhaltung',   band: 'unterstuetzung', name: 'Buchhaltung', unter: '' },
+    { id: 'controlling',   band: 'unterstuetzung', name: 'Controlling', unter: '' },
+    { id: 'personal',      band: 'unterstuetzung', name: 'Personal', unter: '' },
+    { id: 'beschaffung',   band: 'unterstuetzung', name: 'Beschaffung', unter: '' },
+    { id: 'it',            band: 'unterstuetzung', name: 'IT', unter: '' },
+    { id: 'instandhaltung',band: 'unterstuetzung', name: 'Instandhaltung', unter: '' },
+    { id: 'avor',          band: 'unterstuetzung', name: 'Arbeitsvorbereitung', unter: '' },
+    { id: 'qs',            band: 'unterstuetzung', name: 'Qualitätssicherung', unter: '' },
+  ],
+};
+
+let _lkDaten = null;         // { version, karten: { WERK: {…} }, historie }
+let _lkGeaendertAm = '';     // Zeitstempel der geladenen Datei (Gleichzeitigkeit)
+let _lkGeladen = false;
+let _lkWerk = LK_START_WERK; // welche Landkarte gerade offen ist
+let _lkFilter = '';          // Standort-Filter innerhalb der Karte ('' = alle)
+let _lkEditing = null;       // Kachel im Bearbeiten-Dialog
+let _lkZiehIndex = -1;       // laufendes Ziehen
+let _lkSuche = '';           // Suche über ALLE Landkarten
+let _lkMembers = null;       // Mitarbeiter für die Auswahl der Verantwortlichen
+
+/** Mitarbeiterliste einmal holen und die Auswahllisten nachfüllen. */
+function lkMitgliederLaden() {
+  if (_lkMembers || typeof spGetMembers !== 'function') return;
+  spGetMembers().then(m => {
+    _lkMembers = m || [];
+    document.querySelectorAll('datalist#lk-people').forEach(dl => { dl.innerHTML = _lkPeopleOptions(); });
+  }).catch(() => { _lkMembers = []; });
+}
+
+function _lkPeopleOptions() {
+  return (_lkMembers || []).map(u => `<option value="${esc(u.upn)}">${esc(u.name)}</option>`).join('');
+}
+
+/** Anzeigename zu einer Mailadresse – solange die Liste fehlt, die Adresse selbst. */
+function lkPersonName(upn) {
+  const u = String(upn || '').trim();
+  if (!u) return '';
+  const t = (_lkMembers || []).find(m => String(m.upn || '').toLowerCase() === u.toLowerCase());
+  return (t && t.name) || u;
+}
+
+/** Verantwortliche(r) einer Kachel – '' wenn nicht gepflegt. */
+function lkVerantwortlich(k) { return String((k && k.verantwortlich) || '').trim(); }
+
+/** Dauerhafter Link auf einen Prozess – für Mails, Regelwerke, Schulungen. */
+function lkLinkFuer(werk, id) {
+  const basis = (typeof location !== 'undefined') ? (location.origin + location.pathname) : '';
+  return `${basis}?ansicht=prozesse&prozess=${encodeURIComponent(werk)}:${encodeURIComponent(id)}`;
+}
+
+async function lkLinkKopieren(werk, id) {
+  const url = lkLinkFuer(werk, id);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link kopiert ✓', 'success');
+  } catch (e) {
+    // Ohne Zwischenablage-Recht bleibt der Link wenigstens sichtbar.
+    if (typeof uiConfirm === 'function') uiConfirm(`<div style="word-break:break-all">${esc(url)}</div>`, { title: 'Link zum Prozess', okLabel: 'Schließen', html: true });
+  }
+}
+
+/** Tiefe Kopie des Startbestands – nie die Konstante verändern. */
+/**
+ * Vorlage für die Konzernebene: sechs Prozessbereiche einer Führungsholding.
+ * Nicht die Landschaft eines Werks in klein, sondern das, was eine Holding
+ * tatsächlich tut – Steuern, Finanzieren, Absichern, Bündeln, Kommunizieren,
+ * Verändern. Die Aufgaben je Bereich sind die Kacheln.
+ */
+const LK_KONZERN = {
+  baender: [
+    { key: 'strategie',      titel: 'Strategie' },
+    { key: 'finanzen',       titel: 'Finanzen' },
+    { key: 'risiko',         titel: 'Risiko & Compliance' },
+    { key: 'synergien',      titel: 'Synergien' },
+    { key: 'kommunikation',  titel: 'Kommunikation' },
+    { key: 'transformation', titel: 'Transformation' },
+  ],
+  kacheln: [
+    { id: 'vision',        band: 'strategie', name: 'Vision', unter: 'Leitbild und strategische Ziele' },
+    { id: 'portfolio',     band: 'strategie', name: 'Portfolio-Steuerung', unter: 'Beteiligungen, Zukäufe, Desinvestitionen' },
+    { id: 'marktanalyse',  band: 'strategie', name: 'Marktanalyse', unter: 'Märkte, Wettbewerb, Trends' },
+
+    { id: 'kapital',       band: 'finanzen', name: 'Kapitalallokation', unter: 'Mittel verteilen, Investitionen entscheiden' },
+    { id: 'treasury',      band: 'finanzen', name: 'Treasury', unter: 'Liquidität, Finanzierung, Währungen' },
+    { id: 'steuern',       band: 'finanzen', name: 'Steueroptimierung', unter: 'Steuerplanung im Konzernverbund' },
+
+    { id: 'risikomgmt',    band: 'risiko', name: 'Risikomanagement', unter: 'Risiken erfassen, bewerten, steuern' },
+    { id: 'compliance',    band: 'risiko', name: 'Compliance', unter: 'Regelwerke, Kartellrecht, Datenschutz' },
+    { id: 'revision',      band: 'risiko', name: 'Interne Revision', unter: 'Prüfungen und Nachverfolgung' },
+
+    { id: 'sharedservices', band: 'synergien', name: 'Shared Services', unter: 'Gebündelte Leistungen für die Gesellschaften' },
+    { id: 'wissen',         band: 'synergien', name: 'Wissensmanagement', unter: 'Wissen sichern und weitergeben' },
+    { id: 'innovation',     band: 'synergien', name: 'Innovationen', unter: 'Ideen aufnehmen und in den Konzern tragen' },
+
+    { id: 'reporting',     band: 'kommunikation', name: 'Reporting', unter: 'Konzernberichterstattung' },
+    { id: 'stakeholder',   band: 'kommunikation', name: 'Stakeholder-Management', unter: 'Gesellschafter, Banken, Behörden' },
+    { id: 'investoren',    band: 'kommunikation', name: 'Investor Relations', unter: 'Kapitalgeber informieren' },
+
+    { id: 'change',        band: 'transformation', name: 'Change Management', unter: 'Veränderungen begleiten' },
+    { id: 'projekte',      band: 'transformation', name: 'Projektsteuerung', unter: 'Programme und Projekte im Konzern' },
+    { id: 'talente',       band: 'transformation', name: 'Talententwicklung', unter: 'Führungskräfte und Nachfolge' },
+  ],
+};
+
+/**
+ * Die SAP-Landkarte: der Konzern als End-to-End-Prozesse.
+ *
+ * Die anderen Vorlagen beschreiben den Aufbau – wer wofür zuständig ist. SAP
+ * beschreibt den Ablauf: eine Kette läuft quer durch die Abteilungen, vom
+ * Auslöser bis zum Ergebnis. „Lead to Cash" beginnt beim Interessenten und
+ * endet beim Zahlungseingang; unterwegs liegen Vertrieb, Planung, Gießerei,
+ * Versand und Buchhaltung. Wer nur Bänder hat, sieht diese Kette nicht.
+ *
+ * Deshalb ist das hier die erste Vorlage mit Verweisen. Sie nutzt alle drei
+ * Arten und zeigt damit, wofür sie da sind:
+ *   ↳ Unterprozess – die vier SAP-Klammern über ihre Ketten
+ *   → Danach folgt – die Kette selbst, Schritt für Schritt
+ *   ⇢ Nutzt        – der Querbezug zwischen zwei Ketten (die Auftragserfassung
+ *                    fragt die Produktionsplanung, die Rechnungsprüfung bucht
+ *                    ins Hauptbuch)
+ *
+ * SAP als Leitfaden, nicht als Vorschrift: Die Kettennamen sind SAPs, die
+ * Schritte sind die einer Gießereigruppe. Verweisziele stehen bewusst ohne
+ * Werk – welches es ist, entscheidet erst lkVorlageAnwenden().
+ */
+const LK_SAP = {
+  baender: [
+    { key: 'klammer', titel: 'SAP-Klammer: die vier Kern-End-to-End-Prozesse' },
+    { key: 'l2c',     titel: 'Lead to Cash: vom Interessenten zum Zahlungseingang' },
+    { key: 's2p',     titel: 'Source to Pay: vom Bedarf zur bezahlten Rechnung' },
+    { key: 'i2m',     titel: 'Idea to Market: von der Idee zum Serienteil' },
+    { key: 'p2f',     titel: 'Plan to Fulfill: von der Planung zur Lieferung' },
+    { key: 'a2d',     titel: 'Acquire to Decommission: von der Investition zur Stilllegung' },
+    { key: 'hire',    titel: 'Recruit to Retire: von der Einstellung zum Austritt' },
+    { key: 'fin',     titel: 'Record to Report: von der Buchung zum Abschluss' },
+    { key: 'grc',     titel: 'Governance, Risk & Compliance: quer über allem' },
+  ],
+  kacheln: [
+    /* ── Die Klammern. Jede zeigt als Unterprozess auf den Anfang ihrer Kette;
+       von dort führt „Danach folgt" weiter bis zum Ende. ── */
+    { id: 'sap-e2e-l2c', band: 'klammer', name: 'Lead to Cash',
+      unter: 'Die Vertriebskette: Lead, Anfrage, Angebot, Auftrag, Lieferung, Faktura, Geldeingang',
+      verweise: [{ ziel: 'sap-l2c-markt', art: 'unterprozess' }] },
+    { id: 'sap-e2e-s2p', band: 'klammer', name: 'Source to Pay',
+      unter: 'Die Beschaffungskette: Bedarf, Lieferant, Bestellung, Wareneingang, Rechnung, Zahlung',
+      verweise: [{ ziel: 'sap-s2p-bedarf', art: 'unterprozess' }] },
+    { id: 'sap-e2e-d2o', band: 'klammer', name: 'Design to Operate',
+      unter: 'SAPs Klammer über Produktentstehung, Fertigung und Anlagen: drei Ketten unter einem Dach',
+      verweise: [{ ziel: 'sap-i2m-idee', art: 'unterprozess' },
+                 { ziel: 'sap-p2f-absatz', art: 'unterprozess' },
+                 { ziel: 'sap-a2d-invest', art: 'unterprozess' }] },
+    { id: 'sap-e2e-r2r', band: 'klammer', name: 'Recruit to Retire',
+      unter: 'Die Personalkette: Bedarf, Einstellung, Verwaltung, Entwicklung, Entgelt, Austritt',
+      verweise: [{ ziel: 'sap-hire-bedarf', art: 'unterprozess' }] },
+
+    /* ── Lead to Cash ── */
+    { id: 'sap-l2c-markt', band: 'l2c', name: 'Markt & Lead',
+      unter: 'Marktbearbeitung, Zielkunden, Kundenentwicklung',
+      verweise: [{ ziel: 'sap-l2c-anfrage', art: 'folgt' }] },
+    { id: 'sap-l2c-anfrage', band: 'l2c', name: 'Anfrage & Machbarkeit',
+      unter: 'Kundenanfrage aufnehmen, technische und kaufmännische Machbarkeit klären',
+      verweise: [{ ziel: 'sap-l2c-angebot', art: 'folgt' }] },
+    { id: 'sap-l2c-angebot', band: 'l2c', name: 'Angebot & Kalkulation',
+      unter: 'Kalkulation, Angebot, Verhandlung',
+      verweise: [{ ziel: 'sap-l2c-auftrag', art: 'folgt' },
+                 { ziel: 'sap-i2m-entwicklung', art: 'nutzt' }] },
+    { id: 'sap-l2c-auftrag', band: 'l2c', name: 'Auftragserfassung',
+      unter: 'Kundenauftrag anlegen, Verfügbarkeit und Termin zusagen',
+      verweise: [{ ziel: 'sap-l2c-lieferung', art: 'folgt' },
+                 { ziel: 'sap-p2f-planung', art: 'nutzt' }] },
+    { id: 'sap-l2c-lieferung', band: 'l2c', name: 'Lieferung',
+      unter: 'Lieferschein, Kommissionierung, Warenausgang',
+      verweise: [{ ziel: 'sap-l2c-faktura', art: 'folgt' },
+                 { ziel: 'sap-p2f-versand', art: 'nutzt' }] },
+    { id: 'sap-l2c-faktura', band: 'l2c', name: 'Faktura',
+      unter: 'Rechnungsstellung, Gutschriften, Preisfindung',
+      verweise: [{ ziel: 'sap-l2c-zahlung', art: 'folgt' }] },
+    { id: 'sap-l2c-zahlung', band: 'l2c', name: 'Zahlungseingang & Forderungen',
+      unter: 'Debitoren, Mahnwesen, Kreditlimit',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+
+    /* ── Source to Pay ── */
+    { id: 'sap-s2p-bedarf', band: 's2p', name: 'Bedarfsanforderung',
+      unter: 'Bedarf melden und genehmigen (BANF)',
+      verweise: [{ ziel: 'sap-s2p-quelle', art: 'folgt' }] },
+    { id: 'sap-s2p-quelle', band: 's2p', name: 'Lieferantenauswahl',
+      unter: 'Anfrage, Angebotsvergleich, Rahmenvertrag, Lead-Buyer',
+      verweise: [{ ziel: 'sap-s2p-bestellung', art: 'folgt' },
+                 { ziel: 'sap-grc-lieferkette', art: 'nutzt' }] },
+    { id: 'sap-s2p-bestellung', band: 's2p', name: 'Bestellung',
+      unter: 'Bestellung anlegen, freigeben, überwachen',
+      verweise: [{ ziel: 'sap-s2p-wareneingang', art: 'folgt' },
+                 { ziel: 'sap-grc-berechtigung', art: 'nutzt' }] },
+    { id: 'sap-s2p-wareneingang', band: 's2p', name: 'Wareneingang & Prüfung',
+      unter: 'Ware annehmen, Qualität prüfen, einlagern',
+      verweise: [{ ziel: 'sap-s2p-rechnung', art: 'folgt' },
+                 { ziel: 'sap-p2f-lager', art: 'nutzt' }] },
+    { id: 'sap-s2p-rechnung', band: 's2p', name: 'Rechnungsprüfung',
+      unter: 'Eingangsrechnung prüfen, dreiseitiger Abgleich, E-Rechnung',
+      verweise: [{ ziel: 'sap-s2p-zahlung', art: 'folgt' }] },
+    { id: 'sap-s2p-zahlung', band: 's2p', name: 'Zahlungslauf',
+      unter: 'Kreditoren, Zahlungsvorschlag, Skonto',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+
+    /* ── Idea to Market ── */
+    { id: 'sap-i2m-idee', band: 'i2m', name: 'Idee & Anforderung',
+      unter: 'Kundenanforderung, Markttrend, Machbarkeitsbewertung',
+      verweise: [{ ziel: 'sap-i2m-entwicklung', art: 'folgt' }] },
+    { id: 'sap-i2m-entwicklung', band: 'i2m', name: 'Produktentwicklung',
+      unter: 'Konstruktion, Werkstoffauswahl, Gießsimulation, Prozessentwicklung',
+      verweise: [{ ziel: 'sap-i2m-muster', art: 'folgt' }] },
+    { id: 'sap-i2m-muster', band: 'i2m', name: 'Bemusterung & Freigabe',
+      unter: 'Erstmuster, EMPB/PPAP, Kundenfreigabe',
+      verweise: [{ ziel: 'sap-i2m-serie', art: 'folgt' }] },
+    { id: 'sap-i2m-serie', band: 'i2m', name: 'Serienüberleitung',
+      unter: 'Stückliste, Arbeitsplan, Stammdaten im ERP anlegen',
+      verweise: [{ ziel: 'sap-p2f-planung', art: 'folgt' }] },
+
+    /* ── Plan to Fulfill ── */
+    { id: 'sap-p2f-absatz', band: 'p2f', name: 'Absatz- & Grobplanung',
+      unter: 'Absatzplan, Kapazitätsabgleich, S&OP',
+      verweise: [{ ziel: 'sap-p2f-planung', art: 'folgt' }] },
+    { id: 'sap-p2f-planung', band: 'p2f', name: 'Produktionsplanung',
+      unter: 'Termin-, Kapazitäts- und Feinplanung',
+      verweise: [{ ziel: 'sap-p2f-material', art: 'folgt' }] },
+    { id: 'sap-p2f-material', band: 'p2f', name: 'Materialdisposition',
+      unter: 'Bedarfsermittlung, Losgrößen, Sicherheitsbestand',
+      verweise: [{ ziel: 'sap-p2f-fertigung', art: 'folgt' },
+                 { ziel: 'sap-s2p-bedarf', art: 'nutzt' }] },
+    { id: 'sap-p2f-fertigung', band: 'p2f', name: 'Fertigung',
+      unter: 'Modell, Kerne, Formen, Schmelzen & Gießen, Putzen, Wärmebehandlung, Bearbeitung',
+      verweise: [{ ziel: 'sap-p2f-qs', art: 'folgt' },
+                 { ziel: 'sap-a2d-instand', art: 'nutzt' }] },
+    { id: 'sap-p2f-qs', band: 'p2f', name: 'Qualitätsprüfung',
+      unter: 'Prüfplan, Prüflos, Sperrbestand, Reklamation und 8D',
+      verweise: [{ ziel: 'sap-p2f-lager', art: 'folgt' },
+                 { ziel: 'sap-i2m-muster', art: 'nutzt' }] },
+    { id: 'sap-p2f-lager', band: 'p2f', name: 'Bestandsführung',
+      unter: 'Lager, Chargen, Inventur',
+      verweise: [{ ziel: 'sap-p2f-versand', art: 'folgt' }] },
+    { id: 'sap-p2f-versand', band: 'p2f', name: 'Versand & Transport',
+      unter: 'Transportdisposition, Verpackung, Ausfuhr',
+      verweise: [{ ziel: 'sap-fin-kosten', art: 'nutzt' }] },
+
+    /* ── Acquire to Decommission ── */
+    { id: 'sap-a2d-invest', band: 'a2d', name: 'Investitionsantrag',
+      unter: 'Bedarf, Wirtschaftlichkeit, Genehmigung',
+      verweise: [{ ziel: 'sap-a2d-beschaffung', art: 'folgt' },
+                 { ziel: 'sap-fin-planung', art: 'nutzt' }] },
+    { id: 'sap-a2d-beschaffung', band: 'a2d', name: 'Anlagenbeschaffung & Projekt',
+      unter: 'Vergabe, Projektabwicklung, Montage',
+      verweise: [{ ziel: 'sap-a2d-inbetrieb', art: 'folgt' },
+                 { ziel: 'sap-s2p-bestellung', art: 'nutzt' }] },
+    { id: 'sap-a2d-inbetrieb', band: 'a2d', name: 'Inbetriebnahme',
+      unter: 'Abnahme, Anlagenstammdaten, Aktivierung',
+      verweise: [{ ziel: 'sap-a2d-instand', art: 'folgt' },
+                 { ziel: 'sap-fin-anlagen', art: 'nutzt' }] },
+    { id: 'sap-a2d-instand', band: 'a2d', name: 'Instandhaltung',
+      unter: 'Wartungsplan, Störung, Ersatzteile, Instandhaltungsauftrag',
+      verweise: [{ ziel: 'sap-a2d-still', art: 'folgt' }] },
+    { id: 'sap-a2d-still', band: 'a2d', name: 'Stilllegung & Verwertung',
+      unter: 'Außerbetriebnahme, Verkauf, Verschrottung, Abgang',
+      verweise: [{ ziel: 'sap-fin-anlagen', art: 'nutzt' }] },
+
+    /* ── Recruit to Retire ── */
+    { id: 'sap-hire-bedarf', band: 'hire', name: 'Personalbedarf & Recruiting',
+      unter: 'Bedarf, Ausschreibung, Auswahl',
+      verweise: [{ ziel: 'sap-hire-eintritt', art: 'folgt' }] },
+    { id: 'sap-hire-eintritt', band: 'hire', name: 'Einstellung & Onboarding',
+      unter: 'Vertrag, Ersteinweisung, Arbeitsmittel, Zugänge',
+      verweise: [{ ziel: 'sap-hire-verwaltung', art: 'folgt' },
+                 { ziel: 'sap-grc-schulung', art: 'nutzt' }] },
+    { id: 'sap-hire-verwaltung', band: 'hire', name: 'Personaladministration & Zeitwirtschaft',
+      unter: 'Stammdaten, Zeiterfassung, Schichtmodelle, Abwesenheiten',
+      verweise: [{ ziel: 'sap-hire-entwicklung', art: 'folgt' }] },
+    { id: 'sap-hire-entwicklung', band: 'hire', name: 'Qualifizierung & Entwicklung',
+      unter: 'Ausbildung, Weiterbildung, Qualifikationsmatrix, Nachfolge',
+      verweise: [{ ziel: 'sap-hire-entgelt', art: 'folgt' }] },
+    { id: 'sap-hire-entgelt', band: 'hire', name: 'Entgeltabrechnung',
+      unter: 'Payroll, Zuschläge, Meldungen',
+      verweise: [{ ziel: 'sap-hire-austritt', art: 'folgt' },
+                 { ziel: 'sap-fin-hauptbuch', art: 'nutzt' }] },
+    { id: 'sap-hire-austritt', band: 'hire', name: 'Austritt & Offboarding',
+      unter: 'Kündigung, Zeugnis, Rückgabe, Zugänge sperren',
+      verweise: [{ ziel: 'sap-grc-berechtigung', art: 'nutzt' }] },
+
+    /* ── Record to Report ── */
+    { id: 'sap-fin-hauptbuch', band: 'fin', name: 'Hauptbuch & Nebenbücher',
+      unter: 'Belege, Kreditoren, Debitoren, Bank',
+      verweise: [{ ziel: 'sap-fin-kosten', art: 'folgt' }] },
+    { id: 'sap-fin-anlagen', band: 'fin', name: 'Anlagenbuchhaltung',
+      unter: 'Aktivierung, Abschreibung, Abgang',
+      verweise: [{ ziel: 'sap-fin-hauptbuch', art: 'folgt' }] },
+    { id: 'sap-fin-kosten', band: 'fin', name: 'Kosten- & Ergebnisrechnung',
+      unter: 'Kostenstellen, Kalkulation, Deckungsbeitrag je Guss',
+      verweise: [{ ziel: 'sap-fin-abschluss', art: 'folgt' }] },
+    { id: 'sap-fin-abschluss', band: 'fin', name: 'Abschluss',
+      unter: 'Monats-, Jahres- und Konzernabschluss, Konsolidierung',
+      verweise: [{ ziel: 'sap-fin-reporting', art: 'folgt' },
+                 { ziel: 'sap-fin-steuern', art: 'folgt' }] },
+    { id: 'sap-fin-steuern', band: 'fin', name: 'Steuern',
+      unter: 'Umsatzsteuer, Ertragsteuern, Verrechnungspreise',
+      verweise: [] },
+    { id: 'sap-fin-reporting', band: 'fin', name: 'Reporting & Kennzahlen',
+      unter: 'Management-Reporting, KPI, Power BI',
+      verweise: [{ ziel: 'sap-fin-planung', art: 'folgt' }] },
+    { id: 'sap-fin-planung', band: 'fin', name: 'Planung & Forecast',
+      unter: 'Budget, Forecast, Investitionscontrolling',
+      verweise: [] },
+
+    /* ── Governance, Risk & Compliance – quer über allem ── */
+    { id: 'sap-grc-regelwerk', band: 'grc', name: 'Regelwerke & Richtlinien',
+      unter: 'Konzernregelungen erstellen, prüfen, freigeben (RMS)',
+      verweise: [{ ziel: 'sap-grc-schulung', art: 'folgt' }] },
+    { id: 'sap-grc-schulung', band: 'grc', name: 'Unterweisung & Kenntnisnahme',
+      unter: 'Bekanntgabe, Kenntnisnahme, Wissenstest',
+      verweise: [] },
+    { id: 'sap-grc-risiko', band: 'grc', name: 'Risikomanagement & IKS',
+      unter: 'Risiken erfassen, bewerten, Kontrollen wirksam halten',
+      verweise: [{ ziel: 'sap-grc-audit', art: 'folgt' }] },
+    { id: 'sap-grc-audit', band: 'grc', name: 'Audits & Zertifizierung',
+      unter: 'IATF 16949, ISO 9001/14001/50001, ISO 27001, Kundenaudits',
+      verweise: [] },
+    { id: 'sap-grc-berechtigung', band: 'grc', name: 'Berechtigungen & Zugriffe',
+      unter: 'Rollen, Freigabegrenzen, Funktionstrennung (SoD)',
+      verweise: [{ ziel: 'sap-grc-risiko', art: 'nutzt' }] },
+    { id: 'sap-grc-lieferkette', band: 'grc', name: 'Lieferkette & Nachhaltigkeit',
+      unter: 'LkSG, CSRD, Konfliktmineralien, CO₂-Bilanz',
+      verweise: [{ ziel: 'sap-grc-risiko', art: 'nutzt' }] },
+  ],
+};
+
+/**
+ * SAP nach Prozesstypen: dieselben End-to-End-Ketten, aber in der Form, die
+ * jede Prozesslandkarte hat – Führung, Kern, Unterstützung. Die SAP-Klammern
+ * (Lead to Cash, Design to Operate, Source to Pay, Recruit to Retire, Record
+ * to Report) sind die Hauptprozesse ihres Bandes; ihre Schritte hängen als
+ * Unterprozesse darunter und laufen als Kette („Danach folgt"). So zeigt die
+ * Mindmap drei Ebenen: Typ → Kette → Schritt.
+ */
+const LK_SAP_TYPEN = {
+  baender: [
+    { key: 'fuehrung',       titel: 'Führungsprozesse' },
+    { key: 'kern',           titel: 'Kernprozesse' },
+    { key: 'unterstuetzung', titel: 'Unterstützungsprozesse' },
+  ],
+  kacheln: [
+    /* ── Führung ── */
+    { id: 'sapt-governance', band: 'fuehrung', name: 'Governance',
+      unter: 'Steuerung, Regelwerke, Compliance',
+      verweise: [{ ziel: 'sapt-regelwerke', art: 'unterprozess' }] },
+    { id: 'sapt-regelwerke', band: 'fuehrung', name: 'Regelwerk und Richtlinien',
+      unter: 'Konzernregelungen erstellen, freigeben, bekanntgeben' },
+
+    /* ── Kern: Lead to Cash ── */
+    { id: 'sapt-l2c', band: 'kern', name: 'Lead to Cash (Vertrieb)',
+      unter: 'Vom Interessenten zum Zahlungseingang',
+      verweise: [{ ziel: 'sapt-l2c-anfrage', art: 'unterprozess' }, { ziel: 'sapt-l2c-angebot', art: 'unterprozess' },
+                 { ziel: 'sapt-l2c-auftrag', art: 'unterprozess' }, { ziel: 'sapt-l2c-lieferung', art: 'unterprozess' },
+                 { ziel: 'sapt-l2c-faktura', art: 'unterprozess' }, { ziel: 'sapt-l2c-zahlung', art: 'unterprozess' }] },
+    { id: 'sapt-l2c-anfrage', band: 'kern', name: 'Anfrage und Machbarkeit',
+      unter: 'Kundenanfrage aufnehmen, technisch und kaufmännisch prüfen',
+      verweise: [{ ziel: 'sapt-l2c-angebot', art: 'folgt' }] },
+    { id: 'sapt-l2c-angebot', band: 'kern', name: 'Angebot und Kalkulation',
+      unter: 'Kalkulation, Angebot, Verhandlung',
+      verweise: [{ ziel: 'sapt-l2c-auftrag', art: 'folgt' }] },
+    { id: 'sapt-l2c-auftrag', band: 'kern', name: 'Auftragserfassung',
+      unter: 'Kundenauftrag anlegen, Verfügbarkeit und Termin zusagen',
+      verweise: [{ ziel: 'sapt-l2c-lieferung', art: 'folgt' }, { ziel: 'sapt-d2o-p2f', art: 'nutzt' }] },
+    { id: 'sapt-l2c-lieferung', band: 'kern', name: 'Lieferung',
+      unter: 'Lieferschein, Kommissionierung, Warenausgang',
+      verweise: [{ ziel: 'sapt-l2c-faktura', art: 'folgt' }] },
+    { id: 'sapt-l2c-faktura', band: 'kern', name: 'Faktura',
+      unter: 'Rechnungsstellung, Gutschriften, Preisfindung',
+      verweise: [{ ziel: 'sapt-l2c-zahlung', art: 'folgt' }] },
+    { id: 'sapt-l2c-zahlung', band: 'kern', name: 'Zahlungseingang',
+      unter: 'Debitoren, Mahnwesen, Kreditlimit',
+      verweise: [{ ziel: 'sapt-r2r', art: 'nutzt' }] },
+
+    /* ── Kern: Design to Operate ── */
+    { id: 'sapt-d2o', band: 'kern', name: 'Design to Operate (Produktion)',
+      unter: 'Produktentstehung, Fertigung und Anlagen unter einem Dach',
+      verweise: [{ ziel: 'sapt-d2o-i2m', art: 'unterprozess' }, { ziel: 'sapt-d2o-a2d', art: 'unterprozess' }, { ziel: 'sapt-d2o-p2f', art: 'unterprozess' }] },
+    { id: 'sapt-d2o-i2m', band: 'kern', name: 'Idea to Market',
+      unter: 'Von der Idee zum Serienteil: Entwicklung, Bemusterung, Freigabe' },
+    { id: 'sapt-d2o-a2d', band: 'kern', name: 'Acquire to Decommission',
+      unter: 'Von der Investition zur Stilllegung: Anlagen beschaffen, betreiben, instand halten' },
+    { id: 'sapt-d2o-p2f', band: 'kern', name: 'Plan to Fulfill',
+      unter: 'Von der Planung zur Lieferung: Planung, Disposition, Fertigung, Prüfung, Versand' },
+
+    /* ── Kern: Source to Pay ── */
+    { id: 'sapt-s2p', band: 'kern', name: 'Source to Pay (Einkauf)',
+      unter: 'Vom Bedarf zur bezahlten Rechnung',
+      verweise: [{ ziel: 'sapt-s2p-bedarf', art: 'unterprozess' }, { ziel: 'sapt-s2p-lieferant', art: 'unterprozess' },
+                 { ziel: 'sapt-s2p-bestellung', art: 'unterprozess' }, { ziel: 'sapt-s2p-wareneingang', art: 'unterprozess' },
+                 { ziel: 'sapt-s2p-rechnung', art: 'unterprozess' }] },
+    { id: 'sapt-s2p-bedarf', band: 'kern', name: 'Bedarfsanforderung',
+      unter: 'Bedarf melden, prüfen, freigeben',
+      verweise: [{ ziel: 'sapt-s2p-lieferant', art: 'folgt' }] },
+    { id: 'sapt-s2p-lieferant', band: 'kern', name: 'Lieferantenauswahl',
+      unter: 'Anfrage, Vergleich, Freigabe des Lieferanten',
+      verweise: [{ ziel: 'sapt-s2p-bestellung', art: 'folgt' }] },
+    { id: 'sapt-s2p-bestellung', band: 'kern', name: 'Bestellung',
+      unter: 'Bestellung, Auftragsbestätigung, Terminverfolgung',
+      verweise: [{ ziel: 'sapt-s2p-wareneingang', art: 'folgt' }] },
+    { id: 'sapt-s2p-wareneingang', band: 'kern', name: 'Wareneingang',
+      unter: 'Annahme, Prüfung, Einlagerung',
+      verweise: [{ ziel: 'sapt-s2p-rechnung', art: 'folgt' }] },
+    { id: 'sapt-s2p-rechnung', band: 'kern', name: 'Rechnungsprüfung und Zahlung',
+      unter: 'Rechnung prüfen, buchen, Zahlungslauf',
+      verweise: [{ ziel: 'sapt-r2r', art: 'nutzt' }] },
+
+    /* ── Unterstützung ── */
+    { id: 'sapt-h2r', band: 'unterstuetzung', name: 'Recruit to Retire (HR)',
+      unter: 'Von der Einstellung zum Austritt',
+      verweise: [{ ziel: 'sapt-h2r-bedarf', art: 'unterprozess' }, { ziel: 'sapt-h2r-eintritt', art: 'unterprozess' },
+                 { ziel: 'sapt-h2r-verwaltung', art: 'unterprozess' }, { ziel: 'sapt-h2r-entwicklung', art: 'unterprozess' },
+                 { ziel: 'sapt-h2r-austritt', art: 'unterprozess' }] },
+    { id: 'sapt-h2r-bedarf', band: 'unterstuetzung', name: 'Personalbedarf und Recruiting',
+      unter: 'Bedarf, Ausschreibung, Auswahl',
+      verweise: [{ ziel: 'sapt-h2r-eintritt', art: 'folgt' }] },
+    { id: 'sapt-h2r-eintritt', band: 'unterstuetzung', name: 'Einstellung und Onboarding',
+      unter: 'Vertrag, Ersteinweisung, Arbeitsmittel, Zugänge',
+      verweise: [{ ziel: 'sapt-h2r-verwaltung', art: 'folgt' }, { ziel: 'sapt-it', art: 'nutzt' }] },
+    { id: 'sapt-h2r-verwaltung', band: 'unterstuetzung', name: 'Personaladministration und Zeitwirtschaft',
+      unter: 'Stammdaten, Zeiterfassung, Abwesenheiten',
+      verweise: [{ ziel: 'sapt-h2r-entwicklung', art: 'folgt' }] },
+    { id: 'sapt-h2r-entwicklung', band: 'unterstuetzung', name: 'Qualifizierung und Entwicklung',
+      unter: 'Ausbildung, Weiterbildung, Qualifikationsmatrix',
+      verweise: [{ ziel: 'sapt-h2r-austritt', art: 'folgt' }] },
+    { id: 'sapt-h2r-austritt', band: 'unterstuetzung', name: 'Entgelt und Austritt',
+      unter: 'Abrechnung, Kündigung, Zeugnis, Zugänge sperren',
+      verweise: [{ ziel: 'sapt-it', art: 'nutzt' }] },
+    { id: 'sapt-it', band: 'unterstuetzung', name: 'IT',
+      unter: 'Betrieb, Support, Informationssicherheit',
+      verweise: [{ ziel: 'sapt-it-betrieb', art: 'unterprozess' }, { ziel: 'sapt-it-sicherheit', art: 'unterprozess' }] },
+    { id: 'sapt-it-betrieb', band: 'unterstuetzung', name: 'IT-Betrieb und Support',
+      unter: 'Systeme, Netz, Arbeitsplätze, Tickets' },
+    { id: 'sapt-it-sicherheit', band: 'unterstuetzung', name: 'Informationssicherheit und Berechtigungen',
+      unter: 'Zugänge, Schutz, Vorfälle' },
+    { id: 'sapt-r2r', band: 'unterstuetzung', name: 'Record to Report (Finanzen)',
+      unter: 'Von der Buchung zum Abschluss',
+      verweise: [{ ziel: 'sapt-r2r-buchung', art: 'unterprozess' }, { ziel: 'sapt-r2r-abschluss', art: 'unterprozess' }] },
+    { id: 'sapt-r2r-buchung', band: 'unterstuetzung', name: 'Hauptbuch und Nebenbücher',
+      unter: 'Belege, Kreditoren, Debitoren, Bank',
+      verweise: [{ ziel: 'sapt-r2r-abschluss', art: 'folgt' }] },
+    { id: 'sapt-r2r-abschluss', band: 'unterstuetzung', name: 'Abschluss und Reporting',
+      unter: 'Monats-, Jahres- und Konzernabschluss' },
+  ],
+};
+
+/* Fertige Landschaften zum Übernehmen. Niemand baut eine Landkarte gern von
+   null – und zwei Ebenen brauchen ohnehin verschiedene Landschaften. */
+const LK_VORLAGEN = [
+  { key: 'konzern', titel: 'Konzern / Holding',
+    zweck: 'Sechs Prozessbereiche einer Führungsholding: Strategie, Finanzen, Risiko & Compliance, Synergien, Kommunikation, Transformation, mit je drei Hauptaufgaben.',
+    karte: LK_KONZERN },
+  { key: 'gesellschaft', titel: 'Produzierende Gesellschaft',
+    zweck: 'Führungs-, Kern- und Unterstützungsprozesse eines Werks: die abgestimmte Landschaft mit Vertrieb, Produktion und Auftragsabwicklung.',
+    karte: LK_START },
+  { key: 'sap', titel: 'SAP End-to-End-Prozesse',
+    zweck: 'Der Konzern als Ablauf statt als Aufbau: Lead to Cash, Source to Pay, Design to Operate und Recruit to Retire, mit den Ketten quer durch Vertrieb, Gießerei, Einkauf und Buchhaltung. Die einzige Vorlage, die schon verknüpft ist: Klammern als Unterprozesse, Ketten als „Danach folgt", Übergänge als „Nutzt".',
+    karte: LK_SAP },
+  { key: 'sap-typen', titel: 'SAP nach Prozesstypen',
+    zweck: 'Die SAP-Ketten in der Form jeder Prozesslandkarte: Führung (Governance), Kern (Lead to Cash, Design to Operate, Source to Pay) und Unterstützung (Recruit to Retire, IT, Record to Report). Jede Kette ist ein Hauptprozess, ihre Schritte hängen als Unterprozesse darunter. Die Mindmap zeigt drei Ebenen: Typ, Kette, Schritt.',
+    karte: LK_SAP_TYPEN },
+];
+
+function lkStartbestand() {
+  return { version: 2, karten: { [LK_START_WERK]: JSON.parse(JSON.stringify(LK_START)) }, historie: [] };
+}
+
+/** Leere Karte für ein Werk, das noch keine hat. */
+function lkLeereKarte() {
+  return { baender: JSON.parse(JSON.stringify(LK_START.baender)), kacheln: [] };
+}
+
+/** Karte eines Werks (legt sie im Arbeitsstand an, wenn sie fehlt). */
+function lkKarte(werk) {
+  const w = werk || _lkWerk;
+  if (!_lkDaten) return lkLeereKarte();
+  if (!_lkDaten.karten || typeof _lkDaten.karten !== 'object') _lkDaten.karten = {};
+  if (!_lkDaten.karten[w]) _lkDaten.karten[w] = lkLeereKarte();
+  return _lkDaten.karten[w];
+}
+
+/** Welche Werke haben schon eine Karte mit Inhalt? */
+function lkWerkeMitKarte() {
+  const k = (_lkDaten && _lkDaten.karten) || {};
+  // Wie in lkAlleKacheln(): gekürzt wird nur, wenn die Trennung wirklich greift.
+  // Sonst fiele eine Karte weg, deren Werk nicht mehr in STANDORTE steht.
+  const sichtbar = (typeof trennungGreift === 'function' && trennungGreift()) ? lkWerkeSichtbar() : null;
+  return Object.keys(k)
+    .filter(w => !sichtbar || sichtbar.includes(w))
+    .filter(w => Array.isArray(k[w].kacheln) && k[w].kacheln.length);
+}
+
+function lkBaender()    { const k = lkKarte(); return (Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender; }
+function lkKacheln()    { const k = lkKarte(); return Array.isArray(k.kacheln) ? k.kacheln : []; }
+/** Alle Kacheln aller Werke – für die Mindmap, die über die Werke hinweg schaut. */
+function lkAlleKacheln() {
+  const karten = (_lkDaten && _lkDaten.karten) || {};
+  // Hier greift die Trennung nach Gesellschaft – an der einen Stelle, aus der
+  // Mindmap, Suche und die Auflösung von Verweisen schöpfen. Eine Kachel eines
+  // fremden Werks ist damit überall unauffindbar, und ein Verweis darauf fällt
+  // weg wie ein totes Ziel. Gespeichert bleibt sie trotzdem: _lkDaten ist
+  // vollständig, nur die Sicht darauf nicht.
+  // Nur wenn die Trennung wirklich greift, wird gekürzt. Sonst bliebe eine Karte
+  // unsichtbar, deren Werk gar nicht mehr in STANDORTE steht – die gibt es, wenn
+  // ein Kürzel wegfällt, und ihre Prozesse wären dann spurlos weg.
+  const sichtbar = (typeof trennungGreift === 'function' && trennungGreift()) ? lkWerkeSichtbar() : null;
+  const out = [];
+  Object.keys(karten).filter(w => !sichtbar || sichtbar.includes(w)).forEach(w => {
+    (Array.isArray(karten[w].kacheln) ? karten[w].kacheln : []).forEach(k => out.push({ werk: w, kachel: k }));
+  });
+  return out;
+}
+
+/** Bänder einer bestimmten Karte (die Mindmap braucht sie je Werk). */
+function lkBaenderVon(werk) {
+  const k = (_lkDaten && _lkDaten.karten && _lkDaten.karten[werk]) || null;
+  return (k && Array.isArray(k.baender) && k.baender.length) ? k.baender : LK_START.baender;
+}
+
+/** Darf die Karte bearbeitet werden? Wer den Reiter schreiben darf, darf es.
+ *  Der Notfall-Reiter schreibt in dieselbe Datei – mit seinem eigenen Recht. */
+function lkDarfSchreiben(reiter) { return typeof canWriteTab !== 'function' || canWriteTab(reiter || 'prozesse'); }
+
+/** Gilt die Kachel am gewählten Standort? Ohne Filter gilt alles. */
+function lkGiltDort(k, standort) {
+  if (!standort) return true;
+  const g = Array.isArray(k.geltung) ? k.geltung : [];
+  if (!g.length || g.includes('ALLE')) return true;   // ungepflegt = konzernweit
+  return g.includes(standort);
+}
+
+/**
+ * Verweise einer Kachel auf ihre BPMN-Modelle. Ein Prozess besteht oft aus
+ * mehreren Abläufen – Angebot, Auftrag, Reklamation gehören alle zum Vertrieb.
+ * Frühere Fassungen kannten nur einen; deren Felder werden hier mitgelesen.
+ */
+function lkModellVerweise(k) {
+  if (Array.isArray(k.prozesse)) return k.prozesse;
+  if (k.prozessId || k.prozessName) return [{ id: k.prozessId || '', name: k.prozessName || '' }];
+  return [];
+}
+
+/**
+ * Ein Verweis → Modell aus der geladenen Prozessliste (Kennung zuerst, sonst Name).
+ * Der Name allein ist nicht mehr eindeutig, seit jedes Werk seinen eigenen Ordner
+ * hat: „Vertrieb" gibt es in HOL und in SHB. Deshalb zählt bei der Namenssuche
+ * zuerst der Ordner des eigenen Werks.
+ */
+function lkModellZu(verweis, werk) {
+  const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+  if (verweis && verweis.id) {
+    const t = alle.find(p => p.itemId === verweis.id);
+    if (t) return t;
+  }
+  const n = String((verweis && verweis.name) || '').trim().toLowerCase();
+  if (!n) return null;
+  const passt = (p) => (p.title || '').trim().toLowerCase() === n;
+  const w = String(werk || '').trim();
+  return (w && alle.find(p => passt(p) && (p.ordner || '') === w)) || alle.find(passt) || null;
+}
+
+/** Alle aufgelösten Modelle einer Kachel (Verweise ins Leere fallen weg). */
+function lkProzesseVon(k, werk) {
+  const w = werk || _lkWerk;
+  return lkModellVerweise(k).map(v => lkModellZu(v, w)).filter(Boolean);
+}
+
+/** Das erste Modell – für Anzeigen, die nur eines brauchen. */
+function lkProzessVon(k, werk) { return lkProzesseVon(k, werk)[0] || null; }
+
+/** Direkt an der Kachel hängende Regelwerke (ohne Umweg über ein Modell). */
+function lkRegelwerkeVon(k) {
+  const ids = Array.isArray(k.regelwerke) ? k.regelwerke.map(String) : [];
+  if (!ids.length) return [];
+  const alle = (typeof State !== 'undefined' && Array.isArray(State.policies)) ? State.policies : [];
+  return ids.map(id => alle.find(p => String(p.id) === id)).filter(Boolean);
+}
+
+/* ── Laden und Speichern ─────────────────────────────────────────────── */
+
+async function lkDatenLaden() {
+  if (_lkGeladen) return _lkDaten;
+  try {
+    const gespeichert = (typeof spLoadLandkarte === 'function') ? await spLoadLandkarte() : null;
+    if (gespeichert && gespeichert.daten) {
+      const d = gespeichert.daten;
+      if (d.karten && typeof d.karten === 'object') {
+        _lkDaten = {
+          version: 2, karten: d.karten,
+          historie: Array.isArray(d.historie) ? d.historie : [],
+          // Eigene Vorlagen und ausgeblendete eingebaute liegen in derselben
+          // Datei. Sie hier NICHT mitzunehmen hiesse: Beim nächsten Laden sind
+          // sie still verschwunden – die Datei wird ja aus diesem Objekt neu
+          // geschrieben.
+          vorlagen: Array.isArray(d.vorlagen) ? d.vorlagen : [],
+          vorlagenAus: Array.isArray(d.vorlagenAus) ? d.vorlagenAus : [],
+          // Notfall: Wiederherstellzeiten der Assets (einmal für alle Werke).
+          // BIA und Pläne hängen an den Kacheln, der Krisenstab an der Karte –
+          // die kommen mit `karten` von selbst mit.
+          notfall: (d.notfall && typeof d.notfall === 'object') ? d.notfall : {},
+        };
+      } else {
+        // Fassung 1 kannte nur EINE Landkarte. Die abgestimmte Landschaft gehört
+        // zu HOL – dorthin wandert sie, ohne dass jemand etwas neu erfassen muss.
+        _lkDaten = {
+          version: 2,
+          karten: { [LK_START_WERK]: {
+            baender:    (Array.isArray(d.baender) && d.baender.length) ? d.baender : JSON.parse(JSON.stringify(LK_START.baender)),
+            kacheln:    Array.isArray(d.kacheln) ? d.kacheln : JSON.parse(JSON.stringify(LK_START.kacheln)),
+          } },
+          historie: Array.isArray(d.historie) ? d.historie : [],
+        };
+      }
+      _lkGeaendertAm = gespeichert.geaendertAm || '';
+    } else {
+      _lkDaten = lkStartbestand();
+      _lkGeaendertAm = '';
+    }
+  } catch (e) {
+    console.warn('[landkarte] Laden fehlgeschlagen, Startbestand gilt:', e.message);
+    _lkDaten = lkStartbestand();
+  }
+  // Auf ein Werk stellen, das auch etwas zeigt – und das man sehen darf.
+  lkWerkAbsichern();
+  const belegt = lkWerkeMitKarte();
+  // Ist die Startkarte leer, öffnet die Konzernkarte (seit dem Ebenenmodell steht
+  // die Haus-Logik dort), sonst die erste Karte mit Inhalt.
+  if (belegt.length && !belegt.includes(_lkWerk)) _lkWerk = belegt.includes('KONZERN') ? 'KONZERN' : belegt[0];
+  // Jeder Prozess bekommt seine Nummer, sobald die Daten da sind – fest wird
+  // sie mit dem nächsten Speichern (die Vergabe ist deterministisch, jeder
+  // Browser kommt bis dahin auf dieselben Nummern).
+  _lkNrNeu = lkNummernVergeben();
+  _lkGeladen = true;
+  return _lkDaten;
+}
+let _lkNrNeu = 0;   // beim Laden neu vergebene Nummern – der erste Schreiber macht sie fest
+
+/** Eintrag in den Versionsverlauf (wer, wann, was). */
+function _lkVerlauf(was) {
+  if (!_lkDaten) return;
+  if (!Array.isArray(_lkDaten.historie)) _lkDaten.historie = [];
+  const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
+  _lkDaten.historie.push({ datum: new Date().toISOString(), name: u.name || u.upn || '', werk: _lkWerk, was });
+  if (_lkDaten.historie.length > 100) _lkDaten.historie = _lkDaten.historie.slice(-100);
+}
+
+/**
+ * Speichern mit Gleichzeitigkeits-Prüfung: Hat jemand anders die Karte
+ * inzwischen geändert, wird nichts überschrieben.
+ */
+async function lkSpeichern(meldung, was, reiter) {
+  if (!lkDarfSchreiben(reiter)) { toast(`Nur Lesezugriff auf „${reiter === 'notfall' ? 'Notfall' : 'Prozesse'}".`, 'error'); return false; }
+  try {
+    if (typeof spLandkarteMeta === 'function') {
+      const jetzt = await spLandkarteMeta();
+      if (jetzt && _lkGeaendertAm && jetzt !== _lkGeaendertAm) {
+        toast('Die Landkarte wurde zwischenzeitlich von jemand anderem geändert. Bitte neu laden.', 'error');
+        return false;
+      }
+    }
+    if (was) _lkVerlauf(was);
+    lkNummernVergeben();   // was neu dazukam (Vorlage, Gliederung, Übernahme), bekommt seine Nummer vor dem Schreiben
+    _lkGeaendertAm = await spSaveLandkarte(_lkDaten);
+    if (meldung) toast(meldung, 'success');
+    _lkNachSpeichern();
+    return true;
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + e.message, 'error');
+    return false;
+  }
+}
+
+/**
+ * Nach dem Speichern dorthin zurück, wo gearbeitet wurde. Gespeichert wird
+ * inzwischen aus drei Ansichten – wer aus der Mindmap heraus einen Prozess
+ * anlegt, will nicht plötzlich in der Landkarte stehen.
+ */
+function _lkNachSpeichern() {
+  const modus = (typeof _prozModus !== 'undefined') ? _prozModus : 'karte';
+  if (modus === 'netz' && typeof vkNachLandkarte === 'function') { vkNachLandkarte(); return; }
+  if (modus === 'matrix' && typeof renderProzessMatrix === 'function') { renderProzessMatrix(); return; }
+  if (modus === 'kette' && typeof renderVerantwortung === 'function') { renderVerantwortung(); return; }
+  if (modus === 'backlog' && typeof renderProzessBacklog === 'function') { renderProzessBacklog(); return; }
+  renderLandkarte();
+}
+
+/* ── Ansicht ─────────────────────────────────────────────────────────── */
+
+async function initLandkarte() {
+  const mount = document.getElementById('prozesse-mount');
+  if (!mount) return;
+  if (!_lkGeladen) {
+    mount.innerHTML = '<div class="doc-loading">Lade Prozesslandkarte …</div>';
+    await lkDatenLaden();
+  }
+  renderLandkarte();
+  // Wer schreiben darf, macht frisch vergebene Nummern gleich fest – still,
+  // ohne Meldung. Danach sind sie in der Datei und für alle dieselben.
+  if (_lkNrNeu && lkDarfSchreiben() && typeof spSaveLandkarte === 'function') {
+    const n = _lkNrNeu; _lkNrNeu = 0;
+    lkSpeichern('', `Prozessnummern vergeben (${n})`).catch(() => {});
+  }
+}
+
+function renderLandkarte() {
+  lkWerkAbsichern();   // vor dem Mount-Check: gilt auch, wenn gerade nichts gezeichnet wird
+  const mount = document.getElementById('prozesse-mount');
+  if (!mount) return;
+  // Kommt man etwa aus dem Notfall mit HOL hierher: Die Holding hat keine eigene
+  // Karte, gezeigt wird die Konzernkarte.
+  const auswahl = lkWerkeAuswahl();
+  if (!auswahl.includes(_lkWerk)) _lkWerk = auswahl.includes('KONZERN') ? 'KONZERN' : (auswahl[0] || _lkWerk);
+  const schreiben = lkDarfSchreiben();
+  const kacheln = lkKacheln();
+  const ablaeufe = kacheln.filter(lkIstProzess);
+  const mitModell = ablaeufe.filter(k => lkProzessVon(k)).length;
+  const stand = (_lkDaten && Array.isArray(_lkDaten.historie) && _lkDaten.historie.length)
+    ? _lkDaten.historie[_lkDaten.historie.length - 1] : null;
+
+  const standorte = (typeof STANDORTE !== 'undefined') ? STANDORTE : [];
+  const belegt = lkWerkeMitKarte();
+  mount.innerHTML = `
+    ${(typeof prozessModusLeiste === 'function') ? prozessModusLeiste('karte') : ''}
+    <div class="view-desc" style="margin:0 0 12px">
+      Die Prozesslandschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b>. Konzern und Gesellschaften führen je eine eigene.
+      Ein Klick auf eine Kachel zeigt Geltungsbereich, das hinterlegte <b>BPMN-Modell</b> und die
+      daran hängenden Regelwerke. <b>${mitModell}</b> von <b>${ablaeufe.length}</b> Prozessen sind modelliert.${
+        kacheln.some(lkIstKette) ? ' Ketten fassen Prozesse zusammen: ein Klick auf ▸ an der Kette klappt sie auf.' : ''}${
+        kacheln.some(k => lkIstOffen(k, 'geltung')) ? ` Bei <b>${kacheln.filter(k => lkIstOffen(k, 'geltung')).length}</b> Kacheln ist der Geltungsbereich noch offen.` : ''}
+    </div>
+    <div class="view-toolbar">
+      <label class="field-hint" style="margin:0 6px 0 0">Landkarte</label>
+      <select id="lk-werk" onchange="lkSetWerk(this.value)" style="max-width:210px">
+        ${auswahl.map(w => `<option value="${esc(w)}"${_lkWerk === w ? ' selected' : ''}>${esc(lkWerkLabel(w))}${
+          belegt.includes(w) ? '' : ' (leer)'}</option>`).join('')}
+      </select>
+      <label class="field-hint" style="margin:0 6px 0 14px">gilt für</label>
+      <select id="lk-filter" onchange="lkSetFilter(this.value)" style="max-width:160px">
+        <option value="">alle</option>
+        ${standorte.map(s => `<option value="${esc(s)}"${_lkFilter === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
+      </select>
+      <div class="search-box" style="margin-left:14px;max-width:230px">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="lk-suche" value="${esc(_lkSuche)}" aria-label="Prozess in allen Landkarten suchen"
+          placeholder="In allen Werken suchen …" oninput="lkSuchen(this.value)">
+      </div>
+      <div class="toolbar-spacer"></div>
+      ${stand ? `<button class="btn btn-ghost btn-sm" onclick="lkVerlaufZeigen()" title="Versionsverlauf">
+        🕘 ${esc(stand.name || '–')}${stand.datum && typeof fmtDate === 'function' ? ' · ' + esc(fmtDate(stand.datum)) : ''}</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="lkNeuLaden()" title="Aktualisieren">↻ Aktualisieren</button>
+      ${lkKacheln().some(k => lkUnterprozesse(k).length) ? `<button class="btn btn-ghost btn-sm"
+        onclick="lkAlleAufklappen(${_lkAufgeklappt.size ? 'false' : 'true'})"
+        title="Die Gliederung aller Prozesse auf einmal">${_lkAufgeklappt.size ? '⤡ Zuklappen' : '⤢ Gliederung'}</button>` : ''}
+      ${lkKacheln().some(k => lkIstTeilprozess(_lkWerk, k)) ? `<button class="btn btn-ghost btn-sm"
+        onclick="lkTeilprozesseZeigen(${_lkNurHaupt ? 'true' : 'false'})"
+        title="${_lkNurHaupt
+          ? 'Teilprozesse zusätzlich einzeln im Band zeigen'
+          : 'Teilprozesse wieder unter ihren Hauptprozessen einordnen'}">${
+          _lkNurHaupt ? '☰ Teilprozesse' : '☰ nur Hauptprozesse'}</button>` : ''}
+      ${kacheln.some(lkIstKette) && typeof lkBerichtOeffnen === 'function' ? `<button class="btn btn-outline btn-sm"
+        onclick="lkBerichtOeffnen()" title="Bericht für die Geschäftsführung aus den Daten dieser Karte, zum Drucken oder als PDF">📊 C-Level-Bericht</button>` : ''}
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageDialog()" title="Fertige Prozesslandschaft einsetzen">📋 Vorlage</button>` : ''}
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkBandDialog('')"
+        title="Einen weiteren Bereich anlegen">+ Bereich</button>` : ''}
+      ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Prozess</button>` : ''}
+    </div>
+    ${_lkTrefferHtml()}
+    ${_lkFilter ? `<div class="col-warning" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px">
+      <span style="flex:1;min-width:220px">Der Filter steht auf <b>${esc(_lkFilter)}</b>: Prozesse, die dort
+        nicht gelten, sind <b>ausgegraut</b>, die Landschaft bleibt dadurch vergleichbar.
+        ${_lkAusgegraut()} von ${lkKacheln().length} Prozessen sind es gerade.</span>
+      <button class="btn btn-outline btn-sm" onclick="lkSetFilter('')">Filter aufheben</button>
+    </div>` : ''}
+    ${kacheln.length ? _lkKarteHtml(schreiben) : _lkLeerHtml(schreiben, belegt)}
+    <div class="lk-legende">
+      <span><i class="lk-punkt lk-punkt-modell"></i> Modell hinterlegt</span>
+      <span><i class="lk-punkt lk-punkt-offen"></i> noch kein Modell</span>
+      ${schreiben ? '<span>Kacheln lassen sich zwischen den Bändern ziehen.</span>' : ''}
+    </div>`;
+}
+
+function _lkBandTitel(key) {
+  const b = lkBaender().find(x => x.key === key);
+  return b ? b.titel : key;
+}
+
+/** Führungs- bzw. Unterstützungsband: Balken + Reihe von Kacheln. */
+/**
+ * Die Karte: je Band eine Zeile mit Titelspalte links.
+ *
+ * Früher standen hier drei fest verdrahtete Bänder (Führung · Kern ·
+ * Unterstützung). Die Konzernebene hat aber sechs Bereiche, ein anderes Werk
+ * vielleicht vier – die Datei kannte die Bänder längst als Liste, nur die
+ * Ansicht nicht.
+ */
+function _lkKarteHtml(schreiben) {
+  return `<div class="lk-karte">
+      ${lkBaender().map((b, i) => _lkZeileHtml(b, i, schreiben)).join('')}
+      ${_lkLegendeHtml()}
+    </div>`;
+}
+
+function _lkLeeresBand() {
+  return '<div class="field-hint" style="padding:14px">Noch kein Prozess in diesem Bereich.</div>';
+}
+
+/** Eine Bandzeile. „Kern" behält seine Form: die Prozesse als Pfeile. */
+function _lkZeileHtml(band, nr, schreiben) {
+  const alle = lkKacheln();
+  const imBand = alle.map((k, i) => ({ k, i })).filter(x => x.k.band === band.key);
+  // Der Index i bleibt der in lkKacheln() – daran hängt das Ziehen und Ablegen.
+  const idx = _lkNurHaupt ? imBand.filter(x => !lkIstTeilprozess(_lkWerk, x.k)) : imBand;
+  const eingeordnet = imBand.length - idx.length;
+  // Ein Band, das einen Prozesstyp meint, trägt dessen Farbe; die anderen die feste Farbe ihrer Kategorie.
+  const farbe = lkBandFarbe(band);
+  const nKetten = idx.filter(x => lkIstKette(x.k)).length;
+  const nAbgeloest = idx.filter(x => lkIstAbgeloest(x.k)).length;
+  const nProzesse = idx.length - nKetten - nAbgeloest;
+  const zahl = [
+    nKetten ? `${nKetten} ${nKetten === 1 ? 'Kette' : 'Ketten'}` : '',
+    nProzesse || (!nKetten && !nAbgeloest) ? `${nProzesse} ${nProzesse === 1 ? 'Prozess' : 'Prozesse'}` : '',
+    nAbgeloest ? `${nAbgeloest} abgelöst` : '',
+    eingeordnet ? `${eingeordnet} eingeordnet` : '',
+  ].filter(Boolean).join(' · ');
+  // Der Balken ist eine Schaltfläche, sobald man schreiben darf – ein Bereich
+  // soll sich dort ändern lassen, wo er steht, nicht in einem fernen Menü.
+  const titel = schreiben
+    ? `<div class="lk-zeile-titel lk-zeile-titel-klick" role="button" tabindex="0"
+         title="Bereich „${esc(band.titel)}" bearbeiten"
+         onclick="lkBandDialog(${jsArg(band.key)})"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
+       ><span>${esc(band.titel)}</span><i>${zahl}</i></div>`
+    : `<div class="lk-zeile-titel"><span>${esc(band.titel)}</span><i>${zahl}</i></div>`;
+  // Das Archiv der abgelösten Karten steht zugeklappt unten; aufgeklappt bleibt es grau.
+  if (band.archiv) {
+    const offen = _lkArchivOffen.has(band.key);
+    const knopf = `<button type="button" class="btn btn-ghost btn-sm" onclick="lkArchivUmschalten(${jsArg(band.key)})">${
+      offen ? 'Abgelöste verbergen' : `${imBand.length} abgelöste Karte${imBand.length === 1 ? '' : 'n'} zeigen`}</button>`;
+    if (!offen) return `<div class="lk-zeile lk-zeile-archiv" style="--lk-c:${farbe}">${titel}<div class="lk-archiv-zu">${knopf}</div></div>`;
+    const spaltenA = Math.min(Math.max(1, imBand.length), 5);
+    return `<div class="lk-zeile lk-zeile-archiv" style="--lk-c:${farbe}">
+        ${titel}
+        <div><div class="lk-archiv-zu">${knopf}</div>
+          <div class="lk-reihe" style="grid-template-columns:repeat(${spaltenA},minmax(0,1fr))">
+            ${imBand.map(x => _lkKachelHtml(x.k, x.i, band.key, schreiben)).join('')}
+          </div></div>
+      </div>`;
+  }
+  if (lkBandPfeile(band)) {
+    return `<div class="lk-zeile lk-zeile-kern" style="--lk-c:${farbe}">
+        ${titel}
+        <div class="lk-kern-pfeile" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'kern',-1)">
+          ${idx.length ? idx.map(x => _lkPfeilHtml(x.k, x.i, schreiben)).join('') : _lkLeeresBand()}
+        </div>
+      </div>`;
+  }
+  // Höchstens fünf Kacheln nebeneinander – neun in einer Zeile wären Streifen.
+  const spalten = Math.min(Math.max(1, idx.length), 5);
+  return `<div class="lk-zeile" style="--lk-c:${farbe}">
+      ${titel}
+      <div class="lk-reihe" style="grid-template-columns:repeat(${spalten},minmax(0,1fr))"
+        ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,${jsArg(band.key)},-1)">
+        ${idx.length ? idx.map(x => _lkKachelHtml(x.k, x.i, band.key, schreiben)).join('') : _lkLeeresBand()}
+      </div>
+    </div>`;
+}
+
+function _lkStatusPunkt(k) {
+  const n = lkProzesseVon(k).length;
+  const r = (Array.isArray(k.regelwerke) ? k.regelwerke.length : 0);
+  const titel = [n ? `${n} Modell${n > 1 ? 'e' : ''}` : 'noch kein Modell',
+    r ? `${r} Regelwerk${r > 1 ? 'e' : ''}` : ''].filter(Boolean).join(' · ');
+  return `<i class="lk-punkt ${n ? 'lk-punkt-modell' : 'lk-punkt-offen'}" title="${esc(titel)}"></i>${
+    n > 1 ? `<span class="lk-zahl-punkt" title="${esc(titel)}">${n}</span>` : ''}`;
+}
+
+function _lkGeltungKurz(k) {
+  const g = Array.isArray(k.geltung) ? k.geltung : [];
+  if (!g.length || g.includes('ALLE')) return '';
+  return g.join(', ');
+}
+
+function _lkZiehAttr(i, schreiben) {
+  return schreiben
+    ? ` draggable="true" ondragstart="lkZiehStart(event,${i})" ondragend="lkZiehEnde()" ondragover="lkZiehUeber(event)" ondrop="lkZiehAblegen(event,'',${i})"`
+    : '';
+}
+
+/** Mit Enter und Leertaste bedienbar – die Kacheln sind Schaltflächen, keine Bilder. */
+function _lkTastatur(id) {
+  return ` role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();lkKachelOeffnen(${jsArg(id)})}"`;
+}
+
+/** Wie viele Prozesse der offenen Karte der Filter gerade ausgraut? */
+function _lkAusgegraut() {
+  return _lkFilter ? lkKacheln().filter(k => !lkGiltDort(k, _lkFilter)).length : 0;
+}
+
+/** Der Titel einer Kachel – bei einer ausgegrauten steht dort der Grund.
+ *  Nur ihr Name zu zeigen, hilft genau dann nicht, wenn man ihn braucht. */
+function _lkKachelTitel(k, aus) {
+  if (!aus) return k.name;
+  const g = (Array.isArray(k.geltung) ? k.geltung : []).join(', ');
+  return `${k.name}: gilt nicht am Standort ${_lkFilter}` + (g ? ` (sondern: ${g})` : '');
+}
+
+/** Zusatzklassen und Marker für Ketten, Abgelöste und offene Angaben. */
+function _lkEbeneKlassen(k) {
+  return (lkIstKette(k) ? ' lk-kette' : '') + (lkIstAbgeloest(k) ? ' lk-abgeloest' : '');
+}
+function _lkEbeneMarker(k) {
+  const teile = [];
+  if (lkIstKette(k)) {
+    const n = lkUnterprozesse(k).length;
+    teile.push(`<span class="lk-ebene-marke" title="${n ? `Kette (Ebene 1): fasst ${n} Prozess${n === 1 ? '' : 'e'} zusammen` : 'Kette (Ebene 1), noch ohne Prozesse'}">Kette${n ? '' : ', noch leer'}</span>`);
+  }
+  if (lkIstAbgeloest(k)) teile.push('<span class="lk-ebene-marke lk-ebene-abgeloest" title="Abgelöst, verweist auf das Ziel">abgelöst</span>');
+  return teile.join('');
+}
+
+function _lkKachelHtml(k, i, band, schreiben) {
+  const aus = !lkGiltDort(k, _lkFilter);
+  const g = _lkGeltungKurz(k);
+  const person = (typeof lkVerantwortlich === 'function') ? lkVerantwortlich(k) : '';
+  const typ = lkTyp(lkTypVon(k, band));
+  const ablauf = lkIstProzess(k);
+  return `<div class="lk-kachel${aus ? ' lk-aus' : ''}${typ ? '' : ' lk-kategorie'}${_lkEbeneKlassen(k)}" style="--lk-c:${lkTypFarbe(k, band)}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen(${jsArg(k.id)})" aria-label="${esc(k.name + (k.unter ? ': ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, band))}">
+      <div class="lk-kachel-inhalt">
+        <div class="lk-kachel-kopf"><span>${esc(k.name)}</span>${lkNrText(k) ? `<span class="lk-kachel-nr" title="Prozess-Nr., eindeutig, wird nie neu vergeben">${esc(lkNrText(k))}</span>` : ''}${ablauf ? _lkStatusPunkt(k) : ''}</div>
+        ${k.unter ? `<div class="lk-kachel-unter">${esc(k.unter)}</div>` : ''}
+        ${_lkUnterbaumHtml(_lkWerk, k, [])}
+        <div class="lk-kachel-fuss">
+          ${person ? `<span class="lk-kachel-person" title="${esc(person)}">👤 ${esc(
+            (typeof lkPersonName === 'function' ? lkPersonName(person) : person).split(' ')[0])}</span>` : ''}
+          ${g ? `<span class="lk-kachel-geltung">${esc(g)}</span>` : ''}
+          ${_lkEbeneMarker(k)}
+          ${ablauf && (typeof nfKachelMarker === 'function') ? nfKachelMarker(k) : ''}
+          ${_lkPzMarker(k)}
+          ${_lkGliederungZeichen(_lkWerk, k)}
+          ${typ && typ.key !== lkBandTyp(band) ? `<span class="lk-kachel-typ" style="color:${typ.farbe}" title="${esc(typ.label)}">${esc(typ.kurz)}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function _lkPfeilHtml(k, i, schreiben) {
+  const aus = !lkGiltDort(k, _lkFilter);
+  const g = _lkGeltungKurz(k);
+  const ablauf = lkIstProzess(k);
+  return `<div class="lk-pfeil${aus ? ' lk-aus' : ''}${_lkEbeneKlassen(k)}" style="--lk-c:${lkTypFarbe(k, 'kern')}"${_lkZiehAttr(i, schreiben)}${_lkTastatur(k.id)}
+      onclick="lkKachelOeffnen(${jsArg(k.id)})" aria-label="${esc(k.name + (k.unter ? ': ' + k.unter : ''))}" title="${esc(_lkKachelTitel(k, aus))} · ${esc(lkTypLabel(k, 'kern'))}">
+      ${ablauf ? _lkStatusPunkt(k) : ''}<b>${esc(k.name)}</b>${lkNrText(k) ? `<span class="lk-pfeil-nr" title="Prozess-Nr.">${esc(lkNrText(k))}</span>` : ''}${ablauf && (typeof nfKachelMarker === 'function') ? ' ' + nfKachelMarker(k) : ''}${_lkPzMarker(k)}
+      ${k.unter ? `<span class="lk-pfeil-unter">${esc(k.unter)}</span>` : ''}
+      ${g ? `<span class="lk-pfeil-geltung">${esc(g)}</span>` : ''}
+      ${_lkEbeneMarker(k) ? `<span class="lk-pfeil-ebene">${_lkEbeneMarker(k)}</span>` : ''}
+      <span class="lk-pfeil-gliederung">${_lkGliederungZeichen(_lkWerk, k)}</span>
+      ${_lkUnterbaumHtml(_lkWerk, k, [])}
+    </div>`;
+}
+
+/** Für ein Werk gibt es noch keine Karte: anlegen oder von einem anderen übernehmen. */
+function _lkLeerHtml(schreiben, belegt) {
+  const quellen = belegt.filter(w => w !== _lkWerk);
+  return `<div class="lk-karte" style="text-align:center;padding:44px 20px">
+      <div style="font-size:2rem;margin-bottom:8px">🗺</div>
+      <div style="font-weight:700;margin-bottom:6px">Für ${esc(lkWerkLabel(_lkWerk))} gibt es noch keine Landkarte.</div>
+      <div class="field-hint" style="max-width:560px;margin:0 auto 16px">
+        Konzern und Gesellschaften führen je eine eigene Landschaft. Am schnellsten geht es mit einer
+        <b>Vorlage</b>: für die Konzernebene die sechs Bereiche einer Führungsholding, für eine
+        Gesellschaft die Führungs-, Kern- und Unterstützungsprozesse. Alles bleibt danach änderbar.
+      </div>
+      ${schreiben ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="lkVorlageDialog()">📋 Vorlage verwenden</button>
+        <button class="btn btn-outline btn-sm" onclick="lkKachelNeu()">+ Erster Prozess</button>
+        ${quellen.length ? `<button class="btn btn-ghost btn-sm" onclick="lkUebernehmenDialog()">Von einer anderen Ebene übernehmen</button>` : ''}
+      </div>` : '<div class="field-hint">Für das Anlegen fehlt Ihnen das Schreibrecht auf „Prozesse".</div>'}
+    </div>`;
+}
+
+/** Landkarte wechseln. */
+function lkSetWerk(w) {
+  lkWerkSetzenStill(w);
+  renderLandkarte();
+}
+
+/** Werk wechseln, ohne die Ansicht zu wechseln – etwa aus der Mindmap heraus. */
+function lkWerkSetzenStill(w) {
+  const neu = lkWerkeSichtbar().includes(w) ? w : _lkWerk;
+  // Der Standort-Filter gehört zur Karte, die man ansieht. Blieb er beim
+  // Wechsel stehen, öffnete sich die nächste Karte grau – und niemand brachte
+  // das mit einem Filter in Verbindung, den er auf einer anderen gesetzt hatte.
+  if (neu !== _lkWerk) _lkFilter = '';
+  _lkWerk = neu;
+}
+
+/**
+ * Eine fertige Landschaft übernehmen. Niemand baut eine Landkarte gern von
+ * null, und die Ebenen brauchen verschiedene: Der Konzern steuert, die
+ * Gesellschaft produziert.
+ */
+/* ═══════════════════════════════════════════════════
+   Eigene Vorlagen
+   ═══════════════════════════════════════════════════
+   Neun eingebaute Vorlagen stehen zur Wahl, und die meisten davon braucht ein
+   Haus nie. Was fehlte, ist der umgekehrte Weg: Wer eine Landkarte einmal
+   zurechtgelegt hat, will sie sichern und in den anderen Werken einsetzen.
+
+   Eine eigene Vorlage ist **Struktur, nicht Inhalt**. Verantwortliche, Modelle
+   und Regelwerke wandern nicht mit: Eine Person gehört nicht in eine Vorlage,
+   und ein Modell liegt im Ordner seines Werks – zwei Werke dürfen nicht auf
+   dieselbe Datei zeigen.
+
+   Eingebaute Vorlagen werden **ausgeblendet, nicht gelöscht**. Sie stehen im
+   Code; was verschwände, wäre nur die Möglichkeit, sie zurückzuholen. */
+
+const LK_EIGEN = 'eigen:';   // Präfix, damit eine eigene Vorlage nie einen eingebauten Schlüssel trifft
+
+function lkEigeneVorlagen() {
+  const v = _lkDaten && _lkDaten.vorlagen;
+  return Array.isArray(v) ? v : [];
+}
+
+/** Schlüssel der ausgeblendeten eingebauten Vorlagen. */
+function lkVorlagenAus() {
+  const v = _lkDaten && _lkDaten.vorlagenAus;
+  return new Set(Array.isArray(v) ? v.map(String) : []);
+}
+
+/** Alle Vorlagen, die gerade zur Wahl stehen – eigene zuerst. */
+function lkVorlagenAlle() {
+  const aus = lkVorlagenAus();
+  return lkEigeneVorlagen().map(v => ({ ...v, eigen: true }))
+    .concat(LK_VORLAGEN.filter(v => !aus.has(v.key)).map(v => ({ ...v, eigen: false })));
+}
+
+function lkVorlageVonKey(key) { return lkVorlagenAlle().find(v => v.key === key) || null; }
+
+/**
+ * Schnappschuss der offenen Landkarte als Vorlage.
+ *
+ * Mitgenommen werden Bänder, Namen, Untertitel und die Gliederung. Nicht
+ * mitgenommen werden Verantwortliche, Modelle, Regelwerke und Geltungsbereich –
+ * die gehören zu dieser Karte, nicht zur Form. Verweise über die Werksgrenze
+ * fallen weg: Sie zeigten aus einer Vorlage auf eine fremde Karte.
+ */
+function _lkVorlageAusKarte(werk) {
+  const w = werk || _lkWerk;
+  const k = lkKarte(w);
+  const eigene = new Set((k.kacheln || []).map(x => String(x.id)));
+  return {
+    baender: JSON.parse(JSON.stringify(k.baender || [])),
+    kacheln: (k.kacheln || []).map(x => {
+      const verweise = (Array.isArray(x.verweise) ? x.verweise : []).map(v => {
+        const t = lkZielTeile(v.ziel);
+        return (t.werk === w && eigene.has(String(t.id))) ? { ziel: String(t.id), art: v.art } : null;
+      }).filter(Boolean);
+      const kachel = { id: String(x.id), band: x.band, name: x.name, unter: x.unter || '' };
+      if (verweise.length) kachel.verweise = verweise;
+      return kachel;
+    }),
+  };
+}
+
+function lkVorlageSpeichernDialog() {
+  if (!lkDarfSchreiben()) return;
+  const karte = _lkVorlageAusKarte(_lkWerk);
+  if (!karte.kacheln.length) { toast('Diese Landkarte ist leer, da gibt es nichts zu sichern.'); return; }
+  const verweise = karte.kacheln.reduce((n, k) => n + (k.verweise || []).length, 0);
+  const fremd = lkKacheln().reduce((n, k) => n + (Array.isArray(k.verweise) ? k.verweise : [])
+    .filter(v => lkZielTeile(v.ziel).werk !== _lkWerk).length, 0);
+
+  openModal(`
+    <div class="modal-header"><h3>Landkarte als Vorlage sichern</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Die Landschaft von <b>${esc(lkWerkLabel(_lkWerk))}</b>
+        wird als Vorlage gesichert: <b>${karte.baender.length}</b> Bereiche, <b>${karte.kacheln.length}</b>
+        Prozesse, <b>${verweise}</b> Verweise. Danach lässt sie sich in jedem Werk einsetzen.</p>
+      <div class="form-group full"><label>Name <span class="req">*</span></label>
+        <input type="text" id="lk-vorlage-name" placeholder="z. B. Gießerei-Standard 2026"
+          value="${esc(lkWerkLabel(_lkWerk) + ', Stand ' + new Date().toLocaleDateString('de-DE'))}"></div>
+      <div class="form-group full"><label>Wofür ist sie gedacht?</label>
+        <textarea id="lk-vorlage-zweck" rows="3" style="width:100%;font-family:inherit"
+          placeholder="Ein Satz, der einem später sagt, wann man sie nimmt."></textarea></div>
+      <div class="col-warning" style="display:block">Gesichert wird die <b>Form</b>: Bereiche, Namen,
+        Untertitel und die Gliederung. <b>Nicht</b> mitgenommen werden Verantwortliche, Modelle,
+        Regelwerke und Geltungsbereich. Eine Person gehört nicht in eine Vorlage, und ein Modell
+        liegt im Ordner seines Werks.${fremd ? ` ${fremd} Verweis(e) auf andere Werke fallen weg:
+        Aus einer Vorlage heraus zeigten sie auf eine fremde Karte.` : ''}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkVorlageSpeichern()">Sichern</button>
+    </div>`);
+}
+
+async function lkVorlageSpeichern() {
+  if (!lkDarfSchreiben()) return;
+  const titel = ((document.getElementById('lk-vorlage-name') || {}).value || '').trim();
+  if (!titel) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const zweck = ((document.getElementById('lk-vorlage-zweck') || {}).value || '').trim();
+  if (!Array.isArray(_lkDaten.vorlagen)) _lkDaten.vorlagen = [];
+
+  // Verglichen wird ohne das Präfix – sonst wäre „eigen:x" nie gleich „x".
+  const belegt = new Set(_lkDaten.vorlagen.map(v => String(v.key).slice(LK_EIGEN.length)));
+  const key = LK_EIGEN + lkFreierSchluessel(titel, belegt, 'vorlage', 30);
+
+  const u = (typeof State !== 'undefined' && State.user) ? State.user : {};
+  _lkDaten.vorlagen.push({
+    key, titel,
+    zweck: zweck || `Aus der Landkarte von ${lkWerkLabel(_lkWerk)} gesichert.`,
+    karte: _lkVorlageAusKarte(_lkWerk),
+    angelegt: new Date().toISOString(), von: u.name || u.upn || '',
+  });
+  closeModal();
+  await lkSpeichern(`Vorlage „${titel}" gesichert ✓`,
+    `Landkarte von ${lkWerkLabel(_lkWerk)} als Vorlage „${titel}" gesichert`);
+}
+
+/**
+ * Eine Vorlage aus der Auswahl nehmen.
+ *
+ * Eine eigene wird gelöscht, eine eingebaute nur ausgeblendet – die steht im
+ * Code, verschwände also nur aus der Liste, und zurückholen können soll man
+ * sie trotzdem.
+ */
+async function lkVorlageEntfernen(key) {
+  if (!lkDarfSchreiben()) return;
+  const v = lkVorlageVonKey(key);
+  if (!v) return;
+  if (!await uiConfirm(v.eigen
+    ? `Die eigene Vorlage „${esc(v.titel)}" löschen?<br><span class="field-hint">Landkarten, die damit
+       angelegt wurden, bleiben unberührt, eine Vorlage ist eine Kopiervorlage, keine Verbindung.</span>`
+    : `„${esc(v.titel)}" aus der Auswahl nehmen?<br><span class="field-hint">Die eingebaute Vorlage wird
+       nur ausgeblendet und lässt sich jederzeit zurückholen.</span>`,
+    { title: v.eigen ? 'Vorlage löschen' : 'Vorlage ausblenden', okLabel: v.eigen ? 'Löschen' : 'Ausblenden' })) return;
+
+  if (v.eigen) {
+    _lkDaten.vorlagen = lkEigeneVorlagen().filter(x => x.key !== key);
+  } else {
+    if (!Array.isArray(_lkDaten.vorlagenAus)) _lkDaten.vorlagenAus = [];
+    if (!_lkDaten.vorlagenAus.includes(key)) _lkDaten.vorlagenAus.push(key);
+  }
+  closeModal();
+  await lkSpeichern(v.eigen ? `Vorlage „${v.titel}" gelöscht ✓` : `„${v.titel}" ausgeblendet ✓`,
+    v.eigen ? `Eigene Vorlage „${v.titel}" gelöscht` : `Vorlage „${v.titel}" ausgeblendet`);
+  lkVorlageDialog();
+}
+
+/** Eine ausgeblendete eingebaute Vorlage zurückholen. */
+async function lkVorlageZeigen(key) {
+  if (!lkDarfSchreiben()) return;
+  _lkDaten.vorlagenAus = [...lkVorlagenAus()].filter(x => x !== key);
+  const v = LK_VORLAGEN.find(x => x.key === key);
+  closeModal();
+  await lkSpeichern('Vorlage wieder in der Auswahl ✓', `Vorlage „${(v || {}).titel || key}" wieder eingeblendet`);
+  lkVorlageDialog();
+}
+
+function lkVorlageDialog() {
+  if (!lkDarfSchreiben()) return;
+  const aus = lkVorlagenAus();
+  const ausgeblendet = LK_VORLAGEN.filter(v => aus.has(v.key));
+  const vorhanden = lkKacheln().length;
+  // Für ein Werk mit eigener Vorlage steht diese vorgewählt – sonst sucht man
+  // sie zwischen den Konzernlandschaften. Vorlagen mit Inhalten einer
+  // Gesellschaft liegen als eigene Vorlagen in den Daten (SharePoint), nicht im
+  // Code; das Feld „werk“ ordnet sie zu.
+  const fuersWerk = lkEigeneVorlagen().find(v => v && v.werk === _lkWerk);
+  const vorgabe = fuersWerk ? fuersWerk.key
+    : ((_lkWerk === 'KONZERN' || _lkWerk === 'HOL') ? 'konzern' : 'gesellschaft');
+  openModal(`
+    <div class="modal-header"><h3>Vorlage verwenden</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 12px">Für <b>${esc(lkWerkLabel(_lkWerk))}</b> eine fertige
+        Prozesslandschaft einsetzen. Alles bleibt danach frei änderbar.</p>
+      <div class="form-group full">
+        ${lkVorlagenAlle().map(v => `<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px">
+            <label class="ack-check" style="font-weight:500;align-items:flex-start;margin:0;flex:1">
+              <input type="radio" name="lk-vorlage" value="${esc(v.key)}"${v.key === vorgabe ? ' checked' : ''}>
+              <span><b>${esc(v.titel)}</b>${v.eigen ? ' <span class="ic-tag">eigene</span>' : ''}
+                <span class="field-hint">· ${v.karte.kacheln.length} Prozesse in ${
+                v.karte.baender.length} Bereichen</span><br><span class="field-hint">${esc(v.zweck)}${
+                v.eigen && v.von ? ` · gesichert von ${esc(v.von)}` : ''}</span></span>
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="lkVorlageEntfernen(${jsArg(v.key)})"
+              title="${v.eigen ? 'Diese eigene Vorlage löschen' : 'Diese eingebaute Vorlage ausblenden'}">✕</button>
+          </div>`).join('')}
+      </div>
+      ${ausgeblendet.length ? `<div class="field-hint" style="margin-bottom:10px">Ausgeblendet:
+        ${ausgeblendet.map(v => `<button type="button" class="btn btn-ghost btn-sm"
+          onclick="lkVorlageZeigen(${jsArg(v.key)})" title="Wieder in die Auswahl aufnehmen">${esc(v.titel)} ↩</button>`).join(' ')}</div>` : ''}
+      ${vorhanden ? `<div class="form-group full" style="margin-top:6px">
+        <label>Was soll mit den vorhandenen ${vorhanden} Prozess(en) geschehen?</label>
+        <label class="ack-check" style="font-weight:500;align-items:flex-start">
+          <input type="radio" name="lk-vorlage-modus" value="ergaenzen" checked>
+          <span><b>Ergänzen</b>: nur anlegen, was fehlt. Vorhandene Prozesse bleiben mit
+            Verantwortlichen, Modellen, Regelwerken und Geltungsbereich unangetastet; ihnen werden
+            nur die fehlenden Verweise angehängt.</span></label>
+        <label class="ack-check" style="font-weight:500;align-items:flex-start">
+          <input type="radio" name="lk-vorlage-modus" value="ersetzen">
+          <span><b>Ersetzen</b>: Die Landkarte von ${esc(lkWerkLabel(_lkWerk))} wird verworfen und
+            durch die Vorlage ersetzt. Alles daran Gepflegte geht verloren.</span></label>
+        <span class="field-hint">Beide Schritte stehen anschließend im Verlauf.</span>
+      </div>` : ''}
+    </div>
+    <div class="modal-footer">
+      ${vorhanden ? `<button class="btn btn-outline btn-sm" onclick="lkVorlageSpeichernDialog()"
+        title="Die Landschaft dieses Werks als eigene Vorlage sichern"
+        style="margin-right:auto">💾 Diese Landkarte als Vorlage sichern</button>` : ''}
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkVorlageAnwenden()">Einsetzen</button>
+    </div>`);
+}
+
+async function lkVorlageAnwenden() {
+  if (!lkDarfSchreiben()) return;
+  const wahl = document.querySelector('input[name="lk-vorlage"]:checked');
+  const vorlage = lkVorlageVonKey(wahl && wahl.value);
+  if (!vorlage) return;
+  const ziel = lkKarte(_lkWerk);
+  const modus = (document.querySelector('input[name="lk-vorlage-modus"]:checked') || {}).value;
+  const kopie = JSON.parse(JSON.stringify(vorlage.karte));
+  if (modus === 'ergaenzen' && Array.isArray(ziel.kacheln) && ziel.kacheln.length) {
+    return _lkVorlageErgaenzen(vorlage, kopie, ziel);
+  }
+  ziel.baender = kopie.baender;
+  // Der Geltungsbereich richtet sich nach der Ebene: Konzernprozesse gelten
+  // konzernweit, die einer Gesellschaft zunächst dort.
+  ziel.kacheln = kopie.kacheln.map(k => Object.assign(k, {
+    geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk], prozesse: [], regelwerke: [],
+    // Eine Vorlage kennt ihr Werk nicht – ihre Verweisziele stehen deshalb ohne.
+    // Erst hier ist bekannt, wohin sie eingesetzt wird. Ohne das Werk läse später
+    // jede andere Landkarte diese Ziele als ihre eigenen (lkZielTeile fällt auf
+    // die offene Karte zurück), und die Gegenrichtung fände sie gar nicht.
+    verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk),
+  }));
+  closeModal();
+  await lkSpeichern(`Vorlage „${vorlage.titel}" eingesetzt ✓`,
+    `Vorlage „${vorlage.titel}" für ${lkWerkLabel(_lkWerk)} eingesetzt (${ziel.kacheln.length} Prozesse)`);
+}
+
+/**
+ * Eine Vorlage ergänzen statt ersetzen.
+ *
+ * Was schon da ist, bleibt genau so, wie es ist – mit Verantwortlichen,
+ * Modellen, Regelwerken und Geltungsbereich. Angelegt wird nur, was fehlt;
+ * einer vorhandenen Kachel werden nur die Verweise angehängt, die sie noch
+ * nicht hat. Ohne diesen Weg müsste man eine gepflegte Landkarte wegwerfen,
+ * bloß um die Unterprozesse einer Vorlage zu bekommen.
+ */
+async function _lkVorlageErgaenzen(vorlage, kopie, ziel) {
+  if (!Array.isArray(ziel.baender)) ziel.baender = [];
+  let neueBaender = 0;
+  (kopie.baender || []).forEach(b => {
+    if (!ziel.baender.some(x => x.key === b.key)) { ziel.baender.push(b); neueBaender++; }
+  });
+
+  const vorhanden = new Map(ziel.kacheln.map(k => [String(k.id), k]));
+  let neu = 0, verweiseNeu = 0;
+  (kopie.kacheln || []).forEach(k => {
+    const da = vorhanden.get(String(k.id));
+    if (!da) {
+      // Neu: Geltungsbereich wie bei einer frisch angelegten Kachel setzen.
+      ziel.kacheln.push(Object.assign(k, {
+        geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk],
+        prozesse: [], regelwerke: [],
+        verweise: (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk),
+      }));
+      vorhanden.set(String(k.id), k);
+      neu++;
+      return;
+    }
+    // Vorhanden: nichts überschreiben, nur fehlende Verweise anhängen.
+    if (!Array.isArray(da.verweise)) da.verweise = [];
+    (Array.isArray(k.verweise) ? k.verweise : []).map(_lkZielMitWerk).forEach(v => {
+      if (!da.verweise.some(x => x.ziel === v.ziel && x.art === v.art)) {
+        da.verweise.push(v); verweiseNeu++;
+      }
+    });
+  });
+
+  closeModal();
+  const teile = [];
+  if (neu) teile.push(`${neu} Prozess(e)`);
+  if (verweiseNeu) teile.push(`${verweiseNeu} Verweis(e)`);
+  if (neueBaender) teile.push(`${neueBaender} Bereich(e)`);
+  if (!teile.length) { toast('Nichts zu ergänzen, die Vorlage steckt schon vollständig in der Karte.'); return; }
+  await lkSpeichern(`Vorlage „${vorlage.titel}" ergänzt ✓`,
+    `Vorlage „${vorlage.titel}" für ${lkWerkLabel(_lkWerk)} ergänzt (${teile.join(', ')})`);
+}
+
+/** Ein Verweisziel aus einer Vorlage bekommt das Werk, in das sie eingesetzt wird. */
+function _lkZielMitWerk(v) {
+  return { art: v.art, ziel: String(v.ziel).includes(':') ? v.ziel : lkZielSchluessel(_lkWerk, v.ziel) };
+}
+
+function lkUebernehmenDialog() {
+  const quellen = lkWerkeMitKarte().filter(w => w !== _lkWerk);
+  if (!quellen.length) return;
+  openModal(`
+    <div class="modal-header"><h3>Landkarte übernehmen</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Die Struktur wird nach
+        <b>${esc(lkWerkLabel(_lkWerk))}</b> kopiert: Bereiche und Prozesse.
+        Der Geltungsbereich wird auf ${esc(lkWerkLabel(_lkWerk))} gesetzt; alles Weitere lässt sich
+        danach anpassen. Die Quelle bleibt unverändert.</p>
+      <div class="form-group full">
+        <select id="lk-quelle">${quellen.map(w =>
+          `<option value="${esc(w)}">${esc(lkWerkLabel(w))} · ${lkKarte(w).kacheln.length} Prozesse</option>`).join('')}</select>
+      </div>
+      <label class="ack-check" style="font-weight:500">
+        <input type="checkbox" id="lk-uebernahme-modelle">
+        <span>Auch die Verknüpfungen zu den BPMN-Modellen mitnehmen</span>
+      </label>
+      <span class="field-hint">Ohne Haken bekommt ${esc(lkWerkLabel(_lkWerk))} eine leere Struktur und
+        modelliert seine Abläufe selbst. Die Modelle des anderen Werks bleiben dort, wo sie hingehören.</span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkUebernehmen()">Übernehmen</button>
+    </div>`);
+}
+
+async function lkUebernehmen() {
+  const wahl = document.getElementById('lk-quelle');
+  if (!wahl || !lkDarfSchreiben()) return;
+  const quelle = lkKarte(wahl.value);
+  const ziel = lkKarte(_lkWerk);
+  ziel.baender = JSON.parse(JSON.stringify(quelle.baender || []));
+  const mitModellen = !!(document.getElementById('lk-uebernahme-modelle') || {}).checked;
+  ziel.kacheln = JSON.parse(JSON.stringify(quelle.kacheln || []))
+    .map(k => Object.assign(k, { geltung: _lkWerk === 'KONZERN' ? ['ALLE'] : [_lkWerk] }));
+  ziel.kacheln.forEach(_lkVerweise);   // Altbestand-Felder gleich mit umstellen
+  // Die Modelle des Quellwerks liegen in dessen Ordner. Sie mitzuschleppen
+  // hieße, dass zwei Werke auf dieselbe Datei zeigen – deshalb nur auf Wunsch.
+  if (!mitModellen) ziel.kacheln.forEach(k => { k.prozesse = []; });
+  closeModal();
+  await lkSpeichern(`Landkarte von ${lkWerkLabel(wahl.value)} übernommen ✓`,
+    `Landkarte für ${lkWerkLabel(_lkWerk)} aus ${lkWerkLabel(wahl.value)} übernommen (${ziel.kacheln.length} Prozesse)`);
+}
+
+/**
+ * Suche über alle Werke. Bei zehn Landkarten ist „wo steckt die Beschaffung?"
+ * sonst eine Klickstrecke – hier ist es ein Treffer mit Werk daneben.
+ */
+function lkSuchen(q) {
+  _lkSuche = String(q || '');
+  const host = document.getElementById('lk-treffer');
+  if (host) { host.outerHTML = _lkTrefferHtml(); return; }
+  renderLandkarte();
+}
+
+function lkTreffer(q) {
+  const s = String(q || '').trim().toLowerCase();
+  if (s.length < 2) return [];
+  const nr = lkKachelVonNr(s);
+  return ((typeof lkAlleKacheln === 'function') ? lkAlleKacheln() : [])
+    .filter(x => (nr && x.kachel === nr.kachel) || [x.kachel.name, x.kachel.unter, lkNrText(x.kachel)].filter(Boolean).join(' ').toLowerCase().includes(s))
+    .slice(0, 12);
+}
+
+function _lkTrefferHtml() {
+  const q = _lkSuche.trim();
+  if (q.length < 2) return '<div id="lk-treffer"></div>';
+  const treffer = lkTreffer(q);
+  return `<div id="lk-treffer" class="lk-treffer">
+      ${treffer.length ? treffer.map(t => `<button class="lk-treffer-knopf"
+          onclick="lkSpringeZu(${jsArg(t.werk)},${jsArg(t.kachel.id)})">
+          ${lkNrText(t.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(t.kachel))}</span> ` : ''}${esc(t.kachel.name)} <span>${esc(lkWerkLabel(t.werk))}</span></button>`).join('')
+        : `<span class="field-hint">Kein Prozess mit „${esc(q)}" in irgendeiner Landkarte.</span>`}
+    </div>`;
+}
+
+/** Zum Treffer springen: richtige Karte öffnen, Kachel zeigen. */
+/** Aus einem Deep-Link: Werk setzen und die Kachel öffnen (sobald geladen). */
+async function lkDeepLink(werk, id) {
+  if (typeof lkDatenLaden === 'function') { try { await lkDatenLaden(); } catch (e) { /* Startbestand */ } }
+  if (lkWerkeSichtbar().includes(werk)) _lkWerk = werk;
+  if (typeof setProzessModus === 'function') setProzessModus('karte');
+  else renderLandkarte();
+  if (lkKachelVonId(id)) lkKachelOeffnen(id);
+  else toast('Dieser Prozess wurde nicht gefunden. Vielleicht wurde er umbenannt oder gelöscht.', 'error');
+}
+
+function lkSpringeZu(werk, id) {
+  _lkWerk = lkWerkeSichtbar().includes(werk) ? werk : _lkWerk;
+  renderLandkarte();
+  lkKachelOeffnen(id);
+}
+
+function lkSetFilter(v) { _lkFilter = v || ''; renderLandkarte(); }
+
+async function lkNeuLaden() {
+  _lkGeladen = false; _lkDaten = null;
+  if (typeof refreshProzesse === 'function') await refreshProzesse();
+  else await initLandkarte();
+}
+
+/* ── Kachel öffnen: Geltungsbereich, Modell, Regelwerke ──────────────── */
+
+function lkKachelVonId(id) { return lkKacheln().find(k => k.id === id) || null; }
+
+/**
+ * Aus einem Text eine Kennung machen: entumlautet, klein, mit Bindestrichen.
+ *
+ * Das stand an vier Stellen fast gleich – für Kacheln, Bereiche und eigene
+ * Vorlagen. Zweimal davon für dieselbe Sache, nur mit anderem Trennzeichen und
+ * anderer Länge: Je nachdem, welcher Weg eine Kachel anlegte, sah ihre Kennung
+ * anders aus.
+ */
+function lkSchluesselAus(text, vorgabe, laenge) {
+  return String(text || '').toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, laenge || 30) || vorgabe || 'eintrag';
+}
+
+/** Dieselbe Kennung, aber garantiert noch frei. */
+function lkFreierSchluessel(text, belegt, vorgabe, laenge) {
+  const basis = lkSchluesselAus(text, vorgabe, laenge);
+  if (!belegt.has(basis)) return basis;
+  for (let i = 2; i < 999; i++) if (!belegt.has(basis + '-' + i)) return basis + '-' + i;
+  return basis + '-' + Date.now();
+}
+
+/* Ein Verweisziel heißt „WERK:KACHEL". Das Werk gehört dazu, weil ein Verweis
+   über Gesellschaftsgrenzen zeigen darf – ohne das ließe sich eine
+   End-to-End-Kette quer durch den Konzern gar nicht aufschreiben. */
+function lkZielSchluessel(werk, id) { return String(werk) + ':' + String(id); }
+
+function lkZielTeile(ziel, standardWerk) {
+  const s = String(ziel || '');
+  const i = s.indexOf(':');
+  // Ohne Werk im Ziel gilt die Karte, in der der Eintrag steht – und nur wenn
+  // die nicht bekannt ist, die gerade offene. So bleiben ältere Einträge
+  // lesbar, ohne dass ein Werkwechsel ihre Bedeutung ändert.
+  return i < 0 ? { werk: standardWerk || _lkWerk, id: s }
+               : { werk: s.slice(0, i), id: s.slice(i + 1) };
+}
+
+/** Kachel zu einem Verweisziel – über ALLE Werke, nicht nur das offene. */
+function lkKachelVonZiel(ziel, standardWerk) {
+  const { werk, id } = lkZielTeile(ziel, standardWerk);
+  return lkAlleKacheln().find(x => x.werk === werk && x.kachel.id === id) || null;
+}
+
+/**
+ * Verweise einer Kachel, aufgelöst und um tote Ziele bereinigt.
+ * Eine gelöschte Kachel soll keinen Verweis ins Nichts hinterlassen.
+ */
+function lkVerweiseVon(k, werk) {
+  return (Array.isArray(k && k.verweise) ? k.verweise : [])
+    .map(v => {
+      // `werk` ist die Karte, in der DIESE Kachel steht. Fehlt sie, entschied
+      // bisher die gerade offene – dieselbe Kachel bedeutete dann je nach
+      // Ansicht etwas anderes. In der Gegenrichtung war das längst behoben.
+      const treffer = lkKachelVonZiel(v.ziel, werk);
+      return treffer ? { art: v.art || 'nutzt', ziel: v.ziel, werk: treffer.werk, kachel: treffer.kachel } : null;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Die Gegenrichtung: Wer zeigt auf diese Kachel?
+ *
+ * Gespeichert wird ein Verweis nur einmal, bei der Quelle. Die Rückrichtung
+ * wird deshalb gesucht statt gepflegt – sonst müssten beide Seiten gleichzeitig
+ * geändert werden, und genau da laufen solche Beziehungen auseinander.
+ */
+function lkVerweiseAuf(werk, id) {
+  const gesuchtWerk = String(werk), gesuchtId = String(id);
+  const out = [];
+  lkAlleKacheln().forEach(({ werk: w, kachel }) => {
+    (Array.isArray(kachel.verweise) ? kachel.verweise : []).forEach(v => {
+      // Nicht die Zeichenketten vergleichen, sondern die Ziele: Ein Eintrag ohne
+      // Werk („angebot" statt „HOL:angebot") gehört zur Karte, in der er steht.
+      // Verglich man stumpf, fände die Gegenrichtung ihn nie – und ein geteilter
+      // Unterprozess wüsste nicht, dass jemand auf ihn zeigt.
+      const s = String(v.ziel || '');
+      const i = s.indexOf(':');
+      const zWerk = i < 0 ? w : s.slice(0, i);
+      const zId = i < 0 ? s : s.slice(i + 1);
+      if (zWerk === gesuchtWerk && zId === gesuchtId) out.push({ art: v.art || 'nutzt', werk: w, kachel });
+    });
+  });
+  return out;
+}
+
+/** Ein Verweis setzen oder lösen (dieselbe Art zweimal gibt es nicht). */
+function lkVerweisSetzen(kachelId, ziel, art) {
+  const k = lkKachelVonId(kachelId);
+  if (!k || !lkDarfSchreiben()) return false;
+  // Ein Prozess darf nicht unter sich selbst hängen. Direkt ist das offensichtlich,
+  // über zwei Ecken nicht – und danach lässt sich die Gliederung nicht mehr
+  // aufklappen, ohne im Kreis zu laufen. Lieber hier ablehnen als dort einfrieren.
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  if (art === 'unterprozess' && (ziel === selbst || lkIstNachfahre(ziel, selbst))) {
+    if (typeof toast === 'function') {
+      toast(ziel === selbst
+        ? 'Ein Prozess kann nicht sein eigener Unterprozess sein.'
+        : 'Das ergäbe einen Kreis: Dieser Prozess hängt bereits unterhalb des gewählten.', 'error');
+    }
+    return false;
+  }
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  const schon = k.verweise.findIndex(v => v.ziel === ziel);
+  if (schon >= 0) k.verweise.splice(schon, 1);
+  if (art) k.verweise.push({ ziel, art });
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════
+   Geteilte Unterprozesse und das Ausklappen
+   ═══════════════════════════════════════════════════
+   „Bedarfsanforderung" gehört zu Source-to-Pay und zu Plan-to-Fulfill. Sie
+   deshalb zweimal zu pflegen, wäre der Anfang vom Auseinanderlaufen: Die eine
+   Fassung wird geändert, die andere vergessen, und ab da gibt es zwei
+   Wahrheiten.
+
+   Deshalb gibt es sie genau einmal. Mehrere Hauptprozesse zeigen mit
+   „Unterprozess" auf dieselbe Kachel – die Beziehung liegt bei den Eltern, der
+   Prozess selbst weiß nichts davon und muss nichts wissen. Eine Änderung an
+   ihm wirkt überall, ohne dass jemand nachpflegt.
+
+   Was fehlte, war nicht das Modell, sondern die Sicht darauf: An der Kachel
+   stand nirgends, dass sie geteilt ist, und die Gliederung ließ sich nicht
+   aufklappen. Beides steht jetzt in der Karte selbst. */
+
+/** Aufgeklappte Prozesse – Schlüssel „WERK:KACHEL". */
+let _lkArchivOffen = new Set();   // aufgeklappte Archiv-Bänder (abgelöste Karten)
+function lkArchivUmschalten(key) {
+  if (_lkArchivOffen.has(key)) _lkArchivOffen.delete(key); else _lkArchivOffen.add(key);
+  renderLandkarte();
+}
+
+let _lkAufgeklappt = new Set();
+
+/* Eine Werkslandschaft hat schnell ein gutes Dutzend Hauptprozesse und darunter
+   Dutzende Gruppen und Teilprozesse. Alle nebeneinander ins Band zu legen wäre unbrauchbar: Die Karte
+   zeigt deshalb die Hauptprozesse, alles Weitere erscheint beim Aufklappen.
+   Versteckt ist nichts – der Schalter holt die Teilprozesse einzeln zurück, und
+   die Suche findet sie ohnehin. */
+let _lkNurHaupt = true;
+
+/**
+ * Hängt dieser Prozess als Unterprozess an einem anderen DESSELBEN Werks?
+ *
+ * Bewusst nur im eigenen Werk: Ein Prozess, den eine andere Gesellschaft als
+ * Unterprozess führt, verschwände sonst aus seiner eigenen Karte – und dort
+ * gäbe es keinen Hauptprozess, unter dem man ihn wiederfände.
+ */
+function lkIstTeilprozess(werk, k) {
+  return lkHauptprozesseVon(werk, k.id).some(v => v.werk === werk);
+}
+
+function lkTeilprozesseZeigen(an) { _lkNurHaupt = !an; renderLandkarte(); }
+
+/** Die Unterprozesse einer Kachel, aufgelöst. */
+function lkUnterprozesse(k) {
+  return lkVerweiseVon(k).filter(v => v.art === 'unterprozess');
+}
+
+/**
+ * Die Hauptprozesse, zu denen dieser Prozess gehört.
+ *
+ * Gesucht statt gepflegt: Gespeichert ist die Beziehung nur beim Hauptprozess.
+ * Genau das macht die Wiederverwendung billig – ein weiterer Hauptprozess
+ * trägt sie bei sich ein, am Unterprozess ändert sich nichts.
+ */
+function lkHauptprozesseVon(werk, id) {
+  return lkVerweiseAuf(werk, id).filter(v => v.art === 'unterprozess');
+}
+
+/** Wird dieser Prozess von mehr als einem Hauptprozess verwendet? */
+function lkMehrfachVerwendet(werk, id) { return lkHauptprozesseVon(werk, id).length > 1; }
+
+/**
+ * Liegt `ziel` unterhalb von `start` in der Gliederung?
+ *
+ * Braucht die Kreisprüfung: Wer „Vertrieb" zum Unterprozess von „Angebot"
+ * macht, obwohl Angebot schon unter Vertrieb hängt, hängt jedes Ausklappen auf.
+ * Die Rekursion trägt ihre eigene Besuchsliste – ein bereits vorhandener Kreis
+ * darf die Prüfung nicht selbst ins Endlose schicken.
+ */
+function lkIstNachfahre(startZiel, zielSchluessel, gesehen) {
+  const besucht = gesehen || new Set();
+  if (besucht.has(startZiel)) return false;
+  besucht.add(startZiel);
+  const treffer = lkKachelVonZiel(startZiel);
+  if (!treffer) return false;
+  return lkUnterprozesse(treffer.kachel).some(v => {
+    const kk = lkZielSchluessel(v.werk, v.kachel.id);
+    return kk === zielSchluessel || lkIstNachfahre(kk, zielSchluessel, besucht);
+  });
+}
+
+/** Auf- und zuklappen. Der Klick darf die Kachel nicht mit öffnen. */
+function lkAufklappen(werk, id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const key = lkZielSchluessel(werk, id);
+  if (_lkAufgeklappt.has(key)) _lkAufgeklappt.delete(key); else _lkAufgeklappt.add(key);
+  renderLandkarte();
+}
+
+/** Alles auf oder alles zu – bei fünfzig Prozessen spart das viel Klicken. */
+function lkAlleAufklappen(auf) {
+  _lkAufgeklappt = new Set();
+  if (auf) lkKacheln().forEach(k => {
+    if (lkUnterprozesse(k).length) _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  });
+  renderLandkarte();
+}
+
+/** Zeichen und Zahl für „ich habe Unterprozesse" bzw. „ich bin geteilt". */
+function _lkGliederungZeichen(werk, k) {
+  const unter = lkUnterprozesse(k).length;
+  const eltern = lkHauptprozesseVon(werk, k.id).length;
+  const key = lkZielSchluessel(werk, k.id);
+  const auf = _lkAufgeklappt.has(key);
+  const teile = [];
+  if (unter) {
+    teile.push(`<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
+      onclick="lkAufklappen(${jsArg(werk)},${jsArg(k.id)},event)"
+      title="${unter} Unterprozess(e) ${auf ? 'zuklappen' : 'aufklappen'}">${auf ? '▾' : '▸'} ${unter}</button>`);
+  }
+  if (eltern) {
+    const geteilt = lkMehrfachVerwendet(werk, k.id);
+    teile.push(`<span class="lk-geteilt${geteilt ? ' lk-geteilt-mehr' : ''}"
+      title="${geteilt
+        ? 'Wird von ' + eltern + ' Hauptprozessen verwendet. Einmal gepflegt, gilt er für alle'
+        : 'Teil von: ' + esc(lkHauptprozesseVon(werk, k.id)[0].kachel.name)}">⇄ ${eltern}</span>`);
+  }
+  return teile.join('');
+}
+
+/**
+ * Die Gliederung unter einer Kachel – rekursiv, solange aufgeklappt ist.
+ *
+ * `pfad` trägt den Weg von oben mit. Ohne ihn liefe die Rekursion bei einem
+ * Kreis endlos; mit ihm steht an der Stelle schlicht, dass es hier im Kreis
+ * geht. Eine Landkarte darf an einem Pflegefehler nicht einfrieren.
+ */
+function _lkUnterbaumHtml(werk, k, pfad) {
+  const key = lkZielSchluessel(werk, k.id);
+  if (!_lkAufgeklappt.has(key)) return '';
+  const kinder = lkUnterprozesse(k);
+  if (!kinder.length) return '';
+  const weg = (pfad || []).concat(key);
+
+  return `<div class="lk-unterbaum">${kinder.map(v => {
+    const kk = lkZielSchluessel(v.werk, v.kachel.id);
+    const kreis = weg.includes(kk);
+    const eigene = lkUnterprozesse(v.kachel).length;
+    const eltern = lkHauptprozesseVon(v.werk, v.kachel.id).length;
+    const auf = _lkAufgeklappt.has(kk);
+    return `<div class="lk-unterzeile">
+        <div class="lk-unterzeile-kopf">
+          ${(eigene && !kreis) ? `<button type="button" class="lk-gliederung-knopf" aria-expanded="${auf}"
+              onclick="lkAufklappen(${jsArg(v.werk)},${jsArg(v.kachel.id)},event)"
+              title="${eigene} Unterprozess(e)">${auf ? '▾' : '▸'}</button>` : '<span class="lk-gliederung-leer">↳</span>'}
+          <a href="#" onclick="lkSpringeZu(${jsArg(v.werk)},${jsArg(v.kachel.id)});return false"
+             title="${esc(lkNrText(v.kachel) ? lkNrText(v.kachel) + ' · ' : '')}${esc(v.kachel.name)}">${esc(v.kachel.name)}</a>${lkNrText(v.kachel) ? `<span class="lk-unter-nr">${esc(lkNrText(v.kachel))}</span>` : ''}
+          ${v.werk !== werk ? `<span class="ic-tag" title="andere Gesellschaft">${esc(lkWerkLabel(v.werk))}</span>` : ''}
+          ${lkMehrfachVerwendet(v.werk, v.kachel.id) ? `<span class="lk-geteilt lk-geteilt-mehr"
+              title="Wird von ${eltern} Hauptprozessen verwendet. Einmal gepflegt, gilt er für alle">⇄ ${eltern}</span>` : ''}
+          ${kreis ? '<span class="lk-kreis" title="Dieser Prozess steht weiter oben schon im Weg, hier geht es im Kreis">↻</span>' : ''}
+        </div>
+        ${kreis ? '' : _lkUnterbaumHtml(v.werk, v.kachel, weg)}
+      </div>`;
+  }).join('')}</div>`;
+}
+
+/* ═══════════════════════════════════════════════════
+   Den Untertitel gliedern
+   ═══════════════════════════════════════════════════
+   Unter dem Namen einer Kachel steht oft eine Aufzählung: „Marktanalyse ·
+   Zielmärkte · Kundenentwicklung". Als grauer Text kann man sie nicht
+   anklicken, nicht mit einem Modell verknüpfen, nicht zweimal verwenden und
+   nicht aufklappen – sie ist Beschriftung, keine Struktur.
+
+   Zerlegt wird deshalb auf Wunsch: Der Vorschlag kommt von der Maschine, die
+   Entscheidung vom Menschen. Automatisch zu zerlegen wäre falsch – „Mittel
+   verteilen, Investitionen entscheiden" sind zwei Prozesse, „Lean, Operational
+   Excellence, KVP" ist einer. Das sieht man, ein Trennzeichen nicht. */
+
+/**
+ * Vorschlag, wie ein Untertitel zu zerlegen wäre.
+ *
+ * Steht ein „·" darin, ist das ein deutliches Zeichen – dann wird nur daran
+ * getrennt. Sonst an Semikolon, Zeilenumbruch und Komma; das Komma ist der
+ * unsicherste Fall, deshalb kommt es zuletzt und der Dialog zeigt das Ergebnis.
+ */
+function lkUnterTeile(text) {
+  const s = String(text || '').trim();
+  if (!s) return [];
+  const roh = s.includes('·') ? s.split('·') : s.split(/[;\n]|,\s+/);
+  return roh.map(x => x.trim().replace(/[.;,]+$/, '').trim()).filter(Boolean);
+}
+
+/** Lohnt sich das Gliedern überhaupt? Ein einzelner Satz ist keine Aufzählung. */
+function lkUnterGliederbar(k) {
+  return lkUnterTeile(k && k.unter).length > 1;
+}
+
+/** Eine Kachel desselben Werks mit diesem Namen – Groß-/Kleinschreibung egal. */
+function lkKachelVonName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  return lkKacheln().find(k => String(k.name || '').trim().toLowerCase() === n) || null;
+}
+
+/** Freie Kennung für einen neuen Prozess, aus seinem Namen. */
+function lkFreieKachelId(name) {
+  return lkFreierSchluessel(name, new Set(lkKacheln().map(k => String(k.id))), 'prozess', 30);
+}
+
+/* ═══════════════════════════════════════════════════
+   Prozess-Nummern: eindeutig und einmalig
+   ═══════════════════════════════════════════════════
+   Die Kennung einer Kachel (`vertrieb`) ist aus dem Namen gebildet und nur
+   in ihrer Karte eindeutig; „HOL:vertrieb" und „SHB:vertrieb" sind zwei
+   Prozesse. Damit man einen Prozess in einem Regelwerk, einem Ticket, einem
+   Modell oder auf Papier benennen kann, bekommt jede Kachel beim ersten
+   Erscheinen eine Nummer aus einem Zähler, der über ALLE Karten läuft und
+   nie zurückgesetzt wird: „P-042" meint für immer diesen einen Prozess.
+   Gelöschte Nummern werden nicht neu vergeben, Umsortieren und Umbenennen
+   ändern nichts. Ein Unterprozess, der in drei Hauptprozessen hängt, hat
+   trotzdem eine Nummer – er ist ein Prozess, nicht drei. */
+function lkNrGueltig(n) { return Number.isInteger(n) && n > 0; }
+function lkNrText(k) { return (k && lkNrGueltig(k.nr)) ? 'P-' + String(k.nr).padStart(3, '0') : ''; }
+
+/** Alle Kacheln aller Karten – ohne die Trennung nach Gesellschaft; für die Vergabe zählt jede. */
+function _lkAlleKachelnRoh() {
+  const karten = (_lkDaten && _lkDaten.karten) || {};
+  const reihenfolge = LK_WERKE.filter(w => karten[w]).concat(Object.keys(karten).filter(w => !LK_WERKE.includes(w)));
+  const out = [];
+  reihenfolge.forEach(w => (Array.isArray(karten[w].kacheln) ? karten[w].kacheln : []).forEach(k => out.push({ werk: w, kachel: k })));
+  return out;
+}
+
+/**
+ * Nummern vergeben, wo sie fehlen – idempotent. Läuft nach dem Laden und vor
+ * jedem Speichern, damit auch Vorlagen, Gliederungen und übernommene Karten
+ * ihre Nummern bekommen. Trägt eine Kopie dieselbe Nummer wie ihr Original,
+ * bekommt die spätere eine neue: Eine Nummer meint genau einen Prozess.
+ * @returns {number} wie viele Nummern neu vergeben wurden
+ */
+function lkNummernVergeben() {
+  if (!_lkDaten || !_lkDaten.karten) return 0;
+  const alle = _lkAlleKachelnRoh().map(x => x.kachel);
+  let max = lkNrGueltig(_lkDaten.naechsteNr) ? _lkDaten.naechsteNr - 1 : 0;
+  alle.forEach(k => { if (lkNrGueltig(k.nr) && k.nr > max) max = k.nr; });
+  const gesehen = new Set();
+  let neu = 0;
+  alle.forEach(k => {
+    if (lkNrGueltig(k.nr) && !gesehen.has(k.nr)) { gesehen.add(k.nr); return; }
+    k.nr = ++max; gesehen.add(k.nr); neu++;
+  });
+  _lkDaten.naechsteNr = max + 1;
+  return neu;
+}
+
+/** Die Kachel zu einer Nummer („P-042", „42") – über alle sichtbaren Karten. */
+function lkKachelVonNr(text) {
+  const n = parseInt(String(text || '').replace(/^p-?/i, ''), 10);
+  if (!lkNrGueltig(n)) return null;
+  return lkAlleKacheln().find(x => x.kachel.nr === n) || null;
+}
+
+/** Gibt es diesen Namen schon – in dieser oder einer anderen Karte? */
+function lkNamensDoppel(name, ausserId) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return [];
+  return lkAlleKacheln().filter(x => String(x.kachel.name || '').trim().toLowerCase() === n && !(x.werk === _lkWerk && x.kachel.id === ausserId));
+}
+
+function lkGliedernDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const teile = lkUnterTeile(k.unter);
+  if (!teile.length) { toast('Diese Kachel hat keinen Untertitel zum Gliedern.'); return; }
+  const schon = teile.filter(t => lkKachelVonName(t));
+
+  openModal(`
+    <div class="modal-header"><h3>Untertitel gliedern: ${esc(k.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Aus jeder Zeile wird ein <b>Unterprozess</b> von
+        „${esc(k.name)}" als eigene Kachel, die sich anklicken, mit einem Modell verknüpfen und
+        aufklappen lässt. Bitte prüfen und ändern Sie den Vorschlag: Ein Trennzeichen weiß nicht,
+        ob „Mittel verteilen, Investitionen entscheiden" zwei Prozesse sind oder einer.</p>
+      <div class="form-group full"><label>Ein Prozess je Zeile</label>
+        <textarea id="lk-gliedern-text" rows="${Math.min(14, Math.max(4, teile.length + 1))}"
+          style="width:100%;font-family:inherit">${esc(teile.join('\n'))}</textarea></div>
+      ${schon.length ? `<div class="col-warning" style="display:block">${schon.length} davon
+        ${schon.length === 1 ? 'gibt es' : 'gibt es'} in dieser Landkarte schon
+        (${esc(schon.join(', '))}). ${schon.length === 1 ? 'Er wird' : 'Sie werden'}
+        <b>verwendet statt neu angelegt</b>. Ein Prozess wird einmal gepflegt und darf zu mehreren
+        Hauptprozessen gehören.</div>` : ''}
+      <label class="ack-check" style="font-weight:500">
+        <input type="checkbox" id="lk-gliedern-leeren" checked>
+        <span>Untertitel danach leeren, die Punkte stehen dann als Unterprozesse darunter</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkGliedernUebernehmen(${jsArg(k.id)})">Gliedern</button>
+    </div>`);
+}
+
+async function lkGliedernUebernehmen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const text = (document.getElementById('lk-gliedern-text') || {}).value || '';
+  const leeren = !!(document.getElementById('lk-gliedern-leeren') || {}).checked;
+  const namen = text.split('\n').map(x => x.trim()).filter(Boolean);
+  if (!namen.length) { toast('Bitte mindestens einen Prozess angeben.', 'error'); return; }
+
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  let neu = 0, verwendet = 0;
+  namen.forEach(name => {
+    if (name.toLowerCase() === String(k.name || '').toLowerCase()) return;   // nicht sich selbst
+    let ziel = lkKachelVonName(name);
+    if (ziel) verwendet++;
+    else {
+      ziel = {
+        id: lkFreieKachelId(name), band: k.band, name, unter: '',
+        // Der Geltungsbereich des Hauptprozesses gilt auch für seine Teile –
+        // alles andere wäre geraten.
+        geltung: Array.isArray(k.geltung) ? k.geltung.slice() : [],
+        prozesse: [], regelwerke: [], verweise: [],
+      };
+      lkKacheln().push(ziel);
+      neu++;
+    }
+    const schluessel = lkZielSchluessel(_lkWerk, ziel.id);
+    if (!k.verweise.some(v => v.ziel === schluessel && v.art === 'unterprozess')) {
+      k.verweise.push({ ziel: schluessel, art: 'unterprozess' });
+    }
+  });
+  if (leeren) k.unter = '';
+
+  closeModal();
+  const teile = [];
+  if (neu) teile.push(`${neu} angelegt`);
+  if (verwendet) teile.push(`${verwendet} vorhandene verwendet`);
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));   // gleich zeigen, was entstanden ist
+  await lkSpeichern(`„${k.name}" gegliedert ✓`,
+    `„${k.name}" gegliedert: ${namen.length} Unterprozess(e)${teile.length ? ' (' + teile.join(', ') + ')' : ''}`);
+  lkKachelOeffnen(k.id);
+}
+
+/** Ebene der Kachel in der Ansicht: Kette mit ihren Angaben, Kette eines Prozesses, Ablösung, offene Angaben. */
+function _lkEbeneBlock(k) {
+  const link = (werk, x) => `<a href="#" onclick="closeModal();lkSpringeZu(${jsArg(werk)},${jsArg(x.id)});return false">${esc((lkNrText(x) ? lkNrText(x) + ' ' : '') + x.name)}</a>`;
+  const teile = [];
+  if (lkIstAbgeloest(k)) {
+    const ziele = (Array.isArray(k.abgeloest.durch) ? k.abgeloest.durch : []).map(z => lkKachelVonZiel(z, _lkWerk)).filter(Boolean);
+    const am = String(k.abgeloest.am || '');
+    teile.push(`<div class="lk-ebene-block lk-ebene-block-abgeloest"><b>Abgelöst${am ? ' am ' + esc(am.split('-').reverse().join('.')) : ''}.</b>
+      ${ziele.length ? 'Gilt jetzt: ' + ziele.map(x => link(x.werk, x.kachel)).join(', ') : 'Das Ziel ist nicht mehr auf der Karte.'}</div>`);
+  }
+  if (lkIstKette(k)) {
+    const n = lkUnterprozesse(k).length;
+    // Auf der Konzernkarte gilt: Prozesseigner leer = die verantwortliche Person.
+    const eigner = String(k.prozesseigner || '').trim() || lkVerantwortlich(k);
+    const offen = '<span style="color:#b45309">offen</span>';
+    teile.push(`<div class="lk-ebene-block"><b>Kette (Ebene 1)</b> im Bereich ${esc(_lkBandTitel(k.band))}${
+      n ? `, fasst ${n} Prozess${n === 1 ? '' : 'e'} zusammen (Ebene 2, siehe Unterprozesse).` : ', noch ohne Prozesse.'}
+      <div style="margin-top:4px">Prozesseigner der Gruppe: ${eigner ? esc(lkPersonName(eigner)) : offen}</div>
+      <div>Ziel aus der Unternehmensstrategie: ${offen}</div></div>`);
+  } else if (lkIstProzess(k)) {
+    const kette = lkKetteVon(_lkWerk, k);
+    if (kette) teile.push(`<div class="lk-ebene-block">Teil der Kette ${link(_lkWerk, kette)} im Bereich ${esc(_lkBandTitel(kette.band))}.</div>`);
+  }
+  if (lkIstOffen(k, 'geltung')) {
+    teile.push('<div class="lk-ebene-block lk-ebene-block-offen">Der Geltungsbereich ist noch offen: Bitte unter „Bearbeiten“ die Gesellschaften festlegen, für die der Prozess gilt.</div>');
+  }
+  return teile.join('');
+}
+
+function lkKachelOeffnen(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const modelle = lkProzesseVon(k);
+  const eigene = lkRegelwerkeVon(k);
+  const schreiben = lkDarfSchreiben();
+  const gb = (typeof geltungsbereichLabel === 'function') ? geltungsbereichLabel(k.geltung) : '';
+  openModal(`
+    <div class="modal-header">
+      <h3>${lkNrText(k) ? `<span class="lk-nr-tag" title="Prozess-Nr., eindeutig, wird nie neu vergeben">${esc(lkNrText(k))}</span> ` : ''}${esc(k.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      ${k.unter ? `<p class="ic-desc" style="margin:0 0 12px">${esc(k.unter)}</p>` : ''}
+      <div class="ic-tags" style="margin-bottom:14px">
+        <span class="ic-tag" style="background:${lkTypFarbe(k, k.band)};color:#fff;border-color:transparent" title="Prozesstyp">${esc(lkTypLabel(k, k.band))}</span>
+        <span class="ic-tag">${esc(_lkBandTitel(k.band))}</span>
+        <span class="ic-tag cat">${esc(gb || 'Geltungsbereich nicht gepflegt')}${lkIstOffen(k, 'geltung') ? ' · offen' : ''}</span>
+      </div>
+      ${_lkEbeneBlock(k)}
+      ${!lkIstProzess(k) ? '' : `<div style="margin:0 0 14px;font-size:.86rem">
+        ${lkVerantwortlich(k)
+          ? `👤 Verantwortlich: <a href="mailto:${esc(lkVerantwortlich(k))}">${esc(lkPersonName(lkVerantwortlich(k)))}</a>${
+              k.vertretung ? ` <span class="field-hint">· Vertretung: ${esc(lkPersonName(k.vertretung))}</span>` : ''}`
+          : `<span style="color:#b45309">👤 Kein Prozessverantwortlicher gepflegt</span>`}
+      </div>`}
+      ${_lkPzBlock(k)}
+      ${lkIstProzess(k) && (typeof nfKachelZeile === 'function') ? nfKachelZeile(k, _lkWerk) : ''}
+
+      <div style="border-top:1px solid var(--c-border);padding-top:12px">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">
+          BPMN-Modelle${modelle.length > 1 ? ` <span class="field-hint">(${modelle.length})</span>` : ''}</div>
+        ${lkIstKette(k) && !modelle.length ? '<div class="field-hint" style="margin-bottom:8px">Eine Kette hat keine eigenen Modelle. Sie hängen an ihren Prozessen (Ebene 2), siehe Unterprozesse.</div>' : ''}
+        ${modelle.length ? modelle.map(m => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0">
+              <span style="flex:1;min-width:140px">🔀 <b>${esc(m.title)}</b>${
+                (m.ordner || '') === _lkWerk ? '' :
+                ` <span class="ic-tag" title="Die Datei liegt nicht im Ordner dieses Werks">${
+                  esc(m.ordner ? lkWerkLabel(m.ordner) : 'ohne Werk')}</span>`}</span>
+              <button class="btn btn-outline btn-sm" onclick="closeModal();openProcessAnsicht(${jsArg(m.itemId)})">Öffnen</button>
+              ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkModellLoesen(${jsArg(k.id)},${jsArg(m.itemId)})">Lösen</button>` : ''}
+            </div>`).join('')
+          : (lkIstKette(k) ? '' : `<div class="field-hint" style="margin-bottom:8px">Für diesen Prozess ist noch kein Modell hinterlegt.</div>`)}
+        ${schreiben && !lkIstKette(k) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+               <button class="btn ${modelle.length ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="lkProzessAnlegen(${jsArg(k.id)})">+ Modell anlegen</button>
+               <button class="btn btn-outline btn-sm" onclick="lkVerknuepfenDialog(${jsArg(k.id)})">+ Vorhandenes verknüpfen</button>
+             </div>` : ''}
+        ${modelle.length > 1 ? `<div class="field-hint" style="margin-top:6px">Ein Prozess besteht oft aus mehreren Abläufen, alle hängen an dieser Kachel.</div>` : ''}
+      </div>
+
+      ${_lkVerweiseHtml(_lkWerk, k)}
+
+      <div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Regelwerke zu diesem Prozess</div>
+        ${eigene.length ? `<div style="margin-bottom:8px">${eigene.map(r => `<div style="padding:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <a href="#" onclick="closeModal();focusPolicyCard(${jsArg(r.id)});return false"
+               style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:140px">${esc(r.title)}</a>
+            <span class="field-hint">direkt verknüpft</span>
+          </div>`).join('')}</div>` : ''}
+        ${schreiben ? `<button class="btn btn-outline btn-sm" onclick="lkRegelwerkeDialog(${jsArg(k.id)})" style="margin-bottom:10px">Regelwerke zuordnen</button>` : ''}
+        <div id="lk-regelwerke" class="field-hint">${modelle.length ? 'Aus den Modellen wird geladen …'
+          : (eigene.length ? '' : 'Noch keine Regelwerke. Direkt zuordnen oder über ein Modell verknüpfen.')}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      ${schreiben ? `<button class="btn btn-ghost" onclick="lkKachelLoeschen(${jsArg(k.id)})">Löschen</button>` : ''}
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="lkLinkKopieren(${jsArg(_lkWerk)},${jsArg(k.id)})"
+        title="Dauerhafter Link auf diesen Prozess für Mails, Regelwerke, Schulungen">🔗 Link</button>
+      <button class="btn btn-outline" onclick="lkZuVerknuepfungen(${jsArg(k.id)})"
+        title="Diesen Prozess in der Mindmap in die Mitte stellen">🕸 Verknüpfungen</button>
+      ${schreiben ? `<button class="btn btn-outline" onclick="lkKachelBearbeiten(${jsArg(k.id)})">Bearbeiten</button>` : ''}
+      <button class="btn btn-primary" onclick="closeModal()">Schließen</button>
+    </div>`);
+  if (modelle.length) _lkRegelwerkeLaden(modelle, k);
+}
+
+/** Regelwerke aus den BPMN-Dateien holen – erst beim Öffnen, nicht für die ganze Karte.
+ *  Bei mehreren Modellen wird je Regelwerk gezeigt, aus welchem es stammt. */
+async function _lkRegelwerkeLaden(modelle, kachel) {
+  const host = document.getElementById('lk-regelwerke');
+  if (!host) return;
+  const eigeneIds = new Set((Array.isArray(kachel && kachel.regelwerke) ? kachel.regelwerke : []).map(String));
+  try {
+    const treffer = new Map();   // policyId → { policy, quellen: [] }
+    for (const m of modelle) {
+      const xml = await spGetProcessXml(m.itemId);
+      const ids = (typeof _parsePolicyIds === 'function') ? _parsePolicyIds(xml) : [];
+      ids.forEach(id => {
+        const pol = policyZuId(id);
+        if (!pol) return;
+        if (!treffer.has(String(id))) treffer.set(String(id), { pol, quellen: [] });
+        treffer.get(String(id)).quellen.push(m.title);
+      });
+    }
+    const rows = [...treffer.values()].filter(t => !eigeneIds.has(String(t.pol.id)));
+    if (!rows.length) {
+      host.innerHTML = 'In den Modellen ist kein weiteres Regelwerk verknüpft.';
+      return;
+    }
+    host.className = '';
+    host.innerHTML = rows.map(t => `<div style="padding:5px 0">
+        <a href="#" onclick="closeModal();focusPolicyCard(${jsArg(t.pol.id)});return false"
+           style="color:var(--c-primary);font-weight:600;text-decoration:none">${esc(t.pol.title)}</a>
+        <span class="field-hint"> · Version ${esc(t.pol.version)}${t.pol.status ? ' · ' + esc(t.pol.status) : ''}
+          · über ${esc(t.quellen.join(', '))}</span>
+      </div>`).join('');
+  } catch (e) {
+    host.innerHTML = 'Regelwerke konnten nicht gelesen werden: ' + esc(e.message);
+  }
+}
+
+/** Regelwerke direkt an der Kachel zuordnen – für Prozesse, die (noch) kein Modell haben. */
+/**
+ * Der Abschnitt „Prozesslandschaft" im Kachel-Dialog.
+ *
+ * Jede Zeile ist ein Sprung, kein Text: Anklicken wechselt – wenn nötig samt
+ * Werk – auf die Zielkachel. Ein fremdes Werk steht sichtbar dabei, sonst
+ * merkt man nicht, dass der Sprung die Gesellschaft verlässt.
+ */
+function _lkVerweiseHtml(werk, k) {
+  const raus = lkVerweiseVon(k);
+  const rein = lkVerweiseAuf(werk, k.id);
+  const schreiben = lkDarfSchreiben();
+  if (!raus.length && !rein.length && !schreiben) return '';
+
+  const sprung = (w, ziel, name, zeichen, fremd) =>
+    `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+       <a href="#" onclick="closeModal();lkSpringeZu(${jsArg(w)},${jsArg(ziel.id)});return false"
+          style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
+          ${zeichen} ${esc(name)}</a>
+       ${fremd ? `<span class="ic-tag" title="Dieser Prozess gehört zu einer anderen Gesellschaft">${esc(lkWerkLabel(w))}</span>` : ''}
+       ${schreiben ? `<button class="btn btn-ghost btn-sm" onclick="lkVerweisLoesen(${jsArg(k.id)},${jsArg(lkZielSchluessel(w, ziel.id))})">Lösen</button>` : ''}
+     </div>`;
+
+  const gruppen = LK_VERWEIS_ARTEN.map(a => {
+    const zeilen = raus.filter(v => v.art === a.art);
+    if (!zeilen.length) return '';
+    return `<div style="margin-bottom:8px">
+      <div class="field-hint" style="font-weight:600">${esc(a.label)}</div>
+      ${zeilen.map(v => sprung(v.werk, v.kachel, v.kachel.name, a.zeichen, v.werk !== werk)).join('')}</div>`;
+  }).join('');
+
+  // Gegenrichtung: gesammelt, ohne Löschen – gepflegt wird sie bei der Quelle.
+  const zurueck = rein.length
+    ? `<div style="margin-top:4px">
+         <div class="field-hint" style="font-weight:600">Zeigt hierher</div>
+         ${rein.map(v => `<div style="padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+             <a href="#" onclick="closeModal();lkSpringeZu(${jsArg(v.werk)},${jsArg(v.kachel.id)});return false"
+                style="color:var(--c-primary);font-weight:600;text-decoration:none;flex:1;min-width:150px">
+                ${esc(lkVerweisArt(v.art).umkehr)}: ${esc(v.kachel.name)}</a>
+             ${v.werk !== werk ? `<span class="ic-tag">${esc(lkWerkLabel(v.werk))}</span>` : ''}
+           </div>`).join('')}</div>`
+    : '';
+
+  // Der Satz, um den es bei geteilten Prozessen geht: Er wird EINMAL gepflegt.
+  // Ohne ihn ändert jemand hier etwas und ahnt nicht, dass drei Hauptprozesse
+  // daran hängen.
+  const eltern = lkHauptprozesseVon(werk, k.id);
+  const geteilt = lkMehrfachVerwendet(werk, k.id)
+    ? `<div class="col-warning" style="display:block;margin-bottom:8px">⇄ <b>Wird von ${eltern.length}
+        Hauptprozessen verwendet</b> und deshalb nur einmal gepflegt: ${
+        esc(eltern.map(v => v.kachel.name).join(', '))}. Eine Änderung hier wirkt in allen.</div>`
+    : '';
+
+  return `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozesslandschaft</div>
+      ${geteilt}
+      ${gruppen || (rein.length ? '' : '<div class="field-hint" style="margin-bottom:8px">Noch keine Verweise. Unterprozesse, Nachfolger und Querbezüge lassen sich hier eintragen.</div>')}
+      ${zurueck}
+      <button class="btn btn-outline btn-sm" onclick="lkAbhaengigkeiten(${jsArg(k.id)})"
+        style="margin-top:8px" title="Alles zeigen, was mit diesem Prozess zusammenhängt, über Werke hinweg">🔎 Abhängigkeiten</button>
+      ${schreiben ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="lkUnterprozessDialog(${jsArg(k.id)})" title="Einen vorhandenen Prozess aus jeder Karte einbinden oder einen neuen anlegen">+ Unterprozess</button>
+        <button class="btn btn-outline btn-sm" onclick="lkVerweiseDialog(${jsArg(k.id)})">Verweise pflegen</button>
+        ${lkUnterGliederbar(k) ? `<button class="btn btn-outline btn-sm" onclick="lkGliedernDialog(${jsArg(k.id)})"
+          title="Die Aufzählung im Untertitel in Unterprozesse zerlegen">↳ Untertitel gliedern</button>` : ''}
+      </div>` : ''}
+    </div>`;
+}
+
+/**
+ * Von der Kachel in die Abhängigkeits-Ansicht.
+ *
+ * Der Weg dorthin führt über den Reiter „Verknüpfungen"; der Wunsch wird
+ * vorher gesetzt, weil das Zeichnen dort den Graphen erst bauen muss.
+ */
+function lkAbhaengigkeiten(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const ziel = 'prozess:' + _lkWerk + ':' + k.id;
+  closeModal();
+  // Erst vormerken, dann den Reiter wechseln – der baut den Graphen und
+  // zeichnet. Andersherum liefen zwei Ladevorgänge an.
+  if (typeof vkAbhaengigWunsch === 'function') vkAbhaengigWunsch(ziel);
+  if (typeof setProzessModus === 'function') setProzessModus('netz');
+}
+
+/** Einen Verweis lösen und die Kachel gleich wieder zeigen. */
+async function lkVerweisLoesen(kachelId, ziel) {
+  if (!lkVerweisSetzen(kachelId, ziel, '')) return;
+  await lkSpeichern('Verweis gelöst', 'verweise');
+  lkKachelOeffnen(kachelId);
+}
+
+/**
+ * Verweise pflegen: alle Kacheln aller Werke, je Zeile eine Art.
+ * Bewusst alle Werke – ein Verweis darf die Gesellschaft wechseln, und
+ * genau das ist bei einer End-to-End-Kette der Normalfall.
+ */
+function lkVerweiseDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  const schon = {};
+  (Array.isArray(k.verweise) ? k.verweise : []).forEach(v => { schon[v.ziel] = v.art; });
+
+  const zeilen = lkAlleKacheln()
+    .map(x => ({ ziel: lkZielSchluessel(x.werk, x.kachel.id), werk: x.werk, kachel: x.kachel }))
+    .filter(x => x.ziel !== selbst)
+    .sort((a, b) => (a.werk + a.kachel.name).localeCompare(b.werk + b.kachel.name, 'de'));
+
+  openModal(`
+    <div class="modal-header">
+      <h3>Verweise: ${esc(k.name)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Ein Unterprozess ist eine ganz normale Kachel: sie behält
+      Modelle, Regelwerke und ihren Verantwortlichen. „Danach folgt" ergibt die Kette für eine
+      End-to-End-Sicht, „Nutzt" den Querbezug. Verweise dürfen die Gesellschaft wechseln.</p>
+      <div style="max-height:52vh;overflow:auto">
+        ${zeilen.map(x => `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+            <span style="flex:1;min-width:150px">${lkNrText(x.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(x.kachel))}</span> ` : ''}${esc(x.kachel.name)}
+              ${x.werk !== _lkWerk ? `<span class="ic-tag">${esc(lkWerkLabel(x.werk))}</span>` : ''}</span>
+            <select class="form-control" style="width:auto;min-width:150px"
+                    onchange="lkVerweisWaehlen(${jsArg(k.id)},${jsArg(x.ziel)},this.value)">
+              <option value=""${schon[x.ziel] ? '' : ' selected'}>—</option>
+              ${LK_VERWEIS_ARTEN.map(a => `<option value="${a.art}"${schon[x.ziel] === a.art ? ' selected' : ''}>${esc(a.zeichen)} ${esc(a.label)}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="lkVerweiseFertig(${jsArg(k.id)})">Fertig</button>
+    </div>`);
+}
+
+function lkVerweisWaehlen(kachelId, ziel, art) { lkVerweisSetzen(kachelId, ziel, art); }
+
+/* ═══════════════════════════════════════════════════
+   Unterprozess einbinden – vorhanden oder neu, aber nur einmal
+   ═══════════════════════════════════════════════════
+   Die Frage beim Einbinden ist immer dieselbe: Gibt es den Prozess schon?
+   Dann wird er eingebunden – aus welcher Karte auch immer –, nicht ein zweites
+   Mal angelegt. Erst wenn es ihn nirgends gibt, entsteht eine neue Kachel:
+   im Band des Hauptprozesses, mit dessen Geltungsbereich, mit eigener Nummer. */
+
+/** Was sich einbinden lässt: alle Prozesse aller Karten – außer dem eigenen, den schon eingebundenen und denen, die einen Kreis ergäben. */
+function lkUnterprozessKandidaten(k, filter) {
+  const selbst = lkZielSchluessel(_lkWerk, k.id);
+  const schon = new Set(lkUnterprozesse(k).map(v => lkZielSchluessel(v.werk, v.kachel.id)));
+  const q = String(filter || '').trim().toLowerCase();
+  return lkAlleKacheln()
+    .map(x => ({ ziel: lkZielSchluessel(x.werk, x.kachel.id), werk: x.werk, kachel: x.kachel }))
+    .filter(x => x.ziel !== selbst && !schon.has(x.ziel) && !lkIstNachfahre(x.ziel, selbst))
+    .filter(x => !q || [x.kachel.name, x.kachel.unter, lkNrText(x.kachel)].filter(Boolean).join(' ').toLowerCase().includes(q))
+    .sort((a, b) => ((a.werk === _lkWerk ? 0 : 1) - (b.werk === _lkWerk ? 0 : 1)) || a.kachel.name.localeCompare(b.kachel.name, 'de'));
+}
+
+function _lkUnterprozessListeHtml(k, filter) {
+  const q = String(filter || '').trim();
+  const kand = lkUnterprozessKandidaten(k, q);
+  const doppel = q ? lkNamensDoppel(q, k.id) : [];
+  const neu = q.length >= 2 && !doppel.length
+    ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--c-border)">
+         <div class="field-hint" style="margin-bottom:6px">„${esc(q)}" gibt es in keiner Landkarte.</div>
+         <button class="btn btn-primary btn-sm" onclick="lkUnterprozessAnlegen(${jsArg(k.id)})">+ „${esc(q)}" als neuen Unterprozess anlegen</button>
+         <span class="field-hint">Im Band „${esc(_lkBandTitel(k.band))}", mit dem Geltungsbereich von „${esc(k.name)}", mit eigener Nummer.</span></div>`
+    : (q.length >= 2 && doppel.length ? `<div class="field-hint" style="margin-top:10px">„${esc(q)}" gibt es schon. Oben einbinden statt neu anlegen. Ein Prozess wird nur einmal angelegt.</div>` : '');
+  const zeile = (x) => {
+    const eltern = lkHauptprozesseVon(x.werk, x.kachel.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+      <span style="flex:1;min-width:150px">${lkNrText(x.kachel) ? `<span class="lk-nr-tag">${esc(lkNrText(x.kachel))}</span> ` : ''}<b>${esc(x.kachel.name)}</b>
+        ${x.werk !== _lkWerk ? `<span class="ic-tag" title="Aus einer anderen Karte: wird eingebunden, nicht kopiert">${esc(lkWerkLabel(x.werk))}</span>` : ''}
+        ${eltern.length ? `<span class="field-hint">· Teil von ${esc(eltern.map(e => e.kachel.name).join(', '))}</span>` : ''}
+        ${x.kachel.unter ? `<div class="field-hint">${esc(x.kachel.unter)}</div>` : ''}</span>
+      <button class="btn btn-outline btn-sm" onclick="lkUnterprozessEinbinden(${jsArg(k.id)},${jsArg(x.ziel)})">Einbinden</button></div>`;
+  };
+  return `<div id="lk-up-liste">
+    ${kand.length ? kand.slice(0, 40).map(zeile).join('') : `<div class="field-hint">${q ? 'Kein vorhandener Prozess passt.' : 'Keine weiteren Prozesse.'}</div>`}
+    ${kand.length > 40 ? `<div class="field-hint" style="margin-top:6px">${kand.length - 40} weitere, bitte eingrenzen.</div>` : ''}
+    ${neu}</div>`;
+}
+
+function lkUnterprozessDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  openModal(`
+    <div class="modal-header"><h3>Unterprozess zu ${lkNrText(k) ? esc(lkNrText(k)) + ' ' : ''}${esc(k.name)}</h3>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Suchen, dann <b>einbinden</b>, aus dieser oder jeder anderen Karte. Ein Unterprozess bleibt <b>ein</b> Prozess:
+        eine Nummer, eine Kachel, einmal gepflegt, auch wenn er in mehreren Hauptprozessen hängt. Nur was es nirgends gibt, wird neu angelegt.</p>
+      <input type="text" id="lk-up-suche" class="form-control" placeholder="Name oder Nummer (P-012) …" autocomplete="off"
+        oninput="document.getElementById('lk-up-liste').outerHTML=_lkUnterprozessListeHtml(lkKachelVonId(${jsArg(k.id)}),this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();lkUnterprozessAnlegen(${jsArg(k.id)})}">
+      <div style="max-height:48vh;overflow:auto;margin-top:8px">${_lkUnterprozessListeHtml(k, '')}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
+    </div>`);
+  const el = document.getElementById('lk-up-suche');
+  if (el && el.focus) el.focus();
+}
+
+/** Einen vorhandenen Prozess als Unterprozess einbinden – ein Verweis, keine Kopie. */
+async function lkUnterprozessEinbinden(id, ziel) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkVerweisSetzen(id, ziel, 'unterprozess')) return;
+  const t = lkKachelVonZiel(ziel);
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  await lkSpeichern('Unterprozess eingebunden ✓', `„${t ? t.kachel.name : ziel}" als Unterprozess von „${k.name}" eingebunden`);
+  lkKachelOeffnen(id);
+}
+
+/** Einen neuen Unterprozess anlegen – nur, wenn es den Namen noch nirgends gibt; sonst wird eingebunden. */
+async function lkUnterprozessAnlegen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const name = String(((document.getElementById('lk-up-suche') || {}).value || '')).trim();
+  if (name.length < 2) { toast('Bitte einen Namen eingeben.', 'error'); return; }
+  const doppel = lkNamensDoppel(name, k.id);
+  if (doppel.length) {
+    const d = doppel.find(x => x.werk === _lkWerk) || doppel[0];
+    const ziel = lkZielSchluessel(d.werk, d.kachel.id);
+    if (ziel === lkZielSchluessel(_lkWerk, k.id)) { toast('Ein Prozess kann nicht sein eigener Unterprozess sein.', 'error'); return; }
+    toast(`„${name}" gibt es schon (${lkNrText(d.kachel) || d.werk}), eingebunden statt doppelt angelegt.`);
+    await lkUnterprozessEinbinden(id, ziel);
+    return;
+  }
+  const neu = { id: lkFreieKachelId(name), band: k.band, name, unter: '', geltung: Array.isArray(k.geltung) ? k.geltung.slice() : ['ALLE'],
+    prozesse: [], regelwerke: [], verweise: [] };
+  lkKacheln().push(neu);
+  lkNummernVergeben();
+  if (!Array.isArray(k.verweise)) k.verweise = [];
+  k.verweise.push({ ziel: lkZielSchluessel(_lkWerk, neu.id), art: 'unterprozess' });
+  _lkAufgeklappt.add(lkZielSchluessel(_lkWerk, k.id));
+  await lkSpeichern(`„${name}" angelegt (${lkNrText(neu)}) ✓`, `Unterprozess „${name}" (${lkNrText(neu)}) zu „${k.name}" angelegt`);
+  lkKachelOeffnen(id);
+}
+
+async function lkVerweiseFertig(kachelId) {
+  await lkSpeichern('Verweise gespeichert', 'verweise');
+  lkKachelOeffnen(kachelId);
+}
+
+function lkRegelwerkeDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const schon = (Array.isArray(k.regelwerke) ? k.regelwerke : []).map(String);
+  const policies = ((typeof State !== 'undefined' && State.policies) || [])
+    .filter(p => p.typ !== 'Konzept')
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  openModal(`
+    <div class="modal-header"><h3>Regelwerke zuordnen</h3>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Welche Regelwerke regeln <b>${esc(k.name)}</b>?
+        Diese Zuordnung hängt an der Kachel, unabhängig davon, ob es ein Modell gibt. Was über ein
+        BPMN-Modell verknüpft ist, steht weiterhin dort und muss hier nicht wiederholt werden.</p>
+      <div style="max-height:340px;overflow:auto;border:1px solid var(--c-border);border-radius:9px;padding:10px">
+        ${policies.length ? policies.map(p => `<label class="ack-check" style="font-weight:500">
+          <input type="checkbox" value="${esc(p.id)}" ${schon.includes(String(p.id)) ? 'checked' : ''}>
+          <span>${esc(p.title)} <span class="field-hint">· ${esc(p.status || '')}</span></span></label>`).join('')
+          : '<div class="field-hint">Es gibt noch keine Regelwerke.</div>'}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
+      <button class="btn btn-primary" onclick="lkRegelwerkeSpeichern(${jsArg(k.id)})">Speichern</button>
+    </div>`);
+}
+
+async function lkRegelwerkeSpeichern(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const host = document.querySelector('.modal-body');
+  const ids = host ? [...host.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value) : [];
+  const vorher = (Array.isArray(k.regelwerke) ? k.regelwerke : []).length;
+  k.regelwerke = ids;
+  closeModal();
+  await lkSpeichern(ids.length ? `${ids.length} Regelwerk(e) zugeordnet ✓` : 'Zuordnung entfernt ✓',
+    `Regelwerke von „${k.name}" geändert (${vorher} → ${ids.length})`);
+}
+
+/* ── Modell anlegen / verknüpfen ─────────────────────────────────────── */
+
+/** Aus einer Kachel ein BPMN-Grundgerüst erzeugen und verknüpfen. */
+/** Verweise einer Kachel als Feld sicherstellen (und Altbestand mitnehmen). */
+function _lkVerweise(k) {
+  if (!Array.isArray(k.prozesse)) {
+    k.prozesse = (k.prozessId || k.prozessName) ? [{ id: k.prozessId || '', name: k.prozessName || '' }] : [];
+    delete k.prozessId; delete k.prozessName;
+  }
+  return k.prozesse;
+}
+
+/** Dateiname für ein weiteres Modell: „Vertrieb", dann „Vertrieb 2" … –
+ *  gleiche Namen im selben Ordner wären dieselbe Datei, das zweite Modell
+ *  überschriebe das erste. Über Werke hinweg stört der gleiche Name dagegen
+ *  nicht: HOL/Vertrieb und SHB/Vertrieb sind zwei Dateien. */
+function _lkFreierModellName(basis, werk) {
+  const w = String(werk === undefined ? _lkWerk : (werk || ''));
+  const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
+    .filter(p => (p.ordner || '') === w);
+  const belegt = (n) => alle.some(p => (p.title || '').trim().toLowerCase() === n.trim().toLowerCase());
+  if (!belegt(basis)) return basis;
+  for (let i = 2; i < 50; i++) if (!belegt(`${basis} ${i}`)) return `${basis} ${i}`;
+  return `${basis} ${Date.now()}`;
+}
+
+async function lkProzessAnlegen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  try {
+    const name = _lkFreierModellName(k.name, _lkWerk);
+    const text = [name, k.unter].filter(Boolean).join('\n');
+    // _bpmnFromText liefert { name, xml, … } – ohne das „.xml" landete das
+    // Objekt im Rumpf der Anfrage und die Datei enthielt „[object Object]".
+    const erzeugt = (typeof _bpmnFromText === 'function') ? _bpmnFromText(text, name, []) : null;
+    const xml = (erzeugt && erzeugt.xml) || (typeof procLeeresBpmn === 'function' ? procLeeresBpmn()
+      : (typeof DEFAULT_BPMN !== 'undefined' ? DEFAULT_BPMN : ''));
+    // Das Modell gehört zum Werk dieser Landkarte – es landet in dessen Ordner.
+    const item = await spSaveProcess(name, xml, _lkWerk);
+    _lkVerweise(k).push({ id: (item && item.id) || '', name });
+    if (typeof refreshProzesse === 'function') await refreshProzesse();
+    await lkSpeichern(`Modell „${name}" angelegt ✓`, `Modell „${name}" für „${k.name}" angelegt`);
+    closeModal();
+    if (item && item.id && typeof openProcessEditor === 'function') openProcessEditor(item.id);
+  } catch (e) {
+    toast('Anlegen fehlgeschlagen: ' + e.message, 'error');
+  }
+}
+
+function lkVerknuepfenDialog(id) {
+  const k = lkKachelVonId(id);
+  if (!k) return;
+  const schon = new Set(lkModellVerweise(k).map(v => v.id).filter(Boolean));
+  const alle = ((typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [])
+    .filter(p => !schon.has(p.itemId))   // was schon hängt, nicht noch einmal anbieten
+    // Modelle des eigenen Werks zuerst – die sind in aller Regel gemeint.
+    .sort((a, b) => (Number((b.ordner || '') === _lkWerk) - Number((a.ordner || '') === _lkWerk))
+      || (a.title || '').localeCompare(b.title || '', 'de'));
+  if (!alle.length) { toast('Es gibt kein weiteres Modell zum Verknüpfen.', 'error'); return; }
+  openModal(`
+    <div class="modal-header"><h3>Modell verknüpfen</h3>
+      <button class="modal-close" onclick="lkKachelOeffnen(${jsArg(k.id)})">×</button></div>
+    <div class="modal-body">
+      <p class="field-hint" style="margin:0 0 10px">Welches vorhandene BPMN-Modell gehört zu „${esc(k.name)}"?</p>
+      <div class="form-group full">
+        <select id="lk-proc-wahl">
+          ${alle.map(p => `<option value="${esc(p.itemId)}">${esc(p.title)} · ${
+            esc(p.ordner ? lkWerkLabel(p.ordner) : 'ohne Werk')}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="lkKachelOeffnen(${jsArg(k.id)})">Zurück</button>
+      <button class="btn btn-primary" onclick="lkVerknuepfen(${jsArg(k.id)})">Verknüpfen</button>
+    </div>`);
+}
+
+async function lkVerknuepfen(id) {
+  const k = lkKachelVonId(id);
+  const wahl = document.getElementById('lk-proc-wahl');
+  if (!k || !wahl) return;
+  const alle = (typeof _processes !== 'undefined' && Array.isArray(_processes)) ? _processes : [];
+  const p = alle.find(x => x.itemId === wahl.value);
+  if (!p) return;
+  const verweise = _lkVerweise(k);
+  if (verweise.some(v => v.id === p.itemId)) { toast('Dieses Modell hängt bereits an der Kachel.', 'error'); return; }
+  verweise.push({ id: p.itemId, name: p.title });
+  closeModal();
+  await lkSpeichern(`„${k.name}" mit „${p.title}" verknüpft ✓`, `„${k.name}" mit Modell „${p.title}" verknüpft`);
+}
+
+/** Ein einzelnes Modell von der Kachel lösen (die Datei bleibt bestehen). */
+async function lkModellLoesen(id, itemId) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const verweise = _lkVerweise(k);
+  const i = verweise.findIndex(v => v.id === itemId);
+  if (i < 0) return;
+  const name = verweise[i].name || '';
+  verweise.splice(i, 1);
+  closeModal();
+  await lkSpeichern('Verknüpfung gelöst ✓',
+    `Modell${name ? ' „' + name + '"' : ''} von „${k.name}" gelöst, die Datei bleibt bestehen`);
+}
+
+/* ── Kacheln bearbeiten ──────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════
+   Bereiche (Bänder) bearbeiten
+   ═══════════════════════════════════════════════════
+   Jede Kachel liess sich anlegen, umbenennen und verschieben – die Bereiche
+   kamen aus der Vorlage und blieben, wie sie waren. Wer einen anders nennen
+   oder einen neuen aufmachen wollte, kam nicht weiter.
+
+   Der Schlüssel eines Bereichs ändert sich beim Umbenennen NIE: An ihm hängt
+   jede Kachel über `k.band`. Ein neuer Schlüssel liesse sie alle aus der Karte
+   fallen – sie stünden dann in einem Band, das es nicht mehr gibt. */
+
+/** Trägt dieser Bereich Pfeile statt Kacheln?
+ *  Die Form war bisher an den Schlüssel „kern" gebunden – Zufall, kein Entwurf:
+ *  Ein selbst angelegter Bereich konnte sie nicht bekommen. Jetzt ist sie eine
+ *  Eigenschaft, der alte Schlüssel gilt weiter als Vorgabe. */
+function lkBandPfeile(band) {
+  if (!band) return false;
+  return band.form ? band.form === 'pfeile' : band.key === 'kern';
+}
+
+/** Ein freier Schlüssel für einen neuen Bereich – aus dem Titel, nie doppelt. */
+function lkBandSchluessel(titel) {
+  return lkFreierSchluessel(titel, new Set(lkBaender().map(b => b.key)), 'bereich', 24);
+}
+
+/** Wie viele Prozesse liegen in diesem Bereich? */
+function lkBandBelegung(key) { return lkKacheln().filter(k => k.band === key).length; }
+
+/**
+ * Bereich anlegen oder ändern. Ohne Schlüssel ist es ein neuer.
+ */
+function lkBandDialog(key) {
+  if (!lkDarfSchreiben()) return;
+  const baender = lkBaender();
+  const b = key ? baender.find(x => x.key === key) : null;
+  if (key && !b) return;
+  const i = b ? baender.indexOf(b) : -1;
+  const belegt = b ? lkBandBelegung(b.key) : 0;
+  const andere = baender.filter(x => x !== b);
+
+  openModal(`
+    <div class="modal-header"><h3>${b ? 'Bereich bearbeiten' : 'Neuer Bereich'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group full"><label>Name <span class="req">*</span></label>
+        <input type="text" id="lk-band-titel" value="${esc(b ? b.titel : '')}"
+          placeholder="z. B. Überwachung" onkeydown="if(event.key==='Enter')lkBandSpeichern(${jsArg(key || '')})">
+        <span class="field-hint">Der Name lässt sich jederzeit ändern; die Zuordnung der Prozesse
+          bleibt dabei erhalten.</span></div>
+      <div class="form-group full"><label>Farbe</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="color" id="lk-band-farbe" value="${esc(b ? lkBandFarbe(b) : LK_KATEGORIE_FARBE)}" oninput="lkBandFarbeWahl(this.value)" style="width:46px;height:32px;padding:2px;border:1px solid var(--c-border);border-radius:6px;cursor:pointer">
+          <input type="hidden" id="lk-band-farbe-eigen" value="${b && lkFarbeGueltig(b.farbe) ? '1' : ''}">
+          <span style="display:inline-flex;gap:4px;flex-wrap:wrap">${LK_FARBWAHL.map(f => `<button type="button" class="lk-farbknopf" style="background:${f}" title="${f}" onclick="lkBandFarbeWahl(${jsArg(f)})"></button>`).join('')}</span>
+          ${b ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkBandFarbeStandard(${jsArg(b.key)})">Standard</button>` : ''}
+        </div>
+        <span class="field-hint" id="lk-band-farbe-hinweis">${b ? _lkBandFarbeHinweis(b) : 'Ohne eigene Wahl ergibt sich die Farbe aus dem Namen: Führung, Kern, Unterstützung oder die feste Farbe der Kategorie (Strategie, Finanzen, Risiko …).'}</span>
+        <span class="field-hint">Alle Kacheln des Bereichs tragen diese Farbe, außer Prozessen, die ihren Typ selbst gesetzt haben.</span></div>
+      <div class="form-group full"><label>Darstellung</label>
+        <select id="lk-band-form">
+          <option value="kacheln"${b && lkBandPfeile(b) ? '' : ' selected'}>Kacheln nebeneinander</option>
+          <option value="pfeile"${b && lkBandPfeile(b) ? ' selected' : ''}>Pfeile untereinander (Kernprozesse)</option>
+        </select>
+        <span class="field-hint">Pfeile zeigen einen Ablauf, dafür sind die Kernprozesse gedacht.</span></div>
+      ${b ? `<div class="form-group full"><label>Reihenfolge</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-outline btn-sm" ${i <= 0 ? 'disabled' : ''}
+            onclick="lkBandVerschieben(${jsArg(b.key)},-1)">↑ nach oben</button>
+          <button class="btn btn-outline btn-sm" ${i >= baender.length - 1 ? 'disabled' : ''}
+            onclick="lkBandVerschieben(${jsArg(b.key)},1)">↓ nach unten</button>
+          <span class="field-hint">Platz ${i + 1} von ${baender.length}</span>
+        </div></div>` : ''}
+      ${b ? `<div style="border-top:1px solid var(--c-border);margin-top:14px;padding-top:12px">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Bereich entfernen</div>
+        ${andere.length === 0
+          ? '<div class="field-hint">Der letzte Bereich lässt sich nicht entfernen, die Karte hätte dann keinen Platz mehr für einen Prozess.</div>'
+          : belegt
+            ? `<div class="field-hint" style="margin-bottom:6px">Hier liegen <b>${belegt} Prozess(e)</b>.
+                 Sie werden nicht gelöscht, sondern verschoben. Wohin, entscheiden Sie:</div>
+               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                 <select id="lk-band-ziel" class="form-control" style="width:auto;min-width:180px">
+                   ${andere.map(x => `<option value="${esc(x.key)}">${esc(x.titel)}</option>`).join('')}
+                 </select>
+                 <button class="btn btn-outline btn-sm" style="color:#b91c1c"
+                   onclick="lkBandLoeschen(${jsArg(b.key)})">Verschieben und entfernen</button>
+               </div>`
+            : `<button class="btn btn-outline btn-sm" style="color:#b91c1c"
+                 onclick="lkBandLoeschen(${jsArg(b.key)})">Bereich entfernen</button>`}
+      </div>` : ''}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkBandSpeichern(${jsArg(key || '')})">Speichern</button>
+    </div>`);
+  const el = document.getElementById('lk-band-titel');
+  if (el && el.focus) el.focus();
+}
+
+function _lkBandFarbeHinweis(b) {
+  return lkFarbeGueltig(b.farbe)
+    ? `Eigene Farbe ${b.farbe}. Standard wäre: <i class="lk-legende-farbe" style="background:${lkBandStandardFarbe(b)}"></i> ${esc(lkBandStandardLabel(b))}.`
+    : `Standard: <i class="lk-legende-farbe" style="background:${lkBandStandardFarbe(b)}"></i> ${esc(lkBandStandardLabel(b))} (aus dem Namen). Eine eigene Wahl bleibt, auch wenn der Name sich ändert.`;
+}
+/** Eine Farbe im Dialog wählen – Feld und Merker setzen. */
+function lkBandFarbeWahl(farbe) {
+  const el = document.getElementById('lk-band-farbe'), eigen = document.getElementById('lk-band-farbe-eigen');
+  if (!lkFarbeGueltig(farbe)) return;
+  if (el) el.value = farbe;
+  if (eigen) eigen.value = '1';
+  const h = document.getElementById('lk-band-farbe-hinweis');
+  if (h) h.innerHTML = `Eigene Farbe ${esc(farbe)}.`;
+}
+/** Zurück zur Standardfarbe – die eigene Wahl wird beim Speichern verworfen. */
+function lkBandFarbeStandard(key) {
+  const b = lkBaender().find(x => x.key === key);
+  const el = document.getElementById('lk-band-farbe'), eigen = document.getElementById('lk-band-farbe-eigen');
+  const std = b ? lkBandStandardFarbe(b) : LK_KATEGORIE_FARBE;
+  if (el) el.value = std;
+  if (eigen) eigen.value = '';
+  const h = document.getElementById('lk-band-farbe-hinweis');
+  if (h && b) h.innerHTML = `Standard: <i class="lk-legende-farbe" style="background:${std}"></i> ${esc(lkBandStandardLabel(b))} (aus dem Namen).`;
+}
+
+async function lkBandSpeichern(key) {
+  if (!lkDarfSchreiben()) return;
+  const titel = ((document.getElementById('lk-band-titel') || {}).value || '').trim();
+  if (!titel) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const form = ((document.getElementById('lk-band-form') || {}).value === 'pfeile') ? 'pfeile' : 'kacheln';
+  const farbeEigen = ((document.getElementById('lk-band-farbe-eigen') || {}).value === '1');
+  const farbe = farbeEigen ? String((document.getElementById('lk-band-farbe') || {}).value || '').toUpperCase() : '';
+  const karte = lkKarte(_lkWerk);
+  if (!Array.isArray(karte.baender) || !karte.baender.length) {
+    karte.baender = JSON.parse(JSON.stringify(lkBaender()));
+  }
+  const b = key ? karte.baender.find(x => x.key === key) : null;
+  if (key && !b) return;
+
+  if (b) {
+    const alt = b.titel, altFarbe = b.farbe || '';
+    b.titel = titel;                 // der Schlüssel bleibt – daran hängen die Kacheln
+    b.form = form;
+    if (lkFarbeGueltig(farbe)) b.farbe = farbe; else delete b.farbe;
+    const teile = [];
+    if (alt !== titel) teile.push(`heißt jetzt „${titel}"`);
+    if ((b.farbe || '') !== altFarbe) teile.push(b.farbe ? `Farbe ${b.farbe}` : 'Farbe wieder Standard');
+    closeModal();
+    await lkSpeichern('Bereich gespeichert ✓', teile.length ? `Bereich „${alt}" ${teile.join(', ')}` : `Darstellung von „${titel}" geändert`);
+    return;
+  }
+  const neu = { key: lkBandSchluessel(titel), titel, form };
+  if (lkFarbeGueltig(farbe)) neu.farbe = farbe;
+  karte.baender.push(neu);
+  closeModal();
+  await lkSpeichern(`Bereich „${titel}" angelegt ✓`, `Bereich „${titel}" angelegt`);
+}
+
+async function lkBandVerschieben(key, richtung) {
+  if (!lkDarfSchreiben()) return;
+  const karte = lkKarte(_lkWerk);
+  if (!Array.isArray(karte.baender) || !karte.baender.length) {
+    karte.baender = JSON.parse(JSON.stringify(lkBaender()));
+  }
+  const i = karte.baender.findIndex(x => x.key === key);
+  const j = i + richtung;
+  if (i < 0 || j < 0 || j >= karte.baender.length) return;
+  const [b] = karte.baender.splice(i, 1);
+  karte.baender.splice(j, 0, b);
+  closeModal();
+  await lkSpeichern('Reihenfolge geändert ✓', `Bereich „${b.titel}" auf Platz ${j + 1} verschoben`);
+}
+
+/**
+ * Bereich entfernen. Prozesse darin werden VERSCHOBEN, nicht gelöscht – was mit
+ * ihnen geschieht, entscheidet nicht das Programm.
+ */
+async function lkBandLoeschen(key) {
+  if (!lkDarfSchreiben()) return;
+  const karte = lkKarte(_lkWerk);
+  const baender = Array.isArray(karte.baender) && karte.baender.length
+    ? karte.baender : (karte.baender = JSON.parse(JSON.stringify(lkBaender())));
+  const b = baender.find(x => x.key === key);
+  if (!b || baender.length < 2) return;
+  const ziel = ((document.getElementById('lk-band-ziel') || {}).value)
+    || (baender.find(x => x.key !== key) || {}).key;
+  const betroffen = (karte.kacheln || []).filter(k => k.band === key);
+  betroffen.forEach(k => { k.band = ziel; });
+  baender.splice(baender.indexOf(b), 1);
+  closeModal();
+  const zielTitel = (baender.find(x => x.key === ziel) || {}).titel || ziel;
+  await lkSpeichern(`Bereich „${b.titel}" entfernt ✓`, betroffen.length
+    ? `Bereich „${b.titel}" entfernt, ${betroffen.length} Prozess(e) nach „${zielTitel}" verschoben`
+    : `Bereich „${b.titel}" entfernt`);
+}
+
+function lkKachelNeu(band) {
+  if (!lkDarfSchreiben()) return;
+  // In einer Werk-Karte gilt ein neuer Prozess zunächst für dieses Werk;
+  // auf Konzern-Ebene konzernweit. Beides bleibt änderbar.
+  const vorgabe = (_lkWerk === 'KONZERN') ? ['ALLE'] : [_lkWerk];
+  // Aus dem Baum heraus ist das Band schon bekannt – dann nicht wieder fragen.
+  const baender = lkBaender();
+  const start = (band && baender.some(b => b.key === band)) ? band
+    : (baender.some(b => b.key === 'unterstuetzung') ? 'unterstuetzung' : (baender[0] || {}).key || 'unterstuetzung');
+  _lkEditing = { id: '', band: start, name: '', unter: '', geltung: vorgabe, prozesse: [], regelwerke: [], status: 'identifiziert', neu: true };
+  renderLkEditor();
+}
+
+function lkKachelBearbeiten(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  _lkEditing = JSON.parse(JSON.stringify(k));
+  _lkEditing.neu = false;
+  if (!Array.isArray(_lkEditing.geltung)) _lkEditing.geltung = ['ALLE'];
+  renderLkEditor();
+}
+
+function renderLkEditor() {
+  const k = _lkEditing;
+  if (!k) return;
+  // Für die Geltungsbereich-Auswahl gilt dieselbe Oberfläche wie bei Regelwerken;
+  // _gbScope('lgb') zeigt auf _lkEditing.geltungsbereich – deshalb hier spiegeln.
+  k.geltungsbereich = k.geltung;
+  lkMitgliederLaden();
+  openModal(`
+    <div class="modal-header">
+      <h3>${k.neu ? 'Prozess anlegen' : 'Prozess bearbeiten'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Name <span class="req">*</span></label>
+          <input type="text" value="${esc(k.name)}" oninput="_lkEditing.name=this.value;_lkDoppelHinweis()" placeholder="z. B. Beschaffung">
+          <span class="field-hint" id="lk-doppel-hinweis">${_lkDoppelHinweisText(k)}</span>
+          <span class="field-hint">${k.neu ? 'Die Prozess-Nr. wird beim Speichern vergeben, eindeutig und für immer.' : `Prozess-Nr. <b>${esc(lkNrText(k) || '–')}</b>, eindeutig, wird nie neu vergeben.`}</span>
+        </div>
+        <div class="form-group full">
+          <label>Untertitel</label>
+          <input type="text" value="${esc(k.unter || '')}" oninput="_lkEditing.unter=this.value" placeholder="z. B. Versand / Faktura">
+          <span class="field-hint">Kurz, er steht klein unter dem Namen.</span>
+        </div>
+        <div class="form-group">
+          <label>Band</label>
+          <select onchange="_lkEditing.band=this.value;_lkTypHinweis()">
+            ${lkBaender().map(b => `<option value="${esc(b.key)}"${b.key === k.band ? ' selected' : ''}>${esc(b.titel)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prozesstyp</label>
+          <select onchange="_lkEditing.typ=this.value;_lkTypHinweis()">
+            <option value=""${!k.typ ? ' selected' : ''}>automatisch aus dem Band</option>
+            ${LK_TYPEN.map(t => `<option value="${t.key}"${k.typ === t.key ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}
+            <option value="kategorie"${k.typ === 'kategorie' ? ' selected' : ''}>Kategorie, kein Ablauf (dunkelblau)</option>
+          </select>
+          <span class="field-hint" id="lk-typ-hinweis">${_lkTypHinweisText(k)}</span>
+          <label style="display:flex;gap:6px;align-items:flex-start;margin-top:6px;font-weight:400">
+            <input type="checkbox"${lkIstKette(k) ? ' checked' : ''} onchange="_lkEditing.art=this.checked?'kette':''">
+            <span>Kette (Ebene 1): fasst Prozesse als Unterprozesse zusammen und zählt nicht als eigener Ablauf</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Prozessverantwortlich (E-Mail)</label>
+          <input type="text" list="lk-people" value="${esc(k.verantwortlich || '')}"
+            oninput="_lkEditing.verantwortlich=this.value" placeholder="name@dihag.com">
+          <span class="field-hint">Wer den Ablauf verantwortet. Danach fragt jedes Audit.</span>
+        </div>
+        <div class="form-group">
+          <label>Vertretung (E-Mail)</label>
+          <input type="text" list="lk-people" value="${esc(k.vertretung || '')}"
+            oninput="_lkEditing.vertretung=this.value" placeholder="optional">
+        </div>
+        <datalist id="lk-people">${_lkPeopleOptions()}</datalist>
+      </div>
+      ${_lkPzEditorHtml(k)}
+      ${(typeof renderGeltungsbereichSection === 'function') ? renderGeltungsbereichSection(k.geltung, 'lgb') : ''}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="lkEditorSpeichern()">Speichern</button>
+    </div>`);
+}
+
+/** Was aus Band und Wahl folgt – in der Farbe, die die Kachel bekommt. */
+function _lkTypHinweisText(k) {
+  const farbe = lkTypFarbe(k, k.band);
+  return `<i class="lk-legende-farbe" style="background:${farbe}"></i> ${esc(lkTypLabel(k, k.band))}${!k.typ ? ' (aus dem Band)' : ''}. Führung, Kern, Unterstützung je eine Farbe; eine Kategorie trägt die feste Farbe ihres Bereichs (Strategie, Finanzen, Risiko, Personal, IT …), sonst dunkelblau.`;
+}
+function _lkTypHinweis() {
+  const el = document.getElementById('lk-typ-hinweis');
+  if (el && _lkEditing) el.innerHTML = _lkTypHinweisText(_lkEditing);
+}
+
+/** Gibt es den Namen schon? Hier: abgewiesen; anderswo: gesagt – einbinden statt kopieren. */
+function _lkDoppelHinweisText(k) {
+  const name = String(k.name || '').trim();
+  if (name.length < 2) return '';
+  const doppel = lkNamensDoppel(name, k.neu ? '' : k.id);
+  if (!doppel.length) return '';
+  const hier = doppel.filter(x => x.werk === _lkWerk), dort = doppel.filter(x => x.werk !== _lkWerk);
+  const nenn = (x) => `${lkNrText(x.kachel) || x.kachel.name} (${lkWerkLabel(x.werk)})`;
+  if (hier.length) return `<span style="color:#b91c1c">„${esc(name)}" gibt es in dieser Karte schon: ${esc(nenn(hier[0]))}. Ein Prozess wird nur einmal angelegt. Zum Einbinden „+ Unterprozess" an der Kachel.</span>`;
+  return `<span style="color:#b45309">„${esc(name)}" gibt es schon in ${esc(dort.map(nenn).join(', '))}. Meint es denselben Ablauf, lieber dort einbinden (Verweis) statt hier ein zweites Mal anlegen.</span>`;
+}
+function _lkDoppelHinweis() {
+  const el = document.getElementById('lk-doppel-hinweis');
+  if (el && _lkEditing) el.innerHTML = _lkDoppelHinweisText(_lkEditing);
+}
+
+async function lkEditorSpeichern() {
+  const k = _lkEditing;
+  if (!k) return;
+  const name = String(k.name || '').trim();
+  if (!name) { toast('Bitte einen Namen angeben.', 'error'); return; }
+  const hier = lkNamensDoppel(name, k.neu ? '' : k.id).filter(x => x.werk === _lkWerk);
+  if (hier.length) { toast(`„${name}" gibt es in dieser Landkarte schon (${lkNrText(hier[0].kachel) || hier[0].kachel.id}). Ein Prozess wird nur einmal angelegt.`, 'error'); return; }
+  const geltung = Array.isArray(k.geltungsbereich) ? k.geltungsbereich : (k.geltung || []);
+  if (!geltung.length) { toast('Bitte den Geltungsbereich festlegen: „Alle Standorte" oder einzelne Werke.', 'error'); return; }
+
+  if (k.neu) {
+    const id = lkFreieKachelId(name);
+    const neu = { id, band: k.band, name, unter: String(k.unter || '').trim(), geltung,
+      typ: String(k.typ || ''),
+      verantwortlich: String(k.verantwortlich || '').trim(), vertretung: String(k.vertretung || '').trim(),
+      prozesse: [], regelwerke: [] };
+    if (k.art === 'kette') neu.art = 'kette';
+    _lkPzUebernehmen(neu, k);
+    lkKacheln().push(neu);
+    lkNummernVergeben();
+    closeModal();
+    _lkEditing = null;
+    await lkSpeichern(`„${name}" angelegt (${lkNrText(neu)}) ✓`, `Prozess „${name}" (${lkNrText(neu)}) angelegt`);
+    return;
+  }
+  const ziel = lkKachelVonId(k.id);
+  if (!ziel) return;
+  const alt = { name: ziel.name, band: ziel.band, unter: ziel.unter || '', geltung: (ziel.geltung || []).join(','),
+    verantwortlich: ziel.verantwortlich || '', typ: lkTypLabel(ziel, ziel.band), kette: lkIstKette(ziel) };
+  ziel.name = name;
+  ziel.unter = String(k.unter || '').trim();
+  ziel.band = k.band;
+  ziel.typ = String(k.typ || '');
+  if (k.art === 'kette') ziel.art = 'kette'; else delete ziel.art;
+  ziel.geltung = geltung;
+  // Wer den Geltungsbereich ändert, hat ihn festgelegt: Er ist nicht mehr offen.
+  if (alt.geltung !== geltung.join(',') && Array.isArray(ziel.offen)) {
+    ziel.offen = ziel.offen.filter(f => f !== 'geltung');
+    if (!ziel.offen.length) delete ziel.offen;
+  }
+  ziel.verantwortlich = String(k.verantwortlich || '').trim();
+  ziel.vertretung = String(k.vertretung || '').trim();
+  const teile = _lkPzUebernehmen(ziel, k);
+  if (alt.name !== name) teile.push(`Name: „${alt.name}" → „${name}"`);
+  if (alt.band !== ziel.band) teile.push(`Band: ${_lkBandTitel(alt.band)} → ${_lkBandTitel(ziel.band)}`);
+  if (alt.typ !== lkTypLabel(ziel, ziel.band)) teile.push(`Prozesstyp: ${alt.typ} → ${lkTypLabel(ziel, ziel.band)}`);
+  if (alt.kette !== lkIstKette(ziel)) teile.push(lkIstKette(ziel) ? 'jetzt Kette (Ebene 1)' : 'keine Kette mehr');
+  if (alt.unter !== ziel.unter) teile.push('Untertitel geändert');
+  if (alt.geltung !== geltung.join(',')) teile.push(`Geltungsbereich: ${geltungsbereichLabel(geltung)}`);
+  if (alt.verantwortlich !== ziel.verantwortlich) {
+    teile.push(`Verantwortlich: ${alt.verantwortlich || '(niemand)'} → ${ziel.verantwortlich || '(niemand)'}`);
+  }
+  closeModal();
+  _lkEditing = null;
+  await lkSpeichern('Gespeichert ✓', `„${name}" geändert${teile.length ? ': ' + teile.join('; ') : ''}`);
+}
+
+async function lkKachelLoeschen(id) {
+  const k = lkKachelVonId(id);
+  if (!k || !lkDarfSchreiben()) return;
+  const p = lkProzessVon(k);
+  const ok = (typeof uiConfirm === 'function')
+    ? await uiConfirm(`„${k.name}" aus der Landkarte entfernen?${p ? '\n\nDas BPMN-Modell bleibt erhalten, nur die Kachel verschwindet.' : ''}`,
+        { title: 'Prozess entfernen', okLabel: 'Entfernen', danger: true })
+    : confirm(`„${k.name}" entfernen?`);
+  if (!ok) return;
+  const liste = lkKacheln();
+  const i = liste.findIndex(x => x.id === id);
+  if (i < 0) return;
+  liste.splice(i, 1);
+  closeModal();
+  await lkSpeichern('Entfernt ✓', `Prozess „${k.name}" aus der Landkarte entfernt`);
+}
+
+/* ── Prozessmanagement an der Kachel ─────────────────────────────────
+   Lebenszyklus, Prozesseigner, Standardisierungsgrad, Priorität und
+   Überprüfung (Konzernfachregelung Prozessmanagement). Das Modell rechnet in
+   js/prozessmodell.js; hier stehen nur Anzeige und Eingabe. Fehlt das Modell,
+   fällt alles still weg – die Landkarte bleibt benutzbar. */
+
+function _lkPzBereit() { return typeof pzStatus === 'function'; }
+
+/** Kleine Marker auf der Kachel: die Phase (sobald mehr als identifiziert) und eine fällige Überprüfung. */
+function _lkPzMarker(k) {
+  if (!_lkPzBereit()) return '';
+  const s = pzStatus(k);
+  const teile = [];
+  if (s !== 'identifiziert') {
+    const i = pzStatusInfo(s);
+    teile.push(`<span class="lk-pz" style="--pz-c:${i.farbe}" title="Phase: ${esc(i.label)}">${esc(i.kurz)}</span>`);
+  }
+  const p = pzUeberpruefung(k);
+  if (p.stufe === 'ueberfaellig' || p.stufe === 'fehlt') {
+    teile.push(`<span class="lk-pz-alarm" title="${p.stufe === 'fehlt' ? 'Freigegeben, aber ohne Überprüfungstermin' : 'Überprüfung überfällig seit ' + esc(p.datum)}">⏰</span>`);
+  }
+  return teile.join('');
+}
+
+/** Block „Prozessmanagement" in der Kachel-Ansicht. */
+function _lkPzBlock(k) {
+  if (!_lkPzBereit()) return '';
+  const st = pzStatusInfo(pzStatus(k));
+  const eig = pzEigner(_lkDaten, _lkWerk, k);
+  const std = pzStandard(_lkDaten, _lkWerk, k);
+  const si = pzStandardInfo(std.key);
+  const prio = pzPrioInfo(k.prioritaet);
+  const p = pzUeberpruefung(k);
+  const geerbt = '<span class="field-hint" title="Gepflegt an der gleichnamigen Kachel der Konzern-Landkarte"> · von der Konzern-Landkarte</span>';
+  const zeile = (titel, wert) => `<div style="display:flex;gap:10px;padding:2px 0;flex-wrap:wrap"><span style="min-width:150px;color:var(--c-muted)">${titel}</span><span style="flex:1;min-width:160px">${wert}</span></div>`;
+  const pruef = p.datum
+    ? `${esc(p.datum.split('-').reverse().join('.'))}${p.stufe === 'ueberfaellig' ? ' <b style="color:#b91c1c">überfällig</b>' : (p.stufe === 'bald' ? ' <b style="color:#b45309">bald fällig</b>' : '')}`
+    : (p.stufe === 'fehlt' ? '<span style="color:#b91c1c">fehlt, freigegebene Prozesse brauchen einen Termin</span>' : '<span class="field-hint">noch keiner</span>');
+  return `<div style="margin:0 0 14px;font-size:.84rem;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px">
+      <div style="font-weight:700;font-size:.86rem;margin-bottom:4px">Prozessmanagement</div>
+      ${zeile('Phase', `<span class="lk-pz" style="--pz-c:${st.farbe}">${esc(st.label)}</span> <span class="field-hint">${esc(st.text)}</span>`)}
+      ${zeile('Prozesseigner', eig.upn ? `<a href="mailto:${esc(eig.upn)}">${esc(lkPersonName(eig.upn))}</a>${eig.geerbt ? geerbt : ''}` : '<span style="color:#b45309">nicht benannt</span>')}
+      ${zeile('Standardisierung', si ? `${esc(si.label)}${std.geerbt ? geerbt : ''}` : '<span class="field-hint">noch nicht entschieden</span>')}
+      ${zeile('Priorität', prio ? `<span style="color:${prio.farbe};font-weight:600">${esc(prio.label)}</span>` : '<span class="field-hint">nicht priorisiert</span>')}
+      ${zeile('Nächste Überprüfung', pruef)}
+      ${typeof pzReifegrad === 'function' ? _lkPzReifeZeilen(k, zeile) : ''}
+    </div>`;
+}
+
+/** Reifegrad und Kennzahlen in der Kachel-Ansicht. */
+function _lkPzReifeZeilen(k, zeile) {
+  const rg = pzReifegradInfo(pzReifegrad(k).key);
+  const kz = pzKennzahlenVon(_lkDaten, _lkWerk, k);
+  const liste = kz.liste.length
+    ? kz.liste.map(x => `<div>${_lkKpiAmpel(x)} ${esc(pzKpiText(x))}</div>`).join('')
+      + (kz.geerbt ? '<span class="field-hint">Vorgabe der Konzern-Landkarte, im Werk noch nicht gemessen</span>' : '')
+    : `<span${['freigegeben', 'ausgerollt'].includes(pzStatus(k)) ? ' style="color:#b45309"' : ' class="field-hint"'}>noch keine</span>`;
+  return `${zeile('Reifegrad', rg ? `${esc(rg.label)} <span class="field-hint">${esc(rg.text)}</span>` : '<span class="field-hint">nicht bewertet</span>')}
+      ${zeile('Kennzahlen', liste)}`;
+}
+
+/** Eingabefelder im Kachel-Editor. */
+function _lkPzEditorHtml(k) {
+  if (!_lkPzBereit()) return '';
+  const konzern = _lkWerk === 'KONZERN';
+  const erbe = konzern ? null : pzKonzernKachel(_lkDaten, _lkWerk, k);
+  const erbEigner = erbe ? (String(erbe.prozesseigner || '').trim() || String(erbe.verantwortlich || '').trim()) : '';
+  const erbStd = erbe ? pzStandardInfo(erbe.standardisierung) : null;
+  const sel = (a, b) => (a === b ? ' selected' : '');
+  const status = pzStatus(k);
+  const modelle = (typeof lkModellVerweise === 'function') ? lkModellVerweise(k).length : 0;
+  return `<div style="border-top:1px solid var(--c-border);margin-top:6px;padding-top:10px">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">Prozessmanagement</div>
+      ${modelle ? `<div class="field-hint" style="margin:0 0 8px">An dieser Kachel ${modelle === 1 ? 'hängt ein BPMN-Modell' : 'hängen ' + modelle + ' BPMN-Modelle'}.
+        Im Backlog steht der Prozess als Modell. Was am Modell gepflegt ist, hat Vorrang. Was hier steht, gilt für ein Modell, solange dort nichts steht.</div>` : ''}
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Prozesseigner (E-Mail)</label>
+          <input type="text" id="lk-pz-eigner" list="lk-people" value="${esc(k.prozesseigner || '')}"
+            oninput="_lkEditing.prozesseigner=this.value"
+            placeholder="${esc(konzern ? 'leer = die verantwortliche Person' : (erbEigner ? 'leer = ' + lkPersonName(erbEigner) + ' (Konzern)' : 'name@dihag.com'))}">
+          <span class="field-hint">${konzern
+            ? 'Verantwortet den Prozess konzernweit. Bleibt es leer, ist es die verantwortliche Person oben.'
+            : 'Verantwortet den Prozess konzernweit. Bleibt es leer, gilt der Eigner der gleichnamigen Kachel auf der Konzern-Landkarte.'}</span>
+        </div>
+        <div class="form-group">
+          <label>Standardisierungsgrad</label>
+          <select onchange="_lkEditing.standardisierung=this.value;_lkPzHinweis()">
+            <option value=""${sel('', k.standardisierung || '')}>${erbStd ? 'wie Konzern-Landkarte: ' + esc(erbStd.label) : 'noch nicht entschieden'}</option>
+            ${PZ_STANDARD.map(s => `<option value="${s.key}"${sel(s.key, k.standardisierung)}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-std-hinweis">${esc((pzStandardInfo(k.standardisierung) || erbStd || { text: 'Entscheidet das Prozess-Board je Konzernprozess.' }).text)}</span>
+        </div>
+        <div class="form-group">
+          <label>Phase</label>
+          <select onchange="lkPzStatusWahl(this.value)">
+            ${PZ_PHASEN.map(s => `<option value="${s.key}"${sel(s.key, status)}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-status-hinweis">${esc(pzStatusInfo(status).text)}</span>
+        </div>
+        <div class="form-group">
+          <label>Priorität</label>
+          <select id="lk-pz-prio" onchange="_lkEditing.prioritaet=this.value">
+            <option value=""${sel('', k.prioritaet || '')}>nicht priorisiert</option>
+            ${PZ_PRIO.map(p => `<option value="${p.key}"${sel(p.key, k.prioritaet)}>${esc(p.label)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nächste Überprüfung</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="lk-pz-termin" value="${esc(String(k.naechsteUeberpruefung || '').slice(0, 10))}"
+              onchange="_lkEditing.naechsteUeberpruefung=this.value" style="flex:1">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="lkPzTerminVorschlagen()"
+              title="Auf heute + ${PZ_UEBERPRUEFUNG_MONATE} Monate setzen">+${PZ_UEBERPRUEFUNG_MONATE} Mon.</button>
+          </div>
+          <span class="field-hint">Freigegebene Prozesse werden spätestens alle ${PZ_UEBERPRUEFUNG_MONATE} Monate überprüft. Der Termin erscheint unter „Fälligkeiten".</span>
+        </div>
+        ${typeof PZ_REIFEGRAD !== 'undefined' ? `
+        <div class="form-group">
+          <label>Reifegrad (ISO/IEC 33020)</label>
+          <select id="lk-pz-rg" onchange="_lkEditing.reifegrad=this.value;_lkPzRgHinweis()">
+            <option value=""${sel('', String(k.reifegrad || ''))}>nicht bewertet</option>
+            ${PZ_REIFEGRAD.map(r => `<option value="${r.key}"${sel(r.key, String(k.reifegrad == null ? '' : k.reifegrad))}>${esc(r.label)}</option>`).join('')}
+          </select>
+          <span class="field-hint" id="lk-pz-rg-hinweis">${esc((pzReifegradInfo(k.reifegrad) || { text: 'Bewertet wird je Werk, beim Audit oder bei der Überprüfung.' }).text)}</span>
+        </div>
+        <div class="form-group full">
+          <label>Kennzahlen (ISO 9001, 4.4)</label>
+          <div id="lk-pz-kpi">${lkKpiEditorHtml('lk', true)}</div>
+        </div>` : ''}
+      </div>
+    </div>`;
+}
+
+function _lkPzRgHinweis() {
+  const el = document.getElementById('lk-pz-rg-hinweis');
+  const info = _lkEditing ? pzReifegradInfo(_lkEditing.reifegrad) : null;
+  if (el) el.textContent = info ? info.text : 'Bewertet wird je Werk, beim Audit oder bei der Überprüfung.';
+}
+
+function _lkPzHinweis() {
+  const k = _lkEditing;
+  if (!k || !_lkPzBereit()) return;
+  const el = document.getElementById('lk-pz-std-hinweis');
+  const erbe = (_lkWerk === 'KONZERN') ? null : pzKonzernKachel(_lkDaten, _lkWerk, k);
+  const info = pzStandardInfo(k.standardisierung) || (erbe ? pzStandardInfo(erbe.standardisierung) : null);
+  if (el) el.textContent = info ? info.text : 'Entscheidet das Prozess-Board je Konzernprozess.';
+}
+
+/** Status im Editor: Wer freigibt, bekommt gleich einen Überprüfungstermin vorgeschlagen. */
+function lkPzStatusWahl(wert) {
+  const k = _lkEditing;
+  if (!k || !_lkPzBereit()) return;
+  pzStatusSetzen(k, wert);
+  const termin = document.getElementById('lk-pz-termin');
+  if (termin) termin.value = String(k.naechsteUeberpruefung || '').slice(0, 10);
+  const el = document.getElementById('lk-pz-status-hinweis');
+  if (el) el.textContent = pzStatusInfo(pzStatus(k)).text;
+}
+
+function lkPzTerminVorschlagen() {
+  if (!_lkEditing || !_lkPzBereit()) return;
+  _lkEditing.naechsteUeberpruefung = pzTerminVorschlag();
+  const termin = document.getElementById('lk-pz-termin');
+  if (termin) termin.value = _lkEditing.naechsteUeberpruefung;
+}
+
+/**
+ * Felder aus dem Editor an die Kachel übernehmen.
+ * → Änderungen als Text für den Versionsverlauf
+ */
+function _lkPzUebernehmen(ziel, k) {
+  const teile = [];
+  if (!_lkPzBereit()) return teile;
+  const text = (v) => String(v || '').trim();
+  const alt = { status: pzStatus(ziel), eigner: text(ziel.prozesseigner), std: text(ziel.standardisierung),
+    prio: text(ziel.prioritaet), termin: text(ziel.naechsteUeberpruefung).slice(0, 10) };
+  const neu = { status: pzStatus(k), eigner: text(k.prozesseigner), std: pzStandardInfo(k.standardisierung) ? k.standardisierung : '',
+    prio: pzPrioInfo(k.prioritaet) ? k.prioritaet : '', termin: text(k.naechsteUeberpruefung).slice(0, 10) };
+  ziel.status = neu.status;
+  ziel.prozesseigner = neu.eigner;
+  ziel.standardisierung = neu.std;
+  ziel.prioritaet = neu.prio;
+  ziel.naechsteUeberpruefung = /^\d{4}-\d{2}-\d{2}$/.test(neu.termin) ? neu.termin : '';
+  const rgAlt = pzReifegrad(ziel).key, rgNeu = pzReifegrad(k).key;
+  const kzAlt = JSON.stringify(pzKpiNormal(ziel.kennzahlen)), kzNeu = pzKpiNormal(k.kennzahlen);
+  if (rgNeu) ziel.reifegrad = rgNeu; else delete ziel.reifegrad;
+  if (kzNeu.length) ziel.kennzahlen = kzNeu; else delete ziel.kennzahlen;
+  if (k.neu) return teile;
+  if (rgAlt !== rgNeu) teile.push(`Reifegrad: ${(pzReifegradInfo(rgAlt) || { label: 'nicht bewertet' }).label} → ${(pzReifegradInfo(rgNeu) || { label: 'nicht bewertet' }).label}`);
+  if (kzAlt !== JSON.stringify(kzNeu)) teile.push(`Kennzahlen: ${kzNeu.length ? kzNeu.map(pzKpiText).join('; ') : 'keine'}`);
+  if (alt.status !== neu.status) teile.push(`Phase: ${pzStatusInfo(alt.status).label} → ${pzStatusInfo(neu.status).label}`);
+  if (alt.eigner !== neu.eigner) teile.push(`Prozesseigner: ${alt.eigner || '(niemand)'} → ${neu.eigner || '(niemand)'}`);
+  if (alt.std !== neu.std) teile.push(`Standardisierung: ${(pzStandardInfo(alt.std) || { label: 'offen' }).label} → ${(pzStandardInfo(neu.std) || { label: 'offen' }).label}`);
+  if (alt.prio !== neu.prio) teile.push(`Priorität: ${alt.prio || 'keine'} → ${neu.prio || 'keine'}`);
+  if (alt.termin !== ziel.naechsteUeberpruefung) teile.push(`Überprüfung: ${ziel.naechsteUeberpruefung || 'kein Termin'}`);
+  return teile;
+}
+
+/* ── Kennzahlen bearbeiten ───────────────────────────────────────────
+   Dieselbe Tabelle im Kachel-Editor (ort 'lk', _lkEditing.kennzahlen) und im
+   Modell-Editor (ort 'proc', siehe procKpiListe in prozesse.js). Geschrieben
+   wird direkt in die Liste des Editors; bereinigt wird erst beim Speichern
+   (pzKpiNormal), damit eine neue, noch leere Zeile stehen bleibt. */
+
+function _lkKpiListe(ort) {
+  if (ort === 'proc') return (typeof procKpiListe === 'function') ? procKpiListe() : null;
+  if (!_lkEditing) return null;
+  if (!Array.isArray(_lkEditing.kennzahlen)) _lkEditing.kennzahlen = [];
+  return _lkEditing.kennzahlen;
+}
+
+/** Was gilt, solange keine eigenen Kennzahlen eingetragen sind (Konzernkachel bzw. Kachel). */
+function _lkKpiVorgabe(ort) {
+  if (ort === 'proc') return (typeof procKpiVorgabe === 'function') ? procKpiVorgabe() : [];
+  if (!_lkEditing || typeof pzKennzahlenVon !== 'function') return [];
+  const v = pzKennzahlenVon(_lkDaten, _lkWerk, Object.assign({}, _lkEditing, { kennzahlen: [] }));
+  return v.geerbt ? v.liste : [];
+}
+
+function _lkKpiAmpel(k) {
+  const b = pzKpiBewertung(k);
+  const [farbe, text] = { erfuellt: ['#15803d', 'im Ziel'], verfehlt: ['#b91c1c', 'Ziel verfehlt'], offen: ['#94a3b8', 'noch nicht gemessen'] }[b];
+  return `<i class="pz-kpi-ampel" style="background:${farbe}" title="${text}" aria-label="${text}"></i>`;
+}
+
+function lkKpiEditorHtml(ort, schreiben) {
+  if (typeof pzKpiNormal !== 'function') return '';
+  const liste = _lkKpiListe(ort) || [];
+  const vorgabe = liste.length ? [] : _lkKpiVorgabe(ort);
+  const dis = schreiben ? '' : ' disabled';
+  const o = jsArg(ort);
+  const feld = (i, f, x, ph) => `<input type="text" value="${esc(x[f] || '')}" placeholder="${ph}" aria-label="${ph}"${dis}
+      oninput="lkKpiFeld(${o},${i},${jsArg(f)},this.value)">`;
+  const zeilen = liste.map((x, i) => `
+    <div class="pz-kpi">
+      <div class="pz-kpi-reihe">
+        <span id="pz-kpi-ampel-${ort}-${i}">${_lkKpiAmpel(x)}</span>
+        <input type="text" class="pz-kpi-name" value="${esc(x.name || '')}" placeholder="Kennzahl, z. B. Liefertreue"
+          aria-label="Name der Kennzahl"${dis} oninput="lkKpiFeld(${o},${i},'name',this.value)">
+        ${schreiben ? `<button type="button" class="btn btn-ghost btn-sm" onclick="lkKpiWeg(${o},${i})" title="Kennzahl entfernen" aria-label="Kennzahl entfernen">×</button>` : ''}
+      </div>
+      <div class="pz-kpi-reihe">
+        <select aria-label="Richtung"${dis} onchange="lkKpiFeld(${o},${i},'richtung',this.value)">
+          ${PZ_RICHTUNG.map(r => `<option value="${r.key}"${r.key === (x.richtung || 'hoch') ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}
+        </select>
+        ${feld(i, 'ziel', x, 'Ziel')}
+        ${feld(i, 'einheit', x, 'Einheit')}
+        ${feld(i, 'ist', x, 'Ist')}
+        <input type="date" id="pz-kpi-stand-${ort}-${i}" value="${esc(String(x.stand || '').slice(0, 10))}"
+          title="Stand des Ist-Werts" aria-label="Stand des Ist-Werts"${dis} onchange="lkKpiFeld(${o},${i},'stand',this.value)">
+      </div>
+    </div>`).join('');
+  const vonWo = ort === 'proc' ? 'der Kachel bzw. der Konzern-Landkarte' : 'der Konzern-Landkarte';
+  const leer = vorgabe.length
+    ? `<div class="field-hint" style="margin:2px 0 6px">Vorgabe ${vonWo}, gemessen wird hier:</div>
+       ${vorgabe.map(x => `<div class="pz-kpi-vorgabe">${_lkKpiAmpel(x)} ${esc(pzKpiText(x))}</div>`).join('')}
+       ${schreiben ? `<button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="lkKpiVorgabeUebernehmen(${o})"
+         title="Die Vorgabe als eigene Kennzahlen übernehmen und Ist-Werte eintragen">Übernehmen und messen</button>` : ''}`
+    : '<div class="field-hint" style="margin:2px 0 6px">Noch keine Kennzahl. Ein freigegebener Prozess braucht mindestens eine (ISO 9001, 4.4).</div>';
+  return `${liste.length ? zeilen : leer}
+    ${schreiben ? `<button type="button" class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="lkKpiNeu(${o})">+ Kennzahl</button>` : ''}`;
+}
+
+function _lkKpiNeuZeichnen(ort) {
+  const el = document.getElementById(ort === 'proc' ? 'proc-pm-kpi' : 'lk-pz-kpi');
+  if (el) el.innerHTML = lkKpiEditorHtml(ort, true);
+  if (ort === 'proc' && typeof procPmGeaendert === 'function') procPmGeaendert();
+}
+
+function lkKpiFeld(ort, i, feld, wert) {
+  const l = _lkKpiListe(ort);
+  if (!l || !l[i]) return;
+  l[i][feld] = wert;
+  // Ein neuer Messwert ist von heute – das Datum lässt sich danach ändern.
+  if (feld === 'ist' && String(wert).trim()) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    l[i].stand = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const st = document.getElementById(`pz-kpi-stand-${ort}-${i}`);
+    if (st) st.value = l[i].stand;
+  }
+  const a = document.getElementById(`pz-kpi-ampel-${ort}-${i}`);
+  if (a) a.innerHTML = _lkKpiAmpel(l[i]);
+}
+
+function lkKpiNeu(ort) {
+  const l = _lkKpiListe(ort);
+  if (!l) return;
+  l.push({ name: '', einheit: '', richtung: 'hoch', ziel: '', ist: '', stand: '' });
+  _lkKpiNeuZeichnen(ort);
+  const namen = document.querySelectorAll(`#${ort === 'proc' ? 'proc-pm-kpi' : 'lk-pz-kpi'} .pz-kpi-name`);
+  if (namen.length && namen[namen.length - 1].focus) namen[namen.length - 1].focus();
+}
+
+function lkKpiWeg(ort, i) {
+  const l = _lkKpiListe(ort);
+  if (!l || !l[i]) return;
+  l.splice(i, 1);
+  _lkKpiNeuZeichnen(ort);
+}
+
+function lkKpiVorgabeUebernehmen(ort) {
+  const l = _lkKpiListe(ort);
+  if (!l) return;
+  _lkKpiVorgabe(ort).forEach(x => l.push(Object.assign({}, x, { ist: '', stand: '' })));
+  _lkKpiNeuZeichnen(ort);
+}
+
+/* ── Ziehen und Ablegen: Reihenfolge und Band ────────────────────────── */
+
+function lkZiehStart(ev, i) {
+  _lkZiehIndex = i;
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(i)); } catch (e) { /* egal */ } }
+  if (ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.add('lk-zieht');
+}
+function lkZiehEnde() {
+  _lkZiehIndex = -1;
+  document.querySelectorAll('.lk-zieht').forEach(el => el.classList.remove('lk-zieht'));
+}
+function lkZiehUeber(ev) { ev.preventDefault(); if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; }
+
+/**
+ * Ablegen: auf eine Kachel (zielIndex ≥ 0) verschiebt davor, auf ein leeres
+ * Band (zielIndex = -1) hängt ans Ende. Das Band der Zielkachel gewinnt –
+ * so wechselt ein Prozess das Band, indem man ihn dorthin zieht.
+ */
+async function lkZiehAblegen(ev, bandKey, zielIndex) {
+  ev.preventDefault(); ev.stopPropagation();
+  const liste = lkKacheln();
+  const von = _lkZiehIndex;
+  lkZiehEnde();
+  if (von < 0 || von >= liste.length) return;
+  const kachel = liste[von];
+  const altesBand = kachel.band;
+  let neuesBand = bandKey;
+  if (zielIndex >= 0 && liste[zielIndex]) neuesBand = liste[zielIndex].band;
+  if (zielIndex === von) return;
+
+  liste.splice(von, 1);
+  let ziel = zielIndex;
+  if (ziel < 0) ziel = liste.length;
+  else if (von < zielIndex) ziel = zielIndex - 1;
+  kachel.band = neuesBand || altesBand;
+  liste.splice(ziel, 0, kachel);
+
+  const was = (altesBand !== kachel.band)
+    ? `„${kachel.name}" nach ${_lkBandTitel(kachel.band)} verschoben`
+    : `Reihenfolge in ${_lkBandTitel(kachel.band)} geändert („${kachel.name}")`;
+  await lkSpeichern('', was);
+}
+
+/* ── Versionsverlauf ─────────────────────────────────────────────────── */
+
+function lkVerlaufZeigen() {
+  const h = (_lkDaten && Array.isArray(_lkDaten.historie)) ? _lkDaten.historie.slice().reverse() : [];
+  openModal(`
+    <div class="modal-header"><h3>Versionsverlauf der Landkarte</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${h.length ? `<div style="font-size:.87rem;line-height:1.7">${h.map(e => `
+        <div style="padding:7px 0;border-bottom:1px solid var(--c-border-2)">
+          <b>${esc(e.name || '–')}</b>
+          <span class="field-hint"> · ${typeof fmtDate === 'function' ? esc(fmtDate(e.datum)) : esc(e.datum)}</span>
+          <div>${esc(e.was || '')}</div>
+        </div>`).join('')}</div>`
+        : '<p class="field-hint">Noch keine Änderung verzeichnet.</p>'}
+      <p class="field-hint" style="margin-top:12px">Ältere Fassungen der Datei bewahrt SharePoint zusätzlich auf.</p>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal()">Schließen</button></div>`);
+}
+
+/** Von der Kachel in die Mindmap – dieser Prozess kommt in die Mitte. */
+async function lkZuVerknuepfungen(id) {
+  closeModal();
+  if (typeof setProzessModus !== 'function') return;
+  setProzessModus('netz');
+  // Der Graph wird beim Umschalten aufgebaut; danach den Fokus setzen.
+  if (typeof initVerknuepfungen === 'function') await initVerknuepfungen();
+  if (typeof vkFokus === 'function') vkFokus('prozess:' + _lkWerk + ':' + id);
+}

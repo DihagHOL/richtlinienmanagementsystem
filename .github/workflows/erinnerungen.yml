@@ -1,0 +1,54 @@
+name: Richtlinien-Erinnerungen
+
+# Zeitgesteuerte Erinnerungen/Eskalationen für offene Workflow-Schritte
+# (Konformitätsprüfung / Freigabe). Läuft unbeaufsichtigt im Tenant.
+on:
+  schedule:
+    - cron: '0 6 * * *'      # täglich 06:00 UTC (~07:00/08:00 DE). Skript entscheidet, ob heute ein Erinnerungstag ist.
+  workflow_dispatch:          # manuell startbar (Tab „Actions") – für Tests
+    inputs:
+      dry_run:
+        description: 'Nur testen (keine Mails senden)'
+        type: boolean
+        default: true
+      erste:
+        description: 'TEST-Override: erste Erinnerung nach (Tagen), leer = App-Einstellung'
+        type: string
+        default: ''
+      alle:
+        description: 'TEST-Override: danach alle (Tagen), leer = App-Einstellung'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erinnerungen
+  cancel-in-progress: false
+
+jobs:
+  erinnerungen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0 – auf den Commit festgelegt, ein verschobenes Tag kann nichts einschleusen
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
+        with:
+          node-version: '20'
+      - name: Erinnerungen senden
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          MAIL_SENDER: ${{ secrets.MAIL_SENDER }}
+          # Bei manuellem Start: dry_run-Eingabe; beim Cron: echte Mails (false).
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          # Optionale Test-Overrides (leer = App-Einstellung hat Vorrang):
+          ERINNERUNG_ERSTE: ${{ inputs.erste }}
+          ERINNERUNG_ALLE: ${{ inputs.alle }}
+        run: |
+          if [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$MAIL_SENDER" ]; then
+            echo "Secrets noch nicht hinterlegt, Lauf übersprungen."
+            exit 0
+          fi
+          node scripts/erinnerungen.mjs

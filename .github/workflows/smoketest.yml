@@ -1,0 +1,88 @@
+# Tests und Veröffentlichung.
+#
+# Tests: Smoketest (Syntax, Bundle-Integrität, Inline-Handler, Config-Konsistenz)
+# plus alle Suiten aus tests/ (Workflow-Logik, Konzepte, Filter/Suche, SharePoint-Mapping …)
+# und die Typprüfung. Läuft bei jedem Push und bei Pull Requests.
+#
+# Veröffentlichung: nur für master und nur nach grünen Tests. Ein roter Test hält
+# sie auf, die Seite bleibt dann auf dem letzten guten Stand. Der Lauf setzt
+# Build-Nummer und ?v=… je Datei (scripts/cache-version.mjs) in seiner eigenen
+# Kopie und lädt allein die Dateien der Seite hoch. Das Repository ändert er
+# nicht: Es gibt keinen Bot-Commit mehr, und tests/, scripts/ und e2e/ stehen
+# nicht mehr online.
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch: {}   # manueller Lauf über den Actions-Tab, veröffentlicht master neu
+
+# Nur lesen: Der Lauf braucht keine Schreibrechte am Repository.
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0 – auf den Commit festgelegt, ein verschobenes Tag kann nichts einschleusen
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
+        with:
+          node-version: 20
+      - name: Smoketest + Testsuiten ausführen
+        run: node scripts/test.mjs
+
+      # Typprüfung: tsc liest das gewöhnliche JavaScript und meldet, was ein
+      # Prüfer ohne Typen sehen kann – falsche Argumentzahl, Tippfehler in
+      # Namen, Syntax in JSDoc. Ausgeliefert wird nichts; --noEmit.
+      - name: TypeScript holen (nur für die Prüfung)
+        run: npm install --no-save --no-audit --no-fund typescript@5
+
+      - name: Typprüfung
+        run: node scripts/typpruefung.mjs
+
+  veroeffentlichen:
+    needs: tests
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # Nur dieser Job darf veröffentlichen, und nur das.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Zwei Pushes kurz nacheinander: nacheinander veröffentlichen, keinen Lauf abbrechen.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
+        with:
+          node-version: 20
+
+      # Die Reihenfolge zählt: erst die Build-Nummer, dann die Prüfsummen. Sonst
+      # stimmte die Prüfsumme von js/app.js nicht mit der ausgelieferten Datei überein.
+      - name: "Build-Nummer und ?v=… je Datei setzen"
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          sed -i -E "s/const APP_VERSION = '[^']*';/const APP_VERSION = 'v-${SHA}';/" js/app.js
+          sed -i -E "s/const APP_STAND = '[^']*';/const APP_STAND = '$(date -u +%F)';/" js/app.js
+          node scripts/cache-version.mjs
+
+      # Nur was die Seite braucht. Alles andere im Repository bleibt, wo es ist.
+      - name: Dateien der Seite zusammenstellen
+        run: |
+          mkdir _site
+          cp -r index.html redirect.html CNAME assets css js ki vendor _site/
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9   # v5.0.0
+        with:
+          path: _site
+
+      - name: Veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346   # v5.0.1
