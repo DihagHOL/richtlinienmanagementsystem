@@ -74,7 +74,7 @@ w("setRuntimeConfig({ admins: [], genehmiger: ['max@dihag.com'], pruefer: ['max@
 ok(w("isCurrentUserGenehmiger()") === true && w("isCurrentUserProposalManager()") === true, 'Die Person hat jede Rolle, die früher den Reiter zeigte');
 ok(w("canReadTab('freigaben')") === false && w("canReadTab('vorschlaege')") === false, '… und sieht Freigaben und Vorschläge trotzdem nicht');
 w('initRoleNav()');
-ok(sichtbar['nav-freigaben'] === 'none' && sichtbar['nav-vorschlaege'] === 'none' && sichtbar['nav-grp-richtlinien'] === 'none', 'Auch in der Leiste nicht – samt Gruppenkopf');
+ok(sichtbar['nav-freigaben'] === 'none' && sichtbar['nav-vorschlaege'] === 'none' && sichtbar['nav-grp-umsetzen'] === 'none', 'Auch in der Leiste nicht – samt Gruppenkopf');
 w("setRuntimeConfig({ admins: [], genehmiger: ['max@dihag.com'], reiterRechte: { freigaben: { lesen: ['max@dihag.com'] } } })");
 ok(w("canReadTab('freigaben')") === true, 'Mit Freigabe in der Matrix ist der Reiter da – die Rolle entscheidet, was sie dort darf');
 

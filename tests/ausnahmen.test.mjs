@@ -285,7 +285,7 @@ ok(/id="view-ausnahmen"/.test(html) && /id="ausnahmen-mount"/.test(html), 'Ansic
 ok(/id="nav-ausnahmen"/.test(html) && /data-view="ausnahmen"/.test(html), 'Und der Navigationseintrag');
 ok(/view: 'ausnahmen'/.test(acc), 'Der Reiter ist einzeln berechtigbar (GOVERNABLE_TABS)');
 ok(/show\('nav-ausnahmen'/.test(acc), 'Die Navigation blendet ihn nach Recht ein und aus');
-ok(/v\.vorschlaege \|\| v\.ausnahmen/.test(acc), 'Die Gruppenüberschrift „Regelwerk" erscheint auch, wenn nur er sichtbar ist');
+ok(/nav-grp-umsetzen',\s+v\.verwaltung \|\| v\.freigaben \|\| v\.ausnahmen/.test(acc), 'Die Gruppenüberschrift „Umsetzen" erscheint auch, wenn nur er sichtbar ist');
 ok(/if \(view === 'ausnahmen'.*initAusnahmen/.test(app), 'Der Reiterwechsel ruft die Ansicht auf');
 ok(/'prozesse', 'ausnahmen'\]\.includes\(view\)/.test(app),
   'Er zählt zu den Daten-Reitern – sonst wäre die Richtlinien-Auswahl im Editor leer');

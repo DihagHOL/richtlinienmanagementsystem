@@ -478,19 +478,19 @@ ok(/\.pl-warnung\b/.test(css) && /\.tour-tip\b/.test(css), 'Die Formatierung ist
 /* ── 12) Navigation: Cockpit gehört ins ISMS ── */
 const html2 = lies('index.html');
 const navIdx = (t) => html2.indexOf(t);
-ok(navIdx('id="nav-cockpit"') > navIdx('id="nav-grp-isms"'),
-  'Das Cockpit steht in der ISMS-Gruppe');
-ok(navIdx('id="nav-cockpit"') < navIdx('id="nav-ismsdocs"'),
-  'Und dort an erster Stelle');
+ok(navIdx('id="nav-cockpit"') > navIdx('id="nav-grp-pruefen"') && navIdx('id="nav-cockpit"') < navIdx('id="nav-grp-anlass"'),
+  'Das Cockpit steht in der Gruppe Prüfen und verbessern');
+ok(navIdx('id="nav-cockpit"') > navIdx('id="nav-wirksamkeit"'),
+  'Und dort nach der Wirksamkeit');
 ok(!html2.includes('nav-grp-uebersicht'), 'Die Gruppe „Übersicht" ist entfallen');
 ok(/ISMS-Cockpit/.test(html2), 'Der Reiter heißt ISMS-Cockpit');
 ok(/cockpit: 'ISMS-Cockpit'/.test(lies('js/app.js')), 'Auch der Seitentitel');
-ok(/v\.cockpit \|\| v\.ismsdocs/.test(lies('js/access.js')), 'Die Gruppen-Überschrift kennt das Cockpit');
+ok(/nav-grp-pruefen',\s+v\.wirksamkeit \|\| v\.cockpit/.test(lies('js/access.js')), 'Die Gruppen-Überschrift kennt das Cockpit');
 
 ok(!/kurse/i.test(html2), 'Kurse sind vollständig entfernt');
 ok(!fs.existsSync(path.join(ROOT, 'js/kurse.js')), 'kurse.js ist gelöscht');
 
-ok(navIdx('KI-Governance') > navIdx('id="nav-grp-isms"'), 'KI-Governance steht weiter unten');
+ok(navIdx('KI-Governance') > navIdx('id="nav-grp-anlass"'), 'KI-Governance steht weiter unten');
 ok(navIdx('DIHAG-Apps') > navIdx('KI-Governance'), 'DIHAG-Apps darunter');
 ok(navIdx('DIHAG-Apps') < navIdx('nav-grp-verwaltung'), 'Beide über der Verwaltung');
 

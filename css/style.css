@@ -121,6 +121,9 @@ a { color: inherit; }
 .nav-item.active { background: var(--c-primary-l); color: var(--c-primary); font-weight: 600; }
 .nav-sep { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
   color: var(--c-faint); padding: 14px 11px 6px; }
+/* Die Frage, die eine Gruppe beantwortet: gewöhnliche Schrift unter dem Gruppennamen. */
+.nav-frage { display: block; margin-top: 2px; font-size: .7rem; font-weight: 400; text-transform: none;
+  letter-spacing: 0; line-height: 1.3; }
 .sidebar-user {
   padding: 12px 14px; border-top: 1px solid var(--c-border);
   display: flex; align-items: center; gap: 9px;

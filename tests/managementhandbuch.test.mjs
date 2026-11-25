@@ -292,10 +292,10 @@ const bedienung = (opt) => {
 const index = lies('index.html');
 ok(/<a class="nav-item" data-view="handbuch" id="nav-handbuch"[^>]*>[\s\S]*?Managementhandbuch/.test(index) && /<section id="view-handbuch" class="view">\s*<div id="handbuch-mount">/.test(index),
   'Navigation und Ansicht stehen in index.html');
-ok(index.indexOf('id="nav-handbuch"') > index.indexOf('id="nav-grp-isms"') && index.indexOf('id="nav-handbuch"') < index.indexOf('id="nav-ismsdocs"'), 'Der Eintrag steht in der Gruppe „IMS und Prozesse“, vor den IMS-Dokumenten');
+ok(index.indexOf('id="nav-handbuch"') > index.indexOf('id="nav-grp-pruefen"') && index.indexOf('id="nav-handbuch"') < index.indexOf('id="nav-grp-anlass"'), 'Der Eintrag steht in der Gruppe „Prüfen und verbessern“');
 const access = lies('js/access.js');
 ok(/view: 'handbuch', +label: 'Managementhandbuch'/.test(access) && /'cockpit', 'handbuch', 'verwaltung'/.test(access) && /show\('nav-handbuch', +v\.handbuch\)/.test(access)
-  && /show\('nav-grp-isms', +v\.cockpit \|\| v\.ismsdocs \|\| v\.handbuch/.test(access), 'Rechte je Reiter, Sichtbarkeit und Gruppe: In den Einstellungen vergibt man „lesen“ und „schreiben“');
+  && /show\('nav-grp-pruefen', +v\.wirksamkeit \|\| v\.cockpit \|\| v\.compliance \|\| v\.handbuch/.test(access), 'Rechte je Reiter, Sichtbarkeit und Gruppe: In den Einstellungen vergibt man „lesen“ und „schreiben“');
 const app = lies('js/app.js');
 ok(/handbuch: 'Managementhandbuch'/.test(app) && /view === 'handbuch' +&& typeof initHandbuch === 'function'\) +initHandbuch\(\)/.test(app), 'Titel und Aufruf beim Reiterwechsel stehen in app.js');
 const modul = lies('js/module.js');

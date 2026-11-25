@@ -20,7 +20,7 @@ const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').jo
 
 /* ── 1) Verdrahtung ── */
 const html = lies('index.html');
-ok(/<a class="nav-item" data-view="assets" id="nav-assets"/.test(html) && html.indexOf('id="nav-assets"') > html.indexOf('id="nav-risiken"'), 'Navigation: hinter dem Risiko-Register');
+ok(/<a class="nav-item" data-view="assets" id="nav-assets"/.test(html) && html.indexOf('id="nav-assets"') < html.indexOf('id="nav-risiken"') && html.indexOf('id="nav-assets"') > html.indexOf('nav-grp-planen'), 'Navigation: in der Gruppe Planen, vor dem Risiko-Register (wie in der Kette des Gesamtprozesses)');
 ok(/<section id="view-assets" class="view">[\s\S]*?<div id="assets-mount">/.test(html) && /onclick="refreshAssets\(\)"/.test(html), 'Ansicht mit Mount und Aktualisieren');
 const access = lies('js/access.js');
 ok(/\{ view: 'assets',\s*label: 'Assetregister'/.test(access) && /show\('nav-assets',\s*v\.assets\)/.test(access), 'Reiter-Rechte und Sichtbarkeit');

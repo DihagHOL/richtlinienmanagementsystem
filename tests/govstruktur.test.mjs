@@ -460,7 +460,7 @@ const html = lies('index.html');
 ok(/id="view-govstruktur"/.test(html), 'Die Ansicht existiert');
 ok(/data-view="govstruktur" id="nav-govstruktur"/.test(html), 'Der Reiter auch');
 ok(html.indexOf('id="nav-govstruktur"') > html.indexOf('id="nav-governance"'), 'Er steht unter dem Governance-Board');
-ok(html.indexOf('id="nav-govstruktur"') < html.indexOf('nav-grp-isms'), 'Und noch in der Gruppe Corporate Governance');
+ok(html.indexOf('id="nav-govstruktur"') < html.indexOf('id="nav-prozesse"') && html.indexOf('id="nav-govstruktur"') < html.indexOf('nav-grp-umsetzen'), 'Und noch in der Gruppe Planen, vor den Prozessen');
 ok(/govstruktur:\s*\['govstruktur'\]/.test(lies('js/module.js')),
   'Das Modul steht in der Nachlade-Karte – und kommt ohne den Verwaltungsblock aus');
 const app = lies('js/app.js');

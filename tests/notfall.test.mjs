@@ -35,7 +35,7 @@ ok(/onclick="refreshNotfall\(\)"/.test(html), 'Und einem Aktualisieren-Knopf');
 const access = lies('js/access.js');
 ok(/\{ view: 'notfall',\s*label: 'Notfall & Krisenstab'/.test(access), 'Reiter-Rechte: in GOVERNABLE_TABS – je Person freischaltbar');
 ok(/show\('nav-notfall',\s*v\.notfall\)/.test(access), 'Sichtbarkeit folgt dem Leserecht');
-ok(/v\.wirksamkeit \|\| v\.notfall \|\| v\.vorfaelle \|\| v\.assets\)/.test(access), 'Die Gruppen-Überschrift zählt ihn mit');
+ok(/nav-grp-umsetzen',[^\n]*v\.notfall\)/.test(access), 'Die Gruppen-Überschrift zählt ihn mit');
 
 const app = lies('js/app.js');
 ok(/if \(view === 'notfall'\s*&& typeof initNotfall === 'function'\)\s*initNotfall\(\);/.test(app), 'switchView öffnet ihn');

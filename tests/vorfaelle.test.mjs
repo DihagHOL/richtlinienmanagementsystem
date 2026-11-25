@@ -24,7 +24,7 @@ const html = lies('index.html');
 ok(/<a class="nav-item" data-view="vorfaelle" id="nav-vorfaelle"/.test(html) && html.indexOf('id="nav-vorfaelle"') > html.indexOf('id="nav-notfall"'), 'Navigation: hinter Notfall & Krisenstab');
 ok(/<section id="view-vorfaelle" class="view">[\s\S]*?<div id="vorfaelle-mount">/.test(html) && /onclick="refreshVorfaelle\(\)"/.test(html) && /NIS2 Art\. 23/.test(html), 'Ansicht mit Mount, Aktualisieren und Normbezug');
 const access = lies('js/access.js');
-ok(/\{ view: 'vorfaelle',\s*label: 'Vorfälle & Ereignisse'/.test(access) && /show\('nav-vorfaelle',\s*v\.vorfaelle\)/.test(access) && /v\.notfall \|\| v\.vorfaelle \|\| v\.assets/.test(access), 'Reiter-Rechte, Sichtbarkeit, Gruppen-Überschrift');
+ok(/\{ view: 'vorfaelle',\s*label: 'Vorfälle & Ereignisse'/.test(access) && /show\('nav-vorfaelle',\s*v\.vorfaelle\)/.test(access) && /nav-grp-anlass',\s+v\.vorfaelle\)/.test(access), 'Reiter-Rechte, Sichtbarkeit, Gruppen-Überschrift');
 ok(/if \(view === 'vorfaelle'\s*&& typeof initVorfaelle === 'function'\)\s*initVorfaelle\(\);/.test(lies('js/app.js')) && /'notfall', 'vorfaelle', 'assets'\]\.includes\(ansicht\)/.test(lies('js/app.js')), 'switchView und Digest-Link ?ansicht=vorfaelle');
 // Der Probelauf legt fest, was bleibt – alles andere fällt weg.
 const plBleibt = (lies('js/probelauf.js').match(/PROBELAUF_NAV_BLEIBT = \[([^\]]*)\]/) || [])[1] || '';

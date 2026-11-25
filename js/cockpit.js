@@ -11,6 +11,20 @@
 
 let _cockpitSeq = 0;   // laufende Nummer gegen veraltete Async-Updates
 
+/* Die vier Phasen des Gesamtprozesses (Karte im Reiter Prozesse): dieselben Gruppen
+   und dieselben Fragen wie in der Seitenleiste. Wer das Cockpit liest, findet jede
+   Kachel dort wieder, wo der Reiter in der Leiste steht. */
+const CK_PHASEN = [
+  { key: 'planen',   titel: 'Planen',                frage: 'Was schützen wir, was kann schiefgehen?',
+    kacheln: ['risiken', 'assets', 'ziele', 'massnahmen', 'kennzahlen', 'abdeckung', 'soa'] },
+  { key: 'umsetzen', titel: 'Umsetzen',              frage: 'Was gilt, und sind wir vorbereitet?',
+    kacheln: ['policies', 'workflow', 'faellig', 'ausnahmen', 'vorschlaege', 'wissen', 'notfall'] },
+  { key: 'pruefen',  titel: 'Prüfen und verbessern', frage: 'Funktioniert es?',
+    kacheln: ['wirksamkeit', 'compliance'] },
+  { key: 'anlass',   titel: 'Wenn etwas passiert',   frage: 'Was ist passiert, was tun wir?',
+    kacheln: ['vorfaelle'] },
+];
+
 function initCockpit() {
   const mount = document.getElementById('cockpit-mount');
   if (!mount) return;
@@ -26,30 +40,42 @@ function initCockpit() {
       <div id="ck-${id}"><div class="doc-loading" style="padding:8px 0">…</div></div>
     </div>`;
 
-  mount.innerHTML = `
-    <div class="view-desc" style="margin:0 0 14px">
-      Alle ISMS-Kennzahlen auf einen Blick. Jede Kachel führt in den passenden Reiter.
-      <span style="color:var(--c-faint)">Stand: ${new Date().toLocaleString('de-DE')}</span>
+  // Jede Kachel einmal, danach nach Phase geordnet.
+  const kacheln = {
+    policies:    () => tile('policies',  '📄', 'Richtlinien',            'verwaltung'),
+    workflow:    () => tile('workflow',  '✅', 'Prüfung & Freigabe',      'freigaben'),
+    faellig:     () => tile('faellig',   '📅', 'Fälligkeiten / Reviews',  'faelligkeit'),
+    abdeckung:   () => tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`),
+    soa:         () => tile('soa',       '📋', 'SoA: Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`),
+    risiken:     () => tile('risiken',   '🛡️', 'Risiko-Register',         'risiken'),
+    assets:      () => tile('assets',    '🗂', 'Assetregister',            'assets'),
+    ausnahmen:   () => tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen'),
+    ziele:       () => tile('ziele',     '🎯', 'Ziele',                    'ziele'),
+    massnahmen:  () => tile('massnahmen','🛠', 'Maßnahmen (alle Register)', 'massnahmen'),
+    kennzahlen:  () => tile('kennzahlen','📊', 'Kennzahlen',               'kennzahlen'),
+    wirksamkeit: () => tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit'),
+    notfall:     () => tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall'),
+    vorfaelle:   () => tile('vorfaelle', '🎫', 'Vorfälle & Ereignisse',    'vorfaelle'),
+    wissen:      () => tile('wissen',    '🎓', 'Wissen & Awareness',       'wissen'),
+    compliance:  () => tile('compliance','📊', 'Audit Report',            'compliance'),
+    vorschlaege: () => tile('vorschlaege','✏️','Vorschläge',              'vorschlaege'),
+  };
+  const phase = (ph, nr) => `
+    <div class="ck-phase" data-phase="${ph.key}" style="margin:${nr ? 22 : 0}px 0 8px">
+      <b style="font-size:.95rem;color:var(--c-primary)">${nr + 1} · ${ph.titel}</b>
+      <span style="color:var(--c-muted);font-size:.84rem;margin-left:8px">${ph.frage}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
-      ${tile('policies',  '📄', 'Richtlinien',            'verwaltung')}
-      ${tile('workflow',  '✅', 'Prüfung & Freigabe',      'freigaben')}
-      ${tile('faellig',   '📅', 'Fälligkeiten / Reviews',  'faelligkeit')}
-      ${tile('abdeckung', '🗺️', 'IMS-Abdeckung',           'abdeckung', `abdeckungSetMode('heatmap');switchView('abdeckung')`)}
-      ${tile('soa',       '📋', 'SoA: Anwendbarkeit',     'abdeckung', `cockpitOpenSoa()`)}
-      ${tile('risiken',   '🛡️', 'Risiko-Register',         'risiken')}
-      ${tile('assets',    '🗂', 'Assetregister',            'assets')}
-      ${tile('ausnahmen', '⚖️', 'Ausnahmen von Richtlinien', 'ausnahmen')}
-      ${tile('ziele',     '🎯', 'Ziele',                    'ziele')}
-      ${tile('massnahmen','🛠', 'Maßnahmen (alle Register)', 'massnahmen')}
-      ${tile('kennzahlen','📊', 'Kennzahlen',               'kennzahlen')}
-      ${tile('wirksamkeit','📈', 'Wirksamkeit & Verbesserung', 'wirksamkeit')}
-      ${tile('notfall',   '🚨', 'Notfall & Krisenstab',     'notfall')}
-      ${tile('vorfaelle', '🎫', 'Vorfälle & Ereignisse',    'vorfaelle')}
-      ${tile('wissen',    '🎓', 'Wissen & Awareness',       'wissen')}
-      ${tile('compliance','📊', 'Audit Report',            'compliance')}
-      ${tile('vorschlaege','✏️','Vorschläge',              'vorschlaege')}
+      ${ph.kacheln.map(k => kacheln[k]()).join('')}
     </div>`;
+
+  mount.innerHTML = `
+    <div class="view-desc" style="margin:0 0 14px">
+      Alle ISMS-Kennzahlen auf einen Blick, geordnet wie die Seitenleiste und die Karte des Gesamtprozesses:
+      erst planen, dann umsetzen, dann prüfen und verbessern. Jede Kachel führt in den passenden Reiter.
+      <span style="color:var(--c-faint)">Stand: ${new Date().toLocaleString('de-DE')}</span>
+    </div>
+    ${CK_PHASEN.map(phase).join('')}`;
 
   _ckRenderPolicies();
   _ckRenderWorkflow();

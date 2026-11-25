@@ -127,7 +127,7 @@ function _dokuSections() {
       <ul style="${ol}">
         <li style="${li}"><b>Aufruf:</b> <a href="https://rms.dihag.de/" style="color:var(--c-primary);font-weight:600">rms.dihag.de</a> im Browser.</li>
         <li style="${li}"><b>Anmeldung:</b> mit dem gewohnten DIHAG-Microsoft-Konto (Single Sign-On). Einmal anmelden genügt. Das KI-Dashboard nutzt dieselbe Anmeldung.</li>
-        <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden.</li>
+        <li style="${li}"><b>Navigation:</b> linke Leiste. Am Handy über das Menü-Symbol (☰) oben links ein-/ausblenden. Die Leiste folgt dem Jahreszyklus des Managementsystems in vier Gruppen: <b>Planen</b> (was schützen wir, was kann schiefgehen), <b>Umsetzen</b> (was gilt, und sind wir vorbereitet), <b>Prüfen und verbessern</b> (funktioniert es) und <b>Wenn etwas passiert</b>. Das Cockpit und die Gesamtkarte im Reiter „Prozesse“ ordnen genauso. Was eine Person sieht, hängt weiter von den Rechten je Reiter ab.</li>
         <li style="${li}"><b>Was sichtbar ist, wird freigegeben:</b> Von sich aus sieht jede:r nur den Reiter <b>„Wissen"</b>. „Meine Regelwerke", „Anleitung", „Dokumentation", das KI-Dashboard, „Freigaben", „Vorschläge" und alle Verwaltungs- und Auswertungs-Reiter erscheinen, sobald die Administration sie freigibt, je Person, Gruppe oder für eine ganze Gesellschaft (Einstellungen → Reiter-Berechtigungen).</li>
         <li style="${li}"><b>„↻ Aktualisieren"</b> (oben rechts) lädt frische Daten, falls etwas nicht aktuell wirkt.</li>
       </ul>
@@ -238,7 +238,7 @@ function _dokuSections() {
       'ISO 27001 Klausel 5.3 (Rollen &amp; Befugnisse); NIS2 Art. 20 (Governance). Intern: KI-Regelwerk CO-10-01.'),
 
     sec('cockpit', 'Cockpit (Admin-Startseite)', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter.</p>
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>„Cockpit"</b> ist die Startseite für Berechtigte: alle ISMS-Kennzahlen auf einen Blick, jede Kachel führt per Klick in den passenden Reiter. Die Kacheln stehen in den vier Gruppen der Seitenleiste: Planen, Umsetzen, Prüfen und verbessern, Wenn etwas passiert.</p>
       <ul style="${ol}">
         <li style="${li}"><b>Regelwerke</b> (aktiv/veröffentlicht/Entwürfe/im Workflow) · <b>Prüfung &amp; Freigabe</b> (inkl. Alter des ältesten Vorgangs) · <b>Fälligkeiten</b> (überfällig / ≤ 30 Tage).</li>
         <li style="${li}"><b>IMS-Abdeckung</b> (Annex-A-/NIS2-Quote) · <b>SoA</b> (entschieden, ausgeschlossen, umgesetzt, fehlende Begründungen) · <b>Risiko-Register</b> (offen, hoch, überfällige Maßnahmen) · <b>Ausnahmen</b> (gültig, abgelaufen, unentschieden) · <b>Wirksamkeit</b> (offene Abweichungen, überfällige Maßnahmen, letzte Bewertung).</li>
@@ -660,7 +660,7 @@ function _dokuSections() {
       'ISO 27001 Klausel 7.5 (Dokumentierte Information: Lenkung &amp; Versionierung), A.5.37 (Dokumentierte Betriebsabläufe), A.5.12/A.5.13 (Klassifizierung/Kennzeichnung).'),
 
     sec('handbuch', 'Managementhandbuch', 'admin', `
-      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>Managementhandbuch</b> (Gruppe „IMS und Prozesse“) leitet aus den Daten des RMS ein
+      <p style="margin:0 0 8px;line-height:1.55">Der Reiter <b>Managementhandbuch</b> (Gruppe „Prüfen und verbessern“) leitet aus den Daten des RMS ein
       Handbuch des integrierten Managementsystems her. Es ist gegliedert nach der gemeinsamen Struktur der ISO-Managementsystemnormen
       (Abschnitte 4 bis 10), die ISO 9001, 14001, 45001, 50001 und 27001 teilen.</p>
       <ul style="${ol}">

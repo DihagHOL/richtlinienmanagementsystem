@@ -888,14 +888,14 @@ function initRoleNav() {
   show('nav-compliance',    v.compliance);
   show('nav-einstellungen', admin);
 
-  // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist
-  show('nav-grp-richtlinien', v.verwaltung || v.freigaben || v.faelligkeit || v.vorschlaege || v.ausnahmen);
-  // Corporate Governance steht als eigene Ebene über den Managementsystemen:
-  // Dort entstehen die Konzernregelungen, das IMS setzt sie um und weist sie nach.
-  show('nav-grp-governance',  v.governance || v.govstruktur);
-  // Das Cockpit ist das ISMS-Cockpit – es steht deshalb in dieser Gruppe.
-  show('nav-grp-isms',        v.cockpit || v.ismsdocs || v.handbuch || v.abdeckung || v.risiken || v.ziele || v.massnahmen || v.kennzahlen || v.prozesse || v.wirksamkeit || v.notfall || v.vorfaelle || v.assets);
-  show('nav-grp-verwaltung',  v.compliance || admin);
+  // Gruppen-Überschriften: nur zeigen, wenn mindestens ein Reiter der Gruppe sichtbar ist.
+  // Die Gruppen sind die vier Phasen des Gesamtprozesses (Karte im Reiter Prozesse):
+  // Planen, Umsetzen, Prüfen und verbessern, und was anlassbezogen dazukommt.
+  show('nav-grp-planen',      v.governance || v.govstruktur || v.prozesse || v.assets || v.risiken || v.abdeckung || v.ziele || v.massnahmen || v.kennzahlen);
+  show('nav-grp-umsetzen',    v.verwaltung || v.freigaben || v.ausnahmen || v.faelligkeit || v.vorschlaege || v.ismsdocs || v.notfall);
+  show('nav-grp-pruefen',     v.wirksamkeit || v.cockpit || v.compliance || v.handbuch);
+  show('nav-grp-anlass',      v.vorfaelle);
+  show('nav-grp-verwaltung',  admin);
 
   // Zuletzt: Läuft gerade ein Probelauf, bleibt die Leiste auf das Nötige
   // beschränkt – sonst zeigt das Lernvideo Reiter, die niemand im Publikum hat.

@@ -75,18 +75,14 @@ ok(/_gov\.folderName \|\| GOV\.folderPath/.test(sp),
 
 /* ── 4) Einordnung in der Navigation ── */
 const pos = (t) => html.indexOf(t);
-ok(pos('nav-grp-governance') > 0, 'Corporate Governance ist eine eigene Gruppe');
-ok(pos('nav-grp-governance') < pos('nav-grp-isms'), 'Sie steht über dem IMS');
-ok(pos('nav-governance') > pos('nav-grp-governance') && pos('nav-governance') < pos('nav-grp-isms'),
-  'Das Governance-Board liegt darin');
+ok(pos('nav-grp-planen') > 0 && pos('id="nav-governance"') > pos('nav-grp-planen') && pos('id="nav-governance"') < pos('nav-grp-umsetzen'),
+  'Das Governance-Board steht in der Gruppe Planen, als Erstes, vor dem IMS');
 ok(/IMS-Dokumente/.test(html) && !/ISMS-Dokumente/.test(html),
   'Der Reiter heißt IMS-Dokumente – er trägt alle Normen, nicht nur die Informationssicherheit');
 ok(/ismsdocs: 'IMS-Dokumente'/.test(lies('js/app.js')), 'Ebenso der Seitentitel');
 const acc = lies('js/access.js');
-ok(/show\('nav-grp-governance',\s+v\.governance \|\| v\.govstruktur\)/.test(acc),
-  'Die Gruppe erscheint mit dem Board oder der Governance-Struktur');
-ok(!/v\.governance \|\| v\.prozesse|v\.governance \|\|/.test(acc.slice(acc.indexOf("show('nav-grp-isms'"), acc.indexOf("show('nav-grp-isms'") + 160)),
-  'Und ist aus der IMS-Gruppe herausgelöst');
+ok(/show\('nav-grp-planen',\s+v\.governance \|\| v\.govstruktur \|\| v\.prozesse/.test(acc),
+  'Die Gruppe Planen erscheint auch mit dem Board oder der Governance-Struktur allein');
 
 console.log(`\n${fail ? '✗' : '✓'} ${pass} grün, ${fail} rot`);
 process.exit(fail ? 1 : 0);
