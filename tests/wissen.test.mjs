@@ -327,6 +327,11 @@ ok(!M.wiStand(Object.assign({}, K, { fragen: [] }), [{ richtlinieId: 'wissen:sta
 const q = M.wiPflichtQuote({ beitraege: [K] }, [alt, frisch, begonnen], [{ upn: 'anna@dihag.com' }, { upn: 'ben@dihag.com' }, { upn: 'cid@dihag.com' }, { upn: 'dora@dihag.com' }], jetzt)[0];
 ok(q.soll === 4 && q.ist === 1 && q.quote === 25 && q.gueltig === 1, 'Die Pflicht-Quote: von vier Personen hat eine einen gültigen Abschluss – Annas ist abgelaufen, Cid hat nur begonnen');
 ok(M.wiPflichtQuote({ beitraege: [K] }, [frisch], [], jetzt)[0].quote === null, 'Ohne Personenliste keine Quote, nur die Zahl');
+const gast1 = Object.assign({}, frisch, { benutzerUpn: 'Gast.Eins@dihag-gienanth.com' }), gast2 = Object.assign({}, frisch, { benutzerUpn: 'gast.zwei@dihag-gienanth.com' });
+const qg = M.wiPflichtQuote({ beitraege: [K] }, [alt, frisch, gast1, gast2], [{ upn: 'anna@dihag.com' }, { upn: 'ben@dihag.com' }, { upn: 'cid@dihag.com' }, { upn: 'dora@dihag.com' }], jetzt)[0];
+ok(qg.soll === 4 && qg.ist === 1 && qg.quote === 25 && qg.extern === 2 && qg.gueltig === 3, 'Gäste zählen nicht in die Quote, werden aber ausgewiesen: 1 von 4, dazu 2 Gäste, zusammen 3 gültige Abschlüsse');
+ok(q.extern === 0, 'Ohne Gäste ist der Zusatz 0');
+ok(/x\.extern \? `<span class="field-hint">dazu \$\{x\.extern\}/.test(lies('js/wissen.js')) && /x\.extern \? `, dazu/.test(lies('js/clevelreport.js')), 'Auswertung und Audit Report nennen die Gäste neben der Quote');
 const zk = M.wiKennzahlen({ beitraege: [K] }, [alt, frisch], { jetzt });
 ok(zk.kurse === 1 && zk.pflichtKurse === 1 && zk.kursAbschluesse === 1, 'Kennzahlen: Schulungen, Pflichtschulungen, gültige Abschlüsse');
 

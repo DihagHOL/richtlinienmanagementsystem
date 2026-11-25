@@ -954,6 +954,7 @@ async function wiAuswertungOeffnen() {
       <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--c-border)">
         <span style="flex:1">${esc(x.kurs.titel)}</span>
         <b>${x.soll ? `${x.ist} von ${x.soll} (${x.quote} %)` : `${x.gueltig} gültige Abschlüsse`}</b>
+        ${x.extern ? `<span class="field-hint">dazu ${x.extern} ${x.extern === 1 ? 'Gast' : 'Gäste'} mit gültigem Abschluss</span>` : ''}
         ${x.kurs.wiederholung ? `<span class="field-hint">Wiederholung alle ${x.kurs.wiederholung} Monate</span>` : ''}
       </div>`).join('')}${members ? '' : '<div class="field-hint">Ohne Personenliste keine Quote, nur die Zahl der gültigen Abschlüsse.</div>'}</div>`;
   }

@@ -315,7 +315,7 @@ function _clevelIsoRows(m) {
     (m.pflichtKurse || []).forEach(x => {
       const q = x.quote;
       add('ISO 7.2 / A.6.3', `Pflichtschulung „${x.kurs.titel}"`, q === null ? 'warn' : q >= 90 ? 'ok' : q >= 60 ? 'warn' : 'gap',
-        q === null ? `${x.gueltig} gültige Abschlüsse, ohne Personenliste keine Quote.` : `${x.ist} von ${x.soll} Mitarbeitenden mit gültigem Abschluss (${q} %)${x.kurs.wiederholung ? `, Wiederholung alle ${x.kurs.wiederholung} Monate` : ''}.`);
+        q === null ? `${x.gueltig} gültige Abschlüsse, ohne Personenliste keine Quote.` : `${x.ist} von ${x.soll} Mitarbeitenden mit gültigem Abschluss (${q} %)${x.extern ? `, dazu ${x.extern} ${x.extern === 1 ? 'Gast' : 'Gäste'}` : ''}${x.kurs.wiederholung ? `, Wiederholung alle ${x.kurs.wiederholung} Monate` : ''}.`);
     });
   }
 

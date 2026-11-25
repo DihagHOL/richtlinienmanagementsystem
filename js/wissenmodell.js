@@ -280,12 +280,16 @@ function wiKursStatus(b, acks, jetzt) {
 function wiPflichtQuote(daten, acks, members, jetzt) {
   const kurse = ((daten && daten.beitraege) || []).filter(b => b.art === 'kurs' && b.pflicht && b.aktiv !== false);
   const upns = (members || []).map(m => String((m && m.upn) || m || '').toLowerCase()).filter(Boolean);
+  const imHaus = new Set(upns);
   return kurse.map(k => {
     const rel = (acks || []).filter(a => String(a.richtlinieId) === wiAckId(k.id) && String(a.version || '1') === String(k.stand || '1'));
-    const gueltig = new Set(rel.filter(a => wiStand(k, [a], jetzt).gueltig).map(a => String(a.benutzerUpn || '').toLowerCase()));
+    const gueltig = new Set(rel.filter(a => wiStand(k, [a], jetzt).gueltig).map(a => String(a.benutzerUpn || '').toLowerCase()).filter(Boolean));
     const ist = upns.length ? upns.filter(u => gueltig.has(u)).length : gueltig.size;
     const soll = upns.length;
-    return { kurs: k, soll, ist, gueltig: gueltig.size, quote: soll ? Math.round(ist / soll * 100) : null };
+    // Gäste (z. B. die Gienanth-Konten) stehen nicht in der Personenliste des Hauses:
+    // Sie gehören nicht in die Quote, aber ihre Abschlüsse dürfen nicht fehlen.
+    const extern = upns.length ? [...gueltig].filter(u => !imHaus.has(u)).length : 0;
+    return { kurs: k, soll, ist, extern, gueltig: gueltig.size, quote: soll ? Math.round(ist / soll * 100) : null };
   });
 }
 
