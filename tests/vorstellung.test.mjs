@@ -27,7 +27,7 @@ ok(V.vsSchritte('1. Menschen sichern\n2) Alarmieren\n\n3. Lage klären').join('|
 
 /* ── 2) Folien ohne Daten: nichts erfinden ── */
 const nichts = V.vsFolien({ werkLabel: 'Konzern / Holding', datum: '26.11.2026', angaben: leer, kennzahlen: {}, stab: null, prozess: null, ausfall: null, phasen: [], luecken: [] });
-ok(nichts.map(f => f.key).join() === 'titel,zustaendig,stand,krisenstab,stunden,ausfall,phasen,weiter', 'Acht Folien in fester Reihenfolge');
+ok(nichts.map(f => f.key).join() === 'titel,zustaendig,stand,entwurf,krisenstab,stunden,ausfall,phasen,weiter', 'Neun Folien in fester Reihenfolge');
 const html = (liste, k) => liste.find(f => f.key === k).html;
 ok((html(nichts, 'zustaendig').match(/vs-offen/g) || []).length === 5, 'Fehlen die Angaben, stehen fünf Zeilen als offen da');
 ok(/noch kein Krisenstab/.test(html(nichts, 'krisenstab')) && /vs-offen/.test(html(nichts, 'krisenstab')), 'Kein Krisenstab wird als offen gesagt');
@@ -65,6 +65,14 @@ ok(V.vsAssetVorschlag([w('1', 'e-Mails', 3), w('2', 'Leere (ERP)', 0)], '').id =
 const elf = V.vsFolien(Object.assign({}, daten, { ausfall: { asset: 'e-Mails', stufe: 'Krise', erklaert: '', kritisch: Array.from({ length: 11 }, (_, i) => 'Prozess ' + (i + 1)) } }));
 ok(/und 4 weitere/.test(html(elf, 'ausfall')) && /<h2>Beispielausfall: e-Mails<\/h2>/.test(html(elf, 'ausfall')), 'Mehr als sieben Prozesse werden gezählt, die Überschrift beugt nichts');
 ok(!/Alarmiert werden/.test(html(voll, 'krisenstab')) && !/<p><span class="vs-offen">offen<\/span><\/p>/.test(html(nichts, 'weiter')), 'Kein gebeugter Satz zur Alarmierung und kein nacktes „offen“');
+
+/* ── 3c) Der Entwurf ── */
+ok(/vs-offen/.test(html(nichts, 'entwurf')) && /<b>Entwurf bis:<\/b>/.test(html(nichts, 'weiter')), 'Ohne Regelwerk steht der Entwurf als offen da');
+const mit = V.vsFolien(Object.assign({}, daten, { entwurf: { titel: 'Richtlinie X', version: '1.1', status: 'Entwurf', geltung: 'HOL, EIS', werke: ['HOL', 'EIS'], beschreibung: 'Regelt <etwas>' },
+  angaben: V.vsAngaben({ entwurfPunkte: 'Punkt eins\nPunkt zwei', termin: '30.11.' }) }));
+ok(/Der Entwurf: Richtlinie X/.test(html(mit, 'entwurf')) && /Entwurf, Version 1\.1/.test(html(mit, 'entwurf')) && /HOL, EIS/.test(html(mit, 'entwurf')) && /Regelt &lt;etwas&gt;/.test(html(mit, 'entwurf')), 'Titel, Stand, Geltung und Inhalt kommen aus dem Regelwerk');
+ok(/<li>Punkt zwei<\/li>/.test(html(mit, 'entwurf')), 'Die Kernpunkte kommen aus den Angaben');
+ok(/<b>Entwurf liegt vor:<\/b> Richtlinie X/.test(html(mit, 'weiter')) && /Freigabe bis:<\/b> 30\.11\./.test(html(mit, 'weiter')) && !/Entwurf bis:/.test(html(mit, 'weiter')), 'Liegt ein Entwurf vor, fragt die letzte Folie nach der Freigabe, nicht nach dem Entwurf');
 
 /* ── 4) Eingehängt ── */
 const modul = lies('js/module.js');

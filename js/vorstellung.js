@@ -19,7 +19,8 @@ const VS_FELDER = [
   { key: 'meldeweg',        label: 'Wohin melden die Werke einen Vorfall?', typ: 'text' },
   { key: 'koordination',    label: 'Wer koordiniert die ersten Maßnahmen?', typ: 'text' },
   { key: 'gfInfo',          label: 'Wer informiert die Geschäftsführung?',  typ: 'zeile' },
-  { key: 'termin',          label: 'Termin für den Entwurf',                typ: 'zeile' },
+  { key: 'entwurfPunkte',   label: 'Kernpunkte des Entwurfs (eine Zeile je Punkt)', typ: 'text' },
+  { key: 'termin',          label: 'Termin für Prüfung und Freigabe',       typ: 'zeile' },
   { key: 'schritte',        label: 'Nächste Schritte (eine Zeile je Schritt)', typ: 'text' },
 ];
 
@@ -37,6 +38,7 @@ function vsAngaben(roh) {
   VS_FELDER.forEach(f => { o[f.key] = String(r[f.key] || '').trim(); });
   o.prozess = String(r.prozess || '');   // „WERK:id" des Prozesses für die ersten Stunden
   o.asset = String(r.asset || '');       // Id des Assets für den Beispielausfall
+  o.entwurf = String(r.entwurf || '');   // Id des Regelwerks, das der Entwurf ist
   return o;
 }
 
@@ -103,6 +105,19 @@ function vsFolien(d) {
      ${z.stabFehlt ? `<p class="vs-satz">${_vsAnzahl(z.stabFehlt, 'Standort hat', 'Standorte haben')} noch keinen Krisenstab.</p>` : ''}`,
     'Aus dem Reiter Notfall &amp; Krisenstab'));
 
+  const e = d.entwurf;
+  const punkte = vsSchritte(a.entwurfPunkte);
+  folien.push(_vsFolie('entwurf', e
+    ? `<h2>Der Entwurf: ${_vsEsc(e.titel)}</h2>
+       <table class="vs-tabelle vs-eng">
+         <tr><td class="vs-frage">Stand</td><td>${_vsEsc(e.status)}${e.version ? `, Version ${_vsEsc(e.version)}` : ''}</td></tr>
+         <tr><td class="vs-frage">Gilt für</td><td>${_vsEsc(e.geltung)}</td></tr>
+         ${e.beschreibung ? `<tr><td class="vs-frage">Regelt</td><td>${_vsEsc(e.beschreibung)}</td></tr>` : ''}
+       </table>
+       ${punkte.length ? `<ul class="vs-unten">${punkte.slice(0, 6).map(t => `<li>${_vsEsc(t)}</li>`).join('')}</ul>` : ''}`
+    : `<h2>Der Entwurf</h2><p class="vs-satz">Im Regelwerk-Verzeichnis liegt noch kein Entwurf zum Notfallmanagement. ${_vsOffen}</p>`,
+    'Aus dem Regelwerk-Verzeichnis'));
+
   const s = d.stab;
   const stufe = (nr) => ((s && s.stufen) || []).find(x => x.nr === nr);
   const zeile = (nr) => {
@@ -150,7 +165,9 @@ function vsFolien(d) {
          ? `<ul>${d.luecken.slice(0, 6).map(l => `<li>${_vsEsc(l)}</li>`).join('')}</ul>`
          : '<p>Keine offenen Punkte.</p>'}</div>
        <div class="vs-karte"><h3>Nächste Schritte</h3>
-         <p><b>Entwurf bis:</b> ${_vsWert(a.termin)}</p>
+         ${d.entwurf
+           ? `<p><b>Entwurf liegt vor:</b> ${_vsEsc(d.entwurf.titel)}</p><p><b>Prüfung und Freigabe bis:</b> ${_vsWert(a.termin)}</p>`
+           : `<p><b>Entwurf bis:</b> ${_vsWert(a.termin)}</p>`}
          ${schritte.length ? `<ul>${schritte.slice(0, 6).map(t => `<li>${_vsEsc(t)}</li>`).join('')}</ul>` : `<p><b>Weitere Schritte:</b> ${_vsOffen}</p>`}
        </div>
      </div>`));
@@ -205,12 +222,31 @@ function _vsProzessWahl(angaben) {
     || null;
 }
 
+/** Regelwerke zum Notfallmanagement, die mit Notfallmanagement oder Notfallplan im Titel zuerst. */
+function _vsEntwurfsWahlen() {
+  const alle = (typeof State !== 'undefined' && State.policies) || [];
+  const rang = (p) => (/notfall(management|plan)/i.test(p.title || '') ? 0 : 1);
+  return alle.filter(p => /notfall|krisen|cyber/i.test(p.title || '') && p.status !== 'Archiviert').sort((x, y) => rang(x) - rang(y));
+}
+
+/** Der Entwurf für die Folie, die Geltung in Worten; null ohne passendes Regelwerk. */
+function _vsEntwurf(angaben) {
+  const liste = _vsEntwurfsWahlen();
+  const p = liste.find(x => String(x.id) === angaben.entwurf) || liste[0];
+  if (!p) return null;
+  const g = Array.isArray(p.geltungsbereich) ? p.geltungsbereich.filter(Boolean) : [];
+  return { titel: p.title, version: p.version, status: p.status, geltung: g.length ? g.join(', ') : 'alle Gesellschaften',
+    werke: g, beschreibung: p.beschreibung || '' };
+}
+
 /** Was im Gespräch offen ist, in ganzen Sätzen. */
-function _vsLuecken(stab, z) {
+function _vsLuecken(stab, z, entwurf) {
   const kritisch = _vsKacheln().filter(x => nfIstKritisch(x.kachel) && nfHatPlan(x.kachel));
   const ohneVerantwortung = kritisch.filter(x => !String(nfBcmVon(x.kachel).plan.verantwortlich || '').trim()).length;
   const ohneKontakte = kritisch.filter(x => !(nfBcmVon(x.kachel).plan.kontakte || []).length).length;
   const out = [];
+  const fehlend = entwurf && entwurf.werke.length ? nfPflichtWerke().filter(w => !entwurf.werke.includes(w)) : [];
+  if (fehlend.length) out.push(`Der Entwurf gilt nur für ${entwurf.werke.join(', ')}.`);
   // Auf der Folie nur der erste Satz jeder Meldung.
   if (stab) nfStabLuecken(stab).slice(0, 2).forEach(l => out.push(l.split('. ')[0].replace(/\.?$/, '.')));
   else out.push('Für diesen Standort ist kein Krisenstab angelegt.');
@@ -256,14 +292,15 @@ function vsDaten() {
     };
   }
 
+  const entwurf = _vsEntwurf(angaben);
   return {
     werkLabel: lkWerkLabel(werk),
     datum: new Date().toLocaleDateString('de-DE'),
     angaben,
     kennzahlen: { kritisch: z.kritisch, mitPlan: z.mitPlan, geuebt: z.geuebt, stabOk: z.stabOk, werke: z.werke, stabFehlt: z.stabFehlt },
-    stab, prozess, ausfall,
+    stab, prozess, ausfall, entwurf,
     phasen: vsPhasenAusLeiste(),
-    luecken: _vsLuecken(karte.krisenstab ? nfStabVon(karte.krisenstab) : null, z),
+    luecken: _vsLuecken(karte.krisenstab ? nfStabVon(karte.krisenstab) : null, z, entwurf),
   };
 }
 
@@ -363,6 +400,8 @@ function vsAngabenBearbeiten() {
     <div class="modal-body">
       <p class="field-hint">Gespeichert wird in der Landkarte auf SharePoint. Leere Felder erscheinen auf den Folien als „offen".</p>
       ${VS_FELDER.map(feld).join('')}
+      <label class="field-label" style="display:block;margin-top:10px">Entwurf auf der Folie</label>
+      <select id="vs-f-entwurf" style="width:100%">${option('', 'Automatisch (Notfallmanagement)', a.entwurf)}${_vsEntwurfsWahlen().map(p => option(String(p.id), `${p.title} (${p.status})`, a.entwurf)).join('')}</select>
       <label class="field-label" style="display:block;margin-top:10px">Notfallplan für die ersten Stunden</label>
       <select id="vs-f-prozess" style="width:100%">${option('', 'Automatisch (Fertigung)', a.prozess)}${prozesse.map(x => option(`${x.werk}:${x.kachel.id}`, `${x.kachel.name} (${lkWerkLabel(x.werk)})`, a.prozess)).join('')}</select>
       <label class="field-label" style="display:block;margin-top:10px">Asset für den Beispielausfall</label>
@@ -378,6 +417,7 @@ async function vsAngabenSpeichern() {
   VS_FELDER.forEach(f => { neu[f.key] = wert(f.key).trim(); });
   neu.prozess = wert('prozess');
   neu.asset = wert('asset');
+  neu.entwurf = wert('entwurf');
   nfDaten().vorstellung = neu;
   closeModal();
   if (await lkSpeichern('Angaben zur Vorstellung gespeichert ✓', 'Notfall: Angaben zur Vorstellung geändert', 'notfall')) vsOeffnen();
