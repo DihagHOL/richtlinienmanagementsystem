@@ -112,7 +112,7 @@ function vsFolien(d) {
        <table class="vs-tabelle vs-eng">
          <tr><td class="vs-frage">Stand</td><td>${_vsEsc(e.status)}${e.version ? `, Version ${_vsEsc(e.version)}` : ''}</td></tr>
          <tr><td class="vs-frage">Gilt für</td><td>${_vsEsc(e.geltung)}</td></tr>
-         ${e.beschreibung ? `<tr><td class="vs-frage">Regelt</td><td>${_vsEsc(e.beschreibung)}</td></tr>` : ''}
+         ${e.beschreibung ? `<tr><td class="vs-frage">Inhalt</td><td>${_vsEsc(e.beschreibung)}</td></tr>` : ''}
        </table>
        ${punkte.length ? `<ul class="vs-unten">${punkte.slice(0, 6).map(t => `<li>${_vsEsc(t)}</li>`).join('')}</ul>` : ''}`
     : `<h2>Der Entwurf</h2><p class="vs-satz">Im Regelwerk-Verzeichnis liegt noch kein Entwurf zum Notfallmanagement. ${_vsOffen}</p>`,
@@ -162,7 +162,7 @@ function vsFolien(d) {
     `<h2>Was noch fehlt und wie es weitergeht</h2>
      <div class="vs-karten">
        <div class="vs-karte vs-warn"><h3>Fehlt noch</h3>${(d.luecken || []).length
-         ? `<ul>${d.luecken.slice(0, 6).map(l => `<li>${_vsEsc(l)}</li>`).join('')}</ul>`
+         ? `<ul>${d.luecken.slice(0, 7).map(l => `<li>${_vsEsc(l)}</li>`).join('')}</ul>`
          : '<p>Keine offenen Punkte.</p>'}</div>
        <div class="vs-karte"><h3>Nächste Schritte</h3>
          ${d.entwurf
