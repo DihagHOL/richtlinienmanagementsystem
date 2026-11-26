@@ -50,11 +50,21 @@ const voll = V.vsFolien(daten);
 ok(/Person A/.test(html(voll, 'zustaendig')) && /&lt;bei&gt; der IT &amp; Ticket/.test(html(voll, 'zustaendig')), 'Eingaben werden entschärft angezeigt');
 ok((html(voll, 'zustaendig').match(/vs-offen/g) || []).length === 3, 'Nur die drei fehlenden Angaben sind offen');
 ok(/vs-zahl">16</.test(html(voll, 'stand')) && /vs-zahl">0\/10</.test(html(voll, 'stand')) && /6 Standorte haben noch keinen Krisenstab/.test(html(voll, 'stand')), 'Die Kennzahlen stehen auf der Standfolie');
-ok(/Person B/.test(html(voll, 'krisenstab')) && /Ausruf durch Leitung/.test(html(voll, 'krisenstab')) && (html(voll, 'krisenstab').match(/vs-offen/g) || []).length === 3, 'Der Krisenstab zeigt Namen und offene Rollen, dazu wer ausruft');
+ok(/Person B/.test(html(voll, 'krisenstab')) && /Ausruf: Leitung/.test(html(voll, 'krisenstab')) && (html(voll, 'krisenstab').match(/vs-offen/g) || []).length === 3, 'Der Krisenstab zeigt Namen und offene Rollen, dazu wer ausruft');
 ok((html(voll, 'stunden').match(/<div class="vs-karte">/g) || []).length === 4 && !/fuenf/.test(html(voll, 'stunden')), 'Höchstens vier Schritte passen auf die Folie');
 ok(/vs-zahl">2</.test(html(voll, 'ausfall')) && /Das RMS stuft den Ausfall als Krise ein/.test(html(voll, 'ausfall')), 'Der Beispielausfall nennt Zahl und Stufe');
 ok(/<b>Entwurf bis:<\/b> 30\.11\.2026/.test(html(voll, 'weiter')) && /<li>Zweitens<\/li>/.test(html(voll, 'weiter')) && /nicht benannt/.test(html(voll, 'weiter')), 'Termin, Schritte und Lücken auf der letzten Folie');
 ok(V.vsFolien(Object.assign({}, daten, { kennzahlen: { stabFehlt: 1, werke: 1 } }))[2].html.includes('1 Standort hat noch keinen Krisenstab'), 'Einzahl bei einem Standort');
+
+/* ── 3b) Beispielausfall ── */
+const w = (id, titel, n) => ({ id, titel, kritisch: new Array(n).fill('x') });
+const sortiert = [w('1', 'e-Mails', 11), w('2', 'Fileserver', 11), w('3', 'Timeline (ERP)', 7), w('4', 'SAP R/3', 5)];
+ok(V.vsAssetVorschlag(sortiert, '').id === '3', 'Ohne Auswahl zuerst das ERP mit den meisten wichtigen Prozessen, nicht die E-Mail');
+ok(V.vsAssetVorschlag(sortiert, '4').id === '4', 'Eine Auswahl gilt');
+ok(V.vsAssetVorschlag([w('1', 'e-Mails', 3), w('2', 'Leere (ERP)', 0)], '').id === '1' && V.vsAssetVorschlag([], '') === null, 'Ohne passendes ERP das Asset mit den meisten, ohne Assets nichts');
+const elf = V.vsFolien(Object.assign({}, daten, { ausfall: { asset: 'e-Mails', stufe: 'Krise', erklaert: '', kritisch: Array.from({ length: 11 }, (_, i) => 'Prozess ' + (i + 1)) } }));
+ok(/und 4 weitere/.test(html(elf, 'ausfall')) && /<h2>Beispielausfall: e-Mails<\/h2>/.test(html(elf, 'ausfall')), 'Mehr als sieben Prozesse werden gezählt, die Überschrift beugt nichts');
+ok(!/Alarmiert werden/.test(html(voll, 'krisenstab')) && !/<p><span class="vs-offen">offen<\/span><\/p>/.test(html(nichts, 'weiter')), 'Kein gebeugter Satz zur Alarmierung und kein nacktes „offen“');
 
 /* ── 4) Eingehängt ── */
 const modul = lies('js/module.js');

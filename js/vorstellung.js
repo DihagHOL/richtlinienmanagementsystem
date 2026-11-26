@@ -49,6 +49,18 @@ const _vsOffen = '<span class="vs-offen">offen</span>';
 const _vsWert = (s) => (String(s || '').trim() ? _vsEsc(s) : _vsOffen);
 const _vsAnzahl = (n, eins, viele) => `${n} ${n === 1 ? eins : viele}`;
 
+/**
+ * Welches Asset der Beispielausfall zeigt: das gewählte, sonst ein ERP mit den
+ * meisten wichtigen Prozessen (bei einem Angriff auf die IT das anschaulichste
+ * Beispiel), sonst das Asset mit den meisten. `wahlen` ist danach sortiert.
+ */
+function vsAssetVorschlag(wahlen, gewaehlt) {
+  const liste = wahlen || [];
+  return liste.find(x => gewaehlt && x.id === gewaehlt)
+    || liste.find(x => /(^|[^A-Za-z])(ERP|SAP)($|[^A-Za-z])/i.test(x.titel) && x.kritisch.length)
+    || liste[0] || null;
+}
+
 function _vsFolie(key, inhalt, fuss) {
   return { key, html: `<section class="vs-folie vs-${key}" data-folie="${key}">${inhalt}${fuss ? `<p class="vs-fuss">${fuss}</p>` : ''}</section>` };
 }
@@ -95,7 +107,7 @@ function vsFolien(d) {
   const stufe = (nr) => ((s && s.stufen) || []).find(x => x.nr === nr);
   const zeile = (nr) => {
     const st = stufe(nr);
-    return st ? `<p><b>${_vsEsc(st.label)}:</b> Ausruf durch ${_vsWert(st.erklaert)}. Alarmiert werden ${_vsWert(st.alarmiert)}.</p>` : '';
+    return st ? `<p><b>${_vsEsc(st.label)}.</b> Ausruf: ${_vsWert(st.erklaert)}. Alarmiert: ${_vsWert(st.alarmiert)}.</p>` : '';
   };
   folien.push(_vsFolie('krisenstab', s
     ? `<h2>Krisenstab ${_vsEsc(d.werkLabel)}</h2>
@@ -116,12 +128,12 @@ function vsFolien(d) {
 
   const f = d.ausfall;
   folien.push(_vsFolie('ausfall', f
-    ? `<h2>Wenn ${_vsEsc(f.asset)} ausfällt</h2>
+    ? `<h2>Beispielausfall: ${_vsEsc(f.asset)}</h2>
        <div class="vs-karten">
          ${karte(f.kritisch.length, f.kritisch.length === 1 ? 'wichtiger Prozess ist betroffen' : 'wichtige Prozesse sind betroffen', f.kritisch.length > 0)}
-         <div class="vs-karte"><p>${f.kritisch.length ? f.kritisch.slice(0, 7).map(_vsEsc).join('<br>') : 'Kein wichtiger Prozess hängt an diesem Asset.'}</p></div>
+         <div class="vs-karte"><p>${f.kritisch.length ? f.kritisch.slice(0, 7).map(_vsEsc).join('<br>') + (f.kritisch.length > 7 ? `<br>und ${f.kritisch.length - 7} weitere` : '') : 'Kein wichtiger Prozess hängt an diesem Asset.'}</p></div>
        </div>
-       <p class="vs-satz">Das RMS stuft den Ausfall als ${_vsEsc(f.stufe)} ein.${f.erklaert && f.erklaert !== '–' ? ` Ausruf durch ${_vsEsc(f.erklaert)}.` : ''}</p>`
+       <p class="vs-satz">Das RMS stuft den Ausfall als ${_vsEsc(f.stufe)} ein.${f.erklaert && f.erklaert !== '–' ? ` Ausruf: ${_vsEsc(f.erklaert)}.` : ''}</p>`
     : `<h2>Beispielausfall</h2><p class="vs-satz">Kein wichtiger Prozess ist mit einem Asset verknüpft. ${_vsOffen}</p>`,
     'Aus der Ausfall-Sicht'));
 
@@ -139,7 +151,7 @@ function vsFolien(d) {
          : '<p>Keine offenen Punkte.</p>'}</div>
        <div class="vs-karte"><h3>Nächste Schritte</h3>
          <p><b>Entwurf bis:</b> ${_vsWert(a.termin)}</p>
-         ${schritte.length ? `<ul>${schritte.slice(0, 6).map(t => `<li>${_vsEsc(t)}</li>`).join('')}</ul>` : `<p>${_vsOffen}</p>`}
+         ${schritte.length ? `<ul>${schritte.slice(0, 6).map(t => `<li>${_vsEsc(t)}</li>`).join('')}</ul>` : `<p><b>Weitere Schritte:</b> ${_vsOffen}</p>`}
        </div>
      </div>`));
 
@@ -232,7 +244,7 @@ function vsDaten() {
   }
 
   const wahlen = _vsAssetWahlen();
-  const wahl = wahlen.find(x => x.id === _nfKanon(angaben.asset || '')) || wahlen[0];
+  const wahl = vsAssetVorschlag(wahlen, angaben.asset ? _nfKanon(angaben.asset) : '');
   let ausfall = null;
   if (wahl) {
     const s = nfStufeBeiAusfall(_lkDaten, wahl.id, _nfSichtbareWerke(), wahl.opt);
@@ -279,6 +291,7 @@ function vsOeffnen() {
     </div>
     <div class="vs-buehne">${folien.map(f => f.html).join('')}</div>`;
   document.body.appendChild(root);
+  document.body.style.overflow = 'hidden';
   _vsStand = { nr: Math.min(_vsStand.nr, folien.length - 1), anzahl: folien.length };
   document.addEventListener('keydown', _vsTaste);
   window.addEventListener('resize', _vsSkalieren);
@@ -288,7 +301,7 @@ function vsOeffnen() {
 
 function vsSchliessen() {
   const alt = document.querySelector('.vs-root');
-  if (alt) alt.remove();
+  if (alt) { alt.remove(); document.body.style.overflow = ''; }
   document.removeEventListener('keydown', _vsTaste);
   window.removeEventListener('resize', _vsSkalieren);
 }
@@ -353,7 +366,7 @@ function vsAngabenBearbeiten() {
       <label class="field-label" style="display:block;margin-top:10px">Notfallplan für die ersten Stunden</label>
       <select id="vs-f-prozess" style="width:100%">${option('', 'Automatisch (Fertigung)', a.prozess)}${prozesse.map(x => option(`${x.werk}:${x.kachel.id}`, `${x.kachel.name} (${lkWerkLabel(x.werk)})`, a.prozess)).join('')}</select>
       <label class="field-label" style="display:block;margin-top:10px">Asset für den Beispielausfall</label>
-      <select id="vs-f-asset" style="width:100%">${option('', 'Automatisch (das mit den meisten wichtigen Prozessen)', a.asset)}${assets.map(x => option(x.id, `${x.titel} (${x.kritisch.length})`, a.asset)).join('')}</select>
+      <select id="vs-f-asset" style="width:100%">${option('', 'Automatisch (zuerst ein ERP, sonst das mit den meisten wichtigen Prozessen)', a.asset)}${assets.map(x => option(x.id, `${x.titel} (${x.kritisch.length})`, a.asset)).join('')}</select>
     </div>
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">Abbrechen</button><button class="btn btn-primary" onclick="vsAngabenSpeichern()">Speichern</button></div>`, true);
 }
@@ -371,5 +384,5 @@ async function vsAngabenSpeichern() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { VS_FELDER, vsAngaben, vsSchritte, vsFolien };
+  module.exports = { VS_FELDER, vsAngaben, vsSchritte, vsFolien, vsAssetVorschlag };
 }
