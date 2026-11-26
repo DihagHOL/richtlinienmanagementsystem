@@ -247,6 +247,7 @@ function renderNotfall() {
       </select>
       ${tab('bia', '📊 BIA & Pläne')} ${tab('ausfall', '⚡ Ausfall-Sicht')} ${tab('krisenstab', '🧭 Krisenstab')}
       <div style="flex:1"></div>
+      ${typeof vsOeffnen === 'function' ? '<button class="btn btn-outline btn-sm" onclick="vsOeffnen()" title="Folien aus den Daten des RMS, für das Gespräch mit Geschäftsführung und IT-Leitung">🖥 Vorstellen</button>' : ''}
       <button class="btn btn-outline btn-sm" onclick="nfAlarmkarteDrucken()" title="Eine Seite zum Aushängen: wen man anruft">🖨 Alarmkarte</button>
       <button class="btn btn-primary btn-sm" onclick="nfHandbuchDrucken()" title="Krisenstab, kritische Prozesse nach RTO, alle Pläne. Als PDF in die Schublade">🖨 Notfallhandbuch</button>
     </div>

@@ -1694,3 +1694,47 @@ body.demo-mode .main { padding-bottom: 64px; }
 .mh-tab tr.mh-g1 td { background: #EAF1FA; color: #17509E; font-weight: 700; }
 .mh-tab tr.mh-g2 td { background: #F6F8FB; color: #1A2644; font-weight: 600; padding-left: 18px; }
 @media (max-width: 720px) { .mh-inhalt { columns: 1; } .mh-dok > :not(.mh-titel) { margin-left: 14px; margin-right: 14px; } .mh-stand { margin: 6px 14px; } .mh-h4, .mh-inhalt { margin-left: 14px; margin-right: 14px; } }
+
+/* ── Vorstellung: Folien aus dem RMS (Reiter Notfall & Krisenstab) ───────── */
+.vs-root { position: fixed; inset: 0; z-index: 150; background: #1A2644; display: flex; flex-direction: column; --vs-skala: 1; }
+.vs-leiste { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #1A2644; color: #F6F7F9; }
+.vs-leiste .vs-luft { flex: 1; }
+.vs-zaehler { min-width: 56px; text-align: center; font-size: .85rem; }
+.vs-buehne { flex: 1; position: relative; overflow: hidden; }
+.vs-folie { display: none; position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; box-sizing: border-box;
+  padding: 80px 90px; background: #F6F7F9; color: #1A2644; font-family: 'Exo', Arial, sans-serif; overflow: hidden;
+  transform: translate(-50%, -50%) scale(var(--vs-skala)); }
+.vs-folie.vs-aktiv { display: block; }
+.vs-folie h1 { font-size: 72px; line-height: 1.12; margin: 160px 0 28px; max-width: 1300px; color: #FCFCFD; }
+.vs-folie h2 { font-size: 48px; line-height: 1.15; margin: 0 0 40px; }
+.vs-folie h3 { font-size: 30px; margin: 0 0 14px; color: #17509E; }
+.vs-folie p, .vs-folie li { font-size: 26px; line-height: 1.4; margin: 0 0 12px; }
+.vs-folie ul { padding-left: 26px; margin: 0; }
+.vs-titel { background: #1A2644; color: #F6F7F9; }
+.vs-titel .vs-unter { font-size: 32px; color: #99B7CD; }
+.vs-linie { width: 150px; height: 9px; background: #F08300; margin: 0 0 36px; }
+.vs-tabelle { width: 100%; border-collapse: collapse; font-size: 28px; line-height: 1.35; }
+.vs-tabelle td, .vs-tabelle th { text-align: left; vertical-align: top; padding: 18px 16px; border-bottom: 2px solid #D5DEE8; }
+.vs-tabelle th { font-size: 22px; color: #424241; }
+.vs-tabelle.vs-eng { font-size: 24px; }
+.vs-tabelle.vs-eng td, .vs-tabelle.vs-eng th { padding: 9px 16px; }
+.vs-frage { width: 38%; font-weight: 700; }
+.vs-offen { background: #F08300; color: #1A2644; font-weight: 700; padding: 1px 12px; }
+.vs-karten { display: flex; gap: 28px; align-items: stretch; }
+.vs-karte { flex: 1; background: #FCFCFD; border-top: 9px solid #17509E; padding: 30px; min-width: 0; }
+.vs-karte.vs-warn { border-top-color: #F08300; }
+.vs-zahl { font-size: 72px !important; font-weight: 800; line-height: 1 !important; color: #17509E; }
+.vs-warn .vs-zahl { color: #1A2644; }
+.vs-nr { font-size: 60px !important; font-weight: 800; line-height: 1 !important; color: #17509E; }
+.vs-satz { font-size: 34px !important; font-weight: 600; margin-top: 36px !important; }
+.vs-unten { margin-top: 24px; }
+.vs-klein { font-size: 22px !important; color: #424241; }
+.vs-fuss { position: absolute; left: 90px; bottom: 36px; font-size: 20px !important; color: #424241; margin: 0 !important; }
+@media print {
+  body.vs-drucken > *:not(.vs-root) { display: none !important; }
+  body.vs-drucken .vs-root { position: static; background: none; display: block; }
+  body.vs-drucken .vs-leiste { display: none !important; }
+  body.vs-drucken .vs-buehne { overflow: visible; }
+  body.vs-drucken .vs-folie { display: block !important; position: relative; left: 0; top: 0; transform: none; zoom: .70125; page-break-after: always;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
