@@ -303,7 +303,9 @@ function _sbWer(v) {
   const s = String(v || '').trim(), m = /^([^@\s]+)@/.exec(s);
   return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : s;
 }
-const SB_GF = /gesch(ä|ae)ftsf(ü|ue)hrung|gesch(ä|ae)ftsleitung|(^|[^a-z])(gf|gl)([^a-z]|$)/i;
+/* Die Geschäftsführung: als Verantwortliche eingetragen oder im Titel genannt
+   („Richtungsentscheidung der GL“, „zur GF-Entscheidung“). „Gläubiger“ zählt nicht. */
+const SB_GF = /gesch(ä|ae)ftsf(ü|ue)hrung|gesch(ä|ae)ftsleitung|(^|[^a-zäöüß])(gf|gl)([^a-zäöüß]|$)/i;
 
 /** Alle Maßnahmen der nicht geschlossenen Risiken, mit Risiko und „überfällig“. */
 function sbMassnahmen(risiken, opt) {
@@ -346,7 +348,7 @@ function sbMassnahmenStand(risiken, opt) {
     offen: m.filter(x => !x.erledigt && x.status !== 'in Umsetzung').length,
     ueberfaellig: m.filter(x => x.ueberfaellig).sort(nachFrist),
     bald: m.filter(x => !x.erledigt && !x.ueberfaellig && x.frist && x.frist <= bis).sort(nachFrist),
-    gf: m.filter(x => !x.erledigt && SB_GF.test(x.verantwortlich)).sort(nachFrist),
+    gf: m.filter(x => !x.erledigt && (SB_GF.test(x.verantwortlich) || SB_GF.test(x.titel))).sort(nachFrist),
   };
 }
 
@@ -371,8 +373,8 @@ function sbHauptrisikenHtml(liste) {
 function sbMassnahmenHtml(s) {
   const kachel = (n, text, cls) => `<div class="sb-kachel ${cls || ''}"><b>${n}</b><span>${text}</span></div>`;
   return `<div class="sb-kacheln">${kachel(s.erledigt, 'erledigt', 'sb-gruen')}${kachel(s.inUmsetzung, 'in Umsetzung')}${kachel(s.offen, 'noch nicht begonnen')}${kachel(s.ueberfaellig.length, 'über der Frist', s.ueberfaellig.length ? 'sb-rot' : 'sb-gruen')}</div>
-    ${s.ueberfaellig.length ? `<h4>Über der Frist</h4>${_sbMassnahmeZeilen(s.ueberfaellig, 5, true)}` : ''}
-    ${s.bald.length ? `<h4>In den nächsten 30 Tagen fällig</h4>${_sbMassnahmeZeilen(s.bald, 3, true)}` : ''}`;
+    ${s.ueberfaellig.length ? `<h4>Über der Frist, die ältesten zuerst</h4>${_sbMassnahmeZeilen(s.ueberfaellig, 4, true)}` : ''}
+    ${s.bald.length ? `<h4>In den nächsten 30 Tagen fällig</h4>${_sbMassnahmeZeilen(s.bald, 2, true)}` : ''}`;
 }
 
 function sbGfHtml(s) {
@@ -403,7 +405,7 @@ function sbHtml(bild, roh, opt) {
     const inhalt = bild === 'hauptrisiken' ? sbHauptrisikenHtml(sbHauptrisiken(roh, o)) : bild === 'massnahmen' ? sbMassnahmenHtml(s) : sbGfHtml(s);
     const fuss = bild === 'hauptrisiken' ? `Aus dem Risiko-Register: Risiken mit Bewertung ab ${SB_HOCH}, das schwerste zuerst. Bewertung = Eintritt × Auswirkung, höchstens 25.`
       : bild === 'massnahmen' ? `Aus dem Risiko-Register: ${s.gesamt} Maßnahmen zu den offenen Risiken, Stand ${_sbTag(_sbHeute(o))}.`
-      : 'Aus dem Risiko-Register: offene Maßnahmen, bei denen die Geschäftsführung als verantwortlich eingetragen ist.';
+      : 'Aus dem Risiko-Register: offene Maßnahmen, bei denen die Geschäftsführung verantwortlich ist oder entscheiden soll, die ältesten Fristen zuerst. Dahinter steht, wer im Register als verantwortlich eingetragen ist.';
     return `<div class="sb-block">${inhalt}</div><div class="sb-fuss">${_sbEsc(fuss)}${o.klick ? ' <button class="btn btn-ghost btn-sm" onclick="sbRisikenZeigen()">Zum Risiko-Register</button>' : ''}</div>`;
   }
   if (bild === 'bereiche') {

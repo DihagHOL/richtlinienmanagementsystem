@@ -123,7 +123,9 @@ const reg = [
   { id: '2', titel: 'Rolle nicht ausgestattet', brutto: { e: 4, a: 4 }, status: 'offen', massnahmen: [
     { titel: 'Zeitbudget festlegen', status: 'offen', frist: '2026-10-31', verantwortlich: 'Geschäftsführung' },
     { titel: 'Bestellung schriftlich bestätigen', status: 'offen', frist: '2027-01-31', verantwortlich: 'GF' }] },
-  { id: '3', titel: 'Mittleres Risiko', brutto: { e: 2, a: 4 }, status: 'offen', massnahmen: [{ titel: 'Etwas tun', status: 'offen', frist: '', verantwortlich: '' }] },
+  { id: '3', titel: 'Mittleres Risiko', brutto: { e: 2, a: 4 }, status: 'offen', massnahmen: [{ titel: 'Etwas tun', status: 'offen', frist: '', verantwortlich: '' },
+    { titel: 'Richtungsentscheidung der GL einholen', status: 'in Umsetzung', frist: '2027-02-01', verantwortlich: 'isb@firma.example' },
+    { titel: 'Gläubiger informieren', status: 'offen', frist: '', verantwortlich: 'Buchhaltung' }] },
   { id: '4', titel: 'Hoch ohne Maßnahme', brutto: { e: 5, a: 5 }, status: 'offen', massnahmen: [] },
   { id: '5', titel: 'Geschlossen', brutto: { e: 5, a: 5 }, status: 'geschlossen', massnahmen: [{ titel: 'Alt', status: 'offen', frist: '2020-01-01', verantwortlich: 'GF' }] },
 ];
@@ -131,9 +133,9 @@ const hr = S.sbHauptrisiken(reg, heute);
 ok(hr.map(r => r.id).join() === '4,2,1' && hr[2].kurz === 'Veraltete Systeme' && hr[2].rest === 'Altbetriebssystem und Großrechner', 'Hohe Risiken, das schwerste zuerst, bei Gleichstand nach Namen; der Titel wird am Doppelpunkt in Kurztitel und Einzelheiten geteilt');
 ok(hr[2].massnahmen === 3 && hr[2].erledigt === 1 && hr[2].ueberfaellig === 1 && hr[0].massnahmen === 0, 'Je Risiko: Maßnahmen, erledigt, über der Frist');
 const st = S.sbMassnahmenStand(reg, heute);
-ok(st.gesamt === 6 && st.erledigt === 1 && st.inUmsetzung === 1 && st.offen === 4, 'Gezählt werden nur Maßnahmen offener Risiken');
+ok(st.gesamt === 8 && st.erledigt === 1 && st.inUmsetzung === 2 && st.offen === 5, 'Gezählt werden nur Maßnahmen offener Risiken');
 ok(st.ueberfaellig.map(x => x.titel).join() === 'Bestand erheben,Zeitbudget festlegen' && st.bald.map(x => x.titel).join() === 'Netz trennen', 'Über der Frist und in den nächsten 30 Tagen fällig');
-ok(st.gf.map(x => x.titel).join() === 'Zeitbudget festlegen,Bestellung schriftlich bestätigen', 'Bei der Geschäftsführung: „Geschäftsführung“ und „GF“, nicht „Geschlossen“');
+ok(st.gf.map(x => x.titel).join() === 'Zeitbudget festlegen,Bestellung schriftlich bestätigen,Richtungsentscheidung der GL einholen', 'Bei der Geschäftsführung: als Verantwortliche („Geschäftsführung“, „GF“) oder im Titel („der GL“); nicht „Geschlossen“, nicht „Gläubiger“');
 const hh = S.sbHtml('hauptrisiken', reg, Object.assign({ klick: true }, heute));
 ok(/<b>Veraltete Systeme<\/b><small>Altbetriebssystem und Großrechner<\/small>/.test(hh) && /1 von 3 erledigt/.test(hh) && /1 überfällig/.test(hh) && /keine Maßnahme/.test(hh) && /sbRisikenZeigen/.test(hh), 'Die Tabelle der Hauptrisiken mit Fortschritt, Fristen und dem Weg ins Register');
 const mh = S.sbHtml('massnahmen', reg, heute);
