@@ -113,8 +113,37 @@ ok(/Aus dem Risiko-Register: 9 Risiken offen oder in Behandlung, davon 6 hoch, 1
 ok(/Mit Zugriff auf das Risiko-Register/.test(S.sbHtml('risikokurve', null)) && /Mit Zugriff auf das Assetregister/.test(S.sbHtml('bereiche', null)), 'Ohne Zugriff sagt die Zeile, was fehlt');
 ok(/gibt es nicht/.test(S.sbHtml('unsinn', null)), 'Ein unbekanntes Bild sagt das');
 
+/* ── 5b) Hauptrisiken, Maßnahmen, Aufgaben der Geschäftsführung ── */
+const heute = { heute: '2026-11-27' };
+const reg = [
+  { id: '1', titel: 'Veraltete Systeme: Altbetriebssystem und Großrechner', brutto: { e: 4, a: 4 }, netto: { e: 0, a: 0 }, status: 'in Behandlung', massnahmen: [
+    { titel: 'Bestand erheben', status: 'in Umsetzung', frist: '2026-10-31', verantwortlich: 'isb@firma.example' },
+    { titel: 'Ablösung planen', status: 'erledigt', frist: '2026-09-30', verantwortlich: 'isb@firma.example' },
+    { titel: 'Netz trennen', status: 'offen', frist: '2026-12-15', verantwortlich: 'IT' }] },
+  { id: '2', titel: 'Rolle nicht ausgestattet', brutto: { e: 4, a: 4 }, status: 'offen', massnahmen: [
+    { titel: 'Zeitbudget festlegen', status: 'offen', frist: '2026-10-31', verantwortlich: 'Geschäftsführung' },
+    { titel: 'Bestellung schriftlich bestätigen', status: 'offen', frist: '2027-01-31', verantwortlich: 'GF' }] },
+  { id: '3', titel: 'Mittleres Risiko', brutto: { e: 2, a: 4 }, status: 'offen', massnahmen: [{ titel: 'Etwas tun', status: 'offen', frist: '', verantwortlich: '' }] },
+  { id: '4', titel: 'Hoch ohne Maßnahme', brutto: { e: 5, a: 5 }, status: 'offen', massnahmen: [] },
+  { id: '5', titel: 'Geschlossen', brutto: { e: 5, a: 5 }, status: 'geschlossen', massnahmen: [{ titel: 'Alt', status: 'offen', frist: '2020-01-01', verantwortlich: 'GF' }] },
+];
+const hr = S.sbHauptrisiken(reg, heute);
+ok(hr.map(r => r.id).join() === '4,2,1' && hr[2].kurz === 'Veraltete Systeme' && hr[2].rest === 'Altbetriebssystem und Großrechner', 'Hohe Risiken, das schwerste zuerst, bei Gleichstand nach Namen; der Titel wird am Doppelpunkt in Kurztitel und Einzelheiten geteilt');
+ok(hr[2].massnahmen === 3 && hr[2].erledigt === 1 && hr[2].ueberfaellig === 1 && hr[0].massnahmen === 0, 'Je Risiko: Maßnahmen, erledigt, über der Frist');
+const st = S.sbMassnahmenStand(reg, heute);
+ok(st.gesamt === 6 && st.erledigt === 1 && st.inUmsetzung === 1 && st.offen === 4, 'Gezählt werden nur Maßnahmen offener Risiken');
+ok(st.ueberfaellig.map(x => x.titel).join() === 'Bestand erheben,Zeitbudget festlegen' && st.bald.map(x => x.titel).join() === 'Netz trennen', 'Über der Frist und in den nächsten 30 Tagen fällig');
+ok(st.gf.map(x => x.titel).join() === 'Zeitbudget festlegen,Bestellung schriftlich bestätigen', 'Bei der Geschäftsführung: „Geschäftsführung“ und „GF“, nicht „Geschlossen“');
+const hh = S.sbHtml('hauptrisiken', reg, Object.assign({ klick: true }, heute));
+ok(/<b>Veraltete Systeme<\/b><small>Altbetriebssystem und Großrechner<\/small>/.test(hh) && /1 von 3 erledigt/.test(hh) && /1 überfällig/.test(hh) && /keine Maßnahme/.test(hh) && /sbRisikenZeigen/.test(hh), 'Die Tabelle der Hauptrisiken mit Fortschritt, Fristen und dem Weg ins Register');
+const mh = S.sbHtml('massnahmen', reg, heute);
+ok(/<b>1<\/b><span>erledigt/.test(mh) && /<b>2<\/b><span>über der Frist/.test(mh) && /31\.10\.2026/.test(mh) && /Isb · |Isb</.test(mh) && /Stand 27\.11\.2026/.test(mh), 'Der Stand der Maßnahmen: Kacheln, was über der Frist ist, mit Datum und Verantwortlichen');
+ok(/Zeitbudget festlegen/.test(S.sbHtml('gf', reg, heute)) && /keine offene Maßnahme bei der Geschäftsführung/.test(S.sbHtml('gf', [], heute)), 'Die Aufgaben der Geschäftsführung, und ein Satz, wenn es keine gibt');
+ok(/Mit Zugriff auf das Risiko-Register/.test(S.sbHtml('hauptrisiken', null)), 'Ohne Leserecht kein Inhalt aus dem Register');
+ok(!/<script>/.test(S.sbHtml('massnahmen', [{ id: 'x', titel: '<script>', brutto: { e: 5, a: 5 }, massnahmen: [{ titel: '<script>', status: 'offen', frist: '2020-01-01' }] }], heute)), 'Texte aus dem Register werden entschärft');
+
 /* ── 6) In der Bibliothek ── */
-ok(W.WI_ARTEN.some(a => a.key === 'schaubild') && W.WI_SCHAUBILDER.map(s => s.key).join() === 'bereiche,risikokurve', 'Die Bibliothek kennt die Art und beide Bilder');
+ok(W.WI_ARTEN.some(a => a.key === 'schaubild') && W.WI_SCHAUBILDER.map(s => s.key).join() === 'bereiche,risikokurve,hauptrisiken,massnahmen,gf', 'Die Bibliothek kennt die Art und alle fünf Bausteine');
 ok(W.wiBeitragFehler({ art: 'schaubild', titel: 'x', bild: '' }).some(f => /Welches Schaubild/.test(f)) && W.wiBeitragFehler({ art: 'schaubild', titel: 'x', bild: 'bereiche' }).length === 0, 'Ohne gewähltes Bild lässt sich nichts speichern');
 ok(W.wiNormalisieren({ beitraege: [{ id: 's', art: 'schaubild', titel: 'x', bild: 'risikokurve' }] }).beitraege[0].bild === 'risikokurve', 'Das gewählte Bild bleibt beim Normalisieren');
 const start = W.WI_STARTBESTAND.beitraege.filter(b => b.art === 'schaubild');

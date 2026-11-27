@@ -277,6 +277,109 @@ function sbKurveSvg(z) {
 </svg>`;
 }
 
+/* ── Hauptrisiken und Maßnahmen ──
+   Drei Bausteine aus dem Risiko-Register, für Geschäftsführung und Werkleitung:
+   die hohen Risiken mit dem Stand ihrer Maßnahmen, der Stand aller Maßnahmen mit
+   dem, was überfällig ist, und was bei der Geschäftsführung liegt. Es zählen nur
+   Risiken, die nicht geschlossen sind. */
+
+function _sbScore(b) { return (b && b.e && b.a) ? Number(b.e) * Number(b.a) : 0; }
+function _sbHeute(opt) { return (opt && opt.heute) || new Date().toISOString().slice(0, 10); }
+function _sbTag(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? `${m[3]}.${m[2]}.${m[1]}` : ''; }
+/** „Titel: Einzelheiten“ wird zu Kurztitel und Rest; ohne Doppelpunkt bleibt der Titel ganz. */
+function _sbKurztitel(t) {
+  const s = String(t || '').trim(), i = s.indexOf(': ');
+  return i > 0 && i <= 90 ? { kurz: s.slice(0, i), rest: s.slice(i + 2) } : { kurz: s, rest: '' };
+}
+/** Kürzen an einer Wortgrenze. */
+function _sbSatz(s, n) {
+  const t = String(s || '').trim();
+  if (t.length <= n) return t;
+  const cut = t.slice(0, n - 1), j = cut.lastIndexOf(' ');
+  return (j > n * 0.6 ? cut.slice(0, j) : cut).replace(/[,;:(]+$/, '') + ' …';
+}
+/** Eine Adresse wird zum Namen davor, alles andere bleibt, wie es ist. */
+function _sbWer(v) {
+  const s = String(v || '').trim(), m = /^([^@\s]+)@/.exec(s);
+  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : s;
+}
+const SB_GF = /gesch(ä|ae)ftsf(ü|ue)hrung|gesch(ä|ae)ftsleitung|(^|[^a-z])(gf|gl)([^a-z]|$)/i;
+
+/** Alle Maßnahmen der nicht geschlossenen Risiken, mit Risiko und „überfällig“. */
+function sbMassnahmen(risiken, opt) {
+  const heute = _sbHeute(opt);
+  const out = [];
+  (Array.isArray(risiken) ? risiken : []).filter(r => r && r.status !== 'geschlossen').forEach(r => {
+    (Array.isArray(r.massnahmen) ? r.massnahmen : []).forEach(m => {
+      const status = String(m.status || 'offen');
+      const frist = String(m.frist || '').slice(0, 10);
+      out.push({ titel: String(m.titel || ''), status, frist, verantwortlich: String(m.verantwortlich || ''),
+        erledigt: status === 'erledigt', ueberfaellig: status !== 'erledigt' && !!frist && frist < heute,
+        risiko: _sbKurztitel(r.titel).kurz, risikoId: r.id, score: _sbScore(r.netto) || _sbScore(r.brutto) });
+    });
+  });
+  return out;
+}
+
+/** Die hohen Risiken, das schwerste zuerst, je mit dem Stand seiner Maßnahmen. */
+function sbHauptrisiken(risiken, opt) {
+  const alle = sbMassnahmen(risiken, opt);
+  return (Array.isArray(risiken) ? risiken : [])
+    .filter(r => r && r.status !== 'geschlossen' && (_sbScore(r.netto) || _sbScore(r.brutto)) >= SB_HOCH)
+    .map(r => {
+      const m = alle.filter(x => x.risikoId === r.id);
+      return Object.assign(_sbKurztitel(r.titel), { id: r.id, score: _sbScore(r.netto) || _sbScore(r.brutto), status: r.status || 'offen',
+        massnahmen: m.length, erledigt: m.filter(x => x.erledigt).length, inUmsetzung: m.filter(x => x.status === 'in Umsetzung').length,
+        ueberfaellig: m.filter(x => x.ueberfaellig).length });
+    })
+    .sort((x, y) => (y.score - x.score) || x.kurz.localeCompare(y.kurz, 'de'));
+}
+
+/** Zahlen für die Kacheln und die Listen: überfällig, bald fällig, bei der Geschäftsführung. */
+function sbMassnahmenStand(risiken, opt) {
+  const heute = _sbHeute(opt);
+  const bis = new Date(new Date(heute + 'T00:00:00Z').getTime() + 31 * 864e5).toISOString().slice(0, 10);
+  const m = sbMassnahmen(risiken, opt);
+  const nachFrist = (x, y) => (x.frist || '9999').localeCompare(y.frist || '9999') || (y.score - x.score);
+  return {
+    gesamt: m.length, erledigt: m.filter(x => x.erledigt).length, inUmsetzung: m.filter(x => x.status === 'in Umsetzung').length,
+    offen: m.filter(x => !x.erledigt && x.status !== 'in Umsetzung').length,
+    ueberfaellig: m.filter(x => x.ueberfaellig).sort(nachFrist),
+    bald: m.filter(x => !x.erledigt && !x.ueberfaellig && x.frist && x.frist <= bis).sort(nachFrist),
+    gf: m.filter(x => !x.erledigt && SB_GF.test(x.verantwortlich)).sort(nachFrist),
+  };
+}
+
+function _sbMassnahmeZeilen(liste, max, mitRisiko) {
+  return `<ul class="sb-mliste">${liste.slice(0, max).map(x => `<li title="${_sbEsc(x.titel)}">
+    <span class="sb-frist${x.ueberfaellig ? ' sb-rot' : ''}">${x.frist ? _sbTag(x.frist) : 'ohne Frist'}</span>
+    <span class="sb-mtext">${_sbEsc(_sbSatz(x.titel, 110))}${mitRisiko ? `<small>${_sbEsc(_sbSatz(x.risiko, 60))} · ${_sbEsc(_sbWer(x.verantwortlich) || 'niemand benannt')}</small>` : ''}</span></li>`).join('')}</ul>
+    ${liste.length > max ? `<div class="sb-mehr">und ${liste.length - max} weitere</div>` : ''}`;
+}
+
+/** Die hohen Risiken als Tabelle: Risiko, Bewertung, wie weit die Maßnahmen sind. */
+function sbHauptrisikenHtml(liste) {
+  if (!liste.length) return '<div class="sb-leerzeile">Im Register steht kein offenes hohes Risiko.</div>';
+  return `<table class="sb-tabelle"><thead><tr><th>Risiko</th><th>Bewertung</th><th>Maßnahmen</th></tr></thead><tbody>${liste.map(r => {
+    const anteil = r.massnahmen ? Math.round(r.erledigt / r.massnahmen * 100) : 0;
+    return `<tr><td><b>${_sbEsc(r.kurz)}</b>${r.rest ? `<small>${_sbEsc(_sbSatz(r.rest, 120))}</small>` : ''}</td>
+      <td><span class="sb-score">${r.score}</span><small>${_sbEsc(r.status)}</small></td>
+      <td>${r.massnahmen ? `<div class="sb-balken"><span style="width:${anteil}%"></span></div>${r.erledigt} von ${r.massnahmen} erledigt${r.ueberfaellig ? `<small class="sb-rot">${r.ueberfaellig} überfällig</small>` : ''}` : '<span class="sb-rot">keine Maßnahme</span>'}</td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function sbMassnahmenHtml(s) {
+  const kachel = (n, text, cls) => `<div class="sb-kachel ${cls || ''}"><b>${n}</b><span>${text}</span></div>`;
+  return `<div class="sb-kacheln">${kachel(s.erledigt, 'erledigt', 'sb-gruen')}${kachel(s.inUmsetzung, 'in Umsetzung')}${kachel(s.offen, 'noch nicht begonnen')}${kachel(s.ueberfaellig.length, 'über der Frist', s.ueberfaellig.length ? 'sb-rot' : 'sb-gruen')}</div>
+    ${s.ueberfaellig.length ? `<h4>Über der Frist</h4>${_sbMassnahmeZeilen(s.ueberfaellig, 5, true)}` : ''}
+    ${s.bald.length ? `<h4>In den nächsten 30 Tagen fällig</h4>${_sbMassnahmeZeilen(s.bald, 3, true)}` : ''}`;
+}
+
+function sbGfHtml(s) {
+  if (!s.gf.length) return '<div class="sb-leerzeile">Im Risiko-Register liegt gerade keine offene Maßnahme bei der Geschäftsführung.</div>';
+  return _sbMassnahmeZeilen(s.gf, 6, true);
+}
+
 /* ── Zusammen: Bild und Zeile darunter ── */
 
 /**
@@ -293,6 +396,15 @@ function sbHtml(bild, roh, opt) {
       ? `Aus dem Risiko-Register: ${z.gesamt} Risiken offen oder in Behandlung, davon ${z.hoch} hoch, ${z.mittel} mittel, ${z.niedrig} niedrig${z.ohneBewertung ? `, ${z.ohneBewertung} ohne Bewertung` : ''} (Stufen: ab ${SB_HOCH} hoch, ab ${SB_MITTEL} mittel). ${z.ohneEntscheidung ? `Ohne Entscheidung: ${z.ohneEntscheidung}. ` : ''}Geplant heißt: Behandlung und Maßnahmen stehen fest, das Risiko steht aber noch auf „offen“. Bei ${z.gesenkt} ist die Bewertung nach Maßnahmen schon niedriger als vorher. Die Kurven zeigen das Prinzip, Beträge hat das Register nicht.`
       : 'Die Kurven zeigen das Prinzip. Mit Zugriff auf das Risiko-Register steht hier, wo wir stehen.';
     return sbKurveSvg(z) + `<div class="sb-fuss">${_sbEsc(fuss)}${z && o.klick ? ' <button class="btn btn-ghost btn-sm" onclick="sbRisikenZeigen()">Zum Risiko-Register</button>' : ''}</div>`;
+  }
+  if (bild === 'hauptrisiken' || bild === 'massnahmen' || bild === 'gf') {
+    if (!Array.isArray(roh)) return '<div class="sb-leerzeile">Mit Zugriff auf das Risiko-Register stehen hier unsere Risiken und Maßnahmen.</div>';
+    const s = sbMassnahmenStand(roh, o);
+    const inhalt = bild === 'hauptrisiken' ? sbHauptrisikenHtml(sbHauptrisiken(roh, o)) : bild === 'massnahmen' ? sbMassnahmenHtml(s) : sbGfHtml(s);
+    const fuss = bild === 'hauptrisiken' ? `Aus dem Risiko-Register: Risiken mit Bewertung ab ${SB_HOCH}, das schwerste zuerst. Bewertung = Eintritt × Auswirkung, höchstens 25.`
+      : bild === 'massnahmen' ? `Aus dem Risiko-Register: ${s.gesamt} Maßnahmen zu den offenen Risiken, Stand ${_sbTag(_sbHeute(o))}.`
+      : 'Aus dem Risiko-Register: offene Maßnahmen, bei denen die Geschäftsführung als verantwortlich eingetragen ist.';
+    return `<div class="sb-block">${inhalt}</div><div class="sb-fuss">${_sbEsc(fuss)}${o.klick ? ' <button class="btn btn-ghost btn-sm" onclick="sbRisikenZeigen()">Zum Risiko-Register</button>' : ''}</div>`;
   }
   if (bild === 'bereiche') {
     const d = Array.isArray(roh) ? sbBereicheDaten(roh, o) : null;
@@ -334,13 +446,14 @@ async function _sbRisiken() {
   return _sbCache.risiken;
 }
 
-function _sbRoh(bild) { return bild === 'risikokurve' ? _sbRisiken() : bild === 'bereiche' ? _sbAssets() : Promise.resolve(null); }
+const SB_AUS_RISIKEN = ['risikokurve', 'hauptrisiken', 'massnahmen', 'gf'];
+function _sbRoh(bild) { return SB_AUS_RISIKEN.includes(bild) ? _sbRisiken() : bild === 'bereiche' ? _sbAssets() : Promise.resolve(null); }
 /** Die Optionen fürs Zeichnen; der Klick ins Register nur mit Leserecht, und nie, wenn `klick` false ist. */
 function _sbOptionen(bild, klick) {
   return {
     key: (typeof amKategorieKey === 'function') ? (k) => amKategorieKey(k) : undefined,
     rang: (typeof amRang === 'function') ? amRang : undefined,
-    klick: klick !== false && _sbDarf(bild === 'risikokurve' ? 'risiken' : 'assets'),
+    klick: klick !== false && _sbDarf(SB_AUS_RISIKEN.includes(bild) ? 'risiken' : 'assets'),
   };
 }
 
@@ -384,5 +497,6 @@ async function sbAssetsZeigen(kat) {
 async function sbRisikenZeigen() { if (typeof switchView === 'function') await switchView('risiken'); }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SB_KAT_TEXT, SB_HOCH, SB_MITTEL, sbBereicheDaten, sbBereicheSvg, sbRisikoDaten, sbKurveSvg, sbOptimum, sbHtml, sbEinbetten };
+  module.exports = { SB_KAT_TEXT, SB_HOCH, SB_MITTEL, sbBereicheDaten, sbBereicheSvg, sbRisikoDaten, sbKurveSvg, sbOptimum, sbHtml, sbEinbetten,
+    sbMassnahmen, sbHauptrisiken, sbMassnahmenStand };
 }

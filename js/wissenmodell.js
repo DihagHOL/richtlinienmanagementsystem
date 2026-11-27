@@ -30,6 +30,9 @@ const WI_ARTEN = [
 const WI_SCHAUBILDER = [
   { key: 'bereiche',    label: 'Informations-, IT- und Cybersicherheit (mit dem Assetregister)' },
   { key: 'risikokurve', label: 'Wie viel Sicherheit sich lohnt (mit dem Risiko-Register)' },
+  { key: 'hauptrisiken', label: 'Unsere hohen Risiken mit dem Stand ihrer Maßnahmen (Risiko-Register)' },
+  { key: 'massnahmen', label: 'Stand der Maßnahmen, was über der Frist ist (Risiko-Register)' },
+  { key: 'gf', label: 'Offene Maßnahmen bei der Geschäftsführung (Risiko-Register)' },
 ];
 /* Bereiche, nach denen die Themen in der Leiste gruppiert sind – damit die
    Bibliothek nicht wie eine IT-Sammlung aussieht, sobald ein Thema aus
@@ -73,7 +76,8 @@ function _wiEsc(s) {
  *                       [→ Beschriftung] wird darin zu einem Knopf, der nirgends hinführt
  *   :::code … :::       Zeilen, die genau so abzutippen sind (Schreibmaschinenschrift, Zeile für Zeile)
  *   `Schreibweise`      dasselbe mitten im Satz
- *   [[schaubild:name]]  ein Schaubild des RMS mit unseren Zahlen (bereiche, risikokurve)
+ *   [[schaubild:name]]  ein Schaubild des RMS mit unseren Zahlen (WI_SCHAUBILDER: bereiche,
+ *                       risikokurve, hauptrisiken, massnahmen, gf)
  *
  * Zeile für Zeile gelesen, damit eine Überschrift direkt über ihrer Liste
  * stehen darf – so schreibt man das nun einmal. Alles wird vorher

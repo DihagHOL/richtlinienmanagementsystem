@@ -709,6 +709,40 @@ body.demo-mode .main { padding-bottom: 64px; }
 .sb-marke-blau rect { fill: #fff; stroke: #99b7cd; }
 .sb-fuss { font-size: .82rem; color: var(--c-muted); line-height: 1.5; margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media print { .sb-bild { break-inside: avoid; } .sb-fuss .btn { display: none; } }
+/* Hauptrisiken, Maßnahmen, Aufgaben der Geschäftsführung (aus dem Risiko-Register) */
+.sb-block h4 { margin: 14px 0 6px; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-primary); }
+.sb-tabelle { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.sb-tabelle th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); padding: 4px 8px; border-bottom: 2px solid var(--c-border); }
+.sb-tabelle td { vertical-align: top; padding: 8px; border-bottom: 1px solid var(--c-border); }
+.sb-tabelle td:nth-child(2) { width: 110px; } .sb-tabelle td:nth-child(3) { width: 190px; }
+.sb-tabelle small, .sb-mtext small { display: block; color: var(--c-muted); font-size: .82em; line-height: 1.35; margin-top: 2px; }
+.sb-score { display: inline-block; min-width: 30px; text-align: center; font-weight: 800; color: #991b1b; background: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; padding: 0 6px; }
+.sb-balken { height: 7px; background: #e5e9ef; border-radius: 4px; overflow: hidden; margin: 4px 0 3px; }
+.sb-balken span { display: block; height: 100%; background: #16a34a; }
+.sb-rot { color: #b91c1c !important; font-weight: 700; }
+.sb-kacheln { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sb-kachel { background: #f3f6fb; border-top: 4px solid #17509e; border-radius: 8px; padding: 8px 12px; }
+.sb-kachel b { display: block; font-size: 1.6rem; line-height: 1.1; color: #17509e; }
+.sb-kachel span { font-size: .82rem; color: var(--c-muted); }
+.sb-kachel.sb-gruen { border-top-color: #16a34a; } .sb-kachel.sb-gruen b { color: #15803d; }
+.sb-kachel.sb-rot { border-top-color: #b91c1c; } .sb-kachel.sb-rot b { color: #b91c1c; }
+.sb-mliste { list-style: none; margin: 0; padding: 0; }
+.sb-mliste li { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--c-border); font-size: .9rem; line-height: 1.4; }
+.sb-frist { flex: 0 0 86px; font-variant-numeric: tabular-nums; color: var(--c-muted); }
+.sb-mehr, .sb-leerzeile { font-size: .85rem; color: var(--c-muted); padding: 6px 0; }
+/* dieselben Bausteine auf einer Folie */
+.vs-inhalt .sb-tabelle { font-size: 24px; }
+.vs-inhalt .sb-tabelle th { font-size: 17px; padding: 6px 12px; }
+.vs-inhalt .sb-tabelle td { padding: 10px 12px; }
+.vs-inhalt .sb-tabelle td:nth-child(2) { width: 170px; } .vs-inhalt .sb-tabelle td:nth-child(3) { width: 300px; }
+.vs-inhalt .sb-balken { height: 12px; }
+.vs-inhalt .sb-kachel b { font-size: 52px; } .vs-inhalt .sb-kachel span { font-size: 20px; }
+.vs-inhalt .sb-kachel { padding: 14px 20px; }
+.vs-inhalt .sb-block h4 { font-size: 20px; margin-top: 22px; }
+.vs-inhalt .sb-mliste { padding: 0; }
+.vs-inhalt .sb-mliste li { font-size: 22px; margin: 0; padding: 8px 0; }
+.vs-inhalt .sb-frist { flex-basis: 150px; }
+.vs-inhalt .sb-mehr, .vs-inhalt .sb-leerzeile { font-size: 20px; }
 .wi-stand.faellig { color: #b45309; font-weight: 600; }
 /* Pflichtschulungen oben im Reiter */
 .wi-pflicht { display: flex; align-items: center; gap: 12px; background: #fff7ed; border: 1px solid #fdba74; border-left: 4px solid #F08300; border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; }
