@@ -458,7 +458,9 @@ function amWerkeVon(roh, standorte) {
     String(v).split(/[;,|/]+/).map(s => s.trim()).filter(Boolean).forEach(s => teile.push(s));
   };
   nimm(roh);
-  const kuerzel = Array.isArray(standorte) ? standorte : [];
+  // Ohne Liste (STANDORTE kommt erst mit dem Verwaltungsmodul) gelten die Kürzel der
+  // bekannten Werke. Sonst stand ein im Editor gespeichertes „EIS" nur im Reiter Assets am Asset.
+  const kuerzel = Array.isArray(standorte) && standorte.length ? standorte : AM_WERK_NAMEN.map(([code]) => code);
   const werke = [];
   for (const t of teile) {
     const u = t.toUpperCase();

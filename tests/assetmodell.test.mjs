@@ -99,6 +99,8 @@ ok(sel[0] === 'id' && sel[1] === 'Title' && sel.includes('Asset_x002d_OwnerLooku
 ok(amFeldText({ Description: 'Doku', Url: 'https://x' }) === 'Doku' && amFeldText([{ LookupValue: 'A' }, { LookupValue: 'B' }]) === 'A, B' && amFeldText({ Email: 'a@x' }) === 'a@x', 'Ein Feld als Text: Hyperlink, Nachschlagen, Person');
 const w1 = amWerkeVon('Alle DIHAG-Standorte', ['HOL', 'WGC']), w2 = amWerkeVon([{ LookupValue: 'Wittenberge (WGC)' }, { LookupValue: 'HOL' }], ['HOL', 'WGC']), w3 = amWerkeVon('', ['HOL']);
 ok(w1.werke.join() === 'ALLE' && w2.werke.join() === 'WGC,HOL' && w3.werke.length === 0 && amWerkeVon('alle Werke', ['HOL']).werke.join() === 'ALLE', '„Alle DIHAG-Standorte" heißt konzernweit; Kürzel werden erkannt; leer bleibt leer');
+ok(amWerkeVon('DSO, EIS').werke.join() === 'DSO,EIS' && amWerkeVon('EIS', []).werke.join() === 'EIS' && amWerkeVon('DIHAG Gienanth Eisenberg GmbH').werke.join() === 'EIS'
+  && amWerkeVon('DIHAG').werke.length === 0, 'Ohne Liste der Standorte gelten die Kürzel der bekannten Werke (vom Editor gespeichert, gelesen außerhalb des Reiters Assets)');
 const lk = (n) => (n === 'Informationstr_x00e4_ger' ? { selbst: true, multi: true } : null);
 ok(amAbhaengigLesen({ 'Informationstr_x00e4_gerLookupId': [11, 12] }, 'Informationstr_x00e4_ger', lk).ids.join() === '11,12', 'Nachschlagen auf die Liste selbst: die LookupIds sind die Asset-Ids');
 ok(amAbhaengigLesen({ 'Informationstr_x00e4_ger': [{ LookupId: 11, LookupValue: 'Sharepoint' }] }, 'Informationstr_x00e4_ger', lk).ids.join() === '11', '… auch aus den Objekten');
