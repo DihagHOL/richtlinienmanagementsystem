@@ -598,7 +598,7 @@ Cloud-Dienste und Dienstleister liegen in beiden Flächen: Es sind unsere Inform
 - **Um jeden Preis:** Der Aufwand übersteigt den Schaden, den er verhindern soll.
 
 # Wer entscheidet
-Wie viel Restrisiko wir tragen, legt die Geschäftsführung fest. Das Risiko-Register zeigt, wo wir heute stehen: Hohe Risiken, die noch offen sind, liegen im linken Bereich und brauchen eine Entscheidung.` },
+Wie viel Restrisiko wir tragen, legt die Geschäftsführung fest. Das Risiko-Register zeigt, wo wir heute stehen. Ein hohes Risiko ohne Entscheidung liegt im linken Bereich. Mit Behandlung und Maßnahmen ist es entschieden. Bis die Maßnahmen wirken, tragen wir es trotzdem.` },
   ],
 };
 

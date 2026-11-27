@@ -43,6 +43,22 @@ ok(d.je.anwendung.n === 2 && d.je.anwendung.beispiele.join() === 'ERP Werk,Mail'
 ok(d.je.ot.n === 2 && d.je.ot.werke.join() === 'SHB,WGC', 'Die Werke der Steuerungen kommen aus dem Register');
 ok(d.papier === 1 && d.je.information.n === 2 && d.je.personal.n === 1 && d.je.cloud.n === 0, 'Papier erkennt das Bild am Träger');
 ok(S.sbBereicheDaten(null).gesamt === 0, 'Ohne Register bleibt alles null');
+// Ein Register mit einer gemischten Gruppe, wie sie im Haus vorkommt
+const gemischt = [
+  asset('ERP Alt', 'Hardware / Software', { verfuegbarkeit: 'sehr hoch' }),
+  asset('ERP Neu mit sehr langem Namen', 'Hardware / Software', { verfuegbarkeit: 'sehr hoch' }),
+  asset('Drucker', 'Hardware / Software'),
+  asset('Scanner', 'Hardware'),
+  asset('Dateiserver', 'server'),
+  asset('Ablauf', 'Prozess'),
+];
+const g = S.sbBereicheDaten(gemischt, { key: (k) => A.amKategorieKey(k), rang: A.amRang });
+ok(g.je.itGemischt.n === 4 && g.je.itGemischt.name === 'Hardware / Software' && g.ohneKategorie === 1, 'Eine gemischte Gruppe „Hardware / Software“ zählt zur IT-Sicherheit, unter dem Namen, den das Register am häufigsten führt');
+const gs = S.sbBereicheSvg(g, { klick: true });
+ok(/Hardware \/ Software · 4/.test(gs) && /Server, Datenbanken · 1/.test(gs) && !/Anwendungen · 0/.test(gs) && !/Netze · 0/.test(gs), 'In der IT-Sicherheit stehen nur die Kategorien, die es gibt, kein irreführendes „Anwendungen · 0“');
+ok(/sbAssetsZeigen\(&quot;Hardware \/ Software&quot;\)/.test(gs), 'Der Klick filtert auf die Gruppe des Registers');
+ok(/>z\. B\. ERP Alt</.test(gs) && !/…</.test(gs.split('IT-Sicherheit')[1]), 'Beispiele nur mit ganzen Namen: was nicht passt, fällt weg');
+ok(/Anwendungen · 0/.test(S.sbBereicheSvg(S.sbBereicheDaten([asset('Nur Papier', 'information')]))), 'Gibt es gar keine IT, stehen alle vier mit „· 0“ da');
 
 /* ── 2) Das Bild der Bereiche ── */
 const ohne = S.sbBereicheSvg(null);
@@ -59,7 +75,9 @@ ok(!/<script>/.test(boese) && /&lt;script&gt;/.test(boese), 'Namen aus dem Regis
 /* ── 3) Risiken in den Worten des Bildes ── */
 const r = (e, a, mehr) => Object.assign({ brutto: { e: 5, a: 5 }, netto: { e, a }, status: 'offen', behandlung: '' }, mehr || {});
 const risiken = [
-  r(5, 4),                                                                   // hoch, offen
+  r(5, 4),                                                                   // hoch, ohne Entscheidung
+  r(5, 4, { behandlung: 'mitigieren', massnahmen: [{ titel: 'M' }] }),       // hoch, geplant
+  r(5, 4, { behandlung: 'mitigieren', massnahmen: [] }),                     // hoch, Behandlung ohne Maßnahme: ohne Entscheidung
   r(4, 4, { status: 'in Behandlung', behandlung: 'mitigieren' }),            // hoch, in Behandlung
   r(3, 5, { behandlung: 'akzeptieren', behandlungBegruendung: 'GF-Beschluss' }), // hoch, getragen
   r(3, 5, { behandlung: 'akzeptieren' }),                                    // akzeptiert ohne Begründung: offen
@@ -69,9 +87,10 @@ const risiken = [
   r(5, 5, { status: 'geschlossen' }),                                        // zählt nicht
 ];
 const z = S.sbRisikoDaten(risiken);
-ok(z.gesamt === 7 && z.hoch === 4 && z.mittel === 1 && z.niedrig === 1 && z.ohneBewertung === 1, 'Stufen wie im Risiko-Register, Geschlossenes zählt nicht');
-ok(z.hochOffen === 2 && z.inBehandlung === 1 && z.getragen === 1, 'Getragen heißt: akzeptiert und begründet; ohne Begründung bleibt ein hohes Risiko offen');
-ok(z.gesenkt === 5, 'Gesenkt heißt: netto unter brutto');
+ok(z.gesamt === 9 && z.hoch === 6 && z.mittel === 1 && z.niedrig === 1 && z.ohneBewertung === 1, 'Stufen wie im Risiko-Register, Geschlossenes zählt nicht');
+ok(z.inBehandlung === 1 && z.getragen === 1 && z.geplant === 1 && z.hochGeplant === 1, 'Getragen heißt: akzeptiert und begründet; geplant: offen, aber mit Behandlung und Maßnahme');
+ok(z.hochOhne === 3 && z.ohneEntscheidung === 6, 'Ohne Entscheidung: keine Behandlung, eine Behandlung ohne Maßnahme oder akzeptiert ohne Begründung');
+ok(z.gesenkt === 7, 'Gesenkt heißt: netto unter brutto');
 const risiko = lies('js/risiken.js');
 ok(S.SB_HOCH === 15 && S.SB_MITTEL === 8 && /if \(score >= 15\) return 'hoch';/.test(risiko) && /if \(score >= 8\) return 'mittel';/.test(risiko), 'Die Stufen sind dieselben wie im Risiko-Register');
 
@@ -81,12 +100,14 @@ ok(o.t > 0.38 && o.t < 0.93, 'Der günstigste Punkt liegt im Bereich Risikomanag
 const k0 = S.sbKurveSvg(null);
 ok(/Fahrlässig/.test(k0) && /Risikomanagement/.test(k0) && /Um jeden Preis/.test(k0) && /legt die Geschäftsführung fest/.test(k0) && !/Bei uns/.test(k0), 'Ohne Register: das Prinzip, keine Zahlen');
 const k1 = S.sbKurveSvg(z);
-ok(/Bei uns: 2 hohe Risiken noch offen/.test(k1) && /Bei uns: 1 in Behandlung, 1 bewusst getragen/.test(k1) && /sb-marke-rot/.test(k1), 'Mit Register: offene hohe Risiken links, Behandlung in der Mitte');
-ok(/kein hohes Risiko offen/.test(S.sbKurveSvg(S.sbRisikoDaten([r(1, 1)]))) && /1 hohes Risiko noch offen/.test(S.sbKurveSvg(S.sbRisikoDaten([r(5, 5)]))), 'Kein offenes hohes Risiko ist eine grüne Marke, eins steht in der Einzahl');
+ok(/Bei uns: 3 hohe Risiken ohne Entscheidung/.test(k1) && /Bei uns: 1 in Behandlung, 1 geplant, 1 bewusst getragen/.test(k1) && /sb-marke-rot/.test(k1), 'Mit Register: hohe Risiken ohne Entscheidung links, Behandlung in der Mitte');
+const plan = (e, a) => r(e, a, { behandlung: 'mitigieren', massnahmen: [{ titel: 'M' }] });
+ok(/Bei uns: 2 hohe Risiken mit Plan/.test(S.sbKurveSvg(S.sbRisikoDaten([plan(5, 4), plan(4, 4)]))) && /sb-marke-orange/.test(S.sbKurveSvg(S.sbRisikoDaten([plan(5, 4)]))), 'Hohe Risiken mit Plan stehen orange links, nicht als „ohne Entscheidung“');
+ok(/kein hohes Risiko offen/.test(S.sbKurveSvg(S.sbRisikoDaten([r(1, 1)]))) && /1 hohes Risiko ohne Entscheidung/.test(S.sbKurveSvg(S.sbRisikoDaten([r(5, 5)]))), 'Kein offenes hohes Risiko ist eine grüne Marke, eins steht in der Einzahl');
 ok(!/NaN|undefined/.test(k0 + k1 + mit + ohne), 'Keine kaputten Zahlen im Bild');
 
 /* ── 5) Bild und Zeile darunter ── */
-ok(/Aus dem Risiko-Register: 7 Risiken offen oder in Behandlung, davon 4 hoch, 1 mittel, 1 niedrig, 1 ohne Bewertung/.test(S.sbHtml('risikokurve', risiken, { klick: true })) && /sbRisikenZeigen\(\)/.test(S.sbHtml('risikokurve', risiken, { klick: true })), 'Unter der Kurve: woher die Zahlen kommen, und der Weg ins Register');
+ok(/Aus dem Risiko-Register: 9 Risiken offen oder in Behandlung, davon 6 hoch, 1 mittel, 1 niedrig, 1 ohne Bewertung.*Ohne Entscheidung: 6./.test(S.sbHtml('risikokurve', risiken, { klick: true })) && /sbRisikenZeigen\(\)/.test(S.sbHtml('risikokurve', risiken, { klick: true })), 'Unter der Kurve: woher die Zahlen kommen, und der Weg ins Register');
 ok(/Mit Zugriff auf das Risiko-Register/.test(S.sbHtml('risikokurve', null)) && /Mit Zugriff auf das Assetregister/.test(S.sbHtml('bereiche', null)), 'Ohne Zugriff sagt die Zeile, was fehlt');
 ok(/gibt es nicht/.test(S.sbHtml('unsinn', null)), 'Ein unbekanntes Bild sagt das');
 
@@ -103,6 +124,8 @@ ok(/WI_SCHAUBILDER\.map/.test(wissen) && /sbCacheLeeren/.test(wissen), 'Der Pfle
 ok(/wissen:\s+\['wissenmodell', 'schaubild', 'wissen'\]/.test(lies('js/module.js')), 'Das Modul lädt mit dem Reiter Wissen');
 const eigen = lies('js/schaubild.js');
 ok(/_sbDarf\('assets'\)/.test(eigen) && /_sbDarf\('risiken'\)/.test(eigen) && /canReadTab\(view\)/.test(eigen), 'Zahlen nur mit Leserecht auf das Register');
+ok(/geltungSichtbar\(a\.werke\)/.test(eigen), 'Mit der Trennung nach Gesellschaft zählt nur, was die Person im Register sähe');
+ok(/Object\.assign\(_amFilter, \{ q: '', werk: '', kategorie: kat/.test(eigen) && /\(aus der Liste\)<\/option>` : ''\}/.test(lies('js/assets.js')), 'Der Klick setzt nur die Kategorie, das Register zeigt auch eine Gruppe aus der Liste als Filter');
 ok(/modulLaden\('assetmodell'\)/.test(eigen) && /spGetRisksLeise/.test(eigen) && /async function spGetRisksLeise/.test(lies('js/sharepoint.js')), 'Das Assetmodell kommt erst bei Bedarf, die Risikoliste wird nie angelegt');
 ok(!/localStorage|sessionStorage/.test(eigen), 'Nichts landet im Browserspeicher');
 ok(!/@[a-z0-9-]+\.(com|de)\b/i.test(eigen) && !/Fedorov|Lissitsa|Friedland|Dihag|DIHAG|SAP|Timeline/.test(eigen), 'Im Code stehen keine Namen und keine Systeme aus dem Haus');

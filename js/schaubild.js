@@ -29,11 +29,21 @@ const SB_KAT_TEXT = {
 };
 /** Informationen auf Papier: erkannt am Träger oder an der Beschreibung. */
 const SB_PAPIER = /papier|ordner|akte|ausdruck|analog/i;
+/* Führt das Register eine gemischte Gruppe („Hardware / Software“ und ähnlich),
+   steht sie unter ihrem eigenen Namen in der IT-Sicherheit. */
+const SB_IT_GEMISCHT = /hardware|software|anwendung|applikation|it-system/i;
 
 function _sbEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function _sbKurz(s, n) { const t = String(s || ''); return t.length > n ? t.slice(0, n - 1).trim() + '…' : t; }
+/** „z. B. A, B“: so viele ganze Namen, wie in `max` Zeichen passen. */
+function _sbBeispiele(liste, max) {
+  let t = '';
+  for (const x of liste || []) { const n = t ? t + ', ' + x : x; if (n.length > max - 6) break; t = n; }
+  if (!t && liste && liste.length) t = _sbKurz(liste[0], max - 6);
+  return t ? 'z. B. ' + t : '';
+}
 
 /**
  * Die Assets nach Bereichen gezählt, mit Beispielen (die verfügbarsten zuerst)
@@ -47,14 +57,18 @@ function sbBereicheDaten(assets, opt) {
   const rang = typeof o.rang === 'function' ? o.rang : () => 0;
   const aktiv = (Array.isArray(assets) ? assets : []).filter(a => a && a.status !== 'außer Betrieb');
   const je = {};
-  Object.keys(SB_KAT_TEXT).forEach(k => { je[k] = { n: 0, beispiele: [], werke: [] }; });
-  const gruppen = {};
+  Object.keys(SB_KAT_TEXT).concat(['itGemischt']).forEach(k => { je[k] = { n: 0, beispiele: [], werke: [] }; });
+  const gruppen = {}, gemischt = {};
   let ohne = 0;
   aktiv.forEach(a => {
-    const k = key(a.kategorie || '');
-    if (!je[k]) { ohne++; return; }
-    (gruppen[k] = gruppen[k] || []).push(a);
+    const roh = String(a.kategorie || '').trim();
+    const k = key(roh);
+    if (je[k] && k !== 'itGemischt') (gruppen[k] = gruppen[k] || []).push(a);
+    else if (roh && SB_IT_GEMISCHT.test(roh)) { (gruppen.itGemischt = gruppen.itGemischt || []).push(a); gemischt[roh] = (gemischt[roh] || 0) + 1; }
+    else ohne++;
   });
+  // Der Name der gemischten Gruppe ist der, den das Register am häufigsten führt.
+  je.itGemischt.name = Object.keys(gemischt).sort((x, y) => gemischt[y] - gemischt[x])[0] || '';
   Object.keys(gruppen).forEach(k => {
     const liste = gruppen[k].slice().sort((x, y) => (rang(y.verfuegbarkeit) - rang(x.verfuegbarkeit)) || String(x.titel || '').localeCompare(String(y.titel || ''), 'de'));
     je[k].n = liste.length;
@@ -103,8 +117,14 @@ function sbBereicheSvg(d, opt) {
   // „· 12" hinter einer Zeile; 0 heißt: noch nicht im Register.
   const mitZahl = (k, text) => (je ? `${text} · ${zahl(k)}` : text);
   const zeile = (k, x, y, cls) => _sbKlick(k, _sbText(x, y, mitZahl(k, SB_KAT_TEXT[k]), (cls || '') + (je && !zahl(k) ? ' sb-leer' : '')), klick);
-  const anw = je ? je.anwendung.beispiele.slice(0, 2).join(', ') : '';
-  const ringBsp = je ? je.cloud.beispiele.slice(0, 2).join(', ') : '';
+  // In der IT-Sicherheit stehen die Kategorien, die es im Register gibt; ist keine da, alle vier mit „· 0“.
+  const itAlle = ['anwendung', 'server', 'netz', 'endgeraet', 'itGemischt'];
+  const itZeilen = je && itAlle.some(k => zahl(k)) ? itAlle.filter(k => zahl(k)) : itAlle.slice(0, 4);
+  const itText = (k) => (k === 'itGemischt' ? je.itGemischt.name : SB_KAT_TEXT[k]);
+  const itKlick = (k) => (k === 'itGemischt' ? je.itGemischt.name : k);
+  const exY = 252 + itZeilen.length * 24 + 2;
+  const anw = je ? _sbBeispiele(je.anwendung.n ? je.anwendung.beispiele : je.itGemischt.beispiele, exY > 360 ? 28 : 32) : '';
+  const ringBsp = je ? _sbBeispiele(je.cloud.beispiele, 26) : '';
   const otWerke = je ? je.ot.werke : [];
   return `<svg class="sb-svg" viewBox="0 0 960 560" role="img" aria-label="Informations-, IT- und Cybersicherheit">
   <ellipse class="sb-cyber" cx="385" cy="280" rx="365" ry="255"/>
@@ -142,15 +162,12 @@ function sbBereicheSvg(d, opt) {
   ${_sbText(590, 112, 'Cloud-Dienste', 'sb-klein sb-fett')}
   ${_sbText(590, 128, 'und Dienstleister', 'sb-klein sb-fett')}
   ${je ? _sbKlick('cloud', _sbText(590, 146, zahl('cloud') ? `${zahl('cloud')} im Register` : 'noch nicht im Register', 'sb-klein sb-blass' + (zahl('cloud') ? '' : ' sb-leer')), klick) : _sbText(590, 146, 'unsere Daten bei anderen', 'sb-klein sb-blass')}
-  ${ringBsp ? _sbText(585, 446, _sbKurz('z. B. ' + ringBsp, 24), 'sb-klein sb-blass') : ''}
+  ${ringBsp ? _sbText(585, 446, ringBsp, 'sb-klein sb-blass') : ''}
 
   ${_sbText(575, 205, 'IT-Sicherheit', 'sb-titel sb-hell')}
   ${_sbText(575, 223, 'unsere Systeme', 'sb-unter sb-hell')}
-  ${zeile('anwendung', 575, 252, 'sb-klein sb-hell')}
-  ${zeile('server', 575, 276, 'sb-klein sb-hell')}
-  ${zeile('netz', 575, 300, 'sb-klein sb-hell')}
-  ${zeile('endgeraet', 575, 324, 'sb-klein sb-hell')}
-  ${anw ? _sbText(575, 352, _sbKurz('z. B. ' + anw, 30), 'sb-klein sb-hell sb-blass') : ''}
+  ${itZeilen.map((k, i) => _sbKlick(itKlick(k), _sbText(575, 252 + i * 24, mitZahl(k, itText(k)), 'sb-klein sb-hell' + (je && !zahl(k) ? ' sb-leer' : '')), klick)).join('')}
+  ${anw ? _sbText(575, exY, anw, 'sb-klein sb-hell sb-blass') : ''}
 </svg>`;
 }
 
@@ -161,20 +178,27 @@ const SB_HOCH = 15, SB_MITTEL = 8;
 
 /**
  * Der Stand des Risiko-Registers in den Worten des Bildes. Geschlossenes zählt nicht.
- * hochOffen: hohe Risiken, die weder in Behandlung sind noch begründet getragen werden.
+ * Entschieden ist ein Risiko, wenn es begründet getragen wird oder eine Behandlung
+ * mit mindestens einer Maßnahme hat. Ohne Entscheidung: alles andere.
+ *   getragen       akzeptiert und begründet
+ *   inBehandlung   Status „in Behandlung“
+ *   geplant        Status „offen“, Behandlung und Maßnahmen stehen fest
  */
 function sbRisikoDaten(risiken) {
   const liste = (Array.isArray(risiken) ? risiken : []).filter(r => r && r.status !== 'geschlossen');
   const score = (b) => (b && b.e && b.a) ? Number(b.e) * Number(b.a) : 0;
-  const z = { gesamt: liste.length, hoch: 0, mittel: 0, niedrig: 0, ohneBewertung: 0, hochOffen: 0, inBehandlung: 0, getragen: 0, gesenkt: 0 };
+  const z = { gesamt: liste.length, hoch: 0, mittel: 0, niedrig: 0, ohneBewertung: 0, ohneEntscheidung: 0, hochOhne: 0, hochGeplant: 0,
+    inBehandlung: 0, geplant: 0, getragen: 0, gesenkt: 0 };
   liste.forEach(r => {
     const s = score(r.netto) || score(r.brutto);
     const st = s >= SB_HOCH ? 'hoch' : s >= SB_MITTEL ? 'mittel' : s > 0 ? 'niedrig' : '';
     if (st) z[st]++; else z.ohneBewertung++;
     const getragen = r.behandlung === 'akzeptieren' && String(r.behandlungBegruendung || '').trim() !== '';
+    const mitPlan = !!r.behandlung && r.behandlung !== 'akzeptieren' && Array.isArray(r.massnahmen) && r.massnahmen.length > 0;
     if (getragen) z.getragen++;
     else if (r.status === 'in Behandlung') z.inBehandlung++;
-    else if (st === 'hoch') z.hochOffen++;
+    else if (mitPlan) { z.geplant++; if (st === 'hoch') z.hochGeplant++; }
+    else { z.ohneEntscheidung++; if (st === 'hoch') z.hochOhne++; }
     if (score(r.netto) && score(r.brutto) && score(r.netto) < score(r.brutto)) z.gesenkt++;
   });
   return z;
@@ -200,7 +224,7 @@ function sbKurveSvg(z) {
   const py = (v) => +(Y1 - Math.min(v, YMAX) / YMAX * H).toFixed(1);
   const pfad = (f) => { const p = []; for (let i = 0; i <= 120; i++) { const t = i / 120; p.push((i ? 'L' : 'M') + px(t) + ' ' + py(f(t))); } return p.join(' '); };
   const LINKS = 0.38, RECHTS = 0.93;
-  const mLinks = px(LINKS * 0.55), mMitte = px((LINKS + RECHTS) / 2);
+  const mLinks = px(LINKS * 0.55), mMitte = px((LINKS + RECHTS) / 2), bLinks = px(LINKS / 2);
   const opt = sbOptimum();
   const ox = px(opt.t), oy = py(opt.s);
   // Unter der Achse, je Bereich: was das Register dazu sagt.
@@ -210,10 +234,11 @@ function sbKurveSvg(z) {
   };
   let bei = '';
   if (z) {
-    bei = (z.hochOffen
-      ? marke(mLinks, 412, `Bei uns: ${z.hochOffen} ${z.hochOffen === 1 ? 'hohes Risiko' : 'hohe Risiken'} noch offen`, 'sb-marke-rot')
-      : marke(mLinks, 412, 'Bei uns: kein hohes Risiko offen', 'sb-marke-gruen'))
-      + marke(mMitte, 412, `Bei uns: ${z.inBehandlung} in Behandlung, ${z.getragen} bewusst getragen`, 'sb-marke-blau');
+    const hohe = (n) => `${n} ${n === 1 ? 'hohes Risiko' : 'hohe Risiken'}`;
+    bei = (z.hochOhne ? marke(bLinks, 412, `Bei uns: ${hohe(z.hochOhne)} ohne Entscheidung`, 'sb-marke-rot')
+      : z.hochGeplant ? marke(bLinks, 412, `Bei uns: ${hohe(z.hochGeplant)} mit Plan`, 'sb-marke-orange')
+      : marke(bLinks, 412, 'Bei uns: kein hohes Risiko offen', 'sb-marke-gruen'))
+      + marke(mMitte, 412, `Bei uns: ${z.inBehandlung} in Behandlung, ${z.geplant} geplant, ${z.getragen} bewusst getragen`, 'sb-marke-blau');
   }
   const legende = (x, cls, text) => `<line class="${cls}" x1="${x}" y1="${z ? 447 : 417}" x2="${x + 26}" y2="${z ? 447 : 417}"/>${_sbText(x + 34, z ? 451 : 421, text, 'sb-klein', 'start')}`;
   const unten = z ? 482 : 452;
@@ -263,7 +288,7 @@ function sbHtml(bild, roh, opt) {
   if (bild === 'risikokurve') {
     const z = Array.isArray(roh) ? sbRisikoDaten(roh) : null;
     const fuss = z
-      ? `Aus dem Risiko-Register: ${z.gesamt} Risiken offen oder in Behandlung, davon ${z.hoch} hoch, ${z.mittel} mittel, ${z.niedrig} niedrig${z.ohneBewertung ? `, ${z.ohneBewertung} ohne Bewertung` : ''} (Stufen: ab ${SB_HOCH} hoch, ab ${SB_MITTEL} mittel). Maßnahmen haben ${z.gesenkt} davon gesenkt. Die Kurven zeigen das Prinzip, Beträge hat das Register nicht.`
+      ? `Aus dem Risiko-Register: ${z.gesamt} Risiken offen oder in Behandlung, davon ${z.hoch} hoch, ${z.mittel} mittel, ${z.niedrig} niedrig${z.ohneBewertung ? `, ${z.ohneBewertung} ohne Bewertung` : ''} (Stufen: ab ${SB_HOCH} hoch, ab ${SB_MITTEL} mittel). ${z.ohneEntscheidung ? `Ohne Entscheidung: ${z.ohneEntscheidung}. ` : ''}Geplant heißt: Behandlung und Maßnahmen stehen fest, das Risiko steht aber noch auf „offen“. Bei ${z.gesenkt} ist die Bewertung nach Maßnahmen schon niedriger als vorher. Die Kurven zeigen das Prinzip, Beträge hat das Register nicht.`
       : 'Die Kurven zeigen das Prinzip. Mit Zugriff auf das Risiko-Register steht hier, wo wir stehen.';
     return sbKurveSvg(z) + `<div class="sb-fuss">${_sbEsc(fuss)}${z && o.klick ? ' <button class="btn btn-ghost btn-sm" onclick="sbRisikenZeigen()">Zum Risiko-Register</button>' : ''}</div>`;
   }
@@ -290,7 +315,8 @@ async function _sbAssets() {
     // Das Assetmodell kommt erst, wenn es gebraucht wird: Die Bibliothek bleibt für alle leicht.
     if (typeof amAusFeldern !== 'function' && typeof modulLaden === 'function') await modulLaden('assetmodell');
     const l = (typeof spGetAssetRegisterLeise === 'function') ? await spGetAssetRegisterLeise() : null;
-    _sbCache.assets = Array.isArray(l) ? l : null;
+    // Mit der Trennung nach Gesellschaft nur, was diese Person auch im Register sähe.
+    _sbCache.assets = Array.isArray(l) ? l.filter(a => typeof geltungSichtbar !== 'function' || geltungSichtbar(a.werke)) : null;
   } catch (e) { console.warn('[schaubild] Assetregister nicht lesbar:', e.message); _sbCache.assets = null; }
   return _sbCache.assets;
 }
@@ -327,7 +353,8 @@ async function sbZeichnen(b, noch) {
 async function sbAssetsZeigen(kat) {
   if (typeof switchView !== 'function') return;
   await switchView('assets');
-  if (typeof _amFilter !== 'undefined') { _amFilter.kategorie = kat || ''; if (typeof renderAssets === 'function') renderAssets(); }
+  // Nur die Kategorie, sonst nichts: Die Zahl im Bild soll die Zahl der Zeilen sein.
+  if (typeof _amFilter !== 'undefined') { Object.assign(_amFilter, { q: '', werk: '', kategorie: kat || '', art: '', verf: '', status: '' }); if (typeof renderAssets === 'function') renderAssets(); }
 }
 async function sbRisikenZeigen() { if (typeof switchView === 'function') await switchView('risiken'); }
 

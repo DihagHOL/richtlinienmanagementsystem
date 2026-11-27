@@ -216,7 +216,7 @@ function renderAssets() {
         <option value="">alle Werke</option>${werke.filter(w => !sichtbar || sichtbar.includes(w)).map(w => `<option value="${esc(w)}"${_amFilter.werk === w ? ' selected' : ''}>${esc(w)}</option>`).join('')}
       </select>
       <select class="sort-select" onchange="_amFilter.kategorie=this.value;renderAssets()">
-        <option value="">alle Kategorien</option>${kats.map(k => `<option value="${esc(k.key)}"${_amFilter.kategorie === k.key ? ' selected' : ''}>${esc(k.symbol)} ${esc(k.label)}</option>`).join('')}
+        <option value="">alle Kategorien</option>${kats.map(k => `<option value="${esc(k.key)}"${_amFilter.kategorie === k.key ? ' selected' : ''}>${esc(k.symbol)} ${esc(k.label)}</option>`).join('')}${_amFilter.kategorie && !kats.some(k => k.key === _amFilter.kategorie) ? `<option value="${esc(_amFilter.kategorie)}" selected>${esc(_amFilter.kategorie)} (aus der Liste)</option>` : ''}
       </select>
       ${z.primaer ? `<select class="sort-select" onchange="_amFilter.art=this.value;renderAssets()" title="ISO 27005: primär = Informationen und Prozesse, unterstützend = Systeme und Medien, auf denen sie liegen">
         <option value="">Art: alle</option>${AM_ART.map(v => `<option value="${esc(v)}"${_amFilter.art === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}
