@@ -211,7 +211,7 @@ function renderAssets() {
     ${z.vererbung ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>${z.vererbung} Asset(s) mit zu niedrigem Schutzbedarf</b>. Prozesse, die daran hängen, verlangen mehr (Vererbung nach BSI-Maximumprinzip). Steht in der Spalte „Lücken" als Hinweis.</div>` : ''}
     ${faellig.length ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>Läuft aus:</b> ${faellig.slice(0, 6).map(f => `${esc(f.asset.titel)} (${esc(f.was)} ${f.ueberfaellig ? `seit ${-f.tage} Tagen` : `in ${f.tage} Tagen`})`).join(' · ')}${faellig.length > 6 ? ` · +${faellig.length - 6}` : ''}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_amFilter.q)}" oninput="_amFilter.q=this.value;renderAssets()" style="width:200px">
+      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_amFilter.q)}" id="am-suche" oninput="_amFilter.q=this.value;mitFokus('am-suche',renderAssets)" style="width:200px">
       <select class="sort-select" onchange="_amFilter.werk=this.value;renderAssets()">
         <option value="">alle Werke</option>${werke.filter(w => !sichtbar || sichtbar.includes(w)).map(w => `<option value="${esc(w)}"${_amFilter.werk === w ? ' selected' : ''}>${esc(w)}</option>`).join('')}
       </select>

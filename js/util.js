@@ -160,8 +160,26 @@ function druckKopf(zeile) {
     + `</div>`;
 }
 
+/**
+ * Neu zeichnen, ohne dass das Suchfeld den Fokus verliert. Viele Reiter zeichnen
+ * bei jedem getippten Zeichen die ganze Ansicht neu, das Suchfeld eingeschlossen;
+ * ohne diesen Helfer endet die Eingabe nach dem ersten Buchstaben. Hatte das Feld
+ * mit der Kennung `id` den Fokus, bekommt das neue Feld ihn samt Schreibmarke zurück.
+ */
+function mitFokus(id, zeichnen) {
+  const alt = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+  const hatte = !!alt && document.activeElement === alt;
+  const von = hatte ? alt.selectionStart : 0, bis = hatte ? alt.selectionEnd : 0;
+  zeichnen();
+  if (!hatte) return;
+  const neu = document.getElementById(id);
+  if (!neu) return;
+  neu.focus();
+  try { neu.setSelectionRange(von, bis); } catch (e) { /* Feldart ohne Schreibmarke */ }
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { jsArg, sichereUrl, fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf };
+  module.exports = { jsArg, sichereUrl, fileExt, officeScheme, fmtFileSize, fileIcon, rmsAssetUrl, druckKopf, mitFokus };
 }
 
 /* ═══════════════════════════════════════════════════

@@ -133,7 +133,7 @@ function renderZiele() {
       ${kachel(k.ueberschritten, 'Termin überschritten', k.ueberschritten ? '#b91c1c' : '#15803d')}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" oninput="_zlFilter.q=this.value;renderZiele()" style="width:200px">
+      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" id="zl-suche" oninput="_zlFilter.q=this.value;mitFokus('zl-suche',renderZiele)" style="width:200px">
       <select class="sort-select" onchange="_zlFilter.status=this.value;renderZiele()">
         <option value="">alle Status</option>
         ${ZL_STATUS.map(s => `<option value="${esc(s.key)}"${f.status === s.key ? ' selected' : ''}>${esc(s.key)}</option>`).join('')}</select>

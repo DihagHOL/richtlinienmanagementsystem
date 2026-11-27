@@ -297,7 +297,7 @@ function _nfBiaHtml(schreiben) {
     ${unbewertet ? `<div class="col-warning" style="display:block;margin-bottom:12px"><b>${unbewertet} Prozess(e) ohne Business-Impact-Analyse.</b>
       Erst die BIA sagt, welcher Prozess einen Plan braucht. „Kritikalität niedrig" ist auch eine Antwort, und eine dokumentierte.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-      <input type="text" class="sort-select" placeholder="Prozess suchen …" value="${esc(_nfFilter)}" oninput="_nfFilter=this.value;renderNotfall()" style="width:220px">
+      <input type="text" class="sort-select" placeholder="Prozess suchen …" value="${esc(_nfFilter)}" id="nf-suche" oninput="_nfFilter=this.value;mitFokus('nf-suche',renderNotfall)" style="width:220px">
       <span class="field-hint">Sortiert: kritische zuerst, darin nach RTO. Klick öffnet BIA und Plan.</span>
     </div>
     ${table}`;

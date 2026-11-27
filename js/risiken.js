@@ -233,7 +233,7 @@ function renderRisiken() {
     ${_riskMatrixHtml()}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen (Titel, Eigner, Kategorie) …" value="${esc(_riskFilter.q)}"
-        oninput="_riskFilter.q=this.value;renderRisiken()" style="width:230px">
+        id="risk-suche" oninput="_riskFilter.q=this.value;mitFokus('risk-suche',renderRisiken)" style="width:230px">
       <select class="sort-select" onchange="_riskFilter.status=this.value;renderRisiken()">
         <option value=""${!_riskFilter.status ? ' selected' : ''}>alle Status</option>
         ${RISK_STATUS.map(s => `<option value="${esc(s)}"${_riskFilter.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}

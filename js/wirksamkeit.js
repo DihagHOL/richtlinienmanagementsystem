@@ -321,7 +321,7 @@ function renderWirksamkeit() {
       „Maßnahme erledigt" heißt nicht „Problem behoben". 10.2 verlangt beides getrennt.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(_wirkFilter.q)}"
-        oninput="_wirkFilter.q=this.value;renderWirksamkeit()" style="width:220px">
+        id="wirk-suche" oninput="_wirkFilter.q=this.value;mitFokus('wirk-suche',renderWirksamkeit)" style="width:220px">
       <select class="sort-select" onchange="_wirkFilter.art=this.value;renderWirksamkeit()">
         <option value=""${!_wirkFilter.art ? ' selected' : ''}>alle Arten</option>
         ${Object.entries(WIRK_ARTEN).map(([k, a]) => `<option value="${k}"${_wirkFilter.art === k ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}

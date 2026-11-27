@@ -142,7 +142,7 @@ function renderKennzahlen() {
       ${kachel(s.ohneSoll, 'Normalwert nicht auswertbar', s.ohneSoll ? '#b45309' : '#15803d')}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" oninput="_kzFilter.q=this.value;renderKennzahlen()" style="width:200px">
+      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" id="kz-suche" oninput="_kzFilter.q=this.value;mitFokus('kz-suche',renderKennzahlen)" style="width:200px">
       <select class="sort-select" onchange="_kzFilter.typ=this.value;renderKennzahlen()">
         <option value="">alle Typen</option>
         ${KZ_TYPEN.map(t => `<option value="${esc(t)}"${f.typ === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>

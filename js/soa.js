@@ -193,7 +193,7 @@ function renderSoa() {
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Filtern (Control, Text) …" value="${esc(_soaFilter.q)}"
-        oninput="_soaFilter.q=this.value;renderSoa()" style="width:210px">
+        id="soa-suche" oninput="_soaFilter.q=this.value;mitFokus('soa-suche',renderSoa)" style="width:210px">
       <select class="sort-select" onchange="_soaFilter.nur=this.value;renderSoa()">
         <option value=""${!_soaFilter.nur ? ' selected' : ''}>alle Controls</option>
         <option value="offen"${_soaFilter.nur === 'offen' ? ' selected' : ''}>nur offene (nicht entschieden)</option>

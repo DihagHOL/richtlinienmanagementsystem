@@ -168,7 +168,7 @@ function renderMassnahmen() {
     </div>
     ${uebersichtHtml}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" oninput="_mnFilter.q=this.value;renderMassnahmen()" style="width:190px">
+      <input type="text" class="sort-select" placeholder="Suchen …" value="${esc(f.q)}" id="mn-suche" oninput="_mnFilter.q=this.value;mitFokus('mn-suche',renderMassnahmen)" style="width:190px">
       ${auswahl('quelle', 'entspringt aus …', MN_QUELLEN.map(q => ({ key: q.key, label: q.label })))}
       ${auswahl('team', 'alle Teams', teams.map(t => ({ key: t, label: t })))}
       ${auswahl('kategorie', 'alle Themen', MN_KATEGORIEN)}

@@ -266,7 +266,7 @@ function renderAusnahmen() {
       oder sie braucht eine neue Entscheidung.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <input type="text" class="sort-select" placeholder="Suchen (Titel, Richtlinie, Antragsteller) …" value="${esc(_excFilter.q)}"
-        oninput="_excFilter.q=this.value;renderAusnahmen()" style="width:250px">
+        id="exc-suche" oninput="_excFilter.q=this.value;mitFokus('exc-suche',renderAusnahmen)" style="width:250px">
       <select class="sort-select" onchange="_excFilter.status=this.value;renderAusnahmen()">
         <option value=""${!_excFilter.status ? ' selected' : ''}>alle Status</option>
         ${EXC_STATUS.concat(['abgelaufen']).map(s => `<option value="${esc(s)}"${_excFilter.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
