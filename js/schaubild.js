@@ -334,6 +334,16 @@ async function _sbRisiken() {
   return _sbCache.risiken;
 }
 
+function _sbRoh(bild) { return bild === 'risikokurve' ? _sbRisiken() : bild === 'bereiche' ? _sbAssets() : Promise.resolve(null); }
+/** Die Optionen fürs Zeichnen; der Klick ins Register nur mit Leserecht, und nie, wenn `klick` false ist. */
+function _sbOptionen(bild, klick) {
+  return {
+    key: (typeof amKategorieKey === 'function') ? (k) => amKategorieKey(k) : undefined,
+    rang: (typeof amRang === 'function') ? amRang : undefined,
+    klick: klick !== false && _sbDarf(bild === 'risikokurve' ? 'risiken' : 'assets'),
+  };
+}
+
 /**
  * Das Bild mit Zahlen nachzeichnen, sobald die Register da sind.
  * @param {object} b         der Beitrag
@@ -341,15 +351,28 @@ async function _sbRisiken() {
  */
 async function sbZeichnen(b, noch) {
   if (!b || typeof document === 'undefined') return;
-  const roh = b.bild === 'risikokurve' ? await _sbRisiken() : b.bild === 'bereiche' ? await _sbAssets() : null;
+  const roh = await _sbRoh(b.bild);
   if (!roh || (typeof noch === 'function' && !noch())) return;
   const el = document.getElementById('sb-bild');
   if (!el) return;
-  el.innerHTML = sbHtml(b.bild, roh, {
-    key: (typeof amKategorieKey === 'function') ? (k) => amKategorieKey(k) : undefined,
-    rang: (typeof amRang === 'function') ? amRang : undefined,
-    klick: _sbDarf(b.bild === 'risikokurve' ? 'risiken' : 'assets'),
-  });
+  el.innerHTML = sbHtml(b.bild, roh, _sbOptionen(b.bild));
+}
+
+/**
+ * Die Platzhalter `[data-schaubild]` in einem Bereich füllen (aus [[schaubild:…]] im
+ * Text eines Artikels oder Moduls): sofort ohne Zahlen, dann mit, sobald die Register da sind.
+ * @param {Element} root
+ * @param {object} [opt]  { klick: false in Folien, wo ein Sprung ins Register stören würde }
+ */
+async function sbEinbetten(root, opt) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  const felder = Array.from(root.querySelectorAll('[data-schaubild]'));
+  felder.forEach(el => { el.innerHTML = sbHtml(el.getAttribute('data-schaubild'), null); });
+  for (const el of felder) {
+    const bild = el.getAttribute('data-schaubild');
+    const roh = await _sbRoh(bild);
+    if (roh && el.isConnected !== false) el.innerHTML = sbHtml(bild, roh, _sbOptionen(bild, opt && opt.klick));
+  }
 }
 
 async function sbAssetsZeigen(kat) {
@@ -361,5 +384,5 @@ async function sbAssetsZeigen(kat) {
 async function sbRisikenZeigen() { if (typeof switchView === 'function') await switchView('risiken'); }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SB_KAT_TEXT, SB_HOCH, SB_MITTEL, sbBereicheDaten, sbBereicheSvg, sbRisikoDaten, sbKurveSvg, sbOptimum, sbHtml };
+  module.exports = { SB_KAT_TEXT, SB_HOCH, SB_MITTEL, sbBereicheDaten, sbBereicheSvg, sbRisikoDaten, sbKurveSvg, sbOptimum, sbHtml, sbEinbetten };
 }

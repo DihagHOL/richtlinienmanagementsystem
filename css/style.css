@@ -1769,6 +1769,22 @@ body.demo-mode .main { padding-bottom: 64px; }
 .vs-unten { margin-top: 24px; }
 .vs-klein { font-size: 22px !important; color: #424241; }
 .vs-fuss { position: absolute; left: 90px; bottom: 36px; font-size: 20px !important; color: #424241; margin: 0 !important; }
+/* Eine Schulung als Präsentation (wiFolienHtml): Modultext in Folienschrift */
+.vs-titel .vs-fuss { color: #99B7CD; }
+.vs-modulnr { font-family: Consolas, 'Courier New', monospace; font-size: 22px; font-weight: 800; color: #F08300; margin: -30px 0 10px; }
+.vs-modul h2 { margin-bottom: 28px; }
+.vs-inhalt { max-width: 1420px; }
+.vs-inhalt h4 { font-size: 24px; text-transform: uppercase; letter-spacing: .04em; color: #17509E; margin: 22px 0 6px; }
+.vs-inhalt h4:first-child { margin-top: 0; }
+.vs-inhalt .wi-box { font-size: 24px; line-height: 1.4; padding: 16px 22px; border-radius: 12px; margin: 18px 0 0; }
+.vs-inhalt .wi-schritte li { padding: 8px 0; }
+.vs-inhalt .wi-schritte li::before { font-size: 34px; min-width: 60px; }
+.vs-inhalt .wi-schritte li > div { font-size: 26px; line-height: 1.4; }
+.vs-inhalt li b, .vs-inhalt p b { color: #17509E; }
+.vs-inhalt .sb-bild { border: 0; padding: 0; margin: 0 0 10px; background: none; }
+.vs-inhalt .sb-svg { max-height: 560px; }
+.vs-inhalt .sb-fuss { font-size: 18px; }
+.vs-inhalt .sb-fuss .btn { display: none; }
 @media print {
   body.vs-drucken > *:not(.vs-root) { display: none !important; }
   body.vs-drucken .vs-root { position: static; background: none; display: block; }

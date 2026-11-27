@@ -100,6 +100,8 @@ function renderWissen() {
       mount.innerHTML = _wiDetailHtml(b);
       // Ein Schaubild steht sofort ohne Zahlen da; mit den Registern wird es nachgezeichnet.
       if (b.art === 'schaubild' && typeof sbZeichnen === 'function') sbZeichnen(b, () => _wiOffen === b.id);
+      // Schaubilder mitten im Text ([[schaubild:…]] in Artikeln und Modulen) genauso.
+      if (typeof sbEinbetten === 'function') sbEinbetten(mount);
       return;
     }
     _wiOffen = '';
@@ -437,6 +439,7 @@ function _wiKursHtml(b) {
       <button class="btn btn-sm btn-ghost" onclick="wiSchliessen()">← Zurück zur Bibliothek</button>
       ${schritt > 0 ? `<button class="btn btn-sm btn-ghost" onclick="wiKursZu(${jsArg(b.id)}, 0)">☰ Übersicht</button>` : ''}
       <div class="toolbar-spacer"></div>
+      ${typeof folienOeffnen === 'function' && b.module.length ? `<button class="btn btn-outline btn-sm" onclick="wiPraesentieren(${jsArg(b.id)})" title="Die Module als Folien im Vollbild, zum Vortragen. Pfeiltasten blättern, Escape schließt.">▶ Präsentieren</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="wiLinkKopieren(${jsArg(b.id)})" title="Dauerhafter Link auf diese Schulung">🔗 Link</button>
       ${wiDarfPflegen() ? `<button class="btn btn-outline btn-sm" onclick="wiBeitragDialog(${jsArg(b.id)})">✎ Bearbeiten</button>` : ''}
     </div>`;
@@ -467,6 +470,7 @@ function _wiKursHtml(b) {
         <div class="wi-meta-kachel"><span class="wi-meta-symbol">🔄</span><div><div class="wi-meta-titel">Wiederholung</div><div>${b.wiederholung ? (b.wiederholung === 12 ? 'Jährliche Auffrischung' : `Alle ${b.wiederholung} Monate`) : 'Keine Wiederholung nötig'}</div></div></div>
       </div>
       ${statusHtml}
+      ${b.quelle ? `<div class="lernvideo-quelle" style="margin:0 0 10px">Quelle: ${esc(b.quelle)}</div>` : ''}
       ${b.ziele.length ? `<div class="wi-kurs-block"><h3>Nach dieser Schulung können Sie …</h3><ul class="wi-ziele">${b.ziele.map(z => `<li>${esc(z)}</li>`).join('')}</ul></div>` : ''}
       <div class="wi-kurs-block"><h3>Die Module</h3>
         <ol class="wi-module">${b.module.map((m, i) => `<li class="${gelesen.includes(m.id) ? 'da' : ''}" onclick="wiKursZu(${jsArg(b.id)}, ${i + 1})" role="button" tabindex="0"
@@ -505,6 +509,19 @@ function _wiKursHtml(b) {
       </div>` : `<div class="wi-box ok">Sie haben alle ${n} Module gelesen.</div>
         <div class="wi-detail-fuss">${st.key === 'erledigt' ? `<span class="wi-stand ok">✓ Abgeschlossen am ${_wiDatum(st.stand.am)}</span><button class="btn btn-outline btn-sm" onclick="wiZertifikat(${jsArg(b.id)})">🎓 Bescheinigung</button>` : `<button class="btn btn-success" onclick="wiKursAbschliessen(${jsArg(b.id)})">✓ Schulung abschließen</button>`}</div>`}
     </div>`;
+}
+
+/**
+ * Die Schulung als Präsentation: Titel, je Modul eine Folie, der Hinweis auf den Test.
+ * Steht man in einem Modul, beginnt sie dort. Eingebettete Schaubilder zeigen unsere
+ * Zahlen, aber ohne Sprung ins Register, der hinter den Folien verschwände.
+ */
+function wiPraesentieren(id) {
+  const b = wiBeitrag(_wi.daten, id);
+  if (!b || typeof folienOeffnen !== 'function') return;
+  const nr = _wiKurs.id === b.id ? Math.min(_wiKurs.schritt, b.module.length) : 0;
+  const buehne = folienOeffnen(wiFolienHtml(b), { label: 'Präsentation', nr });
+  if (typeof sbEinbetten === 'function') sbEinbetten(buehne, { klick: false }).then(() => { if (typeof folienEinpassen === 'function') folienEinpassen(); });
 }
 
 function _wiFortschrittHtml(b) {
@@ -722,7 +739,9 @@ function _wiBeitragDialogHtml() {
           <input type="number" min="1" max="100" value="${b.bestehen}" style="width:72px" oninput="wiEditSet('bestehen',Math.max(1,Math.min(100,+this.value||${WI_BESTEHEN})))"> %
         </div>
         <div id="wi-fragen">${_wiFragenHtml()}</div>
-        <button class="btn btn-ghost btn-sm" onclick="wiFrageAdd()">+ Frage hinzufügen</button></div>`;
+        <button class="btn btn-ghost btn-sm" onclick="wiFrageAdd()">+ Frage hinzufügen</button></div>
+      <div class="form-group full"><label>Quelle</label>
+        <input type="text" id="wi-b-quelle" value="${esc(b.quelle)}" placeholder="falls die Schulung auf einer Vorlage beruht" oninput="wiEditSet('quelle',this.value)"></div>`;
   } else if (b.art === 'artikel') {
     artFelder = `
       <div class="form-group full"><label>Text <span class="req">*</span></label>

@@ -60,17 +60,18 @@ const MODUL_ANSICHTEN = {
   governance:    MODUL_ADMIN.concat(['governance']),
   // notfall steht bei den Prozessen, weil der Kachel-Dialog der Landkarte den
   // Notfall-Stand zeigt und den Plan öffnet – dieselbe Kachel, zwei Reiter.
-  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'landkartebericht', 'prozessmatrix', 'verantwortung', 'prozessbacklog', 'vorstellung', 'mindmapbaum', 'verknuepfungen', 'gesamtkarte', 'notfall']),
+  prozesse:      MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'landkartebericht', 'prozessmatrix', 'verantwortung', 'prozessbacklog', 'folien', 'vorstellung', 'mindmapbaum', 'verknuepfungen', 'gesamtkarte', 'notfall']),
   // Die Notfall-Ansicht rechnet auf der Landkarte und legt Übungen im
   // Wirksamkeits-Register an – beides muss da sein. Der Editor (prozesse)
   // steht dabei, weil der Kachel-Dialog der Landkarte ihn öffnen kann.
-  notfall:       MODUL_ADMIN.concat(['prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'landkartebericht', 'notfall', 'vorstellung']),
+  notfall:       MODUL_ADMIN.concat(['folien', 'prozessschema', 'rmsprozesse', 'bpmndeutsch', 'bpmnhilfe', 'bpmnanleitung', 'prozessmodell', 'prozesse', 'prozessfreigabe', 'prozessvergleich', 'landkarte', 'landkartebericht', 'notfall', 'vorstellung']),
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
   // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.
   // Die Schaubilder zeichnen ohne Verwaltungsblock; das Assetmodell holen sie
-  // erst, wenn jemand mit Zugriff auf das Register ein Bild öffnet.
-  wissen:        ['wissenmodell', 'schaubild', 'wissen'],
+  // erst, wenn jemand mit Zugriff auf das Register ein Bild öffnet. folien.js
+  // zeigt eine Schulung als Präsentation, im selben Rahmen wie die Vorstellung.
+  wissen:        ['wissenmodell', 'schaubild', 'folien', 'wissen'],
   // Das Assetregister: Modell im Verwaltungsblock (Report, Notfall, Risiken
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),

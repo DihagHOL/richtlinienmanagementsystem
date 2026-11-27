@@ -306,82 +306,17 @@ function vsDaten() {
 
 /* ── Die Vorstellung am Bildschirm ─────────────────────────────────────── */
 
-let _vsStand = { nr: 0, anzahl: 0 };
-
+/* Der Rahmen (Blättern, Einpassen, Drucken) steht in folien.js; die Bibliothek
+   zeigt ihre Schulungen im selben. Ist die Vorstellung schon offen, etwa nach
+   dem Speichern der Angaben, geht es auf derselben Folie weiter. */
 function vsOeffnen() {
   if (!_lkDaten) return;
-  vsSchliessen();
-  const folien = vsFolien(vsDaten());
-  const root = document.createElement('div');
-  root.className = 'vs-root';
-  root.setAttribute('role', 'dialog');
-  root.setAttribute('aria-label', 'Vorstellung');
-  root.innerHTML = `
-    <div class="vs-leiste">
-      <button class="btn btn-sm btn-outline" onclick="vsBlaettern(-1)" title="Zurück (Pfeil links)">‹</button>
-      <span class="vs-zaehler"></span>
-      <button class="btn btn-sm btn-outline" onclick="vsBlaettern(1)" title="Weiter (Pfeil rechts)">›</button>
-      <span class="vs-luft"></span>
-      ${nfDarfSchreiben() ? '<button class="btn btn-sm btn-outline" onclick="vsAngabenBearbeiten()">Angaben ergänzen</button>' : ''}
-      <button class="btn btn-sm btn-outline" onclick="vsDrucken()">Drucken / PDF</button>
-      <button class="btn btn-sm btn-primary" onclick="vsSchliessen()">Schließen</button>
-    </div>
-    <div class="vs-buehne">${folien.map(f => f.html).join('')}</div>`;
-  document.body.appendChild(root);
-  document.body.style.overflow = 'hidden';
-  _vsStand = { nr: Math.min(_vsStand.nr, folien.length - 1), anzahl: folien.length };
-  document.addEventListener('keydown', _vsTaste);
-  window.addEventListener('resize', _vsSkalieren);
-  _vsZeigen();
-  _vsSkalieren();
-}
-
-function vsSchliessen() {
-  const alt = document.querySelector('.vs-root');
-  if (alt) { alt.remove(); document.body.style.overflow = ''; }
-  document.removeEventListener('keydown', _vsTaste);
-  window.removeEventListener('resize', _vsSkalieren);
-}
-
-function vsBlaettern(schritt) {
-  _vsStand.nr = Math.max(0, Math.min(_vsStand.anzahl - 1, _vsStand.nr + schritt));
-  _vsZeigen();
-}
-
-function _vsZeigen() {
-  const root = document.querySelector('.vs-root');
-  if (!root) return;
-  root.querySelectorAll('.vs-folie').forEach((f, i) => f.classList.toggle('vs-aktiv', i === _vsStand.nr));
-  const z = root.querySelector('.vs-zaehler');
-  if (z) z.textContent = `${_vsStand.nr + 1} / ${_vsStand.anzahl}`;
-}
-
-/** Die Folie ist 1600 × 900 und wird in den freien Platz eingepasst. */
-function _vsSkalieren() {
-  const root = document.querySelector('.vs-root');
-  if (!root) return;
-  const buehne = root.querySelector('.vs-buehne');
-  const k = Math.min(buehne.clientWidth / 1600, buehne.clientHeight / 900);
-  root.style.setProperty('--vs-skala', String(k > 0 ? k : 1));
-}
-
-function _vsTaste(e) {
-  // Der Angaben-Dialog liegt darüber: Dort tippt man, und sein Escape schließt nur ihn
-  // (er hört vorher und markiert das Ereignis als verbraucht).
-  if (e.defaultPrevented || document.querySelector('#modal-mount .modal')) return;
-  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); vsBlaettern(1); }
-  else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); vsBlaettern(-1); }
-  else if (e.key === 'Escape') vsSchliessen();
-}
-
-function vsDrucken() {
-  const stil = document.createElement('style');
-  stil.textContent = '@page { size: 297mm 167mm; margin: 0 }';
-  document.head.appendChild(stil);
-  document.body.classList.add('vs-drucken');
-  const fertig = () => { document.body.classList.remove('vs-drucken'); stil.remove(); window.removeEventListener('afterprint', fertig); };
-  window.addEventListener('afterprint', fertig);
-  window.print();
+  const offen = document.querySelector('.vs-root[aria-label="Vorstellung"]');
+  const nr = offen ? folienNr() : 0;
+  folienOeffnen(vsFolien(vsDaten()).map(f => f.html).join(''), {
+    label: 'Vorstellung', nr,
+    knoepfe: nfDarfSchreiben() ? '<button class="btn btn-sm btn-outline" onclick="vsAngabenBearbeiten()">Angaben ergänzen</button>' : '',
+  });
 }
 
 /** Der Dialog für alles, was nicht in den Registern steht. */

@@ -73,6 +73,7 @@ function _wiEsc(s) {
  *                       [→ Beschriftung] wird darin zu einem Knopf, der nirgends hinführt
  *   :::code … :::       Zeilen, die genau so abzutippen sind (Schreibmaschinenschrift, Zeile für Zeile)
  *   `Schreibweise`      dasselbe mitten im Satz
+ *   [[schaubild:name]]  ein Schaubild des RMS mit unseren Zahlen (bereiche, risikokurve)
  *
  * Zeile für Zeile gelesen, damit eine Überschrift direkt über ihrer Liste
  * stehen darf – so schreibt man das nun einmal. Alles wird vorher
@@ -116,6 +117,9 @@ function wiTextHtml(text) {
       return;
     }
     if (t === ':::mail') { alleZu(); mail = { kopf: [], text: [], rumpf: false }; return; }
+    // Ein Schaubild des RMS (js/schaubild.js); die Seite füllt den Platzhalter mit unseren Zahlen.
+    const bild = t.match(/^\[\[schaubild:([a-z]+)\]\]$/);
+    if (bild) { alleZu(); out.push(`<div class="sb-bild" data-schaubild="${bild[1]}"></div>`); return; }
     if (!t) { alleZu(); return; }
     if (/^#+\s+/.test(t)) { alleZu(); out.push('<h4>' + inline(t.replace(/^#+\s+/, '')) + '</h4>'); return; }
     if (/^>/.test(t)) {
@@ -136,6 +140,25 @@ function wiTextHtml(text) {
   mailZu(); alleZu();
   if (code) out.push('<pre class="wi-code">' + code.map(_wiEsc).join('\n') + '</pre>');   // ohne schließendes ::: geht nichts verloren
   return out.join('');
+}
+
+/**
+ * Eine Schulung als Folien (für folien.js): eine Titelfolie, je Modul eine Folie,
+ * und, wenn es einen gibt, der Hinweis auf den Wissenstest. Der Modultext steht in
+ * `.vs-inhalt`; passt er nicht, verkleinert ihn der Rahmen.
+ */
+function wiFolienHtml(b) {
+  const E = _wiEsc;
+  const module = (b && Array.isArray(b.module)) ? b.module : [];
+  const n = module.length, zwei = (i) => String(i).padStart(2, '0');
+  const fragen = (b && Array.isArray(b.fragen)) ? b.fragen.length : 0;
+  const titel = `<section class="vs-folie vs-titel"><div class="vs-linie"></div><h1>${E(b.titel)}</h1>${b.kurz ? `<p class="vs-unter">${E(b.kurz)}</p>` : ''}
+    <p class="vs-fuss">${n} Module${b.dauer ? ` · ca. ${b.dauer} Minuten` : ''}${b.quelle ? ` · Quelle: ${E(b.quelle)}` : ''}</p></section>`;
+  const seiten = module.map((m, i) => `<section class="vs-folie vs-modul"><div class="vs-modulnr">${zwei(i + 1)} / ${zwei(n)}</div>
+    <h2>${E(m.titel)}</h2><div class="vs-inhalt">${wiTextHtml(m.text)}</div><p class="vs-fuss">${E(b.titel)}</p></section>`);
+  const test = fragen ? `<section class="vs-folie vs-titel"><div class="vs-linie"></div><h1>Wissenstest</h1>
+    <p class="vs-unter">${fragen} Fragen zu „${E(b.titel)}“, im RMS unter Wissen. Freiwillig und beliebig oft.</p></section>` : '';
+  return titel + seiten.join('') + test;
 }
 
 /** Monate auf ein ISO-Datum – für die Wiederholung einer Schulung. */
@@ -1103,7 +1126,7 @@ function wiStartbestandErgaenzen(daten, wer, jetzt, nur) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { WI_ARTEN, WI_SCHAUBILDER, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN, WI_KURS_PROZESSE_RMS,
-    wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
+    wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiFolienHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
     wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiStartbestandFehlend, wiTag,
     wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };
 }

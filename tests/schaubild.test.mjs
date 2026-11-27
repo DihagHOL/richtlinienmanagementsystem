@@ -123,7 +123,7 @@ ok(start.every(b => !/[–—]/.test(b.text + b.kurz + b.titel)), 'Keine Gedanke
 const wissen = lies('js/wissen.js');
 ok(/b\.art === 'schaubild' && typeof sbZeichnen === 'function'\) sbZeichnen\(b, \(\) => _wiOffen === b\.id\)/.test(wissen) && /id="sb-bild"/.test(wissen), 'Der Reiter zeichnet das Bild sofort und mit Zahlen nach');
 ok(/WI_SCHAUBILDER\.map/.test(wissen) && /sbCacheLeeren/.test(wissen), 'Der Pflege-Dialog bietet die Bilder an, Aktualisieren lädt die Register neu');
-ok(/wissen:\s+\['wissenmodell', 'schaubild', 'wissen'\]/.test(lies('js/module.js')), 'Das Modul lädt mit dem Reiter Wissen');
+ok(/wissen:\s+\['wissenmodell', 'schaubild', 'folien', 'wissen'\]/.test(lies('js/module.js')), 'Das Modul lädt mit dem Reiter Wissen');
 const eigen = lies('js/schaubild.js');
 ok(/_sbDarf\('assets'\)/.test(eigen) && /_sbDarf\('risiken'\)/.test(eigen) && /canReadTab\(view\)/.test(eigen), 'Zahlen nur mit Leserecht auf das Register');
 ok(/geltungSichtbar\(a\.werke\)/.test(eigen), 'Mit der Trennung nach Gesellschaft zählt nur, was die Person im Register sähe');
