@@ -57,7 +57,7 @@ ok(g.je.itGemischt.n === 4 && g.je.itGemischt.name === 'Hardware / Software' && 
 const gs = S.sbBereicheSvg(g, { klick: true });
 ok(/Hardware \/ Software · 4/.test(gs) && /Server, Datenbanken · 1/.test(gs) && !/Anwendungen · 0/.test(gs) && !/Netze · 0/.test(gs), 'In der IT-Sicherheit stehen nur die Kategorien, die es gibt, kein irreführendes „Anwendungen · 0“');
 ok(/sbAssetsZeigen\(&quot;Hardware \/ Software&quot;\)/.test(gs), 'Der Klick filtert auf die Gruppe des Registers');
-ok(/>z\. B\. ERP Alt</.test(gs) && !/…</.test(gs.split('IT-Sicherheit')[1]), 'Beispiele nur mit ganzen Namen: was nicht passt, fällt weg');
+ok(/>z\. B\. ERP Alt, Drucker</.test(gs) && !/…</.test(gs.split('IT-Sicherheit')[1]), 'Beispiele nur mit ganzen Namen: ein zu langer wird übersprungen');
 ok(/Anwendungen · 0/.test(S.sbBereicheSvg(S.sbBereicheDaten([asset('Nur Papier', 'information')]))), 'Gibt es gar keine IT, stehen alle vier mit „· 0“ da');
 
 /* ── 2) Das Bild der Bereiche ── */

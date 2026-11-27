@@ -37,10 +37,10 @@ function _sbEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function _sbKurz(s, n) { const t = String(s || ''); return t.length > n ? t.slice(0, n - 1).trim() + '…' : t; }
-/** „z. B. A, B“: so viele ganze Namen, wie in `max` Zeichen passen. */
+/** „z. B. A, B“: ganze Namen, die in `max` Zeichen passen; ein zu langer wird übersprungen. */
 function _sbBeispiele(liste, max) {
   let t = '';
-  for (const x of liste || []) { const n = t ? t + ', ' + x : x; if (n.length > max - 6) break; t = n; }
+  for (const x of liste || []) { const n = t ? t + ', ' + x : x; if (n.length <= max - 6) t = n; }
   if (!t && liste && liste.length) t = _sbKurz(liste[0], max - 6);
   return t ? 'z. B. ' + t : '';
 }
