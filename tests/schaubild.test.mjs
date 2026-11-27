@@ -43,6 +43,8 @@ ok(d.je.anwendung.n === 2 && d.je.anwendung.beispiele.join() === 'ERP Werk,Mail'
 ok(d.je.ot.n === 2 && d.je.ot.werke.join() === 'SHB,WGC', 'Die Werke der Steuerungen kommen aus dem Register');
 ok(d.papier === 1 && d.je.information.n === 2 && d.je.personal.n === 1 && d.je.cloud.n === 0, 'Papier erkennt das Bild am Träger');
 ok(S.sbBereicheDaten(null).gesamt === 0, 'Ohne Register bleibt alles null');
+ok(S.sbBereicheDaten([asset('Browser', 'server', { verfuegbarkeit: 'sehr hoch' }), asset('Zeitwirtschaft (ERP)', 'server', { verfuegbarkeit: 'sehr hoch' }), asset('Altes ERP', 'server')], { rang: A.amRang }).je.server.beispiele.join() === 'Zeitwirtschaft (ERP),Browser,Altes ERP',
+  'Bei gleicher Verfügbarkeit steht ein ERP vorn, die Verfügbarkeit geht vor');
 // Ein Register mit einer gemischten Gruppe, wie sie im Haus vorkommt
 const gemischt = [
   asset('ERP Alt', 'Hardware / Software', { verfuegbarkeit: 'sehr hoch' }),

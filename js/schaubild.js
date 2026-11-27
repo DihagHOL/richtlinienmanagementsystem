@@ -70,7 +70,9 @@ function sbBereicheDaten(assets, opt) {
   // Der Name der gemischten Gruppe ist der, den das Register am häufigsten führt.
   je.itGemischt.name = Object.keys(gemischt).sort((x, y) => gemischt[y] - gemischt[x])[0] || '';
   Object.keys(gruppen).forEach(k => {
-    const liste = gruppen[k].slice().sort((x, y) => (rang(y.verfuegbarkeit) - rang(x.verfuegbarkeit)) || String(x.titel || '').localeCompare(String(y.titel || ''), 'de'));
+    // Beispiele: das Verfügbarste zuerst, bei Gleichstand ein ERP (das kennt jede Geschäftsführung), dann nach Namen.
+    const erp = (a) => (/(^|[^a-z])erp($|[^a-z])/i.test(a.titel || '') ? 1 : 0);
+    const liste = gruppen[k].slice().sort((x, y) => (rang(y.verfuegbarkeit) - rang(x.verfuegbarkeit)) || (erp(y) - erp(x)) || String(x.titel || '').localeCompare(String(y.titel || ''), 'de'));
     je[k].n = liste.length;
     je[k].beispiele = liste.map(a => a.titel).filter(Boolean).slice(0, 3);
     je[k].werke = [...new Set([].concat(...liste.map(a => a.werke || [])).filter(w => w && w !== 'ALLE'))].sort();
