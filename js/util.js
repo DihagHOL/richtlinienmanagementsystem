@@ -167,12 +167,12 @@ function druckKopf(zeile) {
  * mit der Kennung `id` den Fokus, bekommt das neue Feld ihn samt Schreibmarke zurück.
  */
 function mitFokus(id, zeichnen) {
-  const alt = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+  const alt = /** @type {HTMLInputElement|null} */ ((typeof document !== 'undefined') ? document.getElementById(id) : null);
   const hatte = !!alt && document.activeElement === alt;
   const von = hatte ? alt.selectionStart : 0, bis = hatte ? alt.selectionEnd : 0;
   zeichnen();
   if (!hatte) return;
-  const neu = document.getElementById(id);
+  const neu = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
   if (!neu) return;
   neu.focus();
   try { neu.setSelectionRange(von, bis); } catch (e) { /* Feldart ohne Schreibmarke */ }
