@@ -87,7 +87,7 @@ async function initWissen(still) {
   renderWissen();
 }
 
-async function refreshWissen() { _wiAlleAcks = null; await initWissen(); }
+async function refreshWissen() { _wiAlleAcks = null; if (typeof sbCacheLeeren === 'function') sbCacheLeeren(); await initWissen(); }
 
 /* ── Zeichnen ── */
 
@@ -96,7 +96,12 @@ function renderWissen() {
   if (!mount || !_wi) return;
   if (_wiOffen) {
     const b = wiBeitrag(_wi.daten, _wiOffen);
-    if (b && (wiSichtbar(b, { geltungSichtbar: _wiGeltungSichtbar }) || _wiPflege)) { mount.innerHTML = _wiDetailHtml(b); return; }
+    if (b && (wiSichtbar(b, { geltungSichtbar: _wiGeltungSichtbar }) || _wiPflege)) {
+      mount.innerHTML = _wiDetailHtml(b);
+      // Ein Schaubild steht sofort ohne Zahlen da; mit den Registern wird es nachgezeichnet.
+      if (b.art === 'schaubild' && typeof sbZeichnen === 'function') sbZeichnen(b, () => _wiOffen === b.id);
+      return;
+    }
     _wiOffen = '';
   }
   const pflege = wiDarfPflegen();
@@ -282,6 +287,9 @@ function _wiDetailHtml(b) {
           : '<div class="field-hint">Keine gültige Video-Adresse hinterlegt.</div>';
   } else if (b.art === 'artikel') {
     inhalt = `<div class="wi-artikel">${wiTextHtml(b.text)}</div>`;
+  } else if (b.art === 'schaubild') {
+    inhalt = `<div class="sb-bild" id="sb-bild">${typeof sbHtml === 'function' ? sbHtml(b.bild, null) : ''}</div>
+      ${String(b.text || '').trim() ? `<div class="wi-artikel">${wiTextHtml(b.text)}</div>` : ''}`;
   } else if (b.art === 'link') {
     inhalt = `<a class="btn btn-primary" href="${esc(sichereUrl(b.url))}" target="_blank" rel="noopener">🔗 Öffnen: ${esc(b.url.replace(/^https?:\/\//i, '').split('/')[0])}</a>
       <div class="field-hint" style="margin-top:6px;word-break:break-all">${esc(b.url)}</div>`;
@@ -722,6 +730,18 @@ function _wiBeitragDialogHtml() {
         <span class="field-hint">Kurz und konkret: Was ist das Risiko, woran erkennt man es, was tut man. Drei Absätze schlagen drei Seiten.</span></div>
       <div class="form-group full"><label>Quelle</label>
         <input type="text" id="wi-b-quelle" value="${esc(b.quelle)}" placeholder="falls der Text auf einer Vorlage beruht" oninput="wiEditSet('quelle',this.value)"></div>`;
+  } else if (b.art === 'schaubild') {
+    artFelder = `
+      <div class="form-group full"><label>Schaubild <span class="req">*</span></label>
+        <select id="wi-b-bild" onchange="wiEditSet('bild',this.value)">
+          <option value="">Bitte wählen</option>
+          ${WI_SCHAUBILDER.map(s => `<option value="${s.key}"${s.key === b.bild ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}
+        </select>
+        <span class="field-hint">Das Bild zeichnet das RMS. Die Zahlen darin kommen aus dem Register und sieht nur, wer das Register lesen darf.</span></div>
+      <div class="form-group full"><label>Erklärung unter dem Bild</label>
+        <textarea id="wi-b-text" rows="12" style="width:100%;font-family:inherit;font-size:.9rem;line-height:1.5" placeholder="Was das Bild zeigt und was daraus folgt. Schreibweise wie beim Artikel." oninput="wiEditSet('text',this.value)">${esc(b.text)}</textarea></div>
+      <div class="form-group full"><label>Quelle</label>
+        <input type="text" id="wi-b-quelle" value="${esc(b.quelle)}" placeholder="falls das Bild auf einer Vorlage beruht" oninput="wiEditSet('quelle',this.value)"></div>`;
   } else {
     artFelder = `
       <div class="wi-zeile" style="align-items:center;gap:8px">

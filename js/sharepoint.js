@@ -2585,6 +2585,19 @@ async function spGetRisks() {
   const token = await acquireToken(SP.scopes);
   if (!token) return [];
   const listId = await spEnsureRiskList(true);
+  return _spRiskItems(listId, token);
+}
+
+/** Wie spGetRisks, aber ohne die Liste anzulegen: null, wenn es sie nicht gibt (für die Schaubilder der Bibliothek). */
+async function spGetRisksLeise() {
+  const token = await acquireToken(SP.scopes);
+  if (!token) return null;
+  const listId = await spEnsureRiskList(false);
+  if (!listId) return null;
+  return _spRiskItems(listId, token);
+}
+
+async function _spRiskItems(listId, token) {
   const siteId = await _ismsSiteId(token);
   const out = [];
   let url = `${SP.graphBase}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=200`;

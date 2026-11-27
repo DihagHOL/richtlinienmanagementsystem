@@ -670,6 +670,44 @@ body.demo-mode .main { padding-bottom: 64px; }
 .wi-artikel li { margin: 0 0 6px; }
 .wi-artikel h4 { margin: 16px 0 6px; font-size: .9rem; color: var(--c-navy, #1A2644); text-transform: uppercase; letter-spacing: .04em; }
 .wi-art-kurs { background: #1A2644; color: #fff; }
+.wi-art-schaubild { background: #e9f0f8; color: #17509e; }
+/* Schaubilder (js/schaubild.js) */
+.sb-bild { background: #fff; border: 1px solid var(--c-border); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.sb-svg { display: block; width: 100%; height: auto; font-family: inherit; }
+.sb-svg text { fill: var(--c-text); font-size: 13px; }
+.sb-svg .sb-titel { font-size: 19px; font-weight: 800; fill: var(--c-navy); }
+.sb-svg .sb-unter { font-size: 12.5px; fill: var(--c-muted); }
+.sb-svg .sb-klein { font-size: 12.5px; }
+.sb-svg .sb-fett { font-weight: 700; }
+.sb-svg .sb-blass { opacity: .8; }
+.sb-svg .sb-hell { fill: #fff; }
+.sb-svg .sb-leer { fill: #b45309; }
+.sb-svg .sb-hell.sb-leer { fill: #fdd9a8; }
+.sb-cyber { fill: #eef2f7; stroke: #8fa0b3; stroke-width: 1.5; }
+.sb-info { fill: rgba(153, 183, 205, .35); stroke: #6f8fa8; stroke-width: 1.5; }
+.sb-it { fill: #17509e; stroke: #103b73; stroke-width: 1.5; }
+.sb-leitung { stroke: #424241; stroke-width: 2; fill: none; }
+.sb-wolke { fill: #c3ccd5; }
+.sb-svg .sb-wolke-text { font-size: 15px; font-weight: 700; fill: #1a2644; }
+.sb-zeichen { fill: #424241; }
+.sb-zeichen .sb-fenster { fill: #fff; }
+.sb-klick { cursor: pointer; }
+.sb-klick:hover text, .sb-klick:focus text { text-decoration: underline; }
+.sb-klick:focus { outline: none; }
+.sb-zone-rot { fill: #fde7d1; }
+.sb-zone-blau { fill: #e9f0f8; }
+.sb-zone-grau { fill: #e5e7eb; }
+.sb-kurve-schaden { fill: none; stroke: #f08300; stroke-width: 3; }
+.sb-kurve-aufwand { fill: none; stroke: #17509e; stroke-width: 3; }
+.sb-kurve-summe { fill: none; stroke: #1a2644; stroke-width: 2; stroke-dasharray: 6 5; }
+.sb-optimum { fill: #fff; stroke: #1a2644; stroke-width: 3; }
+.sb-hilfslinie { stroke: #1a2644; stroke-width: 1; stroke-dasharray: 3 4; }
+.sb-achse { stroke: #424241; stroke-width: 1.5; }
+.sb-marke-rot rect { fill: #fee2e2; stroke: #fca5a5; }
+.sb-marke-gruen rect { fill: #dcfce7; stroke: #86efac; }
+.sb-marke-blau rect { fill: #fff; stroke: #99b7cd; }
+.sb-fuss { font-size: .82rem; color: var(--c-muted); line-height: 1.5; margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+@media print { .sb-bild { break-inside: avoid; } .sb-fuss .btn { display: none; } }
 .wi-stand.faellig { color: #b45309; font-weight: 600; }
 /* Pflichtschulungen oben im Reiter */
 .wi-pflicht { display: flex; align-items: center; gap: 12px; background: #fff7ed; border: 1px solid #fdba74; border-left: 4px solid #F08300; border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; }

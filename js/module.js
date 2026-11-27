@@ -68,7 +68,9 @@ const MODUL_ANSICHTEN = {
   vorfaelle:     MODUL_ADMIN.concat(['vorfaelle']),
   // Die Bibliothek ist für alle da und braucht den Verwaltungsblock nicht:
   // Modell und Ansicht, mehr nicht – so bleibt der Reiter für 1.000 Leser leicht.
-  wissen:        ['wissenmodell', 'wissen'],
+  // Die Schaubilder zeichnen ohne Verwaltungsblock; das Assetmodell holen sie
+  // erst, wenn jemand mit Zugriff auf das Register ein Bild öffnet.
+  wissen:        ['wissenmodell', 'schaubild', 'wissen'],
   // Das Assetregister: Modell im Verwaltungsblock (Report, Notfall, Risiken
   // rechnen damit), die Ansicht nur hier.
   assets:        MODUL_ADMIN.concat(['assets']),

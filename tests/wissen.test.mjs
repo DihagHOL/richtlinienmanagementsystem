@@ -24,7 +24,7 @@ const lies = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').jo
 /* ── 1) Das Modell – rein, ohne Browser ── */
 const M = require(path.join(ROOT, 'js/wissenmodell.js'));
 
-ok(M.WI_ARTEN.map(a => a.key).join() === 'kurs,video,artikel,link,test', 'Fünf Arten: Schulung, Video, Artikel, Link, Wissenstest');
+ok(M.WI_ARTEN.map(a => a.key).join() === 'kurs,video,artikel,link,test,schaubild', 'Sechs Arten: Schulung, Video, Artikel, Link, Wissenstest, Schaubild');
 ok(M.wiAckId('b1') === 'wissen:b1' && M.wiIstWissenAck({ richtlinieId: 'wissen:b1' }) && !M.wiIstWissenAck({ richtlinieId: '7' }) && M.wiBeitragIdVon({ richtlinieId: 'wissen:b1' }) === 'b1',
   'Der Nachweis trägt die Kennung „wissen:…" – Auswertungen je Regelwerk sehen ihn nicht');
 ok(M.wiSlug('Phishing & E-Mail') === 'phishing-e-mail' && M.wiSlug('Passwörter') === 'passwoerter', 'Ein Thema bekommt ein lesbares Kürzel');
@@ -80,12 +80,12 @@ ok(aw[1].gesehen === 2 && aw[1].teilnahmen === 3 && aw[1].bestanden === 1 && aw[
 
 const leer = M.wiNormalisieren({});
 const n = M.wiStartbestandErgaenzen(leer, 'Anna', '2026-09-16T12:00:00Z');
-ok(n === 19 && leer.themen.length === 9 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
-  'Der Startbestand: neun Themen, neunzehn Beiträge (drei Schulungen, Artikel und Tests) – und jeder besteht die eigene Prüfung');
+ok(n === 21 && leer.themen.length === 10 && leer.beitraege.every(b => M.wiBeitragFehler(b).length === 0),
+  'Der Startbestand: zehn Themen, einundzwanzig Beiträge (drei Schulungen, zwei Schaubilder, Artikel und Tests) – und jeder besteht die eigene Prüfung');
 ok(new Set(leer.themen.map(t => t.bereich)).size === 5 && leer.themen.some(t => t.bereich === 'Compliance & Verhalten') && leer.themen.some(t => t.bereich === 'Arbeitssicherheit') && leer.themen.some(t => t.bereich === 'Qualität & Umwelt'),
   'Fünf Bereiche – Informationssicherheit, Datenschutz, Compliance & Verhalten, Arbeitssicherheit, Qualität & Umwelt: nicht nur IT');
 ok(leer.beitraege.filter(b => b.art === 'test').every(b => b.fragen.length >= 3 && b.fragen.every(q => q.optionen.length === 3)), 'Jeder Test hat mindestens drei Fragen mit je drei Antworten');
-ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 19, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
+ok(M.wiStartbestandErgaenzen(leer, 'Anna') === 0 && leer.beitraege.length === 21, 'Ein zweites Mal ergänzt nichts – nichts wird doppelt angelegt');
 ok(leer.beitraege.every(b => b.erstelltVon === 'Anna' && b.erstelltAm === '2026-09-16T12:00:00Z'), 'Wer angelegt hat, steht dran');
 ok(!/Videos? (stehen|steht) (drin|bereit)/.test(JSON.stringify(M.WI_STARTBESTAND)) && !M.WI_STARTBESTAND.beitraege.some(b => b.art === 'video'),
   'Keine erfundenen Videos – die dreht das Haus selbst oder wählt sie aus');
@@ -250,7 +250,7 @@ run('closeModal()');
 // Startbestand, Auswertung
 gespeichert.length = 0;
 run('wiStartbestand()');
-ok(/Startbestand ergänzen/.test(modal) && (modal.match(/wiStartbestandWahl\(/g) || []).length === 19 && !/type="checkbox" checked/.test(modal),
+ok(/Startbestand ergänzen/.test(modal) && (modal.match(/wiStartbestandWahl\(/g) || []).length === 21 && !/type="checkbox" checked/.test(modal),
   'Der Startbestand als Auswahl: alles, was fehlt, nichts vorab angekreuzt');
 gemeldet.length = 0;
 await run('wiStartbestandAnlegen()');
@@ -258,7 +258,7 @@ ok(gespeichert.length === 0 && gemeldet.some(x => /mindestens einen/.test(x)), '
 run('wiStartbestandFehlend(_wi.daten).forEach(b => wiStartbestandWahl(b.id, true))');
 await run('wiStartbestandAnlegen()');
 // „Datenschutz" gibt es schon (gleiche Kennung) – das Thema bleibt, wie es ist; nur fünf Themen kommen dazu.
-ok(run('_wi.daten.beitraege.length') === 6 + 19 && run('_wi.daten.themen.length') === 1 + 8 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
+ok(run('_wi.daten.beitraege.length') === 6 + 21 && run('_wi.daten.themen.length') === 1 + 9 && run("wiThema(_wi.daten, 'datenschutz').kurz") === 'Was personenbezogen ist.' && gespeichert.length === 1, 'Der Startbestand kommt dazu – ohne Vorhandenes zu berühren');
 await run('wiAuswertungOeffnen()');
 const aus = felder['modal-body'].innerHTML;
 ok(/Beitrag<\/th>/.test(aus) && /Phishing in 3 Minuten/.test(aus) && /Person/.test(aus), 'Die Auswertung je Beitrag – Personen, nicht Klicks');
@@ -275,7 +275,7 @@ ok(/data-view="wissen" id="nav-wissen"/.test(idx) && idx.indexOf('data-view="wis
   'Der Reiter steht direkt unter „Meine Regelwerke" – neben den Richtlinien');
 ok(/if \(view === 'wissen'\) return true;/.test(acc) && /view: 'wissen'/.test(acc) && /show\('nav-wissen',\s+canReadTab\('wissen'\)\)/.test(acc),
   'Lesen dürfen alle; Pflegen vergibt die Reiter-Berechtigung („S")');
-ok(/wissen:\s*\['wissenmodell', 'wissen'\]/.test(mod) && /'wissenmodell',[^\]]*'clevelreport'\]/.test(mod),'Der Reiter lädt nur Modell und Ansicht; das Modell steht im Verwaltungsblock für Cockpit und Report');
+ok(/wissen:\s*\['wissenmodell', 'schaubild', 'wissen'\]/.test(mod) && /'wissenmodell',[^\]]*'clevelreport'\]/.test(mod),'Der Reiter lädt nur Modell, Schaubilder und Ansicht; das Modell steht im Verwaltungsblock für Cockpit und Report');
 ok(/if \(view === 'wissen'\s+&& typeof initWissen === 'function'\)\s+initWissen\(\);/.test(app) && /ansicht === 'wissen'/.test(app) && /wissen: 'Wissen: Themen, Videos, Awareness'/.test(app),
   'Ansicht, Titel und Link ?ansicht=wissen&beitrag=… sind angeschlossen');
 ok(/async function spLoadWissen/.test(lies('js/sharepoint.js')) && /zwischenzeitlich geändert/.test(lies('js/sharepoint.js')), 'wissen.json wird gelesen und mit Änderungsstempel geschrieben');

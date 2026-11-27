@@ -24,6 +24,12 @@ const WI_ARTEN = [
   { key: 'artikel', symbol: '📄', label: 'Artikel',     hinweis: 'Kurzer Text zum Lesen. Absätze durch Leerzeile, Aufzählung mit „- ", **fett** mit Sternchen.' },
   { key: 'link',    symbol: '🔗', label: 'Link',        hinweis: 'Ein Verweis nach draußen: BSI, Datenschutzbehörde, Intranet.' },
   { key: 'test',    symbol: '❓', label: 'Wissenstest', hinweis: 'Fragen mit genau einer richtigen Antwort. Freiwillig, beliebig oft, die Reihenfolge wird gemischt.' },
+  { key: 'schaubild', symbol: '📊', label: 'Schaubild', hinweis: 'Ein Bild, das das RMS selbst zeichnet, mit Erklärung darunter. Wer das Register dazu lesen darf, sieht darin unsere Zahlen.' },
+];
+/* Die Schaubilder, die das RMS zeichnen kann (js/schaubild.js). */
+const WI_SCHAUBILDER = [
+  { key: 'bereiche',    label: 'Informations-, IT- und Cybersicherheit (mit dem Assetregister)' },
+  { key: 'risikokurve', label: 'Wie viel Sicherheit sich lohnt (mit dem Risiko-Register)' },
 ];
 /* Bereiche, nach denen die Themen in der Leiste gruppiert sind – damit die
    Bibliothek nicht wie eine IT-Sammlung aussieht, sobald ein Thema aus
@@ -151,7 +157,7 @@ function wiNormalisieren(roh) {
   const beitraege = (Array.isArray(d.beitraege) ? d.beitraege : []).map(b => ({
     id: String(b.id || wiNeueId()), art: wiArt(b.art).key, thema: String(b.thema || ''),
     titel: String(b.titel || '').trim(), kurz: String(b.kurz || ''), url: String(b.url || ''), text: String(b.text || ''),
-    quelle: String(b.quelle || ''), dauer: Math.max(0, Number(b.dauer) || 0),
+    quelle: String(b.quelle || ''), dauer: Math.max(0, Number(b.dauer) || 0), bild: String(b.bild || ''),
     geltung: Array.isArray(b.geltung) && b.geltung.length ? b.geltung.map(String) : ['ALLE'],
     aktiv: b.aktiv !== false, stand: String(b.stand || '1'),
     bestehen: Math.max(1, Math.min(100, Number(b.bestehen) || WI_BESTEHEN)),
@@ -182,6 +188,7 @@ function wiBeitragFehler(b) {
   if ((art === 'video' || art === 'link') && !/^https?:\/\//i.test(String(b.url || '').trim()) && !/<iframe/i.test(String(b.url || '')))
     f.push(art === 'video' ? 'Eine Video-Adresse oder der Einbetten-Code fehlt.' : 'Eine Adresse (https://…) fehlt.');
   if (art === 'artikel' && !String(b.text || '').trim()) f.push('Der Text des Artikels fehlt.');
+  if (art === 'schaubild' && !WI_SCHAUBILDER.some(s => s.key === b.bild)) f.push('Welches Schaubild? Bitte eines auswählen.');
   if (art === 'kurs') {
     const module = Array.isArray(b.module) ? b.module : [];
     if (!module.length) f.push('Eine Schulung braucht mindestens ein Modul.');
@@ -345,6 +352,7 @@ function wiAuswertung(daten, acks) {
    nicht drin – die dreht das Haus selbst oder wählt sie aus. */
 const WI_STARTBESTAND = {
   themen: [
+    { id: 'grundlagen',   titel: 'Sicherheit verstehen',     symbol: '🧭', kurz: 'Was wir schützen und wie viel Schutz sich lohnt.', bereich: 'Informationssicherheit' },
     { id: 'phishing',     titel: 'Phishing & E-Mail',        symbol: '🎣', kurz: 'Die häufigste Tür für Angreifer, und die, die jede:r selbst zuhält.', bereich: 'Informationssicherheit' },
     { id: 'passwoerter',  titel: 'Passwörter & Zugänge',     symbol: '🔑', kurz: 'Ein Dienst, ein Passwort, ein zweiter Faktor.', bereich: 'Informationssicherheit' },
     { id: 'arbeitsplatz', titel: 'Arbeitsplatz & unterwegs', symbol: '💼', kurz: 'Bildschirm, Schreibtisch, Homeoffice, Bahn.', bereich: 'Informationssicherheit' },
@@ -556,6 +564,41 @@ Im Zweifel: Namen und Zahlen entfernen, allgemein fragen, oder den Anwendungsfal
         { frage: 'Welche Eingabe ist in einem öffentlichen KI-Chat in Ordnung?', optionen: ['Die Kalkulation eines Angebots.', 'Eine allgemeine Frage zur Formatierung einer Tabelle.', 'Die Bewerbungsunterlagen eines Kandidaten.'], richtig: 1 },
         { frage: 'Wer ist verantwortlich, wenn ein KI-Ergebnis falsch in ein Dokument gelangt?', optionen: ['Der Anbieter der KI.', 'Die Person, die das Ergebnis verwendet hat.', 'Niemand: es war die KI.'], richtig: 1 },
       ] },
+    // Zwei Schaubilder: Das Bild zeichnet das RMS (js/schaubild.js), die Zahlen kommen aus den Registern.
+    { id: 'start-schaubild-bereiche', art: 'schaubild', bild: 'bereiche', thema: 'grundlagen', titel: 'Informations-, IT- und Cybersicherheit: was wozu gehört', dauer: 3,
+      kurz: 'Drei Begriffe in einem Bild, mit unseren Assets aus dem Register.',
+      text: `Die drei Begriffe werden oft durcheinander benutzt. Sie decken verschiedene Flächen ab, und daran hängt, wer sich um was kümmert.
+
+# IT-Sicherheit
+Der innere Kreis: unsere eigenen Systeme, also Anwendungen, Server, Netze und Endgeräte. Sie betreibt und schützt die IT.
+
+# Cybersicherheit
+Die große Fläche links: alles, was über Netze erreichbar ist. Dazu gehören die Steuerungen und Maschinen in den Werken, die Fernwartung durch Hersteller und die Systeme von Kunden und Lieferanten. Viele Angriffe beginnen genau dort.
+
+# Informationssicherheit
+Der Kreis rechts: jede Information, gleich ob im System, auf Papier oder im Kopf. Dazu gehören Zeichnungen und Prüfprotokolle im Ordner, das Wissen erfahrener Kolleginnen und Kollegen, Gebäude und Stromversorgung. Diesen Blick verlangt ISO 27001.
+
+# Dazwischen
+Cloud-Dienste und Dienstleister liegen in beiden Flächen: Es sind unsere Informationen auf fremden Systemen. Dort schützen Verträge und Prüfungen, was die eigene IT nicht erreicht.
+
+>✓ Wer das Assetregister sehen darf, sieht im Bild unsere Zahlen. Ein Klick auf einen Bereich zeigt die Assets dazu. Steht dort „· 0“, fehlt der Bereich noch im Register.` },
+    { id: 'start-schaubild-risikokurve', art: 'schaubild', bild: 'risikokurve', thema: 'grundlagen', titel: 'Wie viel Sicherheit lohnt sich?', dauer: 3,
+      kurz: 'Schaden gegen Aufwand, und wo wir mit unseren Risiken stehen.',
+      quelle: 'Darstellung nach calpana business consulting, angepasst',
+      text: `Jede Maßnahme kostet Geld und Zeit. Jedes Risiko, das bleibt, kann Schaden anrichten. Das Bild legt beides über das Restrisiko, das ein Unternehmen bewusst trägt: links viel, rechts keins.
+
+# Die Kurven
+- **Erwarteter Schaden:** Je mehr Risiko bleibt, desto mehr Schaden ist im Schnitt pro Jahr zu erwarten.
+- **Aufwand für Maßnahmen:** Je weniger Risiko bleiben soll, desto teurer wird jeder weitere Schritt. Ganz ohne Restrisiko geht es nicht, auch nicht mit viel Geld.
+- **Summe:** Wo sie am niedrigsten ist, ist Sicherheit am wirtschaftlichsten.
+
+# Die Bereiche
+- **Fahrlässig:** Hohe Risiken bleiben liegen, ohne dass jemand entscheidet.
+- **Risikomanagement:** Jedes Risiko wird bewertet und dann gesenkt, übertragen (etwa an eine Versicherung) oder bewusst getragen. Wer es trägt, begründet das.
+- **Um jeden Preis:** Der Aufwand übersteigt den Schaden, den er verhindern soll.
+
+# Wer entscheidet
+Wie viel Restrisiko wir tragen, legt die Geschäftsführung fest. Das Risiko-Register zeigt, wo wir heute stehen: Hohe Risiken, die noch offen sind, liegen im linken Bereich und brauchen eine Entscheidung.` },
   ],
 };
 
@@ -1059,7 +1102,7 @@ function wiStartbestandErgaenzen(daten, wer, jetzt, nur) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WI_ARTEN, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN, WI_KURS_PROZESSE_RMS,
+  module.exports = { WI_ARTEN, WI_SCHAUBILDER, WI_BEREICHE, WI_PREFIX, WI_TAGE, WI_BESTEHEN, WI_WERKE, WI_STARTBESTAND, WI_KURS_PHISHING, WI_KURS_BPMN, WI_KURS_PROZESSE_RMS,
     wiArt, wiAckId, wiIstWissenAck, wiBeitragIdVon, wiNeueId, wiSlug, wiTextHtml, wiMonateSpaeter, wiNormalisieren, wiThema, wiBeitrag,
     wiBeitragFehler, wiSichtbar, wiStand, wiKursStatus, wiPflichtQuote, wiKennzahlen, wiAuswertung, wiStartbestandErgaenzen, wiStartbestandFehlend, wiTag,
     wiFortschrittVon, wiFortschrittText, wiZertifikatHtml };
